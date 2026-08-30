@@ -911,7 +911,7 @@ const MC = {
   // performance metrics (KPI accents + trend lines) - globally unique
   'Ad spend':'#64748B','Impressions':'#22D3EE','Clicks':'#A3E635','Sessions':'#E84A6F',
   'Key events':'#F59E0B','Ad-driven (paid)':'#8B5CF6','Engaged sessions':'#2DD4BF','Paying':'#34D399',
-  'Leads':'#3B82F6','New paying customers':'#34D399',
+  'Leads':'#3B82F6','Paying customers (by contact month)':'#34D399',
   'CPM':'#FDE047','CPC':'#FB7185',
   // GA4 traffic channels / signup sources
   'Direct':'#38BDF8','Organic Search':'#14B8A6','Organic Social':'#C084FC','Paid Search':'#818CF8',
@@ -1577,7 +1577,7 @@ const LEGEND_TIPS={
     'Trade Desk':'Bars = money spent on The Trade Desk (programmatic display ads) in that period, in AUD.',
     'Reddit':'Bars = money spent on Reddit ads in that period, in AUD.',
     'Leads':'Leads the ad platforms themselves reported for that period (form fills / sign-up conversions attributed to ads). Follows the platform + campaign filters. Trade Desk display reports none.',
-    'New paying customers':'People who became paying app customers, plotted by the date their contact was created (the CRM records no first-payment date). Whole-account CRM data - this line does NOT move with the platform/campaign filters. Same basis as Paying on the Signups & CRM tab.'},
+    'Paying customers (by contact month)':'People who became paying app customers, plotted by the date their contact was created (the CRM records no first-payment date). Whole-account CRM data - this line does NOT move with the platform/campaign filters. Same basis as Paying on the Signups & CRM tab.'},
   crmSignupsChart:{
     'Signups':'New app.reset.ai accounts created in that period.',
     'Paying':'How many of the signups from that period have spent real money as of today (not payments made in the period).'},
@@ -1885,8 +1885,19 @@ function renderOverview(){
   // ad spend. Leads/CPL are AD-ATTRIBUTED (Google·Meta·Reddit, filter-scoped); TTD display reports no
   // leads so it's EXCLUDED from the CPL basis (its spend is noted on the Ad-spend card). Paying customers
   // = crm.kpi.paying = rd_total_spend>0 (app billing, all-time, NOT filter-scoped). Its card toggles the
-  // hero's 'New paying customers' line - the SAME payers dated by contact created date (HubSpot records
-  // no first-payment date), so the line sums to this card. NOT lifecycle 'Customer' (77, ~zero overlap).
+  // hero's 'Paying customers (by contact month)' line - the SAME payers dated by contact created date
+  // (HubSpot records no first-payment date), so the line sums to this card. NOT lifecycle 'Customer'
+  // (77, ~zero overlap).
+  //
+  // THIS CARD IS THE ODD ONE OUT IN A ROW HEADED "Campaign goal", and its sublabel has to say so.
+  // Leads / CPL / Ad spend are ad-attributed and filter-scoped; this is EVERY paying customer the
+  // business has, however they arrived. By HubSpot's own Original Source only 27 of the 150 came
+  // from a paid source (Paid Search 18 + Paid Social 9) - 120 are Offline/Sales and Direct. Sitting
+  // unqualified next to three ad metrics, it read as "the campaign produced 150 paying customers".
+  // Do NOT put the 27 on the card: `ad_attributed` in sql/28 counts contacts with a click id, NOT
+  // paying ones, and HubSpot attribution here is thin (most signups land Offline/Direct), so a
+  // paid-source count on a client card would understate the ads and invite an argument we would
+  // lose on data quality. Scope it honestly; leave the attribution split to the source table below.
   const LEADP=['google','meta','reddit'];
   const byP={}; PLATFORMS.forEach(p=>byP[p]={spend:0,conv:0});
   // spend uses nAdd so a WITHHELD row makes that platform's spend unknown, not a partial sum.
@@ -1903,7 +1914,7 @@ function renderOverview(){
   document.getElementById('ovNorthStar').innerHTML=[
     nsCard('k-ns-leads','Ad-reported leads',fmtN(adLeads),'Google · Meta · Reddit conversions', leadsBy, false, {chart:H,series:'Leads'}),
     nsCard('k-ns-cpl','Cost per lead',aud(cpl),'lead-channel spend &divide; leads', cplBy, true, null),
-    nsCard('k-ns-paying','Paying customers',fmtN(heldNum(crmKpi.paying)),'all-time · app billing (has spent) · not filter-scoped', null, false, {chart:H,series:'New paying customers'}),
+    nsCard('k-ns-paying','Paying customers',fmtN(heldNum(crmKpi.paying)),'all sources · all time · app billing · not ad-attributed', null, false, {chart:H,series:'Paying customers (by contact month)'}),
     nsCard('k-ns-spend','Ad spend',aud(spend),(ttdSpend==null?'Trade Desk display spend not available':(ttdSpend?aud(ttdSpend)+' on Trade Desk display (no lead tracking)':'all lead channels')), acmMoneyBy('spend_aud'), false, {chart:H,stack:'spend'}),
   ].join('');
 
@@ -1995,7 +2006,7 @@ function renderHero(){
     {label:'Leads',            color:mc('Leads'),       data:leads,    w:2.8, axis:'y1'},
     // crm.held => the block was not given to this session. Drop the series rather than plotting a
     // flat zero line, which would read as "no-one ever became a paying customer".
-    crm.held?null:{label:'New paying customers', color:mc('Paying'),  data:crm.pay,  w:2.5, dash:true,  axis:'y1'},
+    crm.held?null:{label:'Paying customers (by contact month)', color:mc('Paying'),  data:crm.pay,  w:2.5, dash:true,  axis:'y1'},
   ].filter(e=>e&&e.data);
   // A platform whose spend is withheld carries an all-null series; drop its bar rather than
   // stacking a zero-height bar that reads as "this platform spent nothing".

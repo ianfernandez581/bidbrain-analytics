@@ -16,6 +16,50 @@ sessions, engagement, and the demand-gen key events (lead form, sign-up, $50-cre
 
 ---
 
+## "Paying customers" - what it is, and what it is NOT (2026-08-31)
+
+The **Campaign goal** strip on Overview holds four cards. Three are ad-attributed and
+filter-scoped (Ad-reported leads, Cost per lead, Ad spend). The fourth, **Paying customers**, is
+NOT: it is `crm.kpi.paying` = every HubSpot contact with `rd_total_spend > 0` - every paying
+customer the business has, **however they arrived**.
+
+Sitting unqualified in a row headed "Campaign goal", it read as *"the campaign produced 150 paying
+customers."* By HubSpot's own Original Source it did not:
+
+| Original Source | paying |
+|---|---|
+| Offline / Sales | 60 |
+| Direct | 60 |
+| **Paid Search** | **18** |
+| **Paid Social** | **9** |
+| Organic / other | 3 |
+| **total** | **150** |
+
+So **27 of 150 (18%)** came from a paid source; 120 are Offline/Sales and Direct. The card's
+sublabel now says **`all sources · all time · app billing · not ad-attributed`** - the number is
+unchanged and still worth showing (it IS the business outcome the campaign is aiming at), it just
+no longer claims to be the campaign's output.
+
+**Do NOT put "27 from paid" on the client card.** Two reasons: `ad_attributed` in
+`sql/28_crm_source_quality` is `COUNTIF(has_ad_click_id)` - contacts carrying a gclid/fbclid, NOT
+*paying* contacts, so it is not the number it looks like (147 vs 150 is a coincidence of scale);
+and HubSpot attribution here is thin by design - most signups land Offline/Direct, which is exactly
+why the `Ad-ID` column and the ad tabs exist. A paid-source count on a headline card would
+understate the ads and invite an argument we would lose on data quality. The attribution split
+already lives, correctly caveated, in **Which sources drive paying customers vs free signups**.
+
+**The hero line was renamed** `New paying customers` -> **`Paying customers (by contact month)`**.
+It is plotted by **contact-created date**, because HubSpot records no first-payment date - so it is
+a cohort curve ("contacts created that month who have since paid"), not a timeline of people who
+started paying that month. "New paying customers" beside a monthly ad-spend bar implied the second
+reading. The rename touches FOUR sites that must stay in step: the `mc()` colour key, the tooltip
+map, the `nsCard` toggle target (`{chart:H,series:...}`) and the dataset label. Verified: colour
+`#34D399` preserved, 9 points, and card-toggle behaviour byte-identical to the previous build.
+
+**Two different "customers" exist and are not interchangeable:** `paying` = 150 (app billing, has
+spent) and lifecycle `customers` = 77 (maintained by sales, does not auto-advance when someone
+starts paying). Near-zero overlap. The Signups & CRM tab shows both.
+
 ## What the spend figures ARE, and how the page says so (2026-08-27)
 
 Removing the hardcoded x2 Reddit markup put all four platforms on ONE basis - raw **media cost**,
