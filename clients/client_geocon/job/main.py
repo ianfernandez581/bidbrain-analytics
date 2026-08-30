@@ -112,15 +112,27 @@ def _benchmarks(targets):
     }
 
 
-def _flight(bud_row, benchmarks, fact, prop, today):
+def _flight(bud_row, benchmarks, fact, prop, today, plan=None):
     """Flight / pacing for one development — flight-window based, independent of the dashboard's
     date filter.
 
-    PACING IS AGAINST THE MEASURABLE BUDGET, not the committed one. Northbourne commits A$205,600
-    but A$17,100 of that (the SEO retainer and the Google Search management fee) reaches no ad
-    server, so pacing spend-to-date against the full figure would report a permanent 8.3% shortfall
-    that no amount of delivery could ever close. `budget_committed` carries the signed number so
-    the dashboard can show both and the gap is stated rather than hidden.
+    PACING IS AGAINST THE BUDGET THAT IS ACTUALLY IN MARKET. Two reductions, each for the same
+    reason — a denominator no amount of delivery could ever close is not a pace, it is a permanent
+    accusation:
+
+      1. committed -> measurable. Northbourne commits A$205,600 but A$17,100 of that (the SEO
+         retainer and the Google Search management fee) reaches no ad server at all.
+      2. measurable -> IN MARKET. Only the media-plan lines that have actually started can spend.
+         Northbourne is a nine-line plan with one line running (Trade Desk High Impact, A$40,000),
+         so pacing its A$3.8k against the full A$188,500 read 11% of pace on a line that is
+         performing to plan — the eight lines waiting on creative and approvals were being counted
+         as a shortfall against the one that launched.
+
+    `budget` is the PACING denominator (the existing convention, so every consumer keeps its
+    meaning); `budget_in_market`, `budget_measurable` and `budget_committed` carry the other three
+    figures beside it so the whole commitment stays on screen and the gap is stated, never hidden.
+    A development with no seeded media plan (Gateway Braddon) has no line detail to reduce by and
+    paces on its measurable budget exactly as before.
     """
     b = bud_row or {}
     fstart = b.get("flight_start")
@@ -142,6 +154,20 @@ def _flight(bud_row, benchmarks, fact, prop, today):
     flight_leads = sum(int(r["leads"] or 0) for r in sel)
     flight_imps  = sum(int(r["impressions"] or 0) for r in sel)
 
+    # ---- which media-plan lines are IN MARKET ----------------------------------------------
+    # Delivery-derived, never the plan's own dates: a line is in market when rows carrying its
+    # `plan_line` have delivered inside the flight. Measured on the UNFILTERED fact, so the figure
+    # is stable — pacing is full-flight and must not move when someone unticks a platform chip.
+    plan = plan or []
+    lines_live = {r.get("plan_line") for r in sel if r.get("plan_line")}
+    live_lines = [l for l in plan if l.get("line") in lines_live and l.get("measurable")]
+    budget_in_market = round(sum(num(l.get("budget")) or 0 for l in live_lines), 2) if live_lines else None
+    # Reduce only when we actually know better: a seeded plan, at least one line live, and a figure
+    # smaller than the measurable budget. Anything else keeps the old denominator.
+    use_in_market = bool(plan and budget_in_market and measurable and budget_in_market < measurable)
+    pace_budget = budget_in_market if use_in_market else measurable
+    first_delivery = min((r.get("date") for r in sel if r.get("date")), default=None)
+
     days_total = (fend - fstart).days + 1 if (fstart and fend) else None
     days_elapsed = None
     if fstart:
@@ -150,14 +176,34 @@ def _flight(bud_row, benchmarks, fact, prop, today):
             days_elapsed = max(0, min(days_elapsed, days_total))
         else:
             days_elapsed = max(0, days_elapsed)
-    daily_pace = benchmarks["daily_pace"] or (measurable / days_total if (measurable and days_total) else None)
+    # The seeded `daily_pace_aud` describes the WHOLE plan, so it cannot be used once the
+    # denominator is the in-market subset — it would pace A$40,000 at A$2,356/day.
+    daily_pace = ((pace_budget / days_total) if (use_in_market and pace_budget and days_total)
+                  else (benchmarks["daily_pace"]
+                        or (measurable / days_total if (measurable and days_total) else None)))
     pace_expected = (daily_pace * days_elapsed) if (daily_pace and days_elapsed) else None
-    projected_spend = (flight_spend / days_elapsed * days_total) if (days_elapsed and days_total) else None
+    # Projection runs on the DELIVERING window, not the elapsed flight, whenever a line started
+    # late. Northbourne's flight opened 08-13 and its one line began 08-20: averaging over the
+    # seven dead days projected A$20.5k of a A$40k line that is in fact running slightly ABOVE
+    # plan rate and lands on budget. A projection that contradicts the campaign's own run-rate is
+    # worse than none — it argues for topping up a line that needs nothing.
+    run_days = ((today - first_delivery).days + 1) if first_delivery else None
+    if run_days and days_total and days_elapsed and run_days < days_elapsed:
+        projected_spend = flight_spend + (flight_spend / run_days) * max(0, days_total - days_elapsed)
+    else:
+        projected_spend = (flight_spend / days_elapsed * days_total) if (days_elapsed and days_total) else None
     return {
         "start": iso(fstart), "end": iso(fend),
         # `budget` stays the PACING budget so every existing consumer keeps its meaning; the
-        # committed total is additive information beside it.
-        "budget": measurable, "budget_committed": committed, "budget_measurable": measurable,
+        # in-market, measurable and committed totals are additive information beside it.
+        "budget": pace_budget, "budget_committed": committed, "budget_measurable": measurable,
+        "budget_in_market": budget_in_market,
+        # What the pacing denominator IS, so the dashboard can label it rather than leave the
+        # reader to work out which of four budget figures the bar is drawn against.
+        "pace_basis": "in_market" if use_in_market else "flight",
+        "plan_lines_total": len(plan) or None,
+        "plan_lines_live": len(live_lines) if plan else None,
+        "first_delivery": iso(first_delivery),
         "budget_unmeasurable": (round(committed - measurable, 2)
                                 if (committed is not None and measurable is not None) else None),
         "days_total": days_total, "days_elapsed": days_elapsed,
@@ -222,7 +268,8 @@ def build_env(bq, observed):
             "key": key,
             "label": p.get("display_name") or key,
             "status": p.get("status") or "live",
-            "flight": _flight(bud_by_prop.get(key), pbench, fact, key, today),
+            "flight": _flight(bud_by_prop.get(key), pbench, fact, key, today,
+                              plan_lines.get(key, [])),
             "benchmarks": pbench,
             "targets": ptargets,
             "plan": plan_lines.get(key, []),

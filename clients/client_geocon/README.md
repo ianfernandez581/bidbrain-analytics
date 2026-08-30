@@ -6,7 +6,7 @@ via the top-nav selector. Two developments today:
 | Development | Channels | Budget | Flight | State |
 |---|---|---|---|---|
 | **Gateway Braddon** | Meta only | A$7,500 | 2026-06-21 -> 07-20 | live, delivering |
-| **Northbourne Gateway** (558 apartments) | Meta / LinkedIn / Trade Desk / Google Ads (+ SEO) | **A$205,600** | 2026-08-13 -> 10-31 | **COMING SOON** - held by `status` in the seed, not by lack of data |
+| **Northbourne Gateway** (558 apartments) | Meta / LinkedIn / Trade Desk / Google Ads (+ SEO) | **A$205,600** | 2026-08-13 -> 10-31 | **LIVE since 2026-08-28** on its Trade Desk line alone (1 of 9 plan lines) - see "Awareness mode" |
 
 **Gateway Braddon is unchanged** by the 2026-08-24 multi-channel rebuild - verified as a strict
 no-op, see "The multi-channel rebuild" below. No Snowflake / Salesforce / Content-Syndication lane
@@ -14,9 +14,12 @@ here.
 
 ## Multiple developments — the `property` selector (added 2026-08-12)
 
-This dashboard covers a CLIENT (Geocon), not a single development. **Gateway Braddon** is
-delivering; **Northbourne Gateway** shows in the top-nav selector as *"- coming soon"* and renders a
-placeholder until it is deliberately switched live (see "the state of play" below).
+This dashboard covers a CLIENT (Geocon), not a single development. Both are live today: **Gateway
+Braddon** (Meta lead-gen, flight ended 2026-07-20) and **Northbourne Gateway** (Trade Desk
+awareness, in market). **Northbourne is now the DEFAULT landing development** - `initProperty()`
+picks the first live-and-delivering entry in seed order and Northbourne is `seq 1`. That is the
+current campaign, so it is the right landing view, but it IS a change from the Braddon-first default
+the dashboard had until 2026-08-28.
 
 **Why this exists is a safety rail, not a feature.** `sql/01_stg_meta.sql` scopes on
 `STARTS_WITH(campaign_name,'Geocon_')` so any new Geocon campaign flows in AUTOMATICALLY. Without a
@@ -45,17 +48,41 @@ client's spend.
 **The dashboard filters in ONE place** — `ROWS()` in `dash/dashboard.html` (plus `bdWithin` for the
 breakdowns). Every rollup derives from those, so the whole page scopes together.
 
-### Northbourne Gateway - the state of play (2026-08-24)
+### Northbourne Gateway - the state of play (LIVE 2026-08-28)
 
-**It is deliberately COMING SOON, and it stays that way until someone says otherwise.** The
-development is 558 apartments on a A$205,600 plan, flight 2026-08-13 -> 10-31, buying Meta,
-LinkedIn, Trade Desk and Google Ads (plus an SEO retainer, which has no ad server and is therefore
-never a dashboard platform). Trade Desk and Google can be in market and spending while the campaign
-as a whole is still waiting on creative and client approval for the rest - and publishing a
-one-platform view of a four-platform launch would misrepresent it. So the dashboard shows a
-**coming-soon placeholder** and reports no performance at all.
+**It was deliberately COMING SOON until 2026-08-28, when it was switched live on request** with one
+of its nine plan lines in market. The development is 558 apartments on a A$205,600 plan, flight
+2026-08-13 -> 10-31, buying Meta, LinkedIn, Trade Desk and Google Ads (plus an SEO retainer, which
+has no ad server and is therefore never a dashboard platform).
 
-**Going live is a one-word CSV edit.** `status` in `targets/property_map.csv`:
+What is on screen today is the **Trade Desk High Impact** line (plan seq 1, A$40,000): 737,352
+impressions / 637 clicks / A$3,848.90 over 2026-08-20 -> 08-26, reconciling exactly to `fact_all`.
+The other eight lines have not started, which the page says in three places rather than leaving the
+reader to infer it from a low bar - a "1 of 9 plan lines in market" pill on the pacing card, a
+"Media-plan lines live" KPI carrying the A$40,000-of-A$188,500 split, and a "Plan lines in market"
+insight card. **That context is load-bearing:** pacing runs against the whole A$188,500 measurable
+budget from day one, so a launch performing exactly to plan still reads *Under pace* at 2% of budget
+on day 15 of 80.
+
+**Pacing runs against the budget that is IN MARKET, not the whole plan (2026-08-28).** A nine-line
+plan with one line running paced its A$3,849 against the full A$188,500 and read 11% of pace on a
+line performing to plan - the eight lines waiting on creative and approvals were being counted as a
+shortfall against the one that launched. `job/main.py::_flight` now sums the budget of the plan
+lines that have actually DELIVERED inside the flight (delivery-derived, never the plan's own dates,
+and measured on the unfiltered fact so a platform chip cannot move it) and paces on that:
+A$40,000, A$500/day, expected A$7,500 at day 15. It grows on its own as lines launch and needs no
+edit. `budget_in_market` / `budget_measurable` / `budget_committed` all ship beside it, the pacing
+card names which one the bar is drawn against, and a development with no seeded plan (Gateway
+Braddon) is untouched - `pace_basis` is `flight` and it paces on its measurable budget exactly as
+before.
+
+**The projection follows the DELIVERING window when a line started late.** Northbourne's flight
+opened 08-13 and its line began 08-20; averaging spend over the seven dead days projected A$20.5k
+of a A$40k line that is in fact running slightly ABOVE plan rate. It now projects A$35,121 (88%).
+A projection that contradicts the campaign's own run-rate is worse than none - it argues for topping
+up a line that needs nothing.
+
+**The switch is still a one-word CSV edit, in both directions.** `status` in `targets/property_map.csv`:
 
 | `status` | What the dashboard does |
 |---|---|
@@ -69,9 +96,149 @@ one-platform view of a four-platform launch would misrepresent it. So the dashbo
 gcloud run jobs execute geocon-export --region australia-southeast1 --update-env-vars FORCE_REBUILD=1 --wait
 ```
 
-No code change, no deploy. **This is deliberately NOT automatic** - it used to be (a development
-switched itself on the moment its first row landed), and that is exactly the behaviour that would
-have published Northbourne off the back of its Trade Desk line alone.
+No code change, no deploy - and it reverts the same way. **This is deliberately NOT automatic** -
+it used to be (a development switched itself on the moment its first row landed), and the decision
+to publish a one-line view of a nine-line plan should be a person's, which is exactly what happened
+here.
+
+### Awareness mode - a development renders what it MEASURES (2026-08-28)
+
+Switching Northbourne live exposed that this dashboard was built entirely around Meta lead-gen.
+Gateway Braddon reports enquiries, landing-page views, reach and frequency; **Trade Desk reports
+none of the four**. Rendered unchanged, the Northbourne tab would have shown a funnel dead-ending at
+0, an "on track to goal?" chart against no goal, a CPL column of dashes, empty Meta audience and
+placement charts, and - the worst of them - every Trade Desk creative watermarked **GATEWAY
+BRADDON** (two hardcoded literals in `renderCreative` / `openCreative`; the CDN-expiry path
+`ccFallback()` had always used the selected development).
+
+So the page now derives what to render from what the development's platforms actually report:
+
+```js
+const reports = f => ROWS().some(r => r[f] != null);   // is this measured at all?
+const hasAny  = f => ROWS().some(r => n(r[f])  > 0);   // measured, and non-zero
+const leadShaped = () => reports('leads') || bench('lead_target') != null;
+```
+
+**The test is NULLNESS, not magnitude, and the staging views are what make that work.**
+`sql/08_stg_ttd` sets `leads` / `reach` / `landing_page_views` to `CAST(NULL AS INT64)` with the
+comment "no lead form, not zero starts". A metric a platform does not report is NULL; a metric it
+reports as zero is 0. `hasAny` is the second test, for a feed that sends a column it cannot fill -
+Trade Desk returns video columns on a display buy, all zeros, and a video chart of zero bars reads
+as a failed campaign rather than an absent format.
+
+`renderMeasureScope()` applies the decision in one place, before every other renderer:
+
+| What is missing | What the page does |
+|---|---|
+| leads | Hides the goal chart, efficiency map, CPL trend, day-of-week and budget-burn cards; drops the Leads / CPL columns from all four tables; swaps the KPI band, hero trend, funnel, goal bars, insights, creative metrics and the ad table's *Read* verdict to their awareness form |
+| reach | Hides reach & frequency + creative fatigue; drops the Freq. column |
+| landing-page views | Drops the LPV / Cost-per-LPV columns and the LP-views funnel step |
+| video (all-zero) | Hides the video card |
+| Meta breakdowns | Hides the whole "Who & where we reached" section |
+
+Column hiding is CSS (`body.no-leads .c-lead{display:none}`), set once from `renderMeasureScope()`,
+so every table follows one decision. Hidden cards collapse their `.grid` row via `syncGrids()` - a
+fixed `1fr 1fr` track would otherwise leave a 50% hole.
+
+**Awareness mode is not a Northbourne special case.** Adding a platform needs nothing here: the
+panels it can feed appear the day it delivers, the ones it cannot stay hidden, and Northbourne
+becomes lead-shaped on its own the moment the Meta line (seq 9, A$90,000) starts reporting leads.
+
+**Verified a strict no-op on Gateway Braddon** - rendered headless before and after against the real
+payload: its `<body>` carries no measure classes, all twelve gateable cards stay shown, the funnel
+keeps all five steps, and the KPI band still reads "Meta enquiries 176 / CPL A$91 / Qualified 35 /
+A$16,076".
+
+**The PLAN side is no longer grossed by the billed multiplier (2026-08-31).** `bbApplySpendMult`
+grossed `budget` and `pace_expected` along with the actuals. That preserved the pacing RATIO - both
+sides moved together - while printing a budget that matches nothing: Northbourne's **A$142,000** of
+in-market lines displayed as **A$220,421**, the blended delivery-mix factor applied to a plan figure.
+The media plan is what the client signed and pays; it is ALREADY the client-billed number, so
+grossing it bills them twice on paper. Only `spend_to_date` and `projected_spend` are grossed now -
+billed spend against the signed billed budget. **This moves the displayed pacing % wherever a
+multiplier is set:** Gateway Braddon's flight now reads against its true signed A$7,500 rather than a
+doubled A$15,000. A ratio that is right for a reason nobody can reconstruct from the numbers on
+screen is not right.
+
+**The client-billed multiplier was channel-blind, and missed pacing entirely (fixed 2026-08-28).**
+Two bugs in `bbApplySpendMult`, both introduced by the multi-channel rebuild rather than by any one
+change:
+
+1. **It read a single `meta` factor and applied it to every row.** Correct while geocon was
+   Meta-only; silently wrong from the day Trade Desk landed. The registry entry is `{meta: 2.0}` and
+   nothing else, so **every Trade Desk row was grossed by META's billed rate** - A$550.21 of real
+   25-Aug delivery reported as A$1,100, while impressions and clicks stayed raw. That asymmetry is
+   the tell: a doubled *dataset* doubles the counts too, a doubled *rate* only moves the money. It
+   now grosses per row by that row's own channel (`BB_CHAN_KEY` -> the platform's `SPEND_CHANNELS`
+   vocabulary), so an undefined channel stays at 1 = raw.
+2. **It grossed only the legacy top-level `DATA.flight`.** `flight()` has read `propDef().flight`
+   since the multi-development rebuild, so **every pacing figure was raw while every KPI beside it
+   was billed** - on Gateway Braddon the KPI band read A$32,151 and the pacing bar A$3,694, on one
+   screen. It now grosses `properties[].flight` too, by that development's own blended
+   grossed-over-raw rate across its rows inside its flight window (the same clamp the job used).
+
+Whether the Trade Desk line should carry a billed markup at all is a COMMERCIAL decision, not a code
+one: add `ttd` in the super-admin Multiplier panel and it applies with no deploy. Note also that the
+shim grosses `budget` and `pace_expected` as well as spend, so Gateway Braddon's signed A$7,500
+displays as A$15,000 through the platform. The pacing *ratio* is right either way (both sides
+grossed), but if the signed plan figure is already the client-billed number then the plan side
+should not be grossed - unresolved, flagged rather than changed.
+
+#### The Google Ads tab (2026-08-31)
+
+A per-platform deep dive on the **client_resetdata** pattern (its Reddit section is the model): a
+platform whose buy is shaped differently enough from the rest that blending it into the shared
+tables loses the story. Two things make Google Ads that platform here:
+
+1. **It is two different buys under one channel** - a YouTube awareness video line (seq 2, A$12,000)
+   and two search conversion campaigns (seq 5, A$16,500). Their click-through rates are an order of
+   magnitude apart, so a blended CTR describes neither. The tab splits **Search vs Video** in the
+   type table, the campaign table and the plan table, and never prints a combined rate.
+2. **It is the only channel that reports conversions**, which the shared tables carry as one column
+   but which are the entire point of the search lines.
+
+**The tab renders for any development whose PLAN buys Google Ads, delivered or not** - "bought,
+built and waiting" is itself the answer to "where is Google Ads?". Gateway Braddon buys none, so it
+never sees the tab, and `setProperty` moves you off the tab if you switch to a development without
+it. With no delivery it shows a **pending state** naming the lines, the committed budget and what is
+actually blocking (the campaigns are built and correctly named - they are simply not switched on),
+with the signed plan table underneath. It becomes the live view on the first delivering row.
+
+**The video gap is stated, never printed as zero.** No view, view-rate or quartile metric exists in
+the Google Ads feed at all - not in `CampaignBasicStats`, not in `CampaignStats`, not in the empty
+`VideoStats`, and not in the Windsor fallback - so the YouTube line's 24,000-view target and A$0.50
+CPV cannot be reported against. The tab says so in prose rather than showing a zero.
+
+**Google Ads conversions now have a surface (2026-08-28).** `conversions` and
+`view_through_conversions` have flowed `sql/09_stg_google_ads` -> `10_fact_all` -> `job/main.py` ->
+the payload since 2026-08-24, and **nothing rendered them** - so the day the A$16,500 "Canberra
+Investors" search line starts, the conversions that are the whole point of a conversion buy would
+have landed invisible. There is now a `Conversions` KPI tile and a `Conv. / Cost per conv` pair on
+the platform table, both gated on `hasConversions()` (any non-NULL `conversions` row) so they stay
+hidden until Google Ads delivers - a strict no-op on today's Trade-Desk-only payload.
+
+Three rules it encodes:
+- **A conversion is never a lead.** `hasConversions()` is deliberately NOT part of `leadShaped()`:
+  a development delivering search conversions with no lead form must not flip the page into its
+  lead-gen shape and start drawing an enquiry funnel. The tile names the reporting platform
+  ("Google Ads-reported") for the same reason - a Google conversion and a Meta lead form can be the
+  same human enquiring twice, so they must never read as one number a client could add up.
+- **Cost per conversion divides by the spend of the channels that REPORT conversions**, not by all
+  spend. Blended, Trade Desk's awareness dollars land in the numerator and make search look worse:
+  on a mixed set that read **A$302** against Google Ads' true **A$88**. A rate needs a numerator and
+  a denominator describing the same rows.
+- **Trade Desk shows `-`, not 0**, in the conversions column - the awareness-mode nullness rule.
+
+Two smaller fixes came with it, both general:
+
+- **CTR precision follows the number** (`pctr()`). At a fixed 1dp, programmatic display CTR printed
+  `0.1%` for every creative, every campaign AND the target - so the vs-target column read
+  "0.1% vs 0.1%" with a `+8%` delta between two identical-looking numbers, and the best and worst
+  creative on the page were indistinguishable. Under 1% it now shows three decimals
+  (`0.086% vs 0.080%`); a Meta CTR of 1.4% is untouched.
+- **DERIVED targets are labelled** `(derived)`, the caltex rule. Northbourne's CPM and CPC targets
+  are implied by the plan's budget / impressions / clicks, not committed by it, so an unlabelled red
+  delta would accuse the campaign of missing a KPI nobody agreed to.
 
 ### The platform toggle - the resetdata pattern
 
@@ -112,9 +279,101 @@ Worth remembering repo-wide: `Number.isFinite(Number(x))` is not a null guard.
 
 | Blocker | Detail |
 |---|---|
-| **No Geocon LinkedIn account in Windsor** | The connector carries APJC / STT / Cloudflare / Schneider / PropTrack / HireRight / ResetData and nothing else. `sql/07_stg_linkedin.sql` is written and returns zero rows. |
-| **No Geocon Trade Desk advertiser on the shared seat** | The seat carries VMCH / ResetData / WEHI / TLM / Altech / ACRS / City Perfume / Qtopia / Caltex / Peaches & Cream / BigAds. `sql/08_stg_ttd.sql` is written and returns zero rows. **A$64,000 across three lines - the largest block of the plan.** |
-| **Meta frozen at 2026-08-10** | The Windsor Meta grant lapsed 2026-08-11, estate-wide. Northbourne's A$90,000 Meta line cannot report until it is re-authed. |
+| **Trade Desk** | **RESOLVED, LIVE and ON THE DASHBOARD.** Advertiser `Geocon Group` is granted on the shared Windsor seat. The **High Impact** line (plan seq 1) has delivered since **2026-08-20**: 71 rows, **A$3,848.90 / 737,352 imps / 637 clicks** at 2026-08-26, resolving to `property = Northbourne Gateway` and `plan_line = High Impact` with zero Unmapped. Published to the Northbourne tab on **2026-08-28** (see "Awareness mode"). **Retargeting (seq 7) and Lookalike (seq 8), A$12,000 each, have not started.** |
+| **Meta** | **Feed RESOLVED, campaigns not built.** The Windsor Meta grant was re-authed 2026-08-25 and Gateway Braddon is current to 08-25, so the pipe is healthy - but the ad account holds **no Northbourne campaign at all** yet. The A$90,000 `Leads` line (seq 9) is waiting on campaign build, not on a grant. Its plan row has a NULL `match_pattern` **by design** - it is the Meta channel catch-all, and Meta has exactly one line. |
+| **Google Ads** | **Wired, PAUSED.** All three campaigns exist and are correctly named; they flow the moment they are un-paused. Nothing is needed from us. |
+| **LinkedIn** | **STILL BLOCKED - the only outstanding grant.** The connector carries APJC / STT / Cloudflare / Schneider / PropTrack / HireRight / ResetData and nothing else; there is no Geocon account on it. `sql/07_stg_linkedin.sql` is written and returns zero rows. A$6,000 (seq 4). |
+
+**Do not re-read the old "A$64,000 Trade Desk blocker" line anywhere - it is dead.** That grant landed
+with the estate-wide Trade Desk re-auth on 2026-08-25, which also issued a NEW seat id (484 -> 569).
+
+#### The Meta scope: `GG_` is the prefix Northbourne actually uses (FIXED 2026-08-31)
+
+**The 2026-08-27 fix below was necessary but NOT sufficient, and it certified itself green.** It
+stripped a leading `^[0-9]+_` and re-tested `Geocon_`, which is right for Trade Desk and Google Ads
+(`0201_Geocon_NGW558_*`). **Meta does not use that naming.** Its campaigns are
+`0201_GG_ACT Northboune Gateway_statics_CNV` - brief number, then **GG** for Geocon Group. Strip the
+number and you get `GG_ACT ...`, which still fails `STARTS_WITH('Geocon_')`.
+
+So 100% of Northbourne's Meta delivery was still being dropped: **220,812 impressions, 3,997 clicks,
+A$6,328.65 and 29 enquiries across 6 live campaigns**, on the plan's LARGEST line (seq 9, A$90,000).
+
+**The tell was in the sign-off.** That fix was verified as *"a strict no-op: 285 rows under both
+predicates, 0 newly admitted campaigns"* - and a no-op is exactly what a scope fix that admits
+nothing looks like. **When a scope change is meant to ADMIT rows, "no change" is a FAILURE, not a
+pass.** Assert the new names are in; never only that the old ones still are.
+
+Both gates now accept `Geocon_` OR `GG_` after the brief number is stripped:
+
+| File | Predicate |
+|---|---|
+| `sql/01_stg_meta.sql` | `REGEXP_CONTAINS(REGEXP_REPLACE(TRIM(campaign_name), r'^[0-9]+_', ''), r'^(Geocon_\|GG_)')` |
+| `ingest/meta_breakdown_pull.py` | `_GEOCON_CAMPAIGN = re.compile(r"^\s*(?:[0-9]+_)?(?:Geocon_\|GG_)")` |
+
+**Re-pulled 2026-08-31, so Northbourne's audience + placement charts are live** (462 age/gender and
+377 placement rows in range; 25-34 male is its largest band, and Feed / FB Reels overlay are neck
+and neck at ~99k impressions each). Two things to know before running it again:
+
+- **`bq load --replace` rewrites the WHOLE table, so always pull the FULL range**, not just the new
+  development's window. Pulling only 2026-08-24 onward would have silently deleted Gateway Braddon's
+  entire breakdown history. Baseline the row count first and confirm the new file is a superset.
+- **Windsor returns each campaign's CURRENT name for every historical date.** `Geocon_Leads_MayJune2026`
+  came back as `Geocon_Leads_MayJuneJulyAugust2026` - the same campaign, renamed in Meta. Nothing is
+  lost (the property map resolves both to Gateway Braddon), but a name-keyed diff against the old
+  table will look like one campaign vanished and another appeared. The repo-wide "campaign names are
+  not stable keys" rule, in its reporting form.
+
+```powershell
+# the full range, every time - see above
+$env:WINDSOR_API_KEY = (gcloud secrets versions access latest --secret=windsor-api-key)
+.\.venv\Scripts\python.exe clients\client_geocon\ingest\meta_breakdown_pull.py 2026-05-01 <today> out.ndjson
+bq load --replace --source_format=NEWLINE_DELIMITED_JSON raw_windsor.geocon_meta_breakdown out.ndjson `
+  date:DATE,campaign:STRING,breakdown:STRING,seg1:STRING,seg2:STRING,impressions:INTEGER,reach:INTEGER,clicks:INTEGER,link_clicks:INTEGER,spend:FLOAT,leads:INTEGER
+gcloud run jobs execute geocon-export --region australia-southeast1 --update-env-vars FORCE_REBUILD=1 --wait
+```
+
+`Cairns Awareness` - another client on the same shared ad account - matches neither, so the split
+still holds and the property map's catch-all `ELSE` stays safe. **Gateway Braddon is byte-identical**
+(288 rows / 1,105,062 imps / A$16,275.14 / 178 leads before and after).
+
+Two related traps this exposed:
+- **The campaign names misspell the development** - "Northboune", no `r`. The property map matched
+  them only through the `0201_` token; `Northboune` has been added so a rename that drops the brief
+  number cannot silently reroute them to Gateway Braddon.
+- **Northbourne is now LEAD-SHAPED**, so the dashboard leaves awareness mode on its own and the full
+  enquiry funnel, CPL, goal and audience surfaces come back. That transition needed no code - it is
+  what `leadShaped()` was built for.
+
+#### The earlier, insufficient fix (2026-08-27) - kept for the reasoning
+
+`01_stg_meta` scoped the client slice with `STARTS_WITH(campaign_name, 'Geocon_')`. Northbourne names
+every campaign **`0201_Geocon_NGW558_*`** - confirmed on its live Trade Desk line and all three Google
+Ads campaigns - so that test returns FALSE and **100% of its Meta delivery would have been dropped**.
+It is the worst kind of silent: the rows never reach the property map, so the export job's `Unmapped`
+WARNING cannot fire for them either, and the A$90,000 line - the plan's largest - would simply have
+read zero on a dashboard that looked healthy.
+
+Both gates now strip a leading brief number before the prefix test, and they **must stay in step**:
+
+| File | Fix |
+|---|---|
+| `sql/01_stg_meta.sql` | `STARTS_WITH(REGEXP_REPLACE(TRIM(campaign_name), r'^[0-9]+_', ''), 'Geocon_')` |
+| `ingest/meta_breakdown_pull.py` | `_GEOCON_CAMPAIGN = re.compile(r"^\s*(?:[0-9]+_)?Geocon_")` - the audience / placement table has its own copy of this filter, and left alone it would have rendered those charts EMPTY underneath populated KPIs |
+
+Still exact enough to split geocon from bellshakespeare / nextsmile on the shared ad account, so the
+catch-all `ELSE` in the property map stays safe. **Verified a strict no-op** on today's data: 285 rows
+under both predicates, 0 newly admitted campaigns. This is the repo-wide rule in `md/AGENTS.md` -
+campaign names are NOT stable keys, and `STARTS_WITH` is the shape that breaks outright on a prefix.
+
+#### The bare `RT` plan token was a live mis-tagging trap (narrowed 2026-08-27)
+
+Plan line 7 (Retargeting) matched on `Retargeting|RTG|RT`, and plan-line attribution is **first-match-wins
+by `seq`** over a plain `STRPOS` substring test. `RT` is two characters: **"Property" contains "rt"**, and
+this is a property developer. Any Lookalike campaign (seq 8) whose name happened to contain those letters
+would have been tagged **Retargeting** and booked against the wrong A$12,000 line. Narrowed to
+`Retargeting|RTG|_RT_`, delimiter-anchored to Geocon's underscore convention. No current name matched it
+either way, so this too is a no-op today and pure forward protection - but both those lines are unstarted,
+which is exactly when it would have bitten.
 
 **Google Ads is the one channel already wired end to end.** Geocon Group (customer `5457742070`) is
 linked under the DTS MCC `3451896252`, and the three campaigns already exist:

@@ -19,7 +19,11 @@ then:
       raw_windsor.geocon_meta_breakdown out.ndjson \
       date:DATE,campaign:STRING,breakdown:STRING,seg1:STRING,seg2:STRING,impressions:INTEGER,reach:INTEGER,clicks:INTEGER,link_clicks:INTEGER,spend:FLOAT,leads:INTEGER
 """
-import os, sys, json, requests
+import os, re, sys, json, requests
+
+# Geocon's Meta campaigns carry TWO prefixes: `Geocon_` (Gateway Braddon) and `GG_` (Geocon
+# Group - Northbourne Gateway), either optionally behind a brief number like `0201_`.
+_GEOCON_CAMPAIGN = re.compile(r"^\s*(?:[0-9]+_)?(?:Geocon_|GG_)")
 
 ACCOUNT = "facebook__3754165911553001"          # Geocon's Meta account ("100% Digital - Clients")
 URL = "https://connectors.windsor.ai/all"
@@ -53,7 +57,11 @@ def main():
             rows = pull(key, d_from, d_to, dims)
             kept = 0
             for x in rows:
-                if not str(x.get("campaign", "")).startswith("Geocon_"):
+                # SAME GATE AS sql/01_stg_meta - the two MUST stay identical or the audience
+                # and placement charts disagree with the KPIs above them (or, as here, render
+                # empty underneath populated ones). `GG_` is Geocon Group: Northbourne names
+                # its Meta campaigns `0201_GG_...`, not `Geocon_...`.
+                if not _GEOCON_CAMPAIGN.match(str(x.get("campaign", ""))):
                     continue
                 f.write(json.dumps({
                     "date": x.get("date"), "campaign": x.get("campaign"), "breakdown": bk,

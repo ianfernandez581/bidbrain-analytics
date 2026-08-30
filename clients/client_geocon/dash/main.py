@@ -627,16 +627,6 @@ def logo():
                     headers={"Cache-Control": "public, max-age=86400"})
 
 
-@app.get("/geocon-mark.png")
-def geocon_mark():
-    """Serve the Geocon corporate wordmark. Public - the LOGIN page renders it, so requiring auth
-    here would leave a broken image on the one page nobody is authenticated for yet."""
-    if GEOCON_MARK_PNG is None:
-        abort(404)
-    return Response(GEOCON_MARK_PNG, mimetype="image/png",
-                    headers={"Cache-Control": "public, max-age=86400"})
-
-
 @app.get("/bb_deck.js")
 def bb_deck_js():
     """The slide-deck builder. Auth-gated like the dashboard (the deck reveals report content)."""

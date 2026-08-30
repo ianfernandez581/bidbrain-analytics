@@ -231,6 +231,13 @@
   .grid{display:grid;gap:16px;margin-top:14px}
   .cols-2{grid-template-columns:1fr 1fr} .cols-2-1{grid-template-columns:1.9fr 1fr} .cols-1-2{grid-template-columns:1fr 1.9fr}
   @media(max-width:900px){.cols-2,.cols-2-1,.cols-1-2{grid-template-columns:1fr}}
+  /* ===== columns a development does not MEASURE =====
+     A metric its delivering platforms never report is not a zero, and a column of dashes still
+     asks the reader to look for a number that is never coming. Trade Desk carries no lead form,
+     no reach figure and no landing-page tag, so on a development like Northbourne Gateway the
+     lead / LPV / frequency columns are dropped outright rather than dashed out. Set by
+     renderMeasureScope() as classes on <body>, so every table follows one decision. */
+  body.no-leads .c-lead,body.no-lpv .c-lpv,body.no-reach .c-reach,body.no-conv .c-conv{display:none}
   .card{background:linear-gradient(180deg,var(--card-1),var(--card-2));border:1px solid var(--hair);border-radius:16px;padding:18px;
         box-shadow:var(--card-glow);display:flex;flex-direction:column;min-width:0}
   .card h3{margin:0;font-size:12.5px;font-weight:800;letter-spacing:1.1px;text-transform:uppercase;color:var(--ink)}
@@ -655,6 +662,7 @@
         <div class="tabs" id="tabRow">
           <button class="tab" data-view="overview">Overview</button>
           <button class="tab" data-view="paid">Paid Media</button>
+          <button class="tab" data-view="google" id="tabGoogle">Google Ads</button>
 
         </div>
         <div class="tabs-right">
@@ -709,7 +717,7 @@
       </div>
 
       <div id="ovNorth">
-        <div class="nsband">Campaign goal &middot; qualified enquiries at an efficient cost</div>
+        <div class="nsband" id="nsBand">Campaign goal &middot; qualified enquiries at an efficient cost</div>
         <div class="kpis nsrow" id="kpiGridN"></div>
         <div class="kpis" id="kpiGrid"></div>
       </div>
@@ -727,7 +735,7 @@
         </div>
         <div class="card">
           <h3>Budget pacing</h3>
-          <div class="hint">Spend to date vs the planned flight pace. The marker is where pace expects you to be today.</div>
+          <div class="hint" id="paceHint">Spend to date vs the planned flight pace. The marker is where pace expects you to be today.</div>
           <div class="pace-track"><div class="pace-actual" id="paceActual"></div><div class="pace-expected" id="paceExpected"></div></div>
           <div class="pace-meta"><span id="paceExpectedLabel"></span><span id="paceBudgetLabel"></span></div>
           <div id="paceSummary" style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap"></div>
@@ -735,19 +743,19 @@
         </div>
       </div>
 
-      <div class="card" style="margin-top:16px"><h3>On track to goal?</h3><div class="hint">Cumulative enquiries across the flight vs the straight-line pace needed to reach the target by the end date - <b>above the dashed line = ahead of pace</b>. Full-flight (independent of the date filter).</div><div class="chartbox tall"><canvas id="paceGoal"></canvas></div></div>
+      <div class="card" id="goalCard" style="margin-top:16px"><h3>On track to goal?</h3><div class="hint">Cumulative enquiries across the flight vs the straight-line pace needed to reach the target by the end date - <b>above the dashed line = ahead of pace</b>. Full-flight (independent of the date filter).</div><div class="chartbox tall"><canvas id="paceGoal"></canvas></div></div>
 
       <div class="grid cols-2">
-        <div class="card"><h3>Enquiry funnel</h3><div class="hint">Each bar = the <b>step conversion</b> (share carried from the previous stage), so drop-off is visible instead of impressions flattening everything; the number is the count. Impressions → link clicks → LP views → Meta enquiries → qualified (modelled).</div><div id="funnelList" style="margin-top:6px"></div></div>
+        <div class="card" id="funnelCard"><h3 id="funnelTitle">Enquiry funnel</h3><div class="hint" id="funnelHint">Each bar = the <b>step conversion</b> (share carried from the previous stage), so drop-off is visible instead of impressions flattening everything; the number is the count. Impressions → link clicks → LP views → Meta enquiries → qualified (modelled).</div><div id="funnelList" style="margin-top:6px"></div></div>
         <div class="card"><h3>Spend by funnel stage</h3><div class="hint">Where the budget is going. Click a legend item to hide or show a stage.</div><div class="chartbox" style="height:280px"><canvas id="stageDonut"></canvas></div></div>
       </div>
 
-      <div class="card" style="margin-top:16px"><h3>Performance by funnel stage</h3><div class="hint">Spend, share, enquiries, cost-per-enquiry and CTR for each funnel stage - where the budget works hardest.</div><div class="tablewrap" style="margin-top:6px"><table id="stageTable"><thead><tr><th>Stage</th><th class="num">Spend</th><th class="num">Share</th><th class="num">Enquiries</th><th class="num">CPL</th><th class="num">CTR</th></tr></thead><tbody></tbody></table></div></div>
+      <div class="card" style="margin-top:16px"><h3>Performance by funnel stage</h3><div class="hint">Spend, share, enquiries, cost-per-enquiry and CTR for each funnel stage - where the budget works hardest.</div><div class="tablewrap" style="margin-top:6px"><table id="stageTable"><thead><tr><th>Stage</th><th class="num">Spend</th><th class="num">Share</th><th class="num c-lead">Enquiries</th><th class="num c-lead">CPL</th><th class="num">CTR</th></tr></thead><tbody></tbody></table></div></div>
 
-      <div class="section"><h2>Who &amp; where we reached</h2><span class="sub" id="bdSub">Meta audience &amp; placement breakdowns - honours the date filter.</span></div>
+      <div class="section" id="bdSection"><h2>Who &amp; where we reached</h2><span class="sub" id="bdSub">Meta audience &amp; placement breakdowns - honours the date filter.</span></div>
       <div class="grid cols-2">
-        <div class="card"><h3>Audience - age &amp; gender</h3><div class="hint">Impressions by age band, split by gender (Meta-inferred). Tooltip shows enquiries per age band - where demand actually converts.</div><div class="chartbox tall"><canvas id="audienceChart"></canvas></div></div>
-        <div class="card"><h3>Placement - where ads ran</h3><div class="hint">Impressions by Meta placement - <span style="color:var(--accent);font-weight:600">Facebook</span> vs <span style="color:var(--leads);font-weight:600">Instagram</span>. Feed usually drives enquiries; Reels drive cheap reach.</div><div class="chartbox tall"><canvas id="placementChart"></canvas></div></div>
+        <div class="card" id="audienceCard"><h3>Audience - age &amp; gender</h3><div class="hint">Impressions by age band, split by gender (Meta-inferred). Tooltip shows enquiries per age band - where demand actually converts.</div><div class="chartbox tall"><canvas id="audienceChart"></canvas></div></div>
+        <div class="card" id="placementCard"><h3>Placement - where ads ran</h3><div class="hint">Impressions by Meta placement - <span style="color:var(--accent);font-weight:600">Facebook</span> vs <span style="color:var(--leads);font-weight:600">Instagram</span>. Feed usually drives enquiries; Reels drive cheap reach.</div><div class="chartbox tall"><canvas id="placementChart"></canvas></div></div>
       </div>
 
       <div class="section"><h2>What stands out</h2></div>
@@ -768,54 +776,119 @@
         <div class="tablewrap"><table id="platformTable"><thead><tr>
           <th>Platform</th><th class="num">Spend</th><th class="num">Share</th><th class="num">Impressions</th>
           <th class="num">Clicks</th><th class="num">CTR</th><th class="num">CPM</th><th class="num">CPC</th>
-          <th class="num">Leads</th><th class="num">CPL</th></tr></thead><tbody></tbody></table></div>
+          <th class="num c-lead">Leads</th><th class="num c-lead">CPL</th>
+          <th class="num c-conv">Conv.</th><th class="num c-conv">Cost/conv</th></tr></thead><tbody></tbody></table></div>
       </div>
 
-      <div class="section" style="margin-top:18px"><h2>Top creatives</h2><span class="sub">The 5 highest-spend creatives in the selected range - real ad <b>headline, copy and performance</b>. The ad image shows when Meta's thumbnail link is still valid; some cards fall back to a branded tile (the copy + metrics are always live).</span></div>
+      <div class="section" style="margin-top:18px"><h2>Top creatives</h2><span class="sub" id="creativeSub">The 5 highest-spend creatives in the selected range - real ad <b>headline, copy and performance</b>. The ad image shows when Meta's thumbnail link is still valid; some cards fall back to a branded tile (the copy + metrics are always live).</span></div>
       <div class="creative-grid" id="creativeGrid" style="margin-top:16px"></div>
 
       <div class="card" style="margin-top:14px">
         <h3>Performance vs targets - by campaign</h3>
         <div class="hint">CTR / CPM / CPC / CPL against the media-plan benchmarks. Green = beating target.</div>
         <div class="tablewrap"><table id="benchTable"><thead><tr>
-          <th>Campaign</th><th>Stage</th><th class="num">Spend</th><th class="num">Leads</th>
+          <th>Campaign</th><th>Stage</th><th class="num">Spend</th><th class="num c-lead">Leads</th>
           <th class="num">CTR</th><th class="num">Δ</th><th class="num">CPM</th><th class="num">Δ</th>
-          <th class="num">CPC</th><th class="num">Δ</th><th class="num">CPL</th><th class="num">Δ</th></tr></thead><tbody></tbody></table></div>
+          <th class="num">CPC</th><th class="num">Δ</th><th class="num c-lead">CPL</th><th class="num c-lead">Δ</th></tr></thead><tbody></tbody></table></div>
       </div>
 
       <div class="grid cols-2">
-        <div class="card"><h3>Efficiency map - cost per enquiry vs CTR</h3>
+        <div class="card" id="effCard"><h3>Efficiency map - cost per enquiry vs CTR</h3>
           <div class="hint">Each bubble is an ad; size = spend, colour = funnel stage. <b>Lower</b> (cheaper enquiries) and <b>further right</b> (higher CTR) is better. Dashed lines mark the CPL &amp; CTR targets - the lower-right quadrant is the winners' zone.</div>
           <div class="chartbox tall"><canvas id="effScatter"></canvas></div></div>
-        <div class="card"><h3>Cost per enquiry over time</h3>
+        <div class="card" id="cplCard"><h3>Cost per enquiry over time</h3>
           <div class="hint">Weekly cost per enquiry vs the CPL target - is efficiency improving as the flight matures? Reflects the date &amp; stage filters.</div>
           <div class="chartbox tall"><canvas id="cplTrend"></canvas></div></div>
       </div>
 
       <div class="grid cols-2">
-        <div class="card"><h3>Reach &amp; frequency over time</h3><div class="hint">Unique people reached (bars) and how often each sees an ad (line). <b>Rising frequency with flat reach = saturation</b> - a cue to refresh creative or widen the audience.</div><div class="chartbox tall"><canvas id="reachFreqChart"></canvas></div></div>
-        <div class="card"><h3>Video engagement</h3><div class="hint">Video creatives only. <b>3-sec views</b> = the hook (thumb-stop); <b>completes</b> = held to the end; the line is completion rate.</div><div class="chartbox tall"><canvas id="videoChart"></canvas></div></div>
+        <div class="card" id="reachCard"><h3>Reach &amp; frequency over time</h3><div class="hint">Unique people reached (bars) and how often each sees an ad (line). <b>Rising frequency with flat reach = saturation</b> - a cue to refresh creative or widen the audience.</div><div class="chartbox tall"><canvas id="reachFreqChart"></canvas></div></div>
+        <div class="card" id="videoCard"><h3>Video engagement</h3><div class="hint">Video creatives only. <b>3-sec views</b> = the hook (thumb-stop); <b>completes</b> = held to the end; the line is completion rate.</div><div class="chartbox tall"><canvas id="videoChart"></canvas></div></div>
       </div>
 
       <div class="grid cols-2">
-        <div class="card"><h3>Performance by day of week</h3><div class="hint">Enquiries (bars) and cost-per-enquiry (line) by weekday across the selected range - where the cheapest enquiries land, for budget weighting &amp; scheduling.</div><div class="chartbox tall"><canvas id="dowChart"></canvas></div></div>
-        <div class="card"><h3>Enquiry type - website vs instant form</h3><div class="hint">Where each enquiry was captured: your <b>website</b> form vs Meta's on-platform <b>instant form</b>. Instant forms are higher-volume/lighter-intent; website forms show stronger intent.</div><div class="chartbox" style="height:250px"><canvas id="leadTypeChart"></canvas></div><div class="hint" id="leadTypeNote" style="margin-top:8px"></div></div>
+        <div class="card" id="dowCard"><h3>Performance by day of week</h3><div class="hint">Enquiries (bars) and cost-per-enquiry (line) by weekday across the selected range - where the cheapest enquiries land, for budget weighting &amp; scheduling.</div><div class="chartbox tall"><canvas id="dowChart"></canvas></div></div>
+        <div class="card" id="leadTypeCard"><h3>Enquiry type - website vs instant form</h3><div class="hint">Where each enquiry was captured: your <b>website</b> form vs Meta's on-platform <b>instant form</b>. Instant forms are higher-volume/lighter-intent; website forms show stronger intent.</div><div class="chartbox" style="height:250px"><canvas id="leadTypeChart"></canvas></div><div class="hint" id="leadTypeNote" style="margin-top:8px"></div></div>
       </div>
 
       <div class="grid cols-2-1">
         <div class="card"><h3>Spend by ad set</h3><div class="hint">Top ad sets by spend, coloured by funnel stage.</div><div class="chartbox tall"><canvas id="segChart"></canvas></div></div>
-        <div class="card"><h3>Budget burn</h3><div class="hint">Spend share vs lead share, per campaign.</div><div id="burnList" style="margin-top:6px"></div></div>
+        <div class="card" id="burnCard"><h3>Budget burn</h3><div class="hint">Spend share vs lead share, per campaign.</div><div id="burnList" style="margin-top:6px"></div></div>
       </div>
 
       <div class="card" style="margin-top:16px">
         <h3>Ad performance</h3><div class="hint">Per-ad delivery + a thin-volume guard (⚠ thin = under 15k impressions or &lt;8 leads - treat its CPL as a weak signal).</div>
-        <div class="tablewrap"><table id="adTable"><thead><tr><th>Ad</th><th>Ad set</th><th>Stage</th><th class="num">Spend</th><th class="num">Leads</th><th class="num">CPL</th><th class="num">CTR</th><th class="num">LPV</th><th class="num">Cost/LPV</th><th class="num">Freq.</th><th>Read</th></tr></thead><tbody></tbody></table></div>
+        <div class="tablewrap"><table id="adTable"><thead><tr><th>Ad</th><th>Ad set</th><th>Stage</th><th class="num">Spend</th><th class="num c-lead">Leads</th><th class="num c-lead">CPL</th><th class="num">CTR</th><th class="num c-lpv">LPV</th><th class="num c-lpv">Cost/LPV</th><th class="num c-reach">Freq.</th><th>Read</th></tr></thead><tbody></tbody></table></div>
       </div>
 
-      <div class="card" style="margin-top:16px">
+      <div class="card" id="fatigueCard" style="margin-top:16px">
         <h3>Creative fatigue watch</h3><div class="hint">Weekly per-ad (≥1,000 impressions): frequency ↑ with CTR ↓ = fatigued.</div>
         <div class="tablewrap"><table id="fatigueTable"><thead><tr><th>Ad</th><th class="num">Frequency</th><th class="num">Freq WoW</th><th class="num">CTR</th><th class="num">CTR WoW</th><th>Flag</th></tr></thead><tbody></tbody></table></div>
       </div>
+    </section>
+
+    <!-- ============ GOOGLE ADS ============
+         A per-platform deep dive, on the client_resetdata pattern (its Reddit section is the
+         model): a platform whose buy is shaped differently enough from the rest that blending it
+         into the shared tables loses the story. Two things make Google Ads that platform here.
+
+         (1) It is TWO DIFFERENT BUYS under one channel - a YouTube awareness video line and two
+             search conversion lines - and their rates are not comparable. A blended CTR across a
+             video campaign and a search campaign is not a number about anything, so this tab
+             splits SEARCH from VIDEO everywhere and never prints a combined rate.
+         (2) It is the only channel here that reports CONVERSIONS, which the shared tables treat as
+             a minor column but which are the entire point of the search lines.
+
+         The tab renders for any development whose media plan BUYS Google Ads, not only one that
+         has delivered - because "bought, built and waiting" is itself the answer to "where is
+         Google Ads?". Gateway Braddon buys no Google, so it never sees this tab. -->
+    <section id="tab-google" class="tabpane">
+      <div class="section first"><h2 id="gaTitle">Google Ads</h2><span class="sub" id="gaSub"></span></div>
+      <div id="gaPending"></div>
+      <div id="gaLive" style="display:none">
+        <div class="kpis" id="gaKpis"></div>
+
+        <div class="card" style="margin-top:4px">
+          <div class="card-head">
+            <div class="titles"><h3>Search vs Video</h3><div class="hint">The plan buys Google Ads as <b>two different things</b>: a YouTube video line bought for reach, and search lines bought for enquiries. Their click-through rates are an order of magnitude apart, so a blended figure would describe neither - they are never summed into one rate on this tab.</div></div>
+          </div>
+          <div class="tablewrap"><table id="gaTypeTable"><thead><tr>
+            <th>Buy</th><th class="num">Spend</th><th class="num">Share</th><th class="num">Impressions</th>
+            <th class="num">Clicks</th><th class="num">CTR</th><th class="num">CPM</th><th class="num">CPC</th>
+            <th class="num c-conv">Conv.</th><th class="num c-conv">Cost/conv</th></tr></thead><tbody></tbody></table></div>
+        </div>
+
+        <div class="card" style="margin-top:16px">
+          <div class="card-head">
+            <div class="titles"><h3>Google Ads delivery over time</h3><div class="hint" id="gaTrendHint"></div></div>
+            <div class="card-ctrls">
+              <span class="seg" id="gaAxisSeg"><span class="cap">AXIS</span><button type="button" data-gaxis="rel" class="on">Relative</button><button type="button" data-gaxis="abs">Absolute</button></span>
+              <span class="seg" id="gaGrainSeg"><span class="cap">VIEW BY</span><button type="button" data-ggrain="month">Month</button><button type="button" data-ggrain="week" class="on">Week</button><button type="button" data-ggrain="day">Day</button></span>
+            </div>
+          </div>
+          <div class="chartbox tall"><canvas id="gaTrendChart"></canvas></div>
+        </div>
+
+        <div class="card" style="margin-top:16px">
+          <h3>Campaigns</h3>
+          <div class="hint">Every Google Ads campaign delivering in the selected range, with the media-plan line it was bought against. Google Ads exports at <b>campaign</b> grain, so there is no ad-set or creative tier below this - the network type (Search / Video) is the finest split the feed carries.</div>
+          <div class="tablewrap"><table id="gaCampTable"><thead><tr>
+            <th>Campaign</th><th>Buy</th><th>Plan line</th><th class="num">Spend</th>
+            <th class="num">Impressions</th><th class="num">Clicks</th><th class="num">CTR</th>
+            <th class="num">CPC</th><th class="num c-conv">Conv.</th></tr></thead><tbody></tbody></table></div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:16px">
+        <h3>What the plan bought</h3>
+        <div class="hint" id="gaPlanHint">The signed Google Ads lines and the targets each is measured against.</div>
+        <div class="tablewrap"><table id="gaPlanTable"><thead><tr>
+          <th>Line</th><th>Phase</th><th class="num">Budget</th><th class="num">Impressions</th>
+          <th class="num">vs target</th><th class="num">Clicks</th><th class="num">vs target</th>
+          <th class="num">CTR</th><th class="num">vs target</th></tr></thead><tbody></tbody></table></div>
+      </div>
+
+      <div class="info-note" id="gaNote"></div>
     </section>
 
     <footer id="footerNote"></footer>
@@ -829,7 +902,8 @@ const JSON_URL = '/data.json';
 let DATA = {};
 // `channels` is null (= every delivering channel) or a Set of selected channel names. It is reset
 // on a development change, because the roster is per development.
-let STATE = {view:'overview', dateStart:null, dateEnd:null, stage:'all', search:'', grain:'week', axis:'rel', property:null, channels:null};
+let STATE = {view:'overview', dateStart:null, dateEnd:null, stage:'all', search:'', grain:'week', axis:'rel', property:null, channels:null,
+             gaGrain:'week', gaAxis:'rel'};
 const HERO_HIDDEN = new Set();          // clickable-KPI series toggles for the hero (persist across re-render)
 const charts = {};
 const $ = id => document.getElementById(id);
@@ -857,6 +931,12 @@ const nAdd=(a,b)=>(a==null||b==null)?null:a+b;
 const nMul=(a,b)=>(a==null||b==null)?null:a*b;   // guards `spend/imp*1000` (null*1000 is 0 in JS)
 function money(v,d=0){if(v==null)return '-';return 'A$'+Intl.NumberFormat('en-AU',{minimumFractionDigits:d,maximumFractionDigits:d}).format(n(v));}
 function pct(v,d=1){return Number.isFinite(Number(v))?(Number(v)*100).toFixed(d)+'%':'-';}
+// CTR precision follows the size of the number. Programmatic display runs CTRs around 0.05-0.10%,
+// where a fixed 1dp prints "0.1%" for every creative, every campaign and the target - so the
+// vs-target column read "0.1% vs 0.1%" with a +8% delta between two identical-looking numbers, and
+// the best and worst creative on the page were indistinguishable. Under 1% we show three decimals;
+// a Meta lead-gen CTR of 1.4% is untouched.
+function pctr(v){const x=Number(v);return Number.isFinite(x)?pct(x,Math.abs(x)<0.01?3:1):'-';}
 function pctWhole(v){return Number.isFinite(Number(v))?Math.round(Number(v)*100)+'%':'-';}
 function fmtDate(v){if(!v)return '-';const d=new Date(v);return Number.isNaN(d.getTime())?String(v):d.toLocaleDateString('en-AU',{day:'numeric',month:'short'});}
 function fmtDateTime(v){if(!v)return '-';const d=new Date(v);return Number.isNaN(d.getTime())?String(v):d.toLocaleString('en-AU',{timeZone:'Australia/Brisbane',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})+' AEST';}
@@ -873,14 +953,65 @@ function makeChart(id,cfg){destroyChart(id);if(!$(id))return null;charts[id]=new
 // We gross the RAW spend once at load; every cost metric (CPM/CPC/CPL/cost-per-LPV), chart, CSV and
 // the AI deck derive from it, so they all follow. Counts/CTR (not money) are untouched; there's no
 // revenue/ROAS on this lead-gen dashboard. Idempotent (stashes _rawSpend); no-op when unset (=direct/
-// internal access shows real cost). Geocon is Meta-only, so a single 'meta' factor covers every row.
+// internal access shows real cost).
+//
+// PER ROW, BY THAT ROW'S OWN CHANNEL (fixed 2026-08-28). It used to read a single `meta` factor and
+// apply it to EVERY row - correct while geocon was Meta-only, silently wrong from the day the
+// multi-channel fact landed. Geocon's registry entry is `{meta: 2.0}` and nothing else, so every
+// Trade Desk row on Northbourne Gateway was being grossed by META's billed rate: A$550.21 of real
+// 25-Aug delivery reported as A$1,100. Impressions and clicks were untouched, which is exactly what
+// made it look like a doubled spend rather than a doubled dataset. Channel keys are the platform's
+// own vocabulary (store.py SPEND_CHANNELS), so an undefined channel stays at 1 = raw.
+const BB_CHAN_KEY={'Meta':'meta','LinkedIn':'linkedin','Trade Desk':'ttd','Google Ads':'google'};
 function bbMultFor(channel){const m=window.BB_SPEND_MULT||{};const v=Number(m[channel]);return (Number.isFinite(v)&&v>0)?v:1;}
+function bbMultForRow(r){return bbMultFor(BB_CHAN_KEY[r.channel||'Meta']||'meta');}
 function bbApplySpendMult(){
-  const M=bbMultFor('meta');
   // r.spend === null means WITHHELD by the proxy - leave it null, never let n() turn it into 0.
-  (DATA.rows||[]).forEach(r=>{if(r.spend===null)return;if(r._rawSpend==null)r._rawSpend=n(r.spend);r.spend=r._rawSpend*M;});
-  const f=DATA.flight;                      // gross the precomputed pacing dollars by the same factor
-  if(f){['spend_to_date','projected_spend','pace_expected','budget'].forEach(k=>{if(f[k]===null)return;if(f['_raw_'+k]==null)f['_raw_'+k]=n(f[k]);f[k]=f['_raw_'+k]*M;});}
+  (DATA.rows||[]).forEach(r=>{if(r.spend===null)return;if(r._rawSpend==null)r._rawSpend=n(r.spend);
+                              r.spend=r._rawSpend*bbMultForRow(r);});
+  // The precomputed pacing dollars must be grossed by the SAME money, or the pacing card and the
+  // KPI band contradict each other on one screen: `Ad spend` is summed from the (grossed) rows
+  // while the pacing bar reads flight.spend_to_date straight from the payload.
+  //
+  // AND IT MUST REACH properties[].flight, not just the legacy top-level DATA.flight. `flight()`
+  // has read `propDef().flight` since the multi-development rebuild (2026-08-24), so grossing only
+  // the legacy copy left EVERY pacing figure raw while every KPI beside it was billed.
+  //
+  // The factor is that development's own blended rate - grossed-over-raw across its rows inside its
+  // flight window, which is the same clamp the job used to compute these figures. A single-channel
+  // development gets exactly that channel's factor; a mixed one gets its real mix; an unset
+  // registry gives 1 and the whole function is a no-op.
+  const grossFlight=(f)=>{
+    if(!f)return;
+    const a=f.start,b=f.end;
+    let raw=0,bill=0;
+    (DATA.rows||[]).forEach(r=>{
+      if(r._rawSpend==null)return;
+      if(f._prop&&(r.property||'Gateway Braddon')!==f._prop)return;
+      const d=String(r.date).slice(0,10);
+      if(a&&d<a)return; if(b&&d>b)return;
+      raw+=r._rawSpend; bill+=r._rawSpend*bbMultForRow(r);
+    });
+    const M=raw>0?bill/raw:1;
+    // ONLY THE ACTUALS ARE GROSSED. `budget` and `pace_expected` are the PLAN side, and the media
+    // plan is the figure the client signed and pays - it is ALREADY the client-billed number, so
+    // grossing it bills the client twice on paper. It used to be grossed too, which preserved the
+    // pacing RATIO (both sides moved together) while printing a budget that matches nothing: the
+    // A$142,000 of Northbourne lines actually in market displayed as **A$220,421**, the blended
+    // delivery-mix factor applied to a plan figure. A ratio that is right for a reason nobody can
+    // reconstruct from the numbers on screen is not right.
+    //
+    // The two sides are now on one honest basis: billed spend against the signed billed budget.
+    // NOTE this moves the displayed pacing % wherever a multiplier is set - Gateway Braddon's
+    // A$7,500 flight now reads against its true signed figure rather than a doubled A$15,000.
+    ['spend_to_date','projected_spend'].forEach(k=>{
+      if(f[k]==null)return;
+      if(f['_raw_'+k]==null)f['_raw_'+k]=n(f[k]);
+      f[k]=f['_raw_'+k]*M;
+    });
+  };
+  (DATA.properties||[]).forEach(p=>{if(p&&p.flight){p.flight._prop=p.key;grossFlight(p.flight);}});
+  grossFlight(DATA.flight);   // the legacy top-level copy, for an older payload
 }
 
 // ---------- targets / benchmarks ----------
@@ -1021,6 +1152,79 @@ const propOpenable=p=>propHasData(p)||comingSoonProp(p);
 // Kept as one name so the delivery-shaped renderers have a single thing to check: either the
 // development is seeded coming-soon, or it is live but has not delivered yet. Both mean "no numbers".
 const awaitingDelivery=()=>!!STATE.property&&(comingSoon()||!propHasData(STATE.property));
+// ===================== what a development actually MEASURES =====================
+// A development reports only what its delivering platforms measure, and the gap is NOT a zero.
+// Gateway Braddon is a Meta lead-gen buy: enquiries, landing-page views, reach and frequency all
+// come back. Northbourne Gateway's Trade Desk awareness line has NO lead form, NO reach figure and
+// NO landing-page tag - so half of this page, built around cost-per-enquiry, would draw a funnel
+// that dead-ends at 0, an "on track to goal?" chart against no goal and a CPL column of dashes.
+// That reads as a campaign producing nothing, when the truth is that it is not measured that way.
+//
+// The staging views already encode the distinction: a metric a platform does not report is NULL,
+// never 0 (`sql/08_stg_ttd` sets leads / reach / landing_page_views to NULL explicitly - "no lead
+// form, not zero leads"). So the test is NULLNESS, not magnitude. `hasAny` is the second test, for
+// a metric the feed DOES carry but only as zeros (Trade Desk sends video columns on a display buy).
+//
+// Adding a platform therefore needs nothing here: the panels it can feed appear on their own the
+// day it delivers, and the ones it cannot stay hidden.
+const reports=f=>ROWS().some(r=>r[f]!=null);
+const hasAny =f=>ROWS().some(r=>n(r[f])>0);
+// Lead-shaped = the platforms report leads, OR the plan commits a lead number. Either alone is
+// enough: a lead campaign on day one has a target and no leads yet, and a development can report
+// leads the signed plan never set a target against.
+const leadShaped=()=>reports('leads')||bench('lead_target')!=null;
+// The audience/placement charts are fed by the geocon-only META breakdown pull, so they exist for
+// a development only insofar as it has Meta delivery.
+const hasBreakdowns=()=>(DATA.breakdowns||[]).some(r=>propOk(r));
+// Google Ads is the only channel here that reports conversions, and they are NOT leads - see agg().
+// Deliberately NOT part of leadShaped(): a development delivering search conversions and no lead
+// form must not switch the page into its lead-gen shape and start drawing an enquiry funnel.
+const hasConversions=()=>reports('conversions');
+// How much of the signed plan is actually in market - and, since 2026-08-28, the basis pacing is
+// drawn against (see job/main.py `_flight`). Read from the PAYLOAD, not recomputed from ROWS():
+// pacing is full-flight and must not move when someone unticks a platform chip, which is exactly
+// what a ROWS()-derived version did. The recompute stays as a fallback for a payload published
+// before the job carried these fields.
+function planLinesLive(){
+  const f=flight(),p=propDef().plan||[];
+  if(f.plan_lines_total)return {live:n(f.plan_lines_live),total:n(f.plan_lines_total),
+                                budget:f.budget_in_market==null?null:n(f.budget_in_market)};
+  if(!p.length)return null;
+  const live=new Set((DATA.rows||[]).filter(r=>propOk(r)&&r.plan_line).map(r=>r.plan_line));
+  return {live:p.filter(l=>live.has(l.line)).length,total:p.length,
+          budget:p.filter(l=>live.has(l.line)).reduce((a,l)=>a+n(l.budget),0)};}
+
+// ---------- panel visibility ----------
+// Hide the whole CARD, not just its canvas: an empty titled box with an explanatory hint under it
+// still occupies the reader's attention with a number that does not exist.
+function showPanel(id,on){const e=$(id);if(e)e.style.display=on?'':'none';}
+// `.grid` is a fixed two-column track, so hiding one of a pair would leave a 50% hole. Collapse a
+// grid whose children are all hidden, and let a lone survivor span the full width.
+function syncGrids(){
+  document.querySelectorAll('#tab-overview .grid, #tab-paid .grid').forEach(g=>{
+    const kids=[...g.children],live=kids.filter(k=>k.style.display!=='none');
+    g.style.display=live.length?'grid':'none';
+    kids.forEach(k=>k.style.gridColumn='');
+    if(live.length===1&&kids.length>1)live[0].style.gridColumn='1/-1';
+  });
+}
+// One decision, applied everywhere - run before the renderers so a panel is never populated and
+// then hidden (and never left populated from the previous development).
+function renderMeasureScope(){
+  const lead=leadShaped(),rch=reports('reach'),lpv=reports('lpv');
+  const vid=hasAny('video_3s_views')||hasAny('video_completes');
+  const leadSplit=reports('leads_website')||reports('leads_onfacebook');
+  document.body.classList.toggle('no-leads',!lead);
+  document.body.classList.toggle('no-lpv',!lpv);
+  document.body.classList.toggle('no-reach',!rch);
+  document.body.classList.toggle('no-conv',!hasConversions());
+  [['goalCard',lead],['effCard',lead],['cplCard',lead],['dowCard',lead],['burnCard',lead],
+   ['leadTypeCard',lead&&leadSplit],['reachCard',rch],['fatigueCard',rch],['videoCard',vid],
+   ['bdSection',hasBreakdowns()],['audienceCard',hasBreakdowns()],['placementCard',hasBreakdowns()]]
+    .forEach(([id,on])=>showPanel(id,on));
+  syncGrids();
+}
+
 // Local HTML escape: the only `esc` in this file is scoped INSIDE toCSV, so it is not callable
 // here. Property names come from a committed CSV, but they are still interpolated into markup.
 const escProp=v=>String(v==null?'':v).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -1049,6 +1253,9 @@ function initProperty(){
 function setProperty(v){
   if(!propOpenable(v))return;
   STATE.property=v;
+  // The Google Ads tab is per development (Gateway Braddon buys none). Switching to a development
+  // without it while it is open would leave the user on a hidden pane showing the old development.
+  if(STATE.view==='google'&&!gaBought())STATE.view='overview';
   // The channel filter is per-development (Gateway Braddon buys one channel, Northbourne five), so
   // switching development must clear it or a chip that no longer exists would silently zero the page.
   STATE.channels=null;
@@ -1104,10 +1311,22 @@ function agg(rows){const s=k=>rows.reduce((a,r)=>a+n(r[k]),0);
   const spend=sMoney('spend');
   const imp=s('impressions'),reach=s('reach'),clicks=s('clicks'),lc=s('link_clicks'),lpv=s('lpv'),leads=s('leads'),v3=s('video_3s_views'),vc=s('video_completes');
   const tp=s('thruplays'),lw=s('leads_website'),lof=s('leads_onfacebook');
+  // Google-reported conversions. Carried and LABELLED, NEVER folded into `leads` (the same rule
+  // sql/09_stg_google_ads and job/main.py state): a search conversion and a Meta lead form can be
+  // the same human enquiring twice, so summing them would double-count an enquiry.
+  const conv=s('conversions'),vtc=s('view_through_conversions');
+  // Cost per conversion divides by the spend of the channels that REPORT conversions, not by all
+  // spend. Blended, an awareness channel that cannot report a conversion still lands in the
+  // numerator, so every display dollar makes search look more expensive: on the mixed Northbourne
+  // set that read A$302 against Google Ads' true A$88. A rate must be built from a numerator and a
+  // denominator that describe the same rows.
+  const convSpend=rows.reduce((a,r)=>(r.conversions==null?a:(r.spend===null?null:nAdd(a,n(r.spend)))),0);
   // every cost-per-X stays unknown when spend is - without the guard `null/imp` is 0 in JS and the
   // card would report a confident A$0 CPM/CPC/CPL.
   const per=(d)=>(spend==null||!d)?null:spend/d;
   return {spend,impressions:imp,reach,clicks,link_clicks:lc,lpv,leads,video_3s_views:v3,video_completes:vc,thruplays:tp,leads_website:lw,leads_onfacebook:lof,
+    conversions:conv,view_through_conversions:vtc,
+    cost_per_conversion:(convSpend==null||!conv)?null:convSpend/conv,
     ctr:imp?lc/imp:null,cpm:nMul(per(imp),1000),cpc:per(lc),cpl:per(leads),cost_per_lpv:per(lpv),frequency:reach?imp/reach:null,count:rows.length};}
 function groupRollup(rows,keyFn,metaFn){const m=new Map();rows.forEach(r=>{const k=keyFn(r);if(!m.has(k))m.set(k,[]);m.get(k).push(r);});const out=[];m.forEach(rs=>out.push(Object.assign({},metaFn(rs[0],rs),agg(rs))));return out;}
 function byStage(rows){const g=groupRollup(rows,r=>r.stage||'Other',r0=>({stage:r0.stage||'Other'}));const ts=g.reduce((a,x)=>a+n(x.spend),0)||1,tl=g.reduce((a,x)=>a+n(x.leads),0)||1;
@@ -1137,10 +1356,12 @@ function trendBucketLabel(dateStr,grain){const d=new Date(dateStr+'T00:00:00Z');
   if(grain==='month')return{key:`${y}-${String(m+1).padStart(2,'0')}`,label:d.toLocaleDateString('en-AU',{month:'short',year:'2-digit'})};
   if(grain==='week'){const dt=new Date(Date.UTC(y,m,day));dt.setUTCDate(dt.getUTCDate()-((dt.getUTCDay()+6)%7));return{key:dt.toISOString().slice(0,10),label:dt.toLocaleDateString('en-AU',{day:'numeric',month:'short'})};}
   return{key:d.toISOString().slice(0,10),label:d.toLocaleDateString('en-AU',{day:'numeric',month:'short'})};}
+// Carries impressions + clicks alongside spend/leads: the hero plots enquiries on a lead-gen
+// development and DELIVERY on an awareness one, and both shapes read from this one bucketing.
 function trendRows(){const days=dailyOf(scoped());
-  if(STATE.grain==='day')return days.map(d=>({label:fmtDate(d.date),spend:d.spend,leads:d.leads,cum_leads:d.cum_leads,days:1}));
-  const m=new Map();days.forEach(d=>{const bk=trendBucketLabel(d.date,STATE.grain);let o=m.get(bk.key);if(!o){o={key:bk.key,label:bk.label,spend:0,leads:0,cum_leads:0,days:0};m.set(bk.key,o);}o.spend=nAdd(o.spend,d.spend==null?null:n(d.spend));o.leads+=n(d.leads);o.cum_leads=Math.max(o.cum_leads,n(d.cum_leads));o.days++;});
-  return [...m.values()].sort((a,b)=>a.key.localeCompare(b.key)).map(o=>({label:o.label,spend:o.spend,leads:o.leads,cum_leads:o.cum_leads,days:o.days}));}
+  if(STATE.grain==='day')return days.map(d=>({label:fmtDate(d.date),spend:d.spend,leads:d.leads,cum_leads:d.cum_leads,impressions:d.impressions,clicks:d.clicks,days:1}));
+  const m=new Map();days.forEach(d=>{const bk=trendBucketLabel(d.date,STATE.grain);let o=m.get(bk.key);if(!o){o={key:bk.key,label:bk.label,spend:0,leads:0,cum_leads:0,impressions:0,clicks:0,days:0};m.set(bk.key,o);}o.spend=nAdd(o.spend,d.spend==null?null:n(d.spend));o.leads+=n(d.leads);o.impressions+=n(d.impressions);o.clicks+=n(d.clicks);o.cum_leads=Math.max(o.cum_leads,n(d.cum_leads));o.days++;});
+  return [...m.values()].sort((a,b)=>a.key.localeCompare(b.key)).map(o=>({label:o.label,spend:o.spend,leads:o.leads,cum_leads:o.cum_leads,impressions:o.impressions,clicks:o.clicks,days:o.days}));}
 
 // ---------- chart defaults / helpers ----------
 const GRID='rgba(255,255,255,.07)';
@@ -1320,11 +1541,12 @@ function render(){
   // Each step is isolated: a single renderer throwing must NOT blank every chart after it (Chart.js
   // draws share one animation loop, so one uncaught throw in a draw callback can take down the whole
   // page). Wrapping per-step keeps the rest of the dashboard alive and logs the offender.
-  [renderChanChips,renderComingSoon,
+  [renderChanChips,renderComingSoon,renderMeasureScope,
    renderHeader,renderKpis,renderTrend,renderPacing,renderGoalProgress,renderPaceToGoal,renderStageDonut,
    renderFunnel,renderStageTable,renderInsights,renderNote,renderBenchTable,renderEffScatter,renderCplTrend,
    renderReachFreq,renderVideo,renderDow,renderLeadType,renderAudience,renderPlacement,
-   renderSegment,renderTables,renderFatigue,renderBurn,renderCreative,renderPlatformTable,renderFooter,renderDateScope]
+   renderSegment,renderTables,renderFatigue,renderBurn,renderCreative,renderPlatformTable,
+   renderGoogleTab,renderFooter,renderDateScope]
     .forEach(fn=>{try{fn();}catch(e){console.error('render step failed:',fn.name,e);}});
   // LAST, deliberately: the renderers above unhide panes and repopulate tables, so the placeholder
   // has to take the page back afterwards or a coming-soon development would flash its real tabs.
@@ -1341,20 +1563,37 @@ function renderHeader(){
   const ts=$('topState'),td=$('topDot');
   if(ts)ts.textContent=comingSoon()?'Coming soon':(awaitingDelivery()?'Planned':'Live');
   if(td)td.style.background=(comingSoon()||awaitingDelivery())?'var(--ctr)':'';
-  const notes={overview:'Demand & qualified leads',paid:'Paid-media performance',plan:'Signed media plan vs delivery',creative:'Creative library'};
+  const lead=leadShaped();
+  const notes={overview:lead?'Demand & qualified leads':'Reach & delivery',paid:'Paid-media performance',google:'Google Ads - search & YouTube',plan:'Signed media plan vs delivery',creative:'Creative library'};
   $('ctrlNote').textContent=notes[STATE.view]||'';
   const a=agg(scoped());
   const prop=labelOfProp(STATE.property)||'Geocon';
-  const ot=$('ovTitle');if(ot)ot.textContent=`${prop} - demand & qualified leads`;
+  // An awareness buy is not measured on demand. Naming the page after a goal this development
+  // does not carry is the first thing a client would read as wrong.
+  const ot=$('ovTitle');if(ot)ot.textContent=`${prop} - ${lead?'demand & qualified leads':'reach & delivery'}`;
+  const nb=$('nsBand');if(nb)nb.textContent=lead?'Campaign goal · qualified enquiries at an efficient cost'
+    :'Campaign goal · reach at an efficient cost';
   // The audience/placement charts are fed by the Meta-only breakdown pull, so name the source
   // rather than implying they cover every channel a multi-channel development buys.
   const bs=$('bdSub');if(bs)bs.textContent=`Meta audience & placement breakdowns for the ${prop} campaigns - honours the date filter.`;
+  // Meta's CDN thumbnails are the only creative images any feed gives us; Trade Desk sends names
+  // only. Promising an ad image on a development that has none is a small lie that shows.
+  const cs=$('creativeSub');if(cs)cs.innerHTML=`The 5 highest-spend creatives in the selected range`
+    +(reports('creative_thumbnail_url')
+      ? ` - real ad <b>headline, copy and performance</b>. The ad image shows when Meta's thumbnail link is still valid; some cards fall back to a branded tile (the copy + metrics are always live).`
+      : ` - <b>${safeName(deliveredChans().join(' / ')||'the delivering platform')}</b> reports creative names and delivery, not ad images, so each card carries a branded tile.`);
   if(awaitingDelivery()){
     // No delivery: state that, rather than narrating zeros as a result.
     $('introCopy').innerHTML=`<b>${safeName(prop)}</b> is not yet reporting delivery.`;
   }else{
     const chans=deliveredChans();
-    $('introCopy').innerHTML=`${m.lead_source_label||'Platform-reported'} enquiries and modelled <b>qualified leads</b> for the ${safeName(prop)} launch, plus spend pacing and creative efficiency. Showing <b>${rangeLabel()}</b> across <b>${chans.length?chans.map(safeName).join(', '):'no channels'}</b> - ${int(a.leads)} enquiries · ${money(a.spend)} spend.`;
+    // `lead_source_label` is a LEGACY top-level field describing the default development
+    // (Gateway Braddon, Meta-only). Reading it for every development would caption Northbourne
+    // Gateway's Trade Desk delivery as "Meta-reported".
+    const src=chans.length===1?safeName(chans[0]):'Platform';
+    $('introCopy').innerHTML=lead
+      ? `${chans.length>1?'Platform-reported':src+'-reported'} enquiries and modelled <b>qualified leads</b> for the ${safeName(prop)} launch, plus spend pacing and creative efficiency. Showing <b>${rangeLabel()}</b> across <b>${chans.map(safeName).join(', ')}</b> - ${int(a.leads)} enquiries · ${money(a.spend)} spend.`
+      : `Reach, delivery and cost efficiency for the ${safeName(prop)} launch, plus spend pacing against the signed media plan. Showing <b>${rangeLabel()}</b> across <b>${chans.length?chans.map(safeName).join(', '):'no channels'}</b> - ${compact(a.impressions)} impressions · ${money(a.spend)} spend. ${escProp(src)} buys awareness inventory with no lead form, so this development reports no enquiries.`;
   }
 }
 function renderDateScope(){
@@ -1384,6 +1623,9 @@ function renderKpis(){
     return;
   }
   const a=agg(scoped());
+  // An awareness development has no enquiry to be the north star. Reporting one anyway prints
+  // "0 enquiries / target -" beside a live campaign - see renderKpisAwareness.
+  if(!leadShaped()){renderKpisAwareness(a);return;}
   const cplT=bench('cpl'),ctrT=bench('ctr'),leadT=bench('lead_target'),qT=bench('qualified_lead_target');
   const q=qualified(a.leads);const cpqlT=(cplT!=null)?cplT/qualRate():null;const cpql=(a.spend==null||!q)?null:a.spend/q;
   const budget=flight().budget==null?null:n(flight().budget);
@@ -1403,18 +1645,82 @@ function renderKpis(){
     {color:MC.qualified,north:true,series:'qualified',label:'Qualified leads (modelled)',value:int(q),
       sub:`${qT!=null?`${targetPending('qualified_lead_target')?'pending ':''}target ${int(qT)}`:'goal not set'} · ${pctWhole(qualRate())} of enquiries`,badge:'modelled · no CRM feed'},
     {color:MC.spend,north:true,series:'spend',label:'Ad spend',value:money(a.spend),
-      sub:spendPct!=null?`${spendPct}% of ${money(budget)} flight`:(budget?`of ${money(budget)} flight`:'budget not set')}
+      sub:budgetSub(spendPct,budget)}
   ];
   // Context - the funnel inputs / delivery quality (static tiles).
   const ctx=[
     {color:MC.reach,label:'Impressions',value:compact(a.impressions),sub:`CPM ${a.cpm!=null?money(a.cpm,2):'-'}`},
-    {color:MC.ctr,label:'CTR (link)',value:pct(a.ctr),sub:ctrT!=null?`target ${pct(ctrT)}`:'link CTR'},
+    {color:MC.ctr,label:'CTR (link)',value:pctr(a.ctr),sub:ctrT!=null?`target ${pctr(ctrT)}`:'link CTR'},
     {color:MC.lpv,label:'Landing-page views',value:int(a.lpv),sub:`cost / LPV ${a.cost_per_lpv!=null?money(a.cost_per_lpv,2):'-'}`},
     {color:MC.reach,label:'Reach',value:compact(a.reach),sub:`frequency ${a.frequency!=null?a.frequency.toFixed(1):'-'}`}
   ];
+  // Never inside the lead tiles above - a Google conversion is not an enquiry (see agg()).
+  if(hasConversions())ctx.push(convTile(a));
   $('kpiGridN').innerHTML=north.map(kpiCard).join('');
   $('kpiGrid').innerHTML=ctx.map(kpiCard).join('');
   wireKpiToggles();
+}
+// A DERIVED target is OURS, not the client's. Northbourne's plan commits impressions, clicks and
+// a budget; its CPM and CPC targets are what those imply, and an unlabelled red delta would accuse
+// the campaign of missing a KPI nobody agreed to. (The caltex precedent.)
+const DERIVED_NOTE='our estimate, not a committed target';
+function targetDerived(k){return targetItem(k).status==='DERIVED';}
+function targetSub(label,k,fmt){const v=targetVal(k);if(v==null)return 'no target set';
+  return `${targetPending(k)?'pending ':''}${label} ${fmt(v)}${targetDerived(k)?' (derived)':''}`;}
+// The awareness north star: did we buy the reach the plan bought, at the cost it bought it for.
+// Same tile grammar as the lead band (label / value / target sub), so the page reads the same -
+// only the measures change, and every one of them is one this development actually reports.
+function renderKpisAwareness(a){
+  const impT=bench('imp_target'),clkT=bench('click_target'),ctrT=bench('ctr');
+  const budget=flight().budget==null?null:n(flight().budget);
+  const spendPct=(a.spend==null||!budget)?null:Math.round(a.spend/budget*100);
+  const impPct=(impT&&a.impressions)?Math.round(a.impressions/impT*100):null;
+  const clkPct=(clkT&&a.clicks)?Math.round(n(a.clicks)/clkT*100):null;
+  const north=[
+    {color:MC.reach,north:true,series:'impressions',label:'Impressions',value:compact(a.impressions),
+      sub:impT!=null?`${impPct}% of ${compact(impT)} planned`:'no impression target'},
+    {color:MC.cost,north:true,series:'cpm',label:'Cost per 1,000 (CPM)',value:a.cpm!=null?money(a.cpm,2):'-',
+      sub:targetSub('target','cpm_target_aud',v=>money(v,2))},
+    {color:MC.ctr,north:true,series:'clicks',label:'Clicks',value:int(a.clicks),
+      sub:clkT!=null?`${clkPct}% of ${int(clkT)} planned`:'no click target'},
+    {color:MC.spend,north:true,series:'spend',label:'Ad spend',value:money(a.spend),
+      sub:budgetSub(spendPct,budget)}
+  ];
+  // Context row: only measures this development REPORTS. Trade Desk sends no reach, so a Reach /
+  // Frequency pair would be two dashes; what is genuinely useful in their place is how much of the
+  // signed plan is actually in market, which is the whole reason the pacing bar reads low.
+  const ctx=[
+    {color:MC.ctr,label:'CTR (link)',value:pctr(a.ctr),sub:ctrT!=null?`target ${pctr(ctrT)}`:'link CTR'},
+    {color:MC.cost,label:'Cost per click (CPC)',value:a.cpc!=null?money(a.cpc,2):'-',
+      sub:targetSub('target','cpc_target_aud',v=>money(v,2))}
+  ];
+  if(hasConversions())ctx.push(convTile(a));
+  if(reports('reach'))ctx.push({color:MC.reach,label:'Reach',value:compact(a.reach),
+    sub:`frequency ${a.frequency!=null?a.frequency.toFixed(1):'-'}`});
+  // NO "media-plan lines live" tile here - removed on request 2026-08-28. The same fact still
+  // reaches the reader twice, where it is doing work rather than occupying a KPI slot: as the pill
+  // that explains the pacing denominator, and as an insight card.
+  ctx.push({color:MC.lpv,label:'Creatives in market',value:int(new Set(scoped().filter(r=>n(r.impressions)>0).map(r=>r.ad_id||r.ad)).size),
+    sub:`${int(new Set(scoped().filter(r=>n(r.impressions)>0).map(r=>r.adset_id||r.adset)).size)} ad sets delivering`});
+  $('kpiGridN').innerHTML=north.map(kpiCard).join('');
+  $('kpiGrid').innerHTML=ctx.slice(0,4).map(kpiCard).join('');
+  wireKpiToggles();
+}
+// "% of A$40,000 flight" would be wrong twice over on a partially-launched plan: A$40,000 is not
+// the flight budget, and the flight budget is not what the campaign can spend today. Name the
+// denominator the figure is actually a share of.
+// Conversions get their OWN tile and their own words. The label names the reporting platform,
+// because a Google-reported conversion is not the same event as a Meta lead form and the two must
+// never read as one number a client could add up.
+function convTile(a){
+  const src=deliveredChans().filter(c=>ROWS().some(r=>r.channel===c&&r.conversions!=null));
+  return {color:MC.qualified,label:'Conversions',value:int(a.conversions),
+          sub:`${src.map(safeName).join(' / ')||'platform'}-reported \u00b7 ${a.cost_per_conversion!=null?money(a.cost_per_conversion)+' each':'cost n/a'}`};
+}
+function budgetSub(spendPct,budget){
+  const inMkt=flight().pace_basis==='in_market';
+  const of=`${money(budget)}${inMkt?' in market':' flight'}`;
+  return spendPct!=null?`${spendPct}% of ${of}`:(budget?`of ${of}`:'budget not set');
 }
 function heroSeriesIdx(chart,group){return chart.data.datasets.reduce((acc,d,i)=>{if(d._group===group)acc.push(i);return acc;},[]);}
 function wireKpiToggles(){
@@ -1433,25 +1739,43 @@ function renderTrend(){
   const gw=STATE.grain==='month'?'Monthly':STATE.grain==='week'?'Weekly':'Daily';
   const spend=rows.map(r=>r.spend),leads=rows.map(r=>r.leads),qual=rows.map(r=>qualified(r.leads));
   const cpl=rows.map(r=>(r.spend==null||!n(r.leads))?null:r.spend/r.leads);   // cost-per-enquiry per period - the media-buyer efficiency line (withheld spend => gap, not 0)
-  const ds=[
-    {label:'Spend',_group:'spend',type:'bar',_raw:spend,_kind:'money',data:spend,backgroundColor:'rgba(237,237,235,.55)',borderColor:MC.accent,borderRadius:4,maxBarThickness:34,yAxisID:'y1',order:4},
-    {label:'Meta enquiries',_group:'leads',type:'line',_raw:leads,_kind:'int',data:rel?indexToPeak(leads):leads,borderColor:MC.leads,backgroundColor:MC.leads,borderWidth:2.6,tension:.35,pointRadius:2,fill:false,yAxisID:rel?'y':'y2',order:2},
-    {label:'Cost / enquiry',_group:'cost',type:'line',_raw:cpl,_kind:'money',data:rel?indexToPeak(cpl):cpl,borderColor:MC.cost,backgroundColor:MC.cost,borderWidth:2.2,tension:.35,pointRadius:2,fill:false,spanGaps:true,yAxisID:rel?'y':'y3',order:1},
-    {label:'Qualified (modelled)',_group:'qualified',type:'line',_raw:qual,_kind:'int',data:rel?indexToPeak(qual):qual,borderColor:MC.qualified,backgroundColor:MC.qualified,borderWidth:2.6,borderDash:[5,3],tension:.35,pointRadius:2,fill:false,yAxisID:rel?'y':'y2',order:0}
-  ];
-  $('trendHint').textContent=`${gw} spend (bars) vs enquiries, cost-per-enquiry & modelled qualified leads - the spend-to-outcome view.`+(rel?' Lines indexed to peak=100; tooltips show true values.':'');
+  const lead=leadShaped();
+  const spendBar={label:'Spend',_group:'spend',type:'bar',_raw:spend,_kind:'money',data:spend,backgroundColor:'rgba(237,237,235,.55)',borderColor:MC.accent,borderRadius:4,maxBarThickness:34,yAxisID:'y1',order:4};
+  // The hero answers "what did the spend buy". On a lead-gen development that is enquiries and
+  // their cost; on an awareness development the outcome IS the delivery, so plotting enquiries
+  // would draw three flat zero lines under the spend bars.
+  let ds,hint;
+  if(lead){
+    const chans=deliveredChans();
+    ds=[spendBar,
+      {label:(chans.length>1?'Enquiries':chans[0]==='Meta'?'Meta enquiries':'Enquiries'),_group:'leads',type:'line',_raw:leads,_kind:'int',data:rel?indexToPeak(leads):leads,borderColor:MC.leads,backgroundColor:MC.leads,borderWidth:2.6,tension:.35,pointRadius:2,fill:false,yAxisID:rel?'y':'y2',order:2},
+      {label:'Cost / enquiry',_group:'cost',type:'line',_raw:cpl,_kind:'money',data:rel?indexToPeak(cpl):cpl,borderColor:MC.cost,backgroundColor:MC.cost,borderWidth:2.2,tension:.35,pointRadius:2,fill:false,spanGaps:true,yAxisID:rel?'y':'y3',order:1},
+      {label:'Qualified (modelled)',_group:'qualified',type:'line',_raw:qual,_kind:'int',data:rel?indexToPeak(qual):qual,borderColor:MC.qualified,backgroundColor:MC.qualified,borderWidth:2.6,borderDash:[5,3],tension:.35,pointRadius:2,fill:false,yAxisID:rel?'y':'y2',order:0}];
+    hint=`${gw} spend (bars) vs enquiries, cost-per-enquiry & modelled qualified leads - the spend-to-outcome view.`;
+  }else{
+    const imps=rows.map(r=>r.impressions),clicks=rows.map(r=>r.clicks);
+    const cpm=rows.map(r=>(r.spend==null||!n(r.impressions))?null:r.spend/r.impressions*1000);
+    ds=[spendBar,
+      {label:'Impressions',_group:'impressions',type:'line',_raw:imps,_kind:'int',data:rel?indexToPeak(imps):imps,borderColor:MC.reach,backgroundColor:MC.reach,borderWidth:2.6,tension:.35,pointRadius:2,fill:false,yAxisID:rel?'y':'y2',order:2},
+      {label:'Clicks',_group:'clicks',type:'line',_raw:clicks,_kind:'int',data:rel?indexToPeak(clicks):clicks,borderColor:MC.ctr,backgroundColor:MC.ctr,borderWidth:2.6,borderDash:[5,3],tension:.35,pointRadius:2,fill:false,yAxisID:rel?'y':'y2',order:0},
+      {label:'CPM',_group:'cpm',type:'line',_raw:cpm,_kind:'money',data:rel?indexToPeak(cpm):cpm,borderColor:MC.cost,backgroundColor:MC.cost,borderWidth:2.2,tension:.35,pointRadius:2,fill:false,spanGaps:true,yAxisID:rel?'y':'y3',order:1}];
+    hint=`${gw} spend (bars) vs impressions, clicks & CPM - the spend-to-delivery view.`;
+  }
+  $('trendHint').textContent=hint+(rel?' Lines indexed to peak=100; tooltips show true values.':'');
   const fmtKind={money:v=>money(v),int:v=>int(v)};
   const scales=rel
     ? {x:axis({grid:{display:false}}),y:{position:'left',min:0,suggestedMax:110,grid:{color:GRID},border:{display:false},ticks:{color:MC.muted,font:{size:11}},title:{display:true,text:'Index (peak=100)',color:MC.muted2,font:{size:11}}},y1:{position:'right',beginAtZero:true,grid:{display:false},border:{display:false},ticks:{color:MC.muted,font:{size:11},callback:v=>'A$'+compact(v)},title:{display:true,text:'Spend',color:MC.muted2,font:{size:11}}}}
     : {x:axis({grid:{display:false}}),
        y1:{position:'left',beginAtZero:true,grid:{color:GRID},border:{display:false},ticks:{color:MC.muted,font:{size:11},callback:v=>'A$'+compact(v)},title:{display:true,text:'Spend',color:MC.muted2,font:{size:11}}},
-       y2:{position:'right',beginAtZero:true,grid:{display:false},border:{display:false},ticks:{color:MC.muted,font:{size:11}},title:{display:true,text:'Enquiries / qualified',color:MC.muted2,font:{size:11}}},
-       y3:{position:'right',beginAtZero:true,offset:true,grid:{display:false},border:{display:false},ticks:{color:MC.muted,font:{size:11},callback:v=>'A$'+compact(v)},title:{display:true,text:'Cost / enquiry',color:MC.muted2,font:{size:11}}}};
+       y2:{position:'right',beginAtZero:true,grid:{display:false},border:{display:false},ticks:{color:MC.muted,font:{size:11},callback:v=>compact(v)},title:{display:true,text:lead?'Enquiries / qualified':'Impressions / clicks',color:MC.muted2,font:{size:11}}},
+       y3:{position:'right',beginAtZero:true,offset:true,grid:{display:false},border:{display:false},ticks:{color:MC.muted,font:{size:11},callback:v=>'A$'+compact(v)},title:{display:true,text:lead?'Cost / enquiry':'CPM',color:MC.muted2,font:{size:11}}}};
   makeChart('trendChart',{data:{labels,datasets:ds},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
     plugins:{legend:legendTop(),tooltip:{callbacks:{label:c=>{const d=c.dataset;const v=d._raw?d._raw[c.dataIndex]:c.parsed.y;const f=fmtKind[d._kind]||(x=>String(x));return `${d.label}: ${v==null?'-':f(v)}`;}}}},
     scales}});
   // re-apply KPI toggles to the freshly-built chart
-  ['spend','leads','cost','qualified'].forEach(g=>{if(HERO_HIDDEN.has(g))heroSeriesIdx(charts.trendChart,g).forEach(i=>{charts.trendChart.getDatasetMeta(i).hidden=true;});});
+  // Derived from the datasets actually built, not a fixed list - the awareness hero carries
+  // impressions/clicks/CPM, so a hardcoded lead-gen roster would leave its KPI tiles inert.
+  ds.map(d=>d._group).forEach(g=>{if(HERO_HIDDEN.has(g))heroSeriesIdx(charts.trendChart,g).forEach(i=>{charts.trendChart.getDatasetMeta(i).hidden=true;});});
   if(charts.trendChart)charts.trendChart.update();
 }
 
@@ -1465,7 +1789,18 @@ function renderPacing(){
   const expectedPct=(expected==null||!budget)?0:Math.min(100,expected/budget*100);
   $('paceActual').style.width=actualPct+'%';$('paceActual').textContent=money(spend);
   $('paceExpected').style.left=expectedPct+'%';
-  $('paceExpectedLabel').textContent=`Expected today: ${money(expected)}`;$('paceBudgetLabel').textContent=`Budget: ${money(budget)}`;
+  $('paceExpectedLabel').textContent=`Expected today: ${money(expected)}`;
+  // Four budget figures now exist (committed / measurable / in-market / pacing). Naming the one the
+  // bar is drawn against is not decoration - without it a reader compares A$3,849 against whichever
+  // of the four they happen to remember.
+  const inMkt=f.pace_basis==='in_market';
+  $('paceBudgetLabel').textContent=`Budget: ${money(budget)}${inMkt?' in market':''}`;
+  const ph=$('paceHint');
+  if(ph)ph.innerHTML=inMkt
+    ? `Spend to date vs the planned pace <b>of the lines that are in market</b> - ${money(budget)} of `
+      +`${money(f.budget_measurable)} reportable (${money(f.budget_committed)} committed). Lines that have `
+      +`not started are not counted as a shortfall. The marker is where pace expects you to be today.`
+    : `Spend to date vs the planned flight pace. The marker is where pace expects you to be today.`;
   const ratio=(spend==null||!expected)?null:spend/expected,projected=held(f.projected_spend);
   // A campaign that has not started is NOT "under pace" - it has no pace. Labelling an unlaunched
   // development 8% behind (and projecting A$0 for the full flight) reads as a failing campaign
@@ -1477,7 +1812,13 @@ function renderPacing(){
     return;
   }
   const clsv=ratio==null?'neutral':ratio>1.08?'bad':ratio<.9?'warn':'good';
-  $('paceSummary').innerHTML=[`<span class="status ${clsv}">${ratio==null?'No pace':ratio>1.08?'Over pace':ratio<.9?'Under pace':'On pace'}</span>`,`<span class="pillc">Projected ${money(projected)}</span>`,`<span class="pillc">Day ${int(f.days_elapsed)} of ${int(f.days_total)}</span>`].join('');
+  // A multi-line plan paces against its WHOLE measurable budget from day one, so a launch with one
+  // line in market reads far "under pace" while performing exactly to plan. That is arithmetically
+  // right and editorially misleading on its own, so the pill says how much of the plan has started.
+  const pl=planLinesLive();
+  const partial=pl&&pl.live<pl.total
+    ?`<span class="pillc">${pl.live} of ${pl.total} plan lines in market</span>`:'';
+  $('paceSummary').innerHTML=[`<span class="status ${clsv}">${ratio==null?'No pace':ratio>1.08?'Over pace':ratio<.9?'Under pace':'On pace'}</span>`,`<span class="pillc">Projected ${money(projected)}</span>`,`<span class="pillc">Day ${int(f.days_elapsed)} of ${int(f.days_total)}</span>`,partial].filter(Boolean).join('');
 }
 function renderStageDonut(){
   const all=byStage(scoped());
@@ -1496,7 +1837,17 @@ function renderStageDonut(){
 }
 function renderFunnel(){
   const a=agg(scoped());
-  const rows=[{name:'Impressions',value:n(a.impressions),color:MC.reach},{name:'Link clicks',value:n(a.link_clicks),color:MC.ctr},{name:'LP views',value:n(a.lpv),color:MC.lpv},{name:'Meta enquiries',value:n(a.leads),color:MC.leads},{name:'Qualified (modelled)',value:qualified(a.leads),color:MC.qualified}];
+  // Only the steps this development MEASURES. An unreported step is not a 0% conversion - carrying
+  // LP views / enquiries / qualified through for a Trade Desk awareness buy would draw three empty
+  // bars and end the funnel on "0.0% of link clicks", which reads as total conversion failure.
+  const chans=deliveredChans(),lead=leadShaped();
+  const rows=[{name:'Impressions',value:n(a.impressions),color:MC.reach},
+              {name:'Link clicks',value:n(a.link_clicks),color:MC.ctr}]
+    .concat(reports('lpv')?[{name:'LP views',value:n(a.lpv),color:MC.lpv}]:[])
+    .concat(lead?[{name:(chans.length>1?'Enquiries':chans[0]==='Meta'?'Meta enquiries':'Enquiries'),value:n(a.leads),color:MC.leads},
+                  {name:'Qualified (modelled)',value:qualified(a.leads),color:MC.qualified}]:[]);
+  const ft=$('funnelTitle');if(ft)ft.textContent=lead?'Enquiry funnel':'Delivery funnel';
+  const fh=$('funnelHint');if(fh)fh.innerHTML=`Each bar = the <b>step conversion</b> (share carried from the previous stage), so drop-off is visible instead of impressions flattening everything; the number is the count. ${rows.map(r=>r.name).join(' → ')}.`;
   // Bar width = STEP CONVERSION (share carried from the previous stage), not absolute volume - so the
   // 65:1 impressions→click drop no longer flattens every later bar. Impressions is the 100% baseline;
   // each later bar shows how well that step converted (a 4% floor keeps tiny rates visible). Count shown.
@@ -1504,34 +1855,51 @@ function renderFunnel(){
     const prev=i?rows[i-1].value:null;
     const conv=prev?(r.value/prev):1;
     const barPct=i?Math.max(4,Math.min(100,conv*100)):100;
-    const rate=prev?`${pct(conv,1)} of ${rows[i-1].name.toLowerCase()}`:`${compact(r.value)} delivered`;
+    const rate=prev?`${pctr(conv)} of ${rows[i-1].name.toLowerCase()}`:`${compact(r.value)} delivered`;
     return `<div class="funnel-row"><div class="funnel-name">${r.name}</div><div class="funnel-bar"><div class="funnel-fill" style="width:${barPct}%;background:${r.color}"></div></div><div class="funnel-value">${compact(r.value)}</div><div class="funnel-rate">${rate}</div></div>`;
   }).join('');
 }
 function renderStageTable(){
   const rows=byStage(scoped());const total=rows.reduce((a,r)=>a+n(r.spend),0)||1;
-  const body=rows.map(r=>`<tr><td><span class="pillc"><span class="dot" style="background:${stageColor(r.stage)}"></span>${safeName(r.stage)}</span></td><td class="num">${money(r.spend)}</td><td class="num">${r.spend==null?'<span class="muted-text">-</span>':pct(n(r.spend)/total,0)}</td><td class="num">${n(r.leads)?int(r.leads):'<span class="muted-text">-</span>'}</td><td class="num">${r.cpl!=null?money(r.cpl):'<span class="muted-text">-</span>'}</td><td class="num">${pct(r.ctr)}</td></tr>`).join('');
+  const body=rows.map(r=>`<tr><td><span class="pillc"><span class="dot" style="background:${stageColor(r.stage)}"></span>${safeName(r.stage)}</span></td><td class="num">${money(r.spend)}</td><td class="num">${r.spend==null?'<span class="muted-text">-</span>':pct(n(r.spend)/total,0)}</td><td class="num c-lead">${n(r.leads)?int(r.leads):'<span class="muted-text">-</span>'}</td><td class="num c-lead">${r.cpl!=null?money(r.cpl):'<span class="muted-text">-</span>'}</td><td class="num">${pctr(r.ctr)}</td></tr>`).join('');
   const t=agg(scoped());
-  const foot=`<tr class="total"><td>Total</td><td class="num">${money(t.spend)}</td><td class="num">${t.spend==null?'-':'100%'}</td><td class="num">${int(t.leads)}</td><td class="num">${t.cpl!=null?money(t.cpl):'-'}</td><td class="num">${pct(t.ctr)}</td></tr>`;
+  const foot=`<tr class="total"><td>Total</td><td class="num">${money(t.spend)}</td><td class="num">${t.spend==null?'-':'100%'}</td><td class="num c-lead">${int(t.leads)}</td><td class="num c-lead">${t.cpl!=null?money(t.cpl):'-'}</td><td class="num">${pctr(t.ctr)}</td></tr>`;
   $('stageTable').querySelector('tbody').innerHTML=(body||`<tr><td colspan="6" style="text-align:center;color:var(--muted2);padding:20px">No stage spend yet.</td></tr>`)+(body?foot:'');
 }
 // Goal progress is FULL-FLIGHT (independent of the date/stage filter, like pacing) - flight enquiries
 // + modelled qualified vs their targets.
 function renderGoalProgress(){
   const a=agg(ROWS());const leadT=bench('lead_target'),qT=bench('qualified_lead_target');const q=qualified(a.leads);
+  // Impressions run to eight figures; int() would print 9,122,334 against 737,352 and squeeze the
+  // row. compact() above 100k keeps both numbers legible without losing the comparison.
+  const fig=v=>n(v)>=100000?compact(v):int(v);
   const bar=(label,val,target,color,note)=>{
     const pctv=target?Math.min(100,val/target*100):0;const hit=target&&val>=target;
-    return `<div class="goal"><div class="gh"><span>${label}</span><span><b>${int(val)}</b>${target!=null?` / ${int(target)}`:''}</span></div>`
+    return `<div class="goal"><div class="gh"><span>${label}</span><span><b>${fig(val)}</b>${target!=null?` / ${fig(target)}`:''}</span></div>`
       +`<div class="gtrack"><div class="gfill" style="width:${Math.max(2,pctv)}%;background:${color}"></div></div>`
       +`<div class="gcap">${target!=null?`${Math.round(pctv)}% of goal${hit?' · reached ✓':''}`:'no target set'}${note?' · '+note:''}</div></div>`;
   };
-  $('goalProgress').innerHTML=`<div class="goal-title">Progress to goal · full flight</div>`
+  // The plan's committed goals for THIS development. An awareness buy commits impressions and
+  // clicks, not enquiries - showing "0 / no target set" twice would be the only thing under the
+  // pacing bar on a live campaign.
+  const head=`<div class="goal-title">Progress to goal · full flight</div>`;
+  if(!leadShaped()){
+    $('goalProgress').innerHTML=head
+      +bar('Impressions',a.impressions,bench('imp_target'),MC.reach,'')
+      +bar('Clicks',a.clicks,bench('click_target'),MC.ctr,'');
+    return;
+  }
+  $('goalProgress').innerHTML=head
     +bar('Enquiries',a.leads,leadT,MC.leads,'')
     +bar('Qualified (modelled)',q,qT,MC.qualified,`×${pctWhole(qualRate())} of enquiries`);
 }
 // Cumulative enquiries across the flight vs the straight-line pace needed to hit the lead target by
 // the end date (full-flight; the client's "are we on track?" read). Above the dashed line = ahead.
 function renderPaceToGoal(){
+  // Cumulative ENQUIRIES vs a lead target. renderMeasureScope hides this card on a development
+  // that reports neither, so there is nothing to draw - and drawing into a hidden canvas leaves a
+  // 0x0 chart that stays blank if the card is ever shown again.
+  if(!leadShaped()){destroyChart('paceGoal');return;}
   const f=flight();const leadT=bench('lead_target');const fstart=f.start,ftot=n(f.days_total)||null;
   const days=dailyOf(ROWS());
   if(!days.length){makeChart('paceGoal',{type:'line',data:{labels:[],datasets:[]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}}}});return;}
@@ -1635,6 +2003,10 @@ function renderPlacement(){
 }
 function renderInsights(){
   const a=agg(scoped());const st=byStage(scoped());const ads=byAd(scoped()).filter(x=>n(x.spend)>0);
+  // Every card here reads an enquiry, a CPL or a modelled qualified lead. On an awareness
+  // development all four would answer "-", so the section answers the questions that buy DOES
+  // pose: did we deliver the reach, at what cost, and how much of the plan is running.
+  if(!leadShaped()){renderInsightsAwareness(a,ads);return;}
   const bestLead=ads.filter(x=>n(x.leads)>0&&x.cpl!=null).sort((x,y)=>x.cpl-y.cpl)[0];
   const topSpend=st[0];const leadStage=st.filter(s=>n(s.leads)>0).sort((x,y)=>(x.cpl||1e9)-(y.cpl||1e9))[0];
   const pool=Math.max(0,n(a.lpv)-n(a.leads));
@@ -1646,7 +2018,37 @@ function renderInsights(){
   ];
   $('insightGrid').innerHTML=items.map(i=>`<article class="insight"><div class="label">${i.label}</div><div class="value">${i.value}</div><div class="copy">${i.copy}</div></article>`).join('');
 }
+function renderInsightsAwareness(a,ads){
+  const impT=bench('imp_target');
+  const bestCtr=ads.filter(x=>n(x.impressions)>=1000&&x.ctr!=null).sort((x,y)=>y.ctr-x.ctr)[0];
+  const bestCpm=ads.filter(x=>n(x.impressions)>=1000&&x.cpm!=null).sort((x,y)=>x.cpm-y.cpm)[0];
+  const pl=planLinesLive();
+  const items=[
+    {label:'Impressions delivered',value:compact(a.impressions),
+     copy:impT!=null?`${Math.round(n(a.impressions)/impT*100)}% of the ${compact(impT)} the signed plan buys across the full flight.`
+                    :'The plan commits no impression target for this development.'},
+    {label:'Most efficient creative',value:bestCpm?safeName(bestCpm.ad):'-',
+     copy:bestCpm?`${money(bestCpm.cpm,2)} CPM over ${compact(bestCpm.impressions)} impressions.`:'Waiting for a creative with enough delivery to compare.'},
+    {label:'Strongest attention',value:bestCtr?safeName(bestCtr.ad):'-',
+     copy:bestCtr?`${pct(bestCtr.ctr,3)} CTR - the creative earning the most clicks per impression.`:'No creative has 1,000 impressions yet.'},
+    {label:'Plan lines in market',value:pl?`${pl.live} of ${pl.total}`:'-',
+     copy:pl?`${money(pl.budget)} of ${money(bench('measurable_budget'))} reportable budget is running, and pacing is measured against that - the lines still to launch are not counted as a shortfall.`
+            :'No signed media plan is seeded for this development.'}
+  ];
+  $('insightGrid').innerHTML=items.map(i=>`<article class="insight"><div class="label">${i.label}</div><div class="value">${i.value}</div><div class="copy">${i.copy}</div></article>`).join('');
+}
 function renderNote(){
+  // The qualified-lead model only means anything where a platform reports enquiries at all.
+  if(!leadShaped()){
+    const chans=deliveredChans().map(safeName).join(' and ')||'this platform';
+    $('ovNote').innerHTML=`<b>How to read this.</b> This is an <b>awareness</b> buy: ${chans} sells reach, `
+      +`with <b>no lead form and no on-site tag</b>, so there is no enquiry, cost-per-enquiry or `
+      +`landing-page figure to report - those panels are hidden rather than shown as zero. The measures `
+      +`here are impressions, clicks, CTR and cost efficiency against the signed media plan. `
+      +`All figures are ${meta().currency||'AUD'}; pacing is full-flight and independent of the date filter, `
+      +`and it paces the <b>whole</b> reportable plan, so it reads low while lines are still to launch.`;
+    return;
+  }
   $('ovNote').innerHTML=`<b>How to read this.</b> Meta reports <b>raw enquiries</b> only - a "qualified lead" is not measured by the ad platform, so <b>Qualified leads (modelled)</b> = Meta enquiries × a <b>${pctWhole(qualRate())} assumed qualification rate</b> (target ${bench('qualified_lead_target')!=null?int(bench('qualified_lead_target')):'-'}). It is a planning estimate, not an actual - wire a CRM feed to report true qualified leads. All figures are ${meta().currency||'AUD'}; pacing is full-flight and independent of the date filter.`;
 }
 
@@ -1657,32 +2059,43 @@ function renderBenchTable(){
   const body=rows.map(r=>`<tr>
     <td class="name-cell">${prettyCampaign(r.campaign)}</td>
     <td><span class="pillc"><span class="dot" style="background:${stageColor(r.stage)}"></span>${safeName(r.stage)}</span></td>
-    <td class="num">${money(r.spend)}</td><td class="num">${n(r.leads)?int(r.leads):'<span class="muted-text">-</span>'}</td>
-    <td class="num">${pct(r.ctr)}<div class="vs">vs ${cT?pct(cT):'-'}</div></td><td class="num">${deltaCell(r.ctr,cT,false)}</td>
+    <td class="num">${money(r.spend)}</td><td class="num c-lead">${n(r.leads)?int(r.leads):'<span class="muted-text">-</span>'}</td>
+    <td class="num">${pctr(r.ctr)}<div class="vs">vs ${cT?pctr(cT):'-'}</div></td><td class="num">${deltaCell(r.ctr,cT,false)}</td>
     <td class="num">${money(r.cpm,2)}<div class="vs">vs ${mT?money(mT,2):'-'}</div></td><td class="num">${deltaCell(r.cpm,mT,true)}</td>
     <td class="num">${money(r.cpc,2)}<div class="vs">vs ${cpcT?money(cpcT,2):'-'}</div></td><td class="num">${deltaCell(r.cpc,cpcT,true)}</td>
-    <td class="num">${r.cpl!=null?money(r.cpl):'<span class="muted-text">-</span>'}<div class="vs">vs ${cplT?money(cplT):'-'}</div></td><td class="num">${deltaCell(r.cpl,cplT,true)}</td></tr>`).join('');
+    <td class="num c-lead">${r.cpl!=null?money(r.cpl):'<span class="muted-text">-</span>'}<div class="vs">vs ${cplT?money(cplT):'-'}</div></td><td class="num c-lead">${deltaCell(r.cpl,cplT,true)}</td></tr>`).join('');
   const tot=agg(searched(scoped()));
-  const foot=`<tr class="total"><td>Total</td><td></td><td class="num">${money(tot.spend)}</td><td class="num">${int(tot.leads)}</td><td class="num">${pct(tot.ctr)}</td><td class="num">${deltaCell(tot.ctr,cT,false)}</td><td class="num">${money(tot.cpm,2)}</td><td class="num">${deltaCell(tot.cpm,mT,true)}</td><td class="num">${money(tot.cpc,2)}</td><td class="num">${deltaCell(tot.cpc,cpcT,true)}</td><td class="num">${tot.cpl!=null?money(tot.cpl):'-'}</td><td class="num">${deltaCell(tot.cpl,cplT,true)}</td></tr>`;
+  const foot=`<tr class="total"><td>Total</td><td></td><td class="num">${money(tot.spend)}</td><td class="num c-lead">${int(tot.leads)}</td><td class="num">${pctr(tot.ctr)}</td><td class="num">${deltaCell(tot.ctr,cT,false)}</td><td class="num">${money(tot.cpm,2)}</td><td class="num">${deltaCell(tot.cpm,mT,true)}</td><td class="num">${money(tot.cpc,2)}</td><td class="num">${deltaCell(tot.cpc,cpcT,true)}</td><td class="num c-lead">${tot.cpl!=null?money(tot.cpl):'-'}</td><td class="num c-lead">${deltaCell(tot.cpl,cplT,true)}</td></tr>`;
   $('benchTable').querySelector('tbody').innerHTML=(body||`<tr><td colspan="12" style="text-align:center;color:var(--muted2);padding:24px">No rows for the current filters.</td></tr>`)+(body?foot:'');
 }
 function renderSegment(){
   const adsets=byAdset(scoped()).filter(a=>n(a.spend)>0).slice(0,12);
   makeChart('segChart',{type:'bar',data:{labels:adsets.map(a=>a.adset),datasets:[{label:'Spend',data:adsets.map(a=>n(a.spend)),backgroundColor:adsets.map(a=>stageColor(a.stage)),borderRadius:5}]},
-    options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>{const a=adsets[c.dataIndex];return [`${safeName(a.adset)} (${a.stage})`,`Spend ${money(a.spend)} · ${int(a.leads)} enquiries · CTR ${pct(a.ctr)}`];}}}},
+    options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>{const a=adsets[c.dataIndex];return [`${safeName(a.adset)} (${a.stage})`,`Spend ${money(a.spend)} · ${int(a.leads)} enquiries · CTR ${pctr(a.ctr)}`];}}}},
       scales:{x:axis({beginAtZero:true,ticks:{color:MC.muted,font:{size:11},callback:v=>'A$'+compact(v)}}),y:{grid:{display:false},border:{display:false},ticks:{color:MC.muted,font:{size:10},autoSkip:false,callback:function(v){const l=this.getLabelForValue(v);return l.length>22?l.slice(0,21)+'…':l;}}}}}});
 }
-function readFor(r){const cplT=bench('cpl'),ctrT=bench('ctr');if(n(r.leads)>0&&r.cpl!=null&&cplT&&r.cpl<=cplT)return['good-text','Scale carefully'];if(n(r.spend)>120&&n(r.leads)===0&&n(r.lpv)>0)return['warn-text','Fix conversion'];if(ctrT&&r.ctr!=null&&r.ctr<ctrT&&n(r.spend)>80)return['bad-text','Refresh attention'];if(n(r.frequency)>3.5)return['warn-text','Watch fatigue'];return['muted-text','Monitor'];}
+// The verdict must be reachable from what the row MEASURES. Every arm below except the CTR one
+// reads a lead, an LP view or a frequency, so on an awareness development the column would say
+// "Monitor" on every row forever - a judgement that is really the absence of one. There, read it
+// off the two things that buy IS bought on: CTR and CPM.
+function readFor(r){const cplT=bench('cpl'),ctrT=bench('ctr'),cpmT=bench('cpm');
+  if(!leadShaped()){
+    if(ctrT&&r.ctr!=null&&r.ctr>=ctrT*1.15)return['good-text','Strong attention'];
+    if(cpmT&&r.cpm!=null&&r.cpm>cpmT*1.15)return['warn-text','Expensive reach'];
+    if(ctrT&&r.ctr!=null&&r.ctr<ctrT&&n(r.impressions)>15000)return['bad-text','Refresh attention'];
+    return['muted-text','Monitor'];
+  }
+  if(n(r.leads)>0&&r.cpl!=null&&cplT&&r.cpl<=cplT)return['good-text','Scale carefully'];if(n(r.spend)>120&&n(r.leads)===0&&n(r.lpv)>0)return['warn-text','Fix conversion'];if(ctrT&&r.ctr!=null&&r.ctr<ctrT&&n(r.spend)>80)return['bad-text','Refresh attention'];if(n(r.frequency)>3.5)return['warn-text','Watch fatigue'];return['muted-text','Monitor'];}
 function renderTables(){
   const rows=byAd(searched(scoped()));
   $('adTable').querySelector('tbody').innerHTML=rows.length?rows.map(r=>{const[clsv,read]=readFor(r);const lc=lowConfidence(r);const warn=lc.low?` <span class="warn-chip" title="Low confidence: ${lc.why}">⚠ thin</span>`:'';
-    return `<tr><td class="name-cell">${safeName(r.ad)}${warn}${r.creative_title?`<div class="tiny">${safeName(r.creative_title)}</div>`:''}</td><td>${safeName(r.adset)}</td><td><span class="pillc"><span class="dot" style="background:${stageColor(r.stage)}"></span>${safeName(r.stage)}</span></td><td class="num">${money(r.spend)}</td><td class="num">${n(r.leads)?int(r.leads):'<span class="muted-text">-</span>'}</td><td class="num">${r.cpl!=null?money(r.cpl):'<span class="muted-text">-</span>'}</td><td class="num">${pct(r.ctr)}</td><td class="num">${int(r.lpv)}</td><td class="num">${r.cost_per_lpv!=null?money(r.cost_per_lpv,2):'<span class="muted-text">-</span>'}</td><td class="num">${r.frequency!=null?r.frequency.toFixed(1):'-'}</td><td class="${clsv}">${read}</td></tr>`;}).join('')
+    return `<tr><td class="name-cell">${safeName(r.ad)}${warn}${r.creative_title?`<div class="tiny">${safeName(r.creative_title)}</div>`:''}</td><td>${safeName(r.adset)}</td><td><span class="pillc"><span class="dot" style="background:${stageColor(r.stage)}"></span>${safeName(r.stage)}</span></td><td class="num">${money(r.spend)}</td><td class="num c-lead">${n(r.leads)?int(r.leads):'<span class="muted-text">-</span>'}</td><td class="num c-lead">${r.cpl!=null?money(r.cpl):'<span class="muted-text">-</span>'}</td><td class="num">${pctr(r.ctr)}</td><td class="num c-lpv">${int(r.lpv)}</td><td class="num c-lpv">${r.cost_per_lpv!=null?money(r.cost_per_lpv,2):'<span class="muted-text">-</span>'}</td><td class="num c-reach">${r.frequency!=null?r.frequency.toFixed(1):'-'}</td><td class="${clsv}">${read}</td></tr>`;}).join('')
     :`<tr><td colspan="11" style="text-align:center;color:var(--muted2);padding:28px">No ads match the current filters.</td></tr>`;
 }
 function renderFatigue(){
   const rows=fatigueOf(scoped()).sort((a,b)=>{const af=a.flag==='FATIGUED'?0:1,bf=b.flag==='FATIGUED'?0:1;return af-bf||n(b.frequency)-n(a.frequency);}).slice(0,12);
   $('fatigueTable').querySelector('tbody').innerHTML=rows.length?rows.map(r=>{const clsv=r.flag==='FATIGUED'?'bad-text':'good-text';const fw=nullable(r.freq_wow),cw=nullable(r.ctr_wow);
-    return `<tr><td class="name-cell">${safeName(r.ad)}<div class="tiny">${safeName(r.adset)}</div></td><td class="num">${r.frequency!=null?r.frequency.toFixed(1):'-'}</td><td class="num ${fw>0?'bad-text':'good-text'}">${fw==null?'-':(fw>0?'+':'')+fw.toFixed(2)}</td><td class="num">${pct(r.ctr)}</td><td class="num ${cw<0?'bad-text':'good-text'}">${cw==null?'-':(cw>0?'+':'')+(cw*100).toFixed(2)+'pp'}</td><td class="${clsv}">${safeName(r.flag)}</td></tr>`;}).join('')
+    return `<tr><td class="name-cell">${safeName(r.ad)}<div class="tiny">${safeName(r.adset)}</div></td><td class="num">${r.frequency!=null?r.frequency.toFixed(1):'-'}</td><td class="num ${fw>0?'bad-text':'good-text'}">${fw==null?'-':(fw>0?'+':'')+fw.toFixed(2)}</td><td class="num">${pctr(r.ctr)}</td><td class="num ${cw<0?'bad-text':'good-text'}">${cw==null?'-':(cw>0?'+':'')+(cw*100).toFixed(2)+'pp'}</td><td class="${clsv}">${safeName(r.flag)}</td></tr>`;}).join('')
     :'<tr><td colspan="6" style="text-align:center;color:var(--muted2);padding:28px">No weekly fatigue signal yet (need 2+ weeks ≥1,000 impressions).</td></tr>';
 }
 function renderBurn(){
@@ -1702,7 +2115,7 @@ function renderEffScatter(){
     if(ctrT!=null){const x=scales.x.getPixelForValue(ctrT*100);if(x>chartArea.left&&x<chartArea.right){ctx.beginPath();ctx.moveTo(x,chartArea.top);ctx.lineTo(x,chartArea.bottom);ctx.stroke();ctx.fillText('CTR '+pct(ctrT),Math.min(x+5,chartArea.right-60),chartArea.top+12);}}
     ctx.restore();}};
   makeChart('effScatter',{type:'bubble',data:{datasets:Object.keys(grouped).map(s=>({label:s,data:grouped[s],backgroundColor:stageColor(s)+'B0',borderColor:stageColor(s)}))},
-    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:legendTop(),tooltip:{callbacks:{label:c=>{const a=c.raw.raw;return [safeName(a.ad),`CPL ${a.cpl!=null?money(a.cpl):'-'} · CTR ${pct(a.ctr)} · ${money(a.spend)} · ${int(a.leads)} enq.`];}}}},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:legendTop(),tooltip:{callbacks:{label:c=>{const a=c.raw.raw;return [safeName(a.ad),`CPL ${a.cpl!=null?money(a.cpl):'-'} · CTR ${pctr(a.ctr)} · ${money(a.spend)} · ${int(a.leads)} enq.`];}}}},
       scales:{x:axis({title:{display:true,text:'CTR %',color:MC.muted2,font:{size:11}},beginAtZero:true}),y:axis({title:{display:true,text:'Cost per enquiry (A$)',color:MC.muted2,font:{size:11}},beginAtZero:true})}},plugins:[targetLines]});
 }
 
@@ -1717,11 +2130,21 @@ function renderCreative(){
     const body=r.creative_body?safeName(r.creative_body):'';
     const media=r.creative_thumbnail_url
       ? `<img class="cc-thumb" src="${r.creative_id?('/creative-img/'+encodeURIComponent(r.creative_id)):r.creative_thumbnail_url}" alt="" loading="lazy" data-head="${head}" data-cdn="${r.creative_thumbnail_url}" onerror="ccImgErr(this)">`
-      : `<div class="cc-fallback"><div class="cc-fb-mark">GATEWAY BRADDON</div><div class="cc-fb-h">${head}</div></div>`;
+      // The mark is the SELECTED development, never a literal - a Northbourne Gateway creative
+      // watermarked GATEWAY BRADDON is the most confusing thing this page could print. Matches
+      // what ccFallback() already does on the CDN-expiry path.
+      : `<div class="cc-fallback"><div class="cc-fb-mark">${escProp(String(labelOfProp(STATE.property)||'Geocon').toUpperCase())}</div><div class="cc-fb-h">${head}</div></div>`;
     return `<div class="ccard clickable" onclick="openCreative(${i})">${media}
       <div class="cc-b"><div class="cc-title">${head}</div>${body?`<div class="cc-copy">${body}</div>`:''}
-      <div class="cc-m"><span><b>${money(r.spend)}</b> spend</span><span><b>${int(r.leads)}</b> enq.</span><span>CPL <b>${r.cpl!=null?money(r.cpl):'-'}</b></span><span>CTR <b>${pct(r.ctr)}</b></span></div></div></div>`;
+      <div class="cc-m">${creativeMetrics(r)}</div></div></div>`;
   }).join(''):'<div class="muted-text" style="padding:24px">No creatives with spend in this range.</div>';
+}
+// A creative's metric strip shows what its platform measures. On an awareness buy, "0 enq. / CPL -"
+// on every card is noise where impressions and CPM are the real comparison.
+function creativeMetrics(r){
+  return leadShaped()
+    ? `<span><b>${money(r.spend)}</b> spend</span><span><b>${int(r.leads)}</b> enq.</span><span>CPL <b>${r.cpl!=null?money(r.cpl):'-'}</b></span><span>CTR <b>${pct(r.ctr)}</b></span>`
+    : `<span><b>${money(r.spend)}</b> spend</span><span><b>${compact(r.impressions)}</b> imps</span><span>CPM <b>${r.cpm!=null?money(r.cpm,2):'-'}</b></span><span>CTR <b>${pctr(r.ctr)}</b></span>`;
 }
 function ccFallback(img){const prop=labelOfProp(STATE.property)||'Geocon';const head=img.getAttribute('data-head')||prop;const d=document.createElement('div');d.className='cc-fallback';d.innerHTML='<div class="cc-fb-mark">'+safeName(prop).toUpperCase()+'</div><div class="cc-fb-h">'+head+'</div>';img.replaceWith(d);}
 // Creative image fallback chain: our cached copy (/creative-img/<id>, permanent) → the live Meta CDN
@@ -1730,9 +2153,13 @@ function ccFallback(img){const prop=labelOfProp(STATE.property)||'Geocon';const 
 function ccImgErr(img){const cdn=img.getAttribute('data-cdn');if(cdn&&img.src.indexOf('/creative-img/')>-1){img.src=cdn;return;}ccFallback(img);}
 function openCreative(i){const r=CC_LIST[i];if(!r)return;const head=safeName(r.creative_title||r.ad);
   const link=r.destination_url?`<a class="ccm-link" href="${r.destination_url}" target="_blank" rel="noopener">Open landing page ↗</a>`:'';
-  $('ccModalBody').innerHTML=`<div class="ccm-media">${r.creative_thumbnail_url?`<img class="ccm-img" src="${r.creative_id?('/creative-img/'+encodeURIComponent(r.creative_id)):r.creative_thumbnail_url}" alt="" data-head="${head}" data-cdn="${r.creative_thumbnail_url}" onerror="ccImgErr(this)">`:`<div class="cc-fallback" style="border-radius:12px;min-height:240px"><div class="cc-fb-mark">GATEWAY BRADDON</div><div class="cc-fb-h">${head}</div></div>`}</div>
+  $('ccModalBody').innerHTML=`<div class="ccm-media">${r.creative_thumbnail_url?`<img class="ccm-img" src="${r.creative_id?('/creative-img/'+encodeURIComponent(r.creative_id)):r.creative_thumbnail_url}" alt="" data-head="${head}" data-cdn="${r.creative_thumbnail_url}" onerror="ccImgErr(this)">`:`<div class="cc-fallback" style="border-radius:12px;min-height:240px"><div class="cc-fb-mark">${escProp(String(labelOfProp(STATE.property)||'Geocon').toUpperCase())}</div><div class="cc-fb-h">${head}</div></div>`}</div>
     <div class="ccm-info"><h3>${safeName(r.creative_title||r.ad)}</h3>${r.creative_body?`<p class="ccm-body">${safeName(r.creative_body)}</p>`:''}
-    <div class="ccm-metrics"><span>Spend <b>${money(r.spend)}</b></span><span>Enquiries <b>${int(r.leads)}</b></span><span>CPL <b>${r.cpl!=null?money(r.cpl):'-'}</b></span><span>CTR <b>${pct(r.ctr)}</b></span><span>LPV <b>${int(r.lpv)}</b></span><span>Freq <b>${r.frequency!=null?r.frequency.toFixed(1):'-'}</b></span></div>${link}</div>`;
+    <div class="ccm-metrics">${leadShaped()
+      ? `<span>Spend <b>${money(r.spend)}</b></span><span>Enquiries <b>${int(r.leads)}</b></span><span>CPL <b>${r.cpl!=null?money(r.cpl):'-'}</b></span><span>CTR <b>${pctr(r.ctr)}</b></span>`
+        +(reports('lpv')?`<span>LPV <b>${int(r.lpv)}</b></span>`:'')
+        +(reports('reach')?`<span>Freq <b>${r.frequency!=null?r.frequency.toFixed(1):'-'}</b></span>`:'')
+      : `<span>Spend <b>${money(r.spend)}</b></span><span>Impressions <b>${int(r.impressions)}</b></span><span>Clicks <b>${int(r.clicks)}</b></span><span>CTR <b>${pctr(r.ctr)}</b></span><span>CPM <b>${r.cpm!=null?money(r.cpm,2):'-'}</b></span><span>CPC <b>${r.cpc!=null?money(r.cpc,2):'-'}</b></span>`}</div>${link}</div>`;
   $('ccModal').classList.add('on');
 }
 function closeCreative(){$('ccModal').classList.remove('on');}
@@ -1787,16 +2214,20 @@ function renderPlatformTable(){
       <td><span class="dot" style="background:${chanColor(r.channel)}"></span> <b>${safeName(r.channel)}</b></td>
       <td class="num">${money(r.spend)}</td><td class="num">${share(r.spend)}</td>
       <td class="num">${int(r.impressions)}</td><td class="num">${int(r.clicks)}</td>
-      <td class="num">${pct(r.ctr)}</td><td class="num">${r.cpm!=null?money(r.cpm,2):'-'}</td>
+      <td class="num">${pctr(r.ctr)}</td><td class="num">${r.cpm!=null?money(r.cpm,2):'-'}</td>
       <td class="num">${r.cpc!=null?money(r.cpc,2):'-'}</td>
-      <td class="num">${int(r.leads)}</td><td class="num">${r.cpl!=null?money(r.cpl):'-'}</td>
+      <td class="num c-lead">${int(r.leads)}</td><td class="num c-lead">${r.cpl!=null?money(r.cpl):'-'}</td>
+      <td class="num c-conv">${r.conversions==null?'<span class="muted-text">-</span>':int(r.conversions)}</td>
+      <td class="num c-conv">${r.cost_per_conversion!=null?money(r.cost_per_conversion):'<span class="muted-text">-</span>'}</td>
     </tr>`).join('');
   $('platformTable').querySelector('tbody').innerHTML=body+`<tr class="totrow">
       <td><b>Total</b></td><td class="num"><b>${money(tot.spend)}</b></td><td class="num">-</td>
       <td class="num"><b>${int(tot.impressions)}</b></td><td class="num"><b>${int(tot.clicks)}</b></td>
-      <td class="num"><b>${pct(tot.ctr)}</b></td><td class="num"><b>${tot.cpm!=null?money(tot.cpm,2):'-'}</b></td>
+      <td class="num"><b>${pctr(tot.ctr)}</b></td><td class="num"><b>${tot.cpm!=null?money(tot.cpm,2):'-'}</b></td>
       <td class="num"><b>${tot.cpc!=null?money(tot.cpc,2):'-'}</b></td>
-      <td class="num"><b>${int(tot.leads)}</b></td><td class="num"><b>${tot.cpl!=null?money(tot.cpl):'-'}</b></td></tr>`;
+      <td class="num c-lead"><b>${int(tot.leads)}</b></td><td class="num c-lead"><b>${tot.cpl!=null?money(tot.cpl):'-'}</b></td>
+      <td class="num c-conv"><b>${int(tot.conversions)}</b></td>
+      <td class="num c-conv"><b>${tot.cost_per_conversion!=null?money(tot.cost_per_conversion):'-'}</b></td></tr>`;
 }
 // ---------- the COMING SOON placeholder ----------
 // A development is coming soon because the SEED says so (`status` in targets/property_map.csv), NOT
@@ -1833,6 +2264,166 @@ function renderComingSoon(){
       <div class="cs-foot">Geocon · 100% Digital</div>
     </div>`;
 }
+// ===================== the Google Ads tab =====================
+// GA_CHAN is the payload's channel name; 'ga' scopes a row set to it. Everything on this tab reads
+// ROWS() (property + platform chips already applied) and then this one extra filter, so unticking
+// Google Ads in the chip row empties this tab exactly as it empties every other surface.
+const GA_CHAN='Google Ads';
+const gaRows=()=>scoped().filter(r=>chanOf(r)===GA_CHAN);
+const gaAll=()=>ROWS().filter(r=>chanOf(r)===GA_CHAN);
+// The plan's Google lines. `measurable` false is the A$7,500 management fee - a real cost the
+// client pays, but it reaches no ad server, so it is listed and never paced against.
+const gaPlan=()=>(propDef().plan||[]).filter(l=>l.channel===GA_CHAN);
+// The tab exists for a development that BUYS Google Ads, delivered or not - see the section
+// comment. Gateway Braddon buys none, so it never sees the tab.
+const gaBought=()=>gaPlan().length>0||gaAll().length>0;
+// SEARCH vs VIDEO. `adset` carries the channel type from sql/09_stg_google_ads (Google exports at
+// campaign grain, so the network type stands in for the ad-set tier).
+function gaByType(rows){
+  const g=groupRollup(rows,r=>r.adset||'Other',r0=>({type:r0.adset||'Other'}));
+  return g.sort((a,b)=>n(b.spend)-n(a.spend));
+}
+const gaTypeLabel=t=>({SEARCH:'Search',VIDEO:'Video (YouTube)',DISPLAY:'Display',
+                       PERFORMANCE_MAX:'Performance Max'}[t]||safeName(t));
+
+function renderGoogleTab(){
+  const tab=$('tabGoogle');if(tab)tab.style.display=gaBought()?'':'none';
+  if(!$('tab-google'))return;
+  const rows=gaRows(),live=gaAll().length>0;
+  $('gaLive').style.display=live?'':'none';
+  renderGaPending(live);
+  renderGaPlanTable(rows,live);
+  renderGaNote(live);
+  if(!live)return;
+  const a=agg(rows);
+  $('gaSub').textContent=`Search and YouTube delivery for the ${safeName(labelOfProp(STATE.property))} launch. Honours the date range and the platform chips.`;
+  const conv=hasConversions();
+  $('gaKpis').innerHTML=[
+    {color:MC.spend,label:'Google Ads spend',value:money(a.spend),sub:`${gaByType(rows).length} buy type(s) delivering`},
+    {color:MC.reach,label:'Impressions',value:compact(a.impressions),sub:`CPM ${a.cpm!=null?money(a.cpm,2):'-'}`},
+    {color:MC.ctr,label:'Clicks',value:int(a.clicks),sub:`CTR ${pctr(a.ctr)} \u00b7 CPC ${a.cpc!=null?money(a.cpc,2):'-'}`}
+  ].concat(conv?[{color:MC.qualified,label:'Conversions',value:int(a.conversions),
+                  sub:`Google-reported \u00b7 ${a.cost_per_conversion!=null?money(a.cost_per_conversion)+' each':'cost n/a'}`}]:[])
+   .map(kpiCard).join('');
+  renderGaTypeTable(rows);
+  renderGaCampTable(rows);
+  renderGaTrend();
+}
+
+// The "bought and waiting" state. A tab that renders nothing tells the reader the dashboard is
+// broken; this one names the campaigns, says exactly what is holding them, and disappears the day
+// the first row lands.
+function renderGaPending(live){
+  const el=$('gaPending');if(!el)return;
+  el.style.display=live?'none':'';
+  if(live){el.innerHTML='';return;}
+  const plan=gaPlan(),budget=plan.reduce((x,l)=>x+n(l.budget),0);
+  $('gaSub').textContent='Bought and built - not yet delivering.';
+  el.innerHTML=`<div class="card"><h3>Not yet delivering</h3>
+    <div class="hint">The Google Ads account is connected and its campaigns are built and correctly named, so delivery flows into this tab automatically - <b>no further work from us</b>. What is missing is that the campaigns have not been switched on.</div>
+    <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap">
+      <span class="pillc">${plan.length} plan line${plan.length===1?'':'s'}</span>
+      <span class="pillc">${money(budget)} committed</span>
+      <span class="status warn">Awaiting campaign activation</span>
+    </div>
+    <div class="hint" style="margin-top:12px">Everything below is the signed plan these lines will be measured against the moment they start.</div>
+  </div>`;
+}
+
+function renderGaTypeTable(rows){
+  const g=gaByType(rows),tot=agg(rows),ts=n(tot.spend)||1;
+  $('gaTypeTable').querySelector('tbody').innerHTML=g.map(r=>`<tr>
+    <td><b>${gaTypeLabel(r.type)}</b></td>
+    <td class="num">${money(r.spend)}</td><td class="num">${r.spend==null?'-':pct(n(r.spend)/ts,0)}</td>
+    <td class="num">${int(r.impressions)}</td><td class="num">${int(r.clicks)}</td>
+    <td class="num">${pctr(r.ctr)}</td><td class="num">${r.cpm!=null?money(r.cpm,2):'-'}</td>
+    <td class="num">${r.cpc!=null?money(r.cpc,2):'-'}</td>
+    <td class="num c-conv">${r.conversions==null?'<span class="muted-text">-</span>':int(r.conversions)}</td>
+    <td class="num c-conv">${r.cost_per_conversion!=null?money(r.cost_per_conversion):'<span class="muted-text">-</span>'}</td></tr>`).join('')
+    ||`<tr><td colspan="10" style="text-align:center;color:var(--muted2);padding:20px">No Google Ads delivery in this range.</td></tr>`;
+}
+
+function renderGaCampTable(rows){
+  const g=groupRollup(rows,r=>r.campaign,r0=>({campaign:r0.campaign,type:r0.adset,line:r0.plan_line}))
+    .sort((a,b)=>n(b.spend)-n(a.spend));
+  $('gaCampTable').querySelector('tbody').innerHTML=g.map(r=>`<tr>
+    <td class="name-cell">${prettyCampaign(r.campaign)}</td>
+    <td><span class="pillc">${gaTypeLabel(r.type)}</span></td>
+    <td>${r.line?safeName(r.line):'<span class="muted-text">outside the plan</span>'}</td>
+    <td class="num">${money(r.spend)}</td><td class="num">${int(r.impressions)}</td>
+    <td class="num">${int(r.clicks)}</td><td class="num">${pctr(r.ctr)}</td>
+    <td class="num">${r.cpc!=null?money(r.cpc,2):'-'}</td>
+    <td class="num c-conv">${r.conversions==null?'<span class="muted-text">-</span>':int(r.conversions)}</td></tr>`).join('')
+    ||`<tr><td colspan="9" style="text-align:center;color:var(--muted2);padding:20px">No Google Ads campaigns in this range.</td></tr>`;
+}
+
+// Delivery vs the bought targets, PER LINE. Whole-flight (like every other pacing surface), so it
+// does not move with the date picker.
+function renderGaPlanTable(rows,live){
+  const plan=gaPlan();
+  const byLine=new Map();
+  gaAll().forEach(r=>{const k=r.plan_line;if(!k)return;if(!byLine.has(k))byLine.set(k,[]);byLine.get(k).push(r);});
+  const cell=(actual,target,fmt,higherBetter)=>{
+    if(target==null||!target)return '<span class="muted-text">-</span>';
+    if(actual==null)return '<span class="muted-text">not started</span>';
+    const r=actual/target,cls=higherBetter?(r>=1?'good-text':r>=.85?'':'bad-text'):'';
+    return `<span class="${cls}">${Math.round(r*100)}% of ${fmt(target)}</span>`;
+  };
+  $('gaPlanTable').querySelector('tbody').innerHTML=plan.map(l=>{
+    const rs=byLine.get(l.line)||[];const a=rs.length?agg(rs):null;
+    const measurable=l.measurable!==false;
+    return `<tr>
+      <td class="name-cell">${safeName(l.line)}${measurable?'':' <span class="pillc">not media</span>'}</td>
+      <td><span class="pillc">${safeName(l.phase||'-')}</span></td>
+      <td class="num">${money(l.budget)}</td>
+      <td class="num">${a?int(a.impressions):'<span class="muted-text">-</span>'}</td>
+      <td class="num">${measurable?cell(a&&a.impressions,l.imp_target,compact,true):'<span class="muted-text">n/a</span>'}</td>
+      <td class="num">${a?int(a.clicks):'<span class="muted-text">-</span>'}</td>
+      <td class="num">${measurable?cell(a&&a.clicks,l.click_target,int,true):'<span class="muted-text">n/a</span>'}</td>
+      <td class="num">${a?pctr(a.ctr):'<span class="muted-text">-</span>'}</td>
+      <td class="num">${measurable?cell(a&&a.ctr,l.ctr_target,pctr,true):'<span class="muted-text">n/a</span>'}</td></tr>`;
+  }).join('')||`<tr><td colspan="9" style="text-align:center;color:var(--muted2);padding:20px">No Google Ads lines in the signed plan.</td></tr>`;
+  const ph=$('gaPlanHint');
+  if(ph)ph.innerHTML=`The signed Google Ads lines and the targets each is measured against. Whole-flight, so these do not move with the date filter.`
+    +(plan.some(l=>l.measurable===false)?` One line is the search <b>management fee</b> - a real cost, but it reaches no ad server, so it is listed and never paced against.`:'');
+}
+
+// The video gap is stated, never printed as zero. It is the one thing a client would reasonably
+// expect from a YouTube line and the feed genuinely cannot answer.
+function renderGaNote(live){
+  const el=$('gaNote');if(!el)return;
+  const hasVideoLine=gaPlan().some(l=>n(l.video_view_target)>0);
+  el.innerHTML=`<b>How to read this.</b> Google Ads exports at <b>campaign</b> grain, so there is no ad-set or creative tier here and the network type (Search / Video) is the finest split available. `
+    +`Conversions are <b>Google-reported</b> and are deliberately never added to the Meta enquiry count - a search conversion and a lead form can be the same person twice. `
+    +(hasVideoLine?`<b>Video views, view rate and quartiles are not in this feed at all</b> - not in the campaign stats, not in the video stats table, and not in the Windsor fallback - so the YouTube line's view target and cost-per-view cannot be reported against. That is a gap in the export, not a campaign that delivered nothing, which is why no zero is shown for it. `:'')
+    +`All figures ${meta().currency||'AUD'}.`;
+}
+
+function renderGaTrend(){
+  const days=dailyOf(gaRows());if(!days.length){destroyChart('gaTrendChart');return;}
+  const m=new Map();
+  days.forEach(d=>{const bk=trendBucketLabel(d.date,STATE.gaGrain);let o=m.get(bk.key);
+    if(!o){o={key:bk.key,label:bk.label,spend:0,imp:0,clk:0,conv:0};m.set(bk.key,o);}
+    o.spend=nAdd(o.spend,d.spend==null?null:n(d.spend));o.imp+=n(d.impressions);o.clk+=n(d.clicks);o.conv+=n(d.conversions);});
+  const wk=[...m.values()].sort((a,b)=>a.key.localeCompare(b.key));
+  const rel=STATE.gaAxis==='rel',gw=STATE.gaGrain==='month'?'Monthly':STATE.gaGrain==='week'?'Weekly':'Daily';
+  const labels=wk.map(o=>o.label),spend=wk.map(o=>o.spend),imp=wk.map(o=>o.imp),clk=wk.map(o=>o.clk),cv=wk.map(o=>o.conv);
+  const ds=[
+    {label:'Spend',_kind:'money',_raw:spend,type:'bar',data:spend,backgroundColor:'rgba(237,237,235,.55)',borderColor:MC.accent,borderRadius:4,maxBarThickness:34,yAxisID:'y1',order:4},
+    {label:'Impressions',_kind:'int',_raw:imp,type:'line',data:rel?indexToPeak(imp):imp,borderColor:MC.reach,backgroundColor:MC.reach,borderWidth:2.6,tension:.35,pointRadius:2,fill:false,yAxisID:rel?'y':'y2',order:2},
+    {label:'Clicks',_kind:'int',_raw:clk,type:'line',data:rel?indexToPeak(clk):clk,borderColor:MC.ctr,backgroundColor:MC.ctr,borderWidth:2.6,borderDash:[5,3],tension:.35,pointRadius:2,fill:false,yAxisID:rel?'y':'y2',order:1}
+  ];
+  if(hasConversions())ds.push({label:'Conversions',_kind:'int',_raw:cv,type:'line',data:rel?indexToPeak(cv):cv,borderColor:MC.qualified,backgroundColor:MC.qualified,borderWidth:2.6,tension:.35,pointRadius:2,fill:false,yAxisID:rel?'y':'y2',order:0});
+  const h=$('gaTrendHint');
+  if(h)h.textContent=`${gw} Google Ads spend (bars) against impressions, clicks${hasConversions()?' and conversions':''}.`+(rel?' Lines indexed to peak=100; tooltips show true values.':'');
+  const scales=rel
+    ? {x:axis({grid:{display:false}}),y:{position:'left',min:0,suggestedMax:110,grid:{color:GRID},border:{display:false},ticks:{color:MC.muted,font:{size:11}},title:{display:true,text:'Index (peak=100)',color:MC.muted2,font:{size:11}}},y1:{position:'right',beginAtZero:true,grid:{display:false},border:{display:false},ticks:{color:MC.muted,font:{size:11},callback:v=>'A$'+compact(v)},title:{display:true,text:'Spend',color:MC.muted2,font:{size:11}}}}
+    : {x:axis({grid:{display:false}}),
+       y1:{position:'left',beginAtZero:true,grid:{color:GRID},border:{display:false},ticks:{color:MC.muted,font:{size:11},callback:v=>'A$'+compact(v)},title:{display:true,text:'Spend',color:MC.muted2,font:{size:11}}},
+       y2:{position:'right',beginAtZero:true,grid:{display:false},border:{display:false},ticks:{color:MC.muted,font:{size:11},callback:v=>compact(v)},title:{display:true,text:'Impressions / clicks',color:MC.muted2,font:{size:11}}}};
+  makeChart('gaTrendChart',{data:{labels,datasets:ds},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+    plugins:{legend:legendTop(),tooltip:{callbacks:{label:c=>{const d=c.dataset;const v=d._raw?d._raw[c.dataIndex]:c.parsed.y;return `${d.label}: ${v==null?'-':(d._kind==='money'?money(v):int(v))}`;}}}},scales}});
+}
 function renderFooter(){const f=flight();const chans=deliveredChans();
   $('footerNote').innerHTML=`${safeName(labelOfProp(STATE.property)||'Geocon')} · Geocon · 100% Digital · `
     +`${chans.length?chans.map(safeName).join(' · '):'awaiting delivery'} · all figures ${meta().currency||'AUD'} · `
@@ -1843,6 +2434,8 @@ function bindControls(){
   document.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>{STATE.view=b.dataset.view;renderViewState();}));
   document.querySelectorAll('#grainSeg button').forEach(b=>b.addEventListener('click',()=>{STATE.grain=b.dataset.grain;document.querySelectorAll('#grainSeg button').forEach(x=>x.classList.toggle('on',x.dataset.grain===STATE.grain));renderTrend();wireKpiToggles();}));
   document.querySelectorAll('#axisSeg button').forEach(b=>b.addEventListener('click',()=>{STATE.axis=b.dataset.axis;document.querySelectorAll('#axisSeg button').forEach(x=>x.classList.toggle('on',x.dataset.axis===STATE.axis));renderTrend();wireKpiToggles();}));
+  document.querySelectorAll('#gaGrainSeg button').forEach(b=>b.addEventListener('click',()=>{STATE.gaGrain=b.dataset.ggrain;document.querySelectorAll('#gaGrainSeg button').forEach(x=>x.classList.toggle('on',x.dataset.ggrain===STATE.gaGrain));renderGaTrend();}));
+  document.querySelectorAll('#gaAxisSeg button').forEach(b=>b.addEventListener('click',()=>{STATE.gaAxis=b.dataset.gaxis;document.querySelectorAll('#gaAxisSeg button').forEach(x=>x.classList.toggle('on',x.dataset.gaxis===STATE.gaAxis));renderGaTrend();}));
   $('searchBox').addEventListener('input',()=>{STATE.search=$('searchBox').value.trim();renderBenchTable();renderSegment();renderTables();renderBurn();renderCreative();renderPlatformTable();});
 }
 function renderViewCharts(){
@@ -1850,6 +2443,7 @@ function renderViewCharts(){
   // blank the rest of the tab.
   const R={overview:[renderTrend,renderPaceToGoal,renderStageDonut],
            paid:[renderEffScatter,renderCplTrend,renderSegment],
+           google:[renderGaTrend],
            creative:[]};
   (R[STATE.view]||[]).forEach(fn=>{try{fn();}catch(e){console.error('view chart render failed:',fn.name,e);}});
 }
