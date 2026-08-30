@@ -16,6 +16,48 @@ sessions, engagement, and the demand-gen key events (lead form, sign-up, $50-cre
 
 ---
 
+## What the spend figures ARE, and how the page says so (2026-08-27)
+
+Removing the hardcoded x2 Reddit markup put all four platforms on ONE basis - raw **media cost**,
+what was paid to Google / Meta / Trade Desk / Reddit. That is the whole value of the change: the
+`Cost per lead by platform` table, CPM, CPC and the blended cost per lead are now comparable
+across platforms, which they were not while Reddit alone carried an agency markup.
+
+**The client-facing copy now STATES the basis, in exactly one place** - the end of the Paid Media
+tab's `paidNote`, extending the sentence that already covered currency. Every other spend caption
+is deliberately NEUTRAL ("Ad spend", not "media spend"), so no two strings on the dashboard can
+disagree about what a dollar means. Two captions were reworded for that reason.
+
+**The basis is not guessed - the platform proxy states it.** `window.BB_SPEND_BASIS`
+(`_spend_basis_script` in `bidbrain-platform/dash/main.py`) is `'media'` or `'billed'`, and
+`bbSpendBasis()` in the dashboard reads it. This exists because **the page cannot work it out**:
+there are two independent routes to a billed figure and the browser only sees one.
+
+| session | how it becomes billed | `BB_SPEND_MULT` | label without the flag |
+|---|---|---|---|
+| client / agency | registry factor, applied in the BROWSER | carries the factor | correct |
+| **EXTERNAL tenant (Extrablack)** | grossed **SERVER-SIDE**, factor deliberately withheld (it is our margin) | **empty** | **WRONG - would say "media cost" over billed numbers** |
+| direct run.app login | no proxy, no markup at all | absent | correct (media cost) |
+
+Extrablack is external AND has `resetdata`, so that middle row is live, not theoretical. The
+fallback (derive from `BB_SPEND_MULT`) is only for the no-proxy case.
+
+**Verified in a headless render, all three states:** no flag + no factor -> "media cost", Reddit
+A$5,071; `BB_SPEND_BASIS='billed'` -> "billed rate"; no flag + `{reddit:2}` -> "billed rate" AND
+Reddit A$10,142. **The label follows the number automatically** - if the x2 is ever restored in the
+registry, the copy flips with no code change. That is the point: a label that can contradict the
+figure beside it is the defect being fixed here.
+
+**Reddit spend is now an accuracy check** (`Reddit - Spend`, status pipeline): source A$5,071.15 vs
+dashboard A$5,071.15, matching to the cent. It was uncheckable while the x2 lived in SQL - one of
+the three reasons for removing it, and the one that is now realised.
+
+**STILL OPEN - a commercial decision, not a technical one.** The registry has
+`resetdata.spend_multipliers.reddit = 1.0`, so the client sees media cost. Reddit spend therefore
+reads **A$5,071** where it read **A$10,142** before, and blended spend **A$69,073** vs **A$74,144**
+(-6.8%). If Reddit should still be shown at the billed rate, set that factor to 2.0 in the
+registry - no deploy, and the label flips itself.
+
 ## What's different from `client_STT` (the deltas)
 
 | | STT | **ResetData** |

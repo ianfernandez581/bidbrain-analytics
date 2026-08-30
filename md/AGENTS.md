@@ -232,6 +232,15 @@ Each client's UI is ONE big file: `clients/client_<c>/dash/dashboard.html` (~1,3
 - **Do NOT read, reformat, or edit the logo blocks** (giant `<svg>`/base64 walls; STT's is
   duplicated in its `dash/main.py` LOGIN_HTML). grep to the target id/function; edit in place.
 - **No em-dashes in client-facing copy** - use `-`. (A stray em-dash reads as AI-written.)
+- **A money figure must SAY which basis it is on, and must not guess it** (2026-08-27). A page
+  cannot derive that: a registry factor is applied in the BROWSER (visible as `BB_SPEND_MULT`), but
+  an EXTERNAL tenant is grossed SERVER-SIDE with the factor deliberately withheld - so the shim sees
+  an EMPTY multiplier over already-billed numbers, and any label derived from it says "media cost"
+  over the billed figure. The proxy therefore states it: **`window.BB_SPEND_BASIS`** (`'media'` |
+  `'billed'`, `_spend_basis_script` in `bidbrain-platform/dash/main.py`). Reference consumer:
+  `bbSpendBasis()` + the single basis sentence in `clients/client_resetdata/dash/dashboard.html`.
+  **State it in exactly ONE string per dashboard and keep every other spend caption neutral**, or
+  two captions will eventually disagree about what a dollar means.
 - **Every dashboard has a spend-multiplier shim** (`bbMultFor`/`bbApplySpendMult`, called right
   after `DATA` is parsed) grossing RAW spend by `window.BB_SPEND_MULT` per channel. New spend
   fields/aggregates must be grossed too (row spend stashed as `_rawSpend`); revenue/ROAS/MER stay
