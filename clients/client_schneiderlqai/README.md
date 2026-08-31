@@ -5,7 +5,16 @@ A **single-campaign, paid-media-only** dashboard for Schneider Electric's **Liqu
 **Transmission**. It is a lean sibling of `client_schneider` (same aesthetic + engines), NOT part of
 the multi-program Schneider Pacific dashboard.
 
-- **Channels:** LinkedIn (single-image Sponsored Content) + The Trade Desk (programmatic display).
+- **Channels:** LinkedIn (single-image Sponsored Content) + The Trade Desk (programmatic display)
+  + **Google Search (SEM, added 2026-08-31)** — 5 markets (AU/UAE/SA/BR/CL), live since 2026-08-17,
+  scoped by an EXACT five-name `IN` list in `sql/05_stg_google_search.sql` (the `&` in
+  `2306_SE_AI&LiquidCooling_*` breaks unescaped LIKE/regex — treat the name as an opaque string; a
+  rename freezes the channel loudly, and the job WARNs when the scope returns 0 rows). Search is its
+  own `search` payload block, NEVER unioned into `delivery` (different currency basis, below). Its
+  `engagement_actions` = raw Google CONVERSIONS renamed — the account counts Se.com page views / CTA
+  clicks / file downloads as conversion actions (~1,517 vs 660 clicks), so "conversions" would read
+  as leads and be wrong by two orders of magnitude; no lead-only split exists in this source.
+  Dashboard section = Stage 3, pending.
 - **Countries (6):** India (dominant), Brazil, Australia, Chile, Saudi Arabia (KSA), UAE.
   Media-plan regions: South America (BR+CL), MEA (SA+AE), Pacific (AU), India.
 - **Awareness only** — objective is Website visits / display reach. **No leads, no conversions, no
@@ -19,6 +28,15 @@ the multi-program Schneider Pacific dashboard.
   This is the only EUR dashboard in the estate. The conversion must stay front-end: `spend_aud` is
   built from shared `raw_snowflake` views that `client_schneider` and `client_schneidersecpwr` also
   read, so converting in SQL or the export job would re-denominate their numbers too.
+  **EXCEPTION — Google Search (2026-08-31): a SINGLE USD->EUR hop IN THE VIEW** (`sql/05`), because
+  that buy bills USD and routing USD->AUD->EUR would invent an AUD figure that never existed and
+  compound two rates on a number that must reconcile against a US invoice. Safe in SQL here because
+  `stg_google_search` is THIS client's own view, not a shared one. The rate is pinned as columns
+  (`fx_usd_eur` 0.86259 / `fx_rate_date` 2026-08-17 — the ECB flight-start reference rate; no booked
+  rate was supplied), `cost_usd` stays beside `cost_eur` so the source figure is recoverable, and
+  the dashboard must EXEMPT the `search` block from `bbApplyFx()` and footnote the section
+  "Converted from USD at {fx_usd_eur}, {fx_rate_date}". Search cost is NEVER summed with
+  LinkedIn/Trade Desk spend on any surface.
 - **Flight:** 15 May → 31 Dec 2026. Data started 16 May (LinkedIn) / 18 May (Trade Desk).
 
 ## Live
@@ -50,8 +68,12 @@ the multi-program Schneider Pacific dashboard.
 raw_snowflake.{linkedin_ads_apac, tradedesk_apac_all}          (shared mirrors, filled by ingest/)
   -> sql/01_stg_linkedin, 02_stg_tradedesk                     (scope: Schneider account + '%LQAIDC%')
   -> sql/03_delivery (platform x date x country x region fact) + sql/04_creative
+raw_snowflake.google_ads_apac                                  (shared mirror, campaign grain)
+  -> sql/05_stg_google_search (day x market; exact 5-name IN scope; USD + pinned USD->EUR)
+  -> sql/06_search_channel_totals (one row: sums + CTR/CPC + fx + data_through)
   + data/media_plan.csv -> seed_media_plan  (load_seeds.py)    (the brief targets)
   -> job/main.py  -> gs://bidbrain-analytics-schneiderlqai-dash/schneiderlqai.json
+     (delivery/creative/plan + the `search` block: daily rows, totals, own data_through)
   -> dash/main.py (Flask gate) serves dashboard.html + /data.json
 ```
 - **Scope filter** keys on `CAMPAIGN_NAME LIKE '%LQAIDC%'` (LinkedIn ad-set name / Trade Desk campaign
@@ -68,8 +90,10 @@ raw_snowflake.{linkedin_ads_apac, tradedesk_apac_all}          (shared mirrors, 
 
 ## Freshness
 Self-gating `*/10` UTC (`schneiderlqai-export-daily`). Gate watches
-`raw_snowflake.{linkedin_ads_apac, tradedesk_apac_all}` `__TABLES__.last_modified`; watermark =
-`gs://...-schneiderlqai-dash/_freshness.json`. **Static re-seeds (media plan) need `FORCE_REBUILD=1`.**
+`raw_snowflake.{linkedin_ads_apac, tradedesk_apac_all, google_ads_apac}` `__TABLES__.last_modified`;
+watermark = `gs://...-schneiderlqai-dash/_freshness.json`. **Static re-seeds (media plan) need
+`FORCE_REBUILD=1`.** Google Search loads ~a day behind Trade Desk, so the `search` block carries its
+OWN `data_through` — any rolling window must be computed per channel from it, never shared.
 
 ## Deploy / edit (root CLAUDE.md is the canonical command source)
 - Edited `dash/dashboard.html` or `dash/main.py` -> `dash/deploy_dash_schneiderlqai.ps1`

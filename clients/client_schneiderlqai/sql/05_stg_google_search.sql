@@ -12,9 +12,13 @@
 -- account holds no other LIQUID/LQAIDC/2306 campaign). Trade-off, per the repo's "campaign names
 -- are NOT stable keys" rule: if Transmission renames these, rows drop OUT of this list and the
 -- channel freezes visibly — loud under-inclusion, chosen over a fuzzy match that could silently
--- pull in unrelated 2306_* campaigns. NETWORK is deliberately NOT filtered: should Google ever
--- report SEARCH_PARTNERS rows on these campaigns, they stay in the totals (over-filtering is the
--- silent failure).
+-- pull in unrelated 2306_* campaigns.
+--
+-- NETWORK and CURRENCY both sit in the GROUP BY — the same split-loudly pattern, NOT filters: a
+-- SEARCH_PARTNERS (or worse, a Display) row would surface as its own labelled row instead of being
+-- silently folded into — or silently dropped from — Search spend; a source-side currency change
+-- splits rows instead of mislabelling cost_usd. Today both are single-valued (SEARCH / USD), so
+-- the GROUP BY is a pass-through.
 --
 -- MARKET is the 4th underscore-delimited segment of CAMPAIGN_NAME (AU / UAE / SA / BR / CL —
 -- note SA = Saudi Arabia here, not South America). The fixed-offset parse is safe ONLY because the
@@ -27,18 +31,27 @@
 -- by two orders of magnitude. No campaign-level split exists to derive a lead-only metric (the
 -- conversion table carries no CAMPAIGN_NAME) — do not attempt one from this source.
 --
--- CURRENCY: USD (verified across every row). NOTE this differs from the rest of the dashboard,
--- whose warehouse layer is AUD (`spend_aud`) with a browser-only AUD->EUR conversion — so Search
--- spend must NOT be summed with LinkedIn/Trade Desk spend anywhere downstream until that is
--- resolved. `cost_usd` is named to make a mixed-currency sum look wrong at the point of writing it.
--- CURRENCY stays in the GROUP BY so a source-side currency change splits rows loudly instead of
--- mislabelling the column.
+-- CURRENCY / FX: this buy bills in USD (verified across every row) while the rest of the dashboard
+-- stores AUD and converts to EUR in the browser (`bbApplyFx()`). Search does a SINGLE USD->EUR hop
+-- HERE — never USD->AUD->EUR, which would invent an AUD amount that never existed for this buy and
+-- compound two rates on a figure that must reconcile against a US invoice. The rate is PINNED as a
+-- column with its effective date (fx CTE below): 0.86259 EUR/USD, the ECB reference rate for
+-- 2026-08-17 — the flight-start rate, used because no booked rate was supplied. cost_usd stays
+-- next to cost_eur so the source figure is always recoverable. The dashboard must EXEMPT these
+-- columns from bbApplyFx() (Stage 3) and footnote the section
+-- "Converted from USD at {fx_usd_eur}, {fx_rate_date}."
 CREATE OR REPLACE VIEW `bidbrain-analytics.client_schneiderlqai.stg_google_search` AS
-WITH s AS (
+WITH fx AS (
+  -- Pinned flight-start rate (ECB reference, 2026-08-17). One row, cross-joined; the ONLY place
+  -- the Search USD->EUR rate is defined — the totals view and the export job inherit it from here.
+  SELECT DATE '2026-08-17' AS fx_rate_date, 0.86259 AS fx_usd_eur
+),
+s AS (
   SELECT
     DATE(DAY)                                  AS day,
     SPLIT(CAMPAIGN_NAME, '_')[SAFE_OFFSET(3)]  AS market,
     CAMPAIGN_NAME                              AS campaign_name,
+    NULLIF(TRIM(IFNULL(NETWORK, '')), '')      AS network,
     CURRENCY                                   AS currency,
     SUM(IMPRESSIONS)                           AS impressions,
     SUM(CLICKS)                                AS clicks,
@@ -53,11 +66,22 @@ WITH s AS (
       '2306_SE_AI&LiquidCooling_BR_SEM_AWR',
       '2306_SE_AI&LiquidCooling_CL_SEM_AWR'
     )
-  GROUP BY day, market, campaign_name, currency
+  GROUP BY day, market, campaign_name, network, currency
 )
 SELECT
-  s.*,
+  s.day,
+  s.market,
+  s.campaign_name,
+  s.network,
+  s.currency,
+  s.impressions,
+  s.clicks,
+  s.cost_usd,
+  s.cost_usd * fx.fx_usd_eur                   AS cost_eur,
+  s.engagement_actions,
+  fx.fx_usd_eur,
+  fx.fx_rate_date,
   -- Freshness footer: the latest day Search has loaded. Search runs ~a day behind Trade Desk, so
   -- any rolling window on the dashboard must be computed per channel from this, never shared.
-  MAX(day) OVER ()                             AS data_through
-FROM s;
+  MAX(s.day) OVER ()                           AS data_through
+FROM s CROSS JOIN fx;

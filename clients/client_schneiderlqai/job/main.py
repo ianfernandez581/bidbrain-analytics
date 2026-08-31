@@ -6,12 +6,15 @@ serves that JSON at /data.json.
 
 This is a SINGLE-CAMPAIGN, paid-media-only dashboard (NOT the multi-program Schneider Pacific one):
 the LQAIDC TOFU / Awareness push for "Liquid Cooling for AI Data Centers", running LinkedIn + The
-Trade Desk across 6 countries (India, Brazil, Australia, Chile, Saudi Arabia, UAE). Awareness only —
-NO leads / conversions / Salesforce. The dashboard is delivery (spend / impressions / clicks / CTR)
-+ pacing against the media-plan targets (from data/media_plan.csv -> seed_media_plan) + a creative
-breakdown.
+Trade Desk across 6 countries (India, Brazil, Australia, Chile, Saudi Arabia, UAE), plus a Google
+Search (SEM) lane (5 markets: AU/UAE/SA/BR/CL) added 2026-08-31 as its own `search` payload block.
+Awareness only — NO leads / conversions / Salesforce (the Search block's `engagement_actions` are
+site engagement actions, NOT leads — see sql/05). The dashboard is delivery (spend / impressions /
+clicks / CTR) + pacing against the media-plan targets (from data/media_plan.csv -> seed_media_plan)
++ a creative breakdown.
 
-Read-only on BigQuery (SELECTs views, writes JSON to GCS). Reporting currency AUD.
+Read-only on BigQuery (SELECTs views, writes JSON to GCS). Reporting currency AUD for the delivery
+rows; the `search` block is USD with a view-side USD->EUR conversion (pinned rate — see sql/05).
 """
 import os
 import json
@@ -27,6 +30,7 @@ from freshness import probe_bq_last_modified, read_watermark, write_watermark, i
 GATING_TABLES = [
     "raw_snowflake.linkedin_ads_apac",
     "raw_snowflake.tradedesk_apac_all",
+    "raw_snowflake.google_ads_apac",
 ]
 WATERMARK_OBJECT = "_freshness.json"
 
@@ -86,6 +90,18 @@ def main():
     delivery = rows(bq, "delivery", order_by="metric_date, platform, country")
     creative = rows(bq, "creative")
     plan = rows(bq, "seed_media_plan")
+    # Google Search (SEM) is a SEPARATE block, deliberately NOT unioned into `delivery`: it bills
+    # USD and converts USD->EUR once, in the view (pinned flight-start rate) — the other channels
+    # are warehoused AUD and converted AUD->EUR in the browser (bbApplyFx). Folding it into the
+    # delivery rows would invite a mixed-currency spend sum. The dashboard renders it as its own
+    # section (Stage 3) and must EXEMPT these fields from bbApplyFx.
+    search_daily = rows(bq, "stg_google_search", order_by="day, market")
+    search_totals_rows = rows(bq, "search_channel_totals")
+    if not search_daily:
+        # The Search scope is an exact five-name IN list (see sql/05) — a campaign rename empties
+        # it. Loud in the job log; the dashboard hides the section rather than drawing zeros.
+        print("WARNING: stg_google_search returned 0 rows - the SEM campaign names may have "
+              "changed upstream (sql/05_stg_google_search.sql IN list).")
 
     # --- Countries / regions / channels present in the delivery data ----------
     countries = sorted({r["country"] for r in delivery}, key=lambda c: (COUNTRY_ORDER.get(c, 5), c))
@@ -130,6 +146,17 @@ def main():
     flight = {"start": min(live_starts) if live_starts else ymd(wstart),
               "end": max(live_ends) if live_ends else ymd(wend)}
 
+    # --- Google Search totals (single row; empty scope -> all-None fields) ----
+    st = search_totals_rows[0] if search_totals_rows else {}
+    search_totals = {
+        "impressions": num(st.get("impressions")), "clicks": num(st.get("clicks")),
+        "cost_usd": num(st.get("cost_usd")), "cost_eur": num(st.get("cost_eur")),
+        "engagement_actions": num(st.get("engagement_actions")),
+        "ctr": num(st.get("ctr")), "cpc_usd": num(st.get("cpc_usd")), "cpc_eur": num(st.get("cpc_eur")),
+        "fx_usd_eur": num(st.get("fx_usd_eur")), "fx_rate_date": ymd(st.get("fx_rate_date")),
+        "data_through": ymd(st.get("data_through")),
+    }
+
     env = {
         "last_updated": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "data_through": (max([v for v in observed.values() if v]).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -156,6 +183,22 @@ def main():
             "channels": plan_channels, "lines": plan_lines,
             "live_budget": live_budget, "total_budget": total_budget,
         },
+        # Google Search (SEM) — own block, own currency basis (USD, converted USD->EUR once in
+        # sql/05 at the pinned flight-start rate carried here as fx_usd_eur/fx_rate_date). Search
+        # loads ~a day behind Trade Desk, so it carries its OWN data_through: any rolling window on
+        # the dashboard must be computed per channel from it, never shared with the other channels.
+        # NEVER sum cost_usd/cost_eur with the delivery rows' spend_aud.
+        "search": {
+            "daily": [{
+                "date": ymd(r["day"]), "market": r["market"], "campaign_name": r["campaign_name"],
+                "network": r["network"], "currency": r["currency"],
+                "impressions": num(r["impressions"]), "clicks": num(r["clicks"]),
+                "cost_usd": num(r["cost_usd"]), "cost_eur": num(r["cost_eur"]),
+                "engagement_actions": num(r["engagement_actions"]),
+            } for r in search_daily],
+            "totals": search_totals,
+            "data_through": search_totals["data_through"],
+        },
     }
 
     storage.Client(project=PROJECT).bucket(BUCKET).blob(DATA_OBJECT).upload_from_string(
@@ -167,6 +210,11 @@ def main():
           f"{len(env['creative'])} creatives, {len(countries)} countries, "
           f"{tot_imp:,.0f} imps / A${tot_spend:,.0f} spend, "
           f"window {env['window']['start']}..{env['window']['end']}")
+    s = env["search"]["totals"]
+    print(f"search: {len(env['search']['daily'])} daily rows, "
+          f"{(s['impressions'] or 0):,.0f} imps / {(s['clicks'] or 0):,.0f} clicks / "
+          f"${(s['cost_usd'] or 0):,.2f} (EUR {(s['cost_eur'] or 0):,.2f} @ {s['fx_usd_eur']}), "
+          f"data through {s['data_through']}")
 
 
 if __name__ == "__main__":
