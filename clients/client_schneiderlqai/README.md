@@ -17,13 +17,21 @@ the multi-program Schneider Pacific dashboard.
   **On screen (2026-08-31): its OWN "Google Search (SEM)" section on the Overview tab** - 5 KPI
   tiles (spend EUR with the USD source figure, imps, clicks, CTR, CPC), a full-label engagement
   line, a market table (5 markets), a daily spend+clicks trend, and an FX + per-channel freshness
-  footnote ("Converted from USD at {fx_usd_eur}, {fx_rate_date}"). **Has its OWN Channel chip**
-  (Google yellow `#F5C542` with DARK ink - white is unreadable on that yellow; `section:true` in
-  `PLATFORMS`, so the blended delivery consumers iterate `DELIVERY_PLATFORMS` and can never see
-  it): the chip SHOWS/HIDES this section and nothing else - Search never enters the blended
-  figures, so unticking it cannot move a number, and it can NEVER hide the unavailable state
-  (fail-loud beats filter state; the chip leaves the roster when the scope empties). Honours the
-  Country chips + date picker, and
+  footnote ("Converted from USD at {fx_usd_eur}, {fx_rate_date}"). **A FULL third channel on the
+  Overview since 2026-08-31 (client):** `GS_BLEND` (built once at boot from `search.daily`, AFTER
+  both spend shims, `spend_aud` field = `cost_eur` so every consumer sums EUR-with-EUR) joins
+  `pmRows()`, so Search sits in the KPI band, hero trend, channel table, spend donut, country
+  chart/table and CSV export, and **its Channel chip** (Google yellow `#F5C542` with DARK ink -
+  white is unreadable on that yellow) scopes it in and out of ALL of them plus this section, same
+  semantics as the other two chips. Isolating Google Search on the chips shows Search, not zeros.
+  **Kept OUT on purpose:** pace-to-plan + Media Plan spend-to-date (`fullByChannel` reads
+  `DATA.delivery` only - the budget is the LinkedIn+TTD Awareness lines) and the Creative tab
+  (Search is campaign-grain, no creatives - google-only selection shows non-destructive
+  `chartMsg` empty states, which also fixed the old canvas-deleting empty-state bug). Blended
+  surfaces use the SHARED date window (one total must cover one set of days - `#pmHeroNote` names
+  the trailing day Search hasn't loaded); the section keeps its own re-anchored rolling window.
+  The chip can NEVER hide the unavailable state (fail-loud beats filter state; the chip leaves
+  the roster when the scope empties). Honours the Country chips + date picker, and
   **ROLLING date presets re-anchor to Search's own `data_through`** (`gsRange()` - Search loads ~a
   day behind, so a shared "Last 7 days" would truncate its newest day and zero-pad the missing
   one); calendar presets / custom ranges pass through. **Visibility contract:** `search.data_through`
@@ -53,8 +61,9 @@ the multi-program Schneider Pacific dashboard.
   (`fx_usd_eur` 0.86259 / `fx_rate_date` 2026-08-17 — the ECB flight-start reference rate; no booked
   rate was supplied), `cost_usd` stays beside `cost_eur` so the source figure is recoverable, and
   the dashboard must EXEMPT the `search` block from `bbApplyFx()` and footnote the section
-  "Converted from USD at {fx_usd_eur}, {fx_rate_date}". Search cost is NEVER summed with
-  LinkedIn/Trade Desk spend on any surface.
+  "Converted from USD at {fx_usd_eur}, {fx_rate_date}". Search cost is never summed with the
+  other channels in AUD space; the Overview blends it ONLY after both sides are EUR (`GS_BLEND`),
+  and pace-to-plan never includes it (the budget is the LinkedIn+TTD plan lines).
 - **Flight:** 15 May → 31 Dec 2026. Data started 16 May (LinkedIn) / 18 May (Trade Desk).
 
 ## Live
@@ -69,8 +78,8 @@ the multi-program Schneider Pacific dashboard.
 > country/date selection are rendered** (client rule - never advertise a channel this campaign does
 > not have), the last engine cannot be unticked, and the group hides itself on the Media Plan tab
 > (plan targets, not measured delivery) and whenever one engine is left. **+ a Google Search chip
-> (2026-08-31)** on the same roster rules, with different reach: it shows/hides the Google Search
-> (SEM) section ONLY (Search never enters the blended delivery model - see the Channels bullet).
+> (2026-08-31)** on the same roster rules and the SAME reach: it scopes Search in and out of every
+> Overview figure (via `GS_BLEND` in `pmRows()`) plus its own section - see the Channels bullet.
 
 1. **Overview** — delivery KPIs (spend / impressions / clicks / CTR + CPM/CPC), a **pace-to-plan** card
    (delivered vs media-plan targets over the flight), a delivery-over-time hero chart (grain + Relative/

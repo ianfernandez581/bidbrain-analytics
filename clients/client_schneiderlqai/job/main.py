@@ -202,7 +202,9 @@ def main():
         # sql/05 at the pinned flight-start rate carried here as fx_usd_eur/fx_rate_date). Search
         # loads ~a day behind Trade Desk, so it carries its OWN data_through: any rolling window on
         # the dashboard must be computed per channel from it, never shared with the other channels.
-        # NEVER sum cost_usd/cost_eur with the delivery rows' spend_aud.
+        # NEVER sum cost_usd/cost_eur with the delivery rows' spend_aud in AUD space - the
+        # dashboard blends Search into its Overview figures only after BOTH sides are EUR
+        # (GS_BLEND in dashboard.html), and keeps it out of pace-to-plan (LinkedIn+TTD budget).
         "search": {
             "daily": [{
                 "date": ymd(r["day"]), "market": r["market"], "campaign_name": r["campaign_name"],

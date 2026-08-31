@@ -561,7 +561,7 @@
     <div id="tab-overview" class="tabpane">
       <div class="section first">
         <h2>Delivery Overview</h2>
-        <span class="sub">Live LinkedIn &amp; The Trade Desk delivery for the <b>Liquid AI Data Center</b> awareness campaign: spend, impressions, clicks and CTR. Reflects the selected countries &amp; date range. Reporting currency EUR.</span>
+        <span class="sub">Live LinkedIn, The Trade Desk &amp; Google Search delivery for the <b>Liquid AI Data Center</b> awareness campaign: spend, impressions, clicks and CTR. Reflects the selected channels, countries &amp; date range. Reporting currency EUR.</span>
       </div>
       <div class="kpis">
         <div class="kpi m-spend clk" data-toggle="Spend" tabindex="0" role="button" aria-pressed="true" title="Click to show / hide Spend on the chart"><span class="stripe"></span><div class="label">Total spend</div><div class="value" id="pm_spend">-</div><div class="delta" id="pm_spend_sub">-</div></div>
@@ -585,8 +585,9 @@
           <button type="button" class="seg-btn" data-scale="abs" onclick="setPmScale('abs')">Absolute</button></span>
       </div>
       <div class="card card-hero"><div class="chart-wrap"><canvas id="pmDaily"></canvas></div></div>
+      <div class="kpihint" id="pmHeroNote" style="display:none"></div>
 
-      <div class="section"><h2 style="font-size:15px">Channel comparison</h2><span class="sub">LinkedIn vs The Trade Desk - efficiency side by side (CTR / CPM / CPC in EUR).</span></div>
+      <div class="section"><h2 style="font-size:15px">Channel comparison</h2><span class="sub">Every selected channel side by side - efficiency (CTR / CPM / CPC in EUR).</span></div>
       <div class="card" style="margin-top:14px"><div style="overflow:auto">
         <table id="pmPlatTable"><thead><tr><th>Channel</th><th class="num">Spend</th><th class="num">Imps</th><th class="num">Clicks</th><th class="num">CTR</th><th class="num">CPM</th><th class="num">CPC</th></tr></thead><tbody></tbody></table>
       </div></div>
@@ -608,17 +609,18 @@
            chips (those gate the AUD delivery model); it honours the Country chips + date range,
            and rolling date presets re-anchor to Search's OWN latest day because Search loads ~a
            day behind the display channels (see gsRange / renderSearch).
-           It has its OWN Channel chip (google_search in PLATFORMS): the chip SHOWS/HIDES this
-           section and nothing else - Search never enters the blended figures, so unticking it can
-           never move a number up there. The chip leaves the roster when Search has no rows in the
-           current selection, and it can never hide the UNAVAILABLE state below.
+           Search is a FULL third channel on this tab (2026-08-31, client): GS_BLEND rows join
+           pmRows(), so the Google Search chip scopes it in and out of every blended figure above
+           AND this section, exactly like the other two chips. The chip leaves the roster when
+           Search has no rows in the current selection, and it can never hide the UNAVAILABLE
+           state below. Search stays OUT of pace-to-plan (the budget is LinkedIn+TTD plan lines).
            Visibility contract (2026-08-31): DATA.search.data_through null -> whole section hidden
            (channel never delivered); data_through set but daily empty -> the UNAVAILABLE state
            renders (a channel that had data must fail loud, never silently vanish); otherwise the
            chip decides. -->
       <div id="gsSection" style="display:none">
         <div class="section"><h2>Google Search (SEM)</h2>
-          <span class="sub">Paid search delivery for the <b>AI &amp; Liquid Cooling</b> SEM campaigns across 5 markets (Australia, UAE, Saudi Arabia, Brazil, Chile - no India line). Reflects the selected countries &amp; date range; the <b>Google Search</b> chip above shows or hides this section (Search does not enter the blended channel figures higher up). Reporting currency EUR.</span>
+          <span class="sub">Paid search delivery for the <b>AI &amp; Liquid Cooling</b> SEM campaigns across 5 markets (Australia, UAE, Saudi Arabia, Brazil, Chile - no India line). Search is blended into the delivery figures higher up; this is its detailed view. The <b>Google Search</b> chip above includes or excludes it everywhere on this tab, this section included. Reflects the selected countries &amp; date range. Reporting currency EUR.</span>
         </div>
         <div id="gsUnavailable" class="info-note warn" style="display:none;margin-top:14px"></div>
         <div id="gsBody">
@@ -701,17 +703,14 @@ const C = {
 const PLATFORMS = [
   {key:'linkedin',  label:'LinkedIn',       color:C.li},
   {key:'tradedesk', label:'The Trade Desk', color:C.td},
-  // Google Search is a CHIP-level channel only: its chip shows/hides the Google Search (SEM)
-  // section, and it NEVER enters the blended delivery model above it (different billing currency
-  // + FX basis - see the gsSection markup note), so unticking it can never move a blended number.
-  // `section:true` keeps it out of the delivery-model consumers (DELIVERY_PLATFORMS below);
-  // `ink` because white text is unreadable on Google's yellow (the colour cloudflare uses for
-  // Google Ads).
-  {key:'google_search', label:'Google Search', color:'#F5C542', ink:'#1A1A1A', section:true},
+  // Google Search (2026-08-31) is a FULL third channel on the Overview: its rows (GS_BLEND, built
+  // at boot from DATA.search.daily, already EUR via the view's pinned USD rate) join pmRows(), so
+  // the chip scopes it in and out of every Overview figure exactly like the other two. It stays
+  // OUT of pace-to-plan / Media Plan spend-to-date (fullByChannel reads DATA.delivery only - the
+  // plan budget is the LinkedIn+TTD Awareness lines) and has no creatives (campaign-grain feed).
+  // `ink` because white text is unreadable on Google's yellow (cloudflare's Google Ads colour).
+  {key:'google_search', label:'Google Search', color:'#F5C542', ink:'#1A1A1A'},
 ];
-// The blended delivery model (channel table / spend donut / KPI rollups) iterates THIS roster -
-// never PLATFORMS - so a chip-only channel cannot leak a zero row (or an undefined key) into it.
-const DELIVERY_PLATFORMS = PLATFORMS.filter(p=>!p.section);
 const PLAT_LABEL = Object.fromEntries(PLATFORMS.map(p=>[p.key,p.label]));
 const PROG_PALETTE = ['#007E2A','#2867B2','#F2A900','#8E44AD','#0E7C86','#B97400','#5A6B78','#12B5C9','#9AD4B5'];
 
@@ -862,8 +861,9 @@ function bbApplyFx(){
   // DATA.search is deliberately EXEMPT: the Google Search lane bills USD and arrives already
   // converted USD->EUR by sql/05 at its own PINNED flight-start rate (carried in the block as
   // fx_usd_eur / fx_rate_date and printed in the section footnote). Running it through the AUD
-  // rate here would double-convert money that was never AUD. Never sum search cost with the
-  // delivery rows' spend_aud on any surface.
+  // rate here would double-convert money that was never AUD. Search only ever blends with the
+  // other channels AFTER both sides are EUR - GS_BLEND is built from cost_eur after this runs;
+  // never sum search cost with anything in AUD space.
   _fxApplied = true;
 }
 // ----------------------------------------------------------------------------------------------
@@ -883,8 +883,25 @@ function toggleChannel(k){
 }
 const inRangeDate=d=> (!rangeStart || String(d).slice(0,10)>=rangeStart.slice(0,10)) && (!rangeEnd || String(d).slice(0,10)<=rangeEnd.slice(0,10));
 function activeCountryList(){ return (DATA.countries||[]).filter(c=>activeCountries.has(c)); }
-// filtered delivery / creative rows (country chips + date range)
-function pmRows(){ return (DATA.delivery||[]).filter(r=>platOk(r.platform) && countryOk(r.country) && inRangeDate(r.date)); }
+// Google Search rows in DELIVERY-ROW SHAPE, built ONCE at boot (buildGsBlend) from
+// DATA.search.daily. spend_aud carries cost_eur: by the time any renderer reads a delivery row,
+// spend_aud IS the on-screen EUR figure (bbApplySpendMult then bbApplyFx ran at boot), so the
+// blend sums EUR with EUR. Built AFTER both shims and never pushed into DATA.delivery, so neither
+// shim can touch it - running these through AUD_TO_EUR would double-convert money never in AUD.
+let GS_BLEND=[];
+function buildGsBlend(){
+  return ((DATA.search&&DATA.search.daily)||[]).map(r=>({
+    platform:'google_search', date:r.date,
+    country:gsCountryName(r.market), region:GS_REGION[r.market]||'Other',
+    imps:r.impressions||0, clicks:r.clicks||0, spend_aud:r.cost_eur||0 }));
+}
+// filtered delivery / creative rows (channel + country chips + date range). Google Search joins
+// through GS_BLEND on the SHARED date window - inside one blended total every channel must cover
+// the same calendar days; Search's own re-anchored rolling window applies only to its section.
+function pmRows(){
+  return (DATA.delivery||[]).filter(r=>platOk(r.platform) && countryOk(r.country) && inRangeDate(r.date))
+    .concat(platOk('google_search') ? GS_BLEND.filter(r=>countryOk(r.country) && inRangeDate(r.date)) : []);
+}
 function crRows(){ return (DATA.creative||[]).filter(r=>platOk(r.platform) && countryOk(r.country)); }
 function elapsedFrac(start,end){ if(!start||!end) return null; const s=+new Date(start), e=+new Date(end), now=Date.now(); if(now<=s) return 0; if(e<=s||now>=e) return 1; return (now-s)/(e-s); }
 
@@ -1031,6 +1048,7 @@ async function boot(){
     DATA=await res.json();
     bbApplySpendMult();
     bbApplyFx();          // AUD -> EUR, presentation only (see bbApplyFx)
+    GS_BLEND=buildGsBlend();   // AFTER both shims - see the GS_BLEND note
     activeCountries=new Set(DATA.countries||[]);
     dateMin=(DATA.window&&DATA.window.start)||null; dateMax=(DATA.window&&DATA.window.end)||null;
     rangeStart=dateMin; rangeEnd=dateMax;
@@ -1164,10 +1182,10 @@ function renderOverview(){
   renderPacing(el('pacing'));
 
   // channel comparison table
-  const byPlat={}; DELIVERY_PLATFORMS.forEach(p=>byPlat[p.key]={imps:0,clk:0,spend:0});
+  const byPlat={}; PLATFORMS.forEach(p=>byPlat[p.key]={imps:0,clk:0,spend:0});
   rows.forEach(r=>{ const p=byPlat[r.platform]; if(p){ p.imps+=r.imps||0; p.clk+=r.clicks||0; p.spend+=r.spend_aud||0; } });
   const tb=el('pmPlatTable').querySelector('tbody');
-  tb.innerHTML=DELIVERY_PLATFORMS.filter(p=>byPlat[p.key].imps||byPlat[p.key].spend).map(p=>{ const x=byPlat[p.key]; return `<tr><td><span class="pill"><span class="dot" style="background:${p.color}"></span>${p.label}</span></td><td class="num">${money(x.spend)}</td><td class="num">${fmtN(x.imps)}</td><td class="num">${fmtN(x.clk)}</td><td class="num">${fmtPct(pct(x.clk,x.imps),2)}</td><td class="num">${money(x.imps?x.spend/x.imps*1000:0,2)}</td><td class="num">${money(x.clk?x.spend/x.clk:0,2)}</td></tr>`; }).join('')
+  tb.innerHTML=PLATFORMS.filter(p=>byPlat[p.key].imps||byPlat[p.key].spend).map(p=>{ const x=byPlat[p.key]; return `<tr><td><span class="pill"><span class="dot" style="background:${p.color}"></span>${p.label}</span></td><td class="num">${money(x.spend)}</td><td class="num">${fmtN(x.imps)}</td><td class="num">${fmtN(x.clk)}</td><td class="num">${fmtPct(pct(x.clk,x.imps),2)}</td><td class="num">${money(x.imps?x.spend/x.imps*1000:0,2)}</td><td class="num">${money(x.clk?x.spend/x.clk:0,2)}</td></tr>`; }).join('')
     + `<tr class="total"><td>Combined</td><td class="num">${money(t.spend)}</td><td class="num">${fmtN(t.imps)}</td><td class="num">${fmtN(t.clk)}</td><td class="num">${fmtPct(ctr,2)}</td><td class="num">${money(cpm,2)}</td><td class="num">${money(cpc,2)}</td></tr>`;
   if(!rows.length) tb.innerHTML=`<tr><td colspan="7" style="text-align:center;color:var(--se-mute);padding:14px">No delivery in the current filter.</td></tr>`;
 
@@ -1190,10 +1208,20 @@ function renderOverview(){
         y2:{position:'right',grid:{display:false},border:{display:false},min:0,ticks:{color:C.mute,font:{size:10},callback:v=>v.toFixed(1)+'%'}},
         ySp:rel?{display:false}:{position:'right',display:true,grid:{display:false},border:{display:false},ticks:{display:false}} } }
   });
+  // Google Search loads ~a day behind the display channels: when its rows are blended in and the
+  // visible window runs past its own latest day, SAY SO under the chart - otherwise the newest
+  // day reads as a delivery dip instead of a not-yet-loaded channel.
+  const heroNote=el('pmHeroNote');
+  const gsDT=DATA.search&&DATA.search.data_through;
+  const gsInRows=rows.some(r=>r.platform==='google_search');
+  if(gsInRows && gsDT && (!rangeEnd || rangeEnd>gsDT) && dateMax && gsDT<dateMax){
+    heroNote.style.display='block';
+    heroNote.textContent=`Days after ${dateLabel(gsDT)} exclude Google Search - it reports a day behind the display channels.`;
+  } else heroNote.style.display='none';
   wireKpiToggles();
 
   // spend by channel doughnut
-  const sp=DELIVERY_PLATFORMS.filter(p=>byPlat[p.key].spend>0);
+  const sp=PLATFORMS.filter(p=>byPlat[p.key].spend>0);
   charts.pmSpendPlat=new Chart(el('pmSpendPlat'),{ type:'doughnut',
     data:{ labels:sp.map(p=>p.label), datasets:[{ data:sp.map(p=>byPlat[p.key].spend), backgroundColor:sp.map(p=>p.color), borderColor:'#fff', borderWidth:2 }]},
     options:{ maintainAspectRatio:false, cutout:'60%', plugins:{ legend:legendBottom(), bbCenter:{label:'Total spend',prefix:'€',color:C.dark,labelColor:C.mute}, tooltip:{callbacks:{label:c=>` ${c.label}: ${money(c.parsed)} (${fmtPct(pct(c.parsed,t.spend),0)})`}} } } });
@@ -1217,6 +1245,8 @@ function renderOverview(){
 // GOOGLE SEARCH (SEM) - own lane, own currency basis (see the gsSection markup note)
 //==============================================================================
 const GS_MARKET_NAME={AU:'Australia',UAE:'UAE',SA:'Saudi Arabia',BR:'Brazil',CL:'Chile'};
+// Same rollup as sql/03_delivery so blended by-country/by-region cells agree with the display rows.
+const GS_REGION={AU:'Pacific',UAE:'MEA',SA:'MEA',BR:'South America',CL:'South America'};
 const gsCountryName=m=>GS_MARKET_NAME[m]||m;
 const usdFmt=v=>v==null||isNaN(v)?'-':'$'+Number(v).toLocaleString('en-US',{maximumFractionDigits:2,minimumFractionDigits:2});
 // The Search date window. ROLLING presets ("Last 7 days" etc.) are anchored to the GLOBAL data
@@ -1254,9 +1284,10 @@ function renderSearch(){
     return;
   }
   el('gsUnavailable').style.display='none';
-  // The Google Search chip gates the RENDERED section only - never the unavailable state above,
-  // which must stay loud even while unticked (when the scope empties, the chip itself leaves the
-  // roster, so a stale unticked state could otherwise hide the failure).
+  // The Google Search chip scopes Search everywhere on the tab (blended figures via pmRows +
+  // this section) - but NEVER the unavailable state above, which must stay loud even while
+  // unticked (when the scope empties, the chip itself leaves the roster, so a stale unticked
+  // state could otherwise hide the failure).
   if(!platOk('google_search')){ sec.style.display='none'; return; }
   el('gsBody').style.display='block';
 
@@ -1331,6 +1362,21 @@ function wireKpiToggles(){
 // CREATIVE
 //==============================================================================
 function conceptAgg(platform){ const o={}; crRows().filter(r=>r.platform===platform).forEach(r=>{ const e=o[r.concept]||(o[r.concept]={imps:0,clk:0,spend:0}); e.imps+=r.imps||0; e.clk+=r.clicks||0; e.spend+=r.spend_aud||0; }); return o; }
+// NON-DESTRUCTIVE chart empty state. The old pattern replaced the canvas's parent innerHTML, which
+// DELETED the canvas - the next render with data then called new Chart(null) and threw, killing the
+// whole tab. Reachable for real since the Google Search chip landed (google-only selection empties
+// every creative chart; Search is campaign-grain, it has no creatives). Hide the canvas, show a
+// note, and the canvas is still there when the selection widens again.
+function chartMsg(canvasId, msg){
+  const cv=el(canvasId); if(!cv) return; const wrap=cv.parentElement;
+  let n=wrap.querySelector('.chart-empty');
+  if(msg){
+    cv.style.display='none';
+    if(!n){ n=document.createElement('div'); n.className='chart-empty';
+      n.style.cssText='padding:40px 10px;text-align:center;color:var(--se-mute);font-size:12.5px'; wrap.appendChild(n); }
+    n.textContent=msg; n.style.display='block';
+  } else { cv.style.display='block'; if(n) n.style.display='none'; }
+}
 function conceptBar(canvasId, agg){
   const keys=Object.keys(agg).sort((a,b)=>agg[b].imps-agg[a].imps);
   charts[canvasId]=new Chart(el(canvasId),{ data:{ labels:keys, datasets:[
@@ -1341,26 +1387,28 @@ function conceptBar(canvasId, agg){
 }
 function renderCreative(){
   const li=conceptAgg('linkedin'), ttd=conceptAgg('tradedesk');
-  if(Object.keys(li).length) conceptBar('crLiConcept', li); else el('crLiConcept').parentElement.innerHTML='<div style="padding:40px 10px;text-align:center;color:var(--se-mute);font-size:12.5px">No LinkedIn creatives in the selected countries.</div>';
-  if(Object.keys(ttd).length) conceptBar('crTtdConcept', ttd); else el('crTtdConcept').parentElement.innerHTML='<div style="padding:40px 10px;text-align:center;color:var(--se-mute);font-size:12.5px">No Trade Desk creatives in the selected countries.</div>';
+  if(Object.keys(li).length){ chartMsg('crLiConcept',null); conceptBar('crLiConcept', li); } else chartMsg('crLiConcept','No LinkedIn creatives in the current selection.');
+  if(Object.keys(ttd).length){ chartMsg('crTtdConcept',null); conceptBar('crTtdConcept', ttd); } else chartMsg('crTtdConcept','No Trade Desk creatives in the current selection.');
 
   // Trade Desk format mix (banner sizes)
   const fmt={}; crRows().filter(r=>r.platform==='tradedesk').forEach(r=>{ fmt[r.format]=(fmt[r.format]||0)+(r.imps||0); });
   const fk=Object.keys(fmt).sort((a,b)=>fmt[b]-fmt[a]);
   if(fk.length){
+    chartMsg('crTtdFormat',null);
     charts.crTtdFormat=new Chart(el('crTtdFormat'),{ type:'doughnut',
       data:{ labels:fk, datasets:[{ data:fk.map(k=>fmt[k]), backgroundColor:fk.map((_,i)=>PROG_PALETTE[i%PROG_PALETTE.length]), borderColor:'#fff', borderWidth:2 }]},
       options:{ maintainAspectRatio:false, cutout:'58%', plugins:{ legend:legendBottom(), bbCenter:{label:'Impressions',color:C.dark,labelColor:C.mute}, tooltip:{callbacks:{label:c=>` ${c.label}: ${fmtN(c.parsed)}`}} } } });
-  } else el('crTtdFormat').parentElement.innerHTML='<div style="padding:40px 10px;text-align:center;color:var(--se-mute);font-size:12.5px">No Trade Desk display data.</div>';
+  } else chartMsg('crTtdFormat','No Trade Desk display data in the current selection.');
 
   // best creatives by CTR (min 1000 imps), aggregated by creative_name across countries
   const byCr={}; crRows().forEach(r=>{ const key=r.platform+'|'+r.concept+'|'+r.format; const e=byCr[key]||(byCr[key]={platform:r.platform,label:(PLAT_LABEL[r.platform]||r.platform)+' · '+r.concept+(r.format&&r.format!=='Single image'?' '+r.format:''),imps:0,clk:0}); e.imps+=r.imps||0; e.clk+=r.clicks||0; });
   const top=Object.values(byCr).filter(e=>e.imps>=1000).map(e=>({...e,ctr:pct(e.clk,e.imps)})).sort((a,b)=>b.ctr-a.ctr).slice(0,10);
   if(top.length){
+    chartMsg('crTopCtr',null);
     charts.crTopCtr=new Chart(el('crTopCtr'),{ type:'bar',
       data:{ labels:top.map(e=>e.label), datasets:[{ label:'CTR', data:top.map(e=>e.ctr*100), backgroundColor:top.map(e=>e.platform==='linkedin'?C.li:C.td), borderRadius:4, maxBarThickness:22 }]},
       options:{ indexAxis:'y', maintainAspectRatio:false, plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>` ${c.parsed.x.toFixed(2)}% CTR · ${fmtN(top[c.dataIndex].imps)} imps`}}}, scales:{ x:gridY({ticks:{callback:v=>v.toFixed(1)+'%'}}), y:axisX({ticks:{color:C.ink,font:{size:10.5}}}) } } });
-  } else el('crTopCtr').parentElement.innerHTML='<div style="padding:40px 10px;text-align:center;color:var(--se-mute);font-size:12.5px">Not enough impressions yet.</div>';
+  } else chartMsg('crTopCtr','Not enough impressions in the current selection.');
 
   // creative detail table
   const rows=crRows().slice().sort((a,b)=>(b.imps||0)-(a.imps||0));
@@ -1451,14 +1499,17 @@ function buildReportPayload(){
       generated_at:new Date().toISOString() },
     paid:{ totals:{ spend:_r2(pt.spend), imps:pt.imps, clicks:pt.clk, cpm:_r2(pt.imps?pt.spend/pt.imps*1000:0), cpc:_r2(pt.clk?pt.spend/pt.clk:0), ctr:_r6(pt.imps?pt.clk/pt.imps:0) },
       by_channel, by_country,
-      note:'LinkedIn + The Trade Desk TOFU / Awareness delivery for the Liquid AI Data Center (liquid cooling for AI data centers). Awareness only - no leads or conversions; this is a reach + clicks + CTR story across 6 countries.' },
+      note:'LinkedIn + The Trade Desk display/social TOFU Awareness delivery, plus a Google Search (SEM) lane across 5 markets (AU/UAE/SA/BR/CL; a USD buy converted to EUR at a pinned flight-start rate), for the Liquid AI Data Center (liquid cooling for AI data centers). Awareness only - no leads or conversions; Google reports "conversions" that are site engagement actions (page views, CTA clicks, downloads) and they are NOT in these figures. This is a reach + clicks + CTR story.' },
     plan:{ live_budget:_r2(DATA.plan&&DATA.plan.live_budget), total_budget:_r2(DATA.plan&&DATA.plan.total_budget),
       paid_spend:_r2(fullSpend), flight_start:DATA.flight&&DATA.flight.start, flight_end:DATA.flight&&DATA.flight.end,
       channels:(DATA.plan&&DATA.plan.channels||[]).map(c=>({channel:c.label, imp_target:c.imp_target, click_target:c.click_target, spend_target:_r2(c.spend_target)})),
-      note:'Targets are the media plan (Awareness lines, billed budget). paid_spend is measured whole-flight, all-country delivery grossed to billed. Search / Reddit / Retargeting are planned but not yet live.' }
+      note:'Targets are the media plan (LinkedIn + Trade Desk Awareness lines, billed budget). paid_spend is those two channels whole-flight - Google Search delivery is EXCLUDED here because its plan line is not yet wired to pacing; never pace Search against this budget. Reddit / Retargeting are planned but not yet live.' }
   };
 }
-function buildDeckPayload(){ const _s=rangeStart, _e=rangeEnd; rangeStart=null; rangeEnd=null; try { return buildReportPayload(); } finally { rangeStart=_s; rangeEnd=_e; } }
+// Deck payload is whole-flight, ALL channels: reset the date range AND the channel chips (estate
+// pattern - schneider does the same inside buildDeckPayload) so a filtered view can never narrate
+// itself as the campaign.
+function buildDeckPayload(){ const _s=rangeStart, _e=rangeEnd, _c=activeChannels; rangeStart=null; rangeEnd=null; activeChannels=new Set(); try { return buildReportPayload(); } finally { rangeStart=_s; rangeEnd=_e; activeChannels=_c; } }
 function bbRasterizeLogo(selector, recolor){
   return new Promise(resolve=>{ try{
     const src=document.querySelector(selector); if(!src){ resolve(null); return; }
