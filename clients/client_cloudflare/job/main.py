@@ -169,7 +169,14 @@ def main():
     bm  = rows(bq, f"SELECT * FROM {t('benchmarks_market')}")
     lw  = rows(bq, f"SELECT * FROM {t('li_weekly_targets')} ORDER BY WEEK_START")
     cre = rows(bq, f"SELECT * FROM {t('paid_creatives_model')}")
-    csp = rows(bq, f"SELECT * FROM {t('cs_pacing_v2')} ORDER BY THEATRE, VENDOR, MARKET_SEQ, WEEK_START")
+    # Google Ads per-campaign aggregates (2026-08-31): feeds the PMax lead-gen strip under the
+    # video block. Campaign grain because the PMax read (cost per platform conversion, the
+    # 50-conversion validity rule) needs PMax-ONLY spend/conversions, and ga_market_day is
+    # channel-blended. Whole-flight (no date column downstream) - labelled so in the UI.
+    gac = rows(bq, f"SELECT CAMPAIGN_NAME_NORM AS CAMPAIGN, MIN(DAY) AS FIRST_DAY, MAX(DAY) AS LAST_DAY,"
+                   f" SUM(COSTS) AS SPEND_USD, SUM(IMPRESSIONS) AS IMPS, SUM(CLICKS) AS CLICKS,"
+                   f" SUM(CONVERSIONS) AS CONVERSIONS FROM {t('stg_google_ads')} GROUP BY 1")
+    csp = rows(bq, f"SELECT * FROM {t('cs_pacing_v2')} ORDER BY THEATRE, BOOK, VENDOR, MARKET_SEQ, WEEK_START")
     tx = build_transmission(bq, t)   # "Internal Notes" tab: committed Source IDs + pacing plan
 
     # Window over the paid rows (min/max date + inclusive day count).
@@ -234,6 +241,17 @@ def main():
             # channel because they have no lead form at all - not zero starts. See sql/06.
             "form_opens": jval(r.get("FORM_OPENS")),
         } for r in cre],
+        # Google Ads campaign grain (2026-08-31) - see the gac query above. spend_usd is RAW
+        # media cost; the dashboard's bbApplySpendMult grosses it like every other spend field.
+        "ga_campaigns": [{
+            "campaign":    r.get("CAMPAIGN"),
+            "first_day":   ymd(r.get("FIRST_DAY")),
+            "last_day":    ymd(r.get("LAST_DAY")),
+            "spend_usd":   jval(r.get("SPEND_USD")),
+            "imps":        jval(r.get("IMPS")),
+            "clicks":      jval(r.get("CLICKS")),
+            "conversions": jval(r.get("CONVERSIONS")),
+        } for r in gac],
         "benchmarks":        {r["CHANNEL"]: {"ctr": jval(r["CTR"]), "cpm": jval(r["CPM"]), "cpc": jval(r["CPC"])} for r in bc},
         "benchmarks_market": {r["MARKET"]:  {"ctr": jval(r["CTR"]), "cpm": jval(r["CPM"]), "cpc": jval(r["CPC"])} for r in bm},
         "li_weekly": [{
@@ -273,23 +291,39 @@ def main():
               f"(a brief-number prefix?) - check sql/16_stg_cs_leads_v2.sql before trusting "
               f"the Pacing detail section.")
     else:
-        # Per-theatre audit line every run: the figures to eyeball against the client sheet.
+        # Per theatre x BOOK audit line every run: the figures to eyeball against the client
+        # sheet. The sheet only covers Core DG, so that is the line that must reconcile; the
+        # Regional book (ANZ DnB - DemandAI / Interlink / SitPub) has no target sheet yet and
+        # legitimately reports target=0.
         by_th = {}
         for r in csp:
-            a = by_th.setdefault(r.get("THEATRE"), {"tgt": 0, "del": 0, "acc": 0, "rej": 0, "rev": 0})
+            key = (r.get("THEATRE"), r.get("BOOK"))
+            a = by_th.setdefault(key, {"tgt": 0, "del": 0, "acc": 0, "rej": 0, "rev": 0, "vendors": set()})
             a["tgt"] += int(jval(r.get("TARGET")) or 0)
             a["del"] += int(jval(r.get("DELIVERED")) or 0)
             a["acc"] += int(jval(r.get("ACCEPTED")) or 0)
             a["rej"] += int(jval(r.get("REJECTED")) or 0)
             a["rev"] += int(jval(r.get("NEEDS_REVIEW")) or 0)
-        for th in sorted(by_th):
-            a = by_th[th]
-            print(f"cs_pacing {th}: target={a['tgt']} delivered={a['del']} accepted={a['acc']} "
-                  f"rejected={a['rej']} needs_review={a['rev']}")
+            if r.get("VENDOR"):
+                a["vendors"].add(r["VENDOR"])
+        for th, book in sorted(by_th, key=lambda k: (k[0] or "", k[1] or "")):
+            a = by_th[(th, book)]
+            print(f"cs_pacing {th} / {book}: target={a['tgt']} delivered={a['del']} "
+                  f"accepted={a['acc']} rejected={a['rej']} needs_review={a['rev']} "
+                  f"publishers={', '.join(sorted(a['vendors'])) or '-'}")
             if a["rev"]:
-                print(f"WARNING cs_pacing {th}: {a['rev']} lead(s) matched no market rule "
-                      f"(MARKET='UNMAPPED'). The dashboard surfaces this, but it means a "
+                print(f"WARNING cs_pacing {th} / {book}: {a['rev']} lead(s) matched no market "
+                      f"rule (MARKET='UNMAPPED'). The dashboard surfaces this, but it means a "
                       f"campaign-name region token is new or misspelt.")
+            # 'Unclassified' is the deliberate safe residual in sql/16's BOOK CASE - a
+            # programme token nobody has mapped yet. Folding it into Core DG would inflate
+            # delivery against a FIXED seeded target, so it lands here instead and says so.
+            if book == "Unclassified":
+                print(f"WARNING cs_pacing {th}: {a['del']} delivered lead(s) sit in the "
+                      f"'Unclassified' book - their campaign-name programme token is not in "
+                      f"the BOOK CASE in sql/16_stg_cs_leads_v2.sql. They are COUNTED and "
+                      f"selectable on the dashboard, but they are not in anyone's pacing. "
+                      f"Map the programme to 'Core DG' or 'Regional' and re-apply views.")
 
     cs_pacing_payload = {
         "row_count": len(csp),
@@ -303,6 +337,11 @@ def main():
         "reasons": [],
         "rows": [{
             "theatre":      r.get("THEATRE"),
+            # Which PLAN the campaign is bought under - 'Core DG', 'Regional' (the ANZ DnB
+            # book: DemandAI / Interlink / SitPub), or 'Unclassified' (see sql/16). A separate
+            # dimension from `theatre`, and the dashboard's campaign picker never sums two
+            # books together, because only Core DG has a seeded target to pace against.
+            "book":         r.get("BOOK"),
             "vendor":       r.get("VENDOR"),
             "market":       r.get("MARKET"),
             "market_seq":   jval(r.get("MARKET_SEQ")),

@@ -154,7 +154,9 @@ grossed `budget` and `pace_expected` along with the actuals. That preserved the 
 sides moved together - while printing a budget that matches nothing: Northbourne's **A$142,000** of
 in-market lines displayed as **A$220,421**, the blended delivery-mix factor applied to a plan figure.
 The media plan is what the client signed and pays; it is ALREADY the client-billed number, so
-grossing it bills them twice on paper. Only `spend_to_date` and `projected_spend` are grossed now -
+grossing it bills them twice on paper. **CONFIRMED by the client 2026-08-31: the plan's A$205,600 is
+the BILLED figure**, so billed-spend-vs-plan is the correct comparison and the pacing card is right
+as it stands. Only `spend_to_date` and `projected_spend` are grossed now -
 billed spend against the signed billed budget. **This moves the displayed pacing % wherever a
 multiplier is set:** Gateway Braddon's flight now reads against its true signed A$7,500 rather than a
 doubled A$15,000. A ratio that is right for a reason nobody can reconstruct from the numbers on
@@ -184,30 +186,28 @@ displays as A$15,000 through the platform. The pacing *ratio* is right either wa
 grossed), but if the signed plan figure is already the client-billed number then the plan side
 should not be grossed - unresolved, flagged rather than changed.
 
-#### The Google Ads tab (2026-08-31)
+#### Google Ads is a PLATFORM, not a tab (settled 2026-08-31)
 
-A per-platform deep dive on the **client_resetdata** pattern (its Reddit section is the model): a
-platform whose buy is shaped differently enough from the rest that blending it into the shared
-tables loses the story. Two things make Google Ads that platform here:
+A Google Ads **tab** was built on 2026-08-31 and **removed the same day** on the client's
+clarification: Google Ads belongs in the shared multi-platform surfaces, and the tab the boss wanted
+is **Google Analytics** (see below). Nothing about the Google Ads data path changed - it is in
+`PM_CHANS`, `sql/09_stg_google_ads` -> `10_fact_all`, the platform chips, the `Performance by
+platform` table and the per-row billed multiplier - so it appears on its own the day the three
+campaigns are un-paused. The conversions surface (KPI tile + `Conv.` / `Cost/conv` columns) stays and
+is what carries the search lines' outcome.
 
-1. **It is two different buys under one channel** - a YouTube awareness video line (seq 2, A$12,000)
-   and two search conversion campaigns (seq 5, A$16,500). Their click-through rates are an order of
-   magnitude apart, so a blended CTR describes neither. The tab splits **Search vs Video** in the
-   type table, the campaign table and the plan table, and never prints a combined rate.
-2. **It is the only channel that reports conversions**, which the shared tables carry as one column
-   but which are the entire point of the search lines.
+What the removed tab did that the shared tables still cannot: split **Search from Video**. The plan
+buys Google Ads as two different things - a YouTube reach line and two search conversion lines -
+whose click-through rates are an order of magnitude apart, so any blended Google Ads CTR describes
+neither. If that split is wanted later it belongs as a section on Paid Media rather than a tab, and
+the removed implementation is in the git history for 2026-08-31.
 
-**The tab renders for any development whose PLAN buys Google Ads, delivered or not** - "bought,
-built and waiting" is itself the answer to "where is Google Ads?". Gateway Braddon buys none, so it
-never sees the tab, and `setProperty` moves you off the tab if you switch to a development without
-it. With no delivery it shows a **pending state** naming the lines, the committed budget and what is
-actually blocking (the campaigns are built and correctly named - they are simply not switched on),
-with the signed plan table underneath. It becomes the live view on the first delivering row.
-
-**The video gap is stated, never printed as zero.** No view, view-rate or quartile metric exists in
-the Google Ads feed at all - not in `CampaignBasicStats`, not in `CampaignStats`, not in the empty
-`VideoStats`, and not in the Windsor fallback - so the YouTube line's 24,000-view target and A$0.50
-CPV cannot be reported against. The tab says so in prose rather than showing a zero.
+**Google Analytics: BLOCKED on a grant.** There is no Geocon GA4 property in either source - not in
+the DTS export (`ingest/dts_data_pull/create_views.py` -> `PROPERTY_NAMES`, 20 properties, none
+Geocon) and not in `raw_windsor.perf_ga4`. Standing it up needs, in order: Geocon grants our service
+account Viewer on the property; the numeric property id goes into `PROPERTY_NAMES`; its DTS transfer
+is created in the console; then views + job + tab. Same path `client_schneider` documents for
+Schneider Electric, whose placeholder is still commented out in that same map.
 
 **Google Ads conversions now have a surface (2026-08-28).** `conversions` and
 `view_through_conversions` have flowed `sql/09_stg_google_ads` -> `10_fact_all` -> `job/main.py` ->

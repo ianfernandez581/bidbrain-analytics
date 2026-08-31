@@ -1236,14 +1236,26 @@ BQ_CLIENTS = [
              "sql": "SELECT SUM(impressions) AS rd_imps\n"
                     "FROM `bidbrain-analytics.raw_windsor.perf_reddit`\n"
                     "WHERE client_slug = 'resetdata';",
-             "note": "Reddit is sliced by client_slug='resetdata'. Imps/clicks are RAW (only spend gets the "
-                     "×2 agency markup, which is why spend is not checked). vs kpi.rd_imps."},
+             "note": "Reddit is sliced by client_slug='resetdata'. vs kpi.rd_imps."},
             {"label": "Reddit · Clicks", "kind": "sum", "group": "Reddit",
              "dash": _kpi("rd_clicks"),
              "sql": "SELECT SUM(clicks) AS rd_clicks\n"
                     "FROM `bidbrain-analytics.raw_windsor.perf_reddit`\n"
                     "WHERE client_slug = 'resetdata';",
              "note": "vs kpi.rd_clicks."},
+            {"label": "Reddit · Spend", "kind": "sum", "group": "Reddit",
+             "dash": _kpi("rd_spend_aud"),
+             "sql": "SELECT ROUND(SUM(ROUND(spend, 2)), 2) AS rd_spend_aud\n"
+                    "FROM `bidbrain-analytics.raw_windsor.perf_reddit`\n"
+                    "WHERE client_slug = 'resetdata';",
+             "note": "Reddit spend is AUD-native (no FX). Rounds per row like stg_reddit so the two agree to "
+                     "the cent (the SOURCE and the SCOPE are still stated independently here, so this is "
+                     "not the circular-check trap). CHECKABLE SINCE 2026-08-27: stg_reddit "
+                     "previously applied a hardcoded x2 agency markup, so this check was deliberately "
+                     "omitted and Reddit spend went unverified for the life of the dashboard. The markup "
+                     "was removed, so raw source now equals the dashboard. A billed rate reinstated via "
+                     "the registry (BB_SPEND_MULT) is applied in the BROWSER and leaves this check valid; "
+                     "re-hardcoding it in the view would silently break it. vs kpi.rd_spend_aud."},
             {"label": "All paid channels · Impressions", "kind": "sum", "group": "All paid channels",
              "dash": _kpi("ad_imps"),
              "sql": "SELECT\n"
@@ -1572,8 +1584,14 @@ def read_definitions(client):
 # (1-indexed; part 2 = the email domain) — the SEMANTIC equivalent of sql/10's BigQuery
 # `SPLIT(EMAIL,'@')[SAFE_OFFSET(1)]`. Snowflake has no SAFE_OFFSET, so the byte-copy of the BQ clause
 # threw "Unknown function SAFE_OFFSET" on every CS check (fixed 2026-07-16).
+# 2026-08-27: EXACT domain list, was LIKE '%transmission%'. The substring also matched
+# allisontransmission.com and dhoottransmission.com - real companies, not Transmission.
+# Verified a strict no-op (the two predicates differ on 11 rows, NONE of them inside any
+# client-view scope), but this side and clients/client_cloudflare/sql/{10,14,16} must move
+# TOGETHER or this check and the dashboard stop agreeing.
 _CF_TEST_LEAD_FILTER = (
-    "\n  AND LOWER(COALESCE(SPLIT_PART(EMAIL, '@', 2), '')) NOT LIKE '%transmission%'")
+    "\n  AND LOWER(COALESCE(SPLIT_PART(EMAIL, '@', 2), '')) NOT IN"
+    "\n      ('transmissionagency.com', 'transmission.com')")
 
 
 def _cf_cs_cte(defs):

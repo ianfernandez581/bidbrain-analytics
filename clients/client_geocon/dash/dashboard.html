@@ -662,7 +662,6 @@
         <div class="tabs" id="tabRow">
           <button class="tab" data-view="overview">Overview</button>
           <button class="tab" data-view="paid">Paid Media</button>
-          <button class="tab" data-view="google" id="tabGoogle">Google Ads</button>
 
         </div>
         <div class="tabs-right">
@@ -827,70 +826,6 @@
       </div>
     </section>
 
-    <!-- ============ GOOGLE ADS ============
-         A per-platform deep dive, on the client_resetdata pattern (its Reddit section is the
-         model): a platform whose buy is shaped differently enough from the rest that blending it
-         into the shared tables loses the story. Two things make Google Ads that platform here.
-
-         (1) It is TWO DIFFERENT BUYS under one channel - a YouTube awareness video line and two
-             search conversion lines - and their rates are not comparable. A blended CTR across a
-             video campaign and a search campaign is not a number about anything, so this tab
-             splits SEARCH from VIDEO everywhere and never prints a combined rate.
-         (2) It is the only channel here that reports CONVERSIONS, which the shared tables treat as
-             a minor column but which are the entire point of the search lines.
-
-         The tab renders for any development whose media plan BUYS Google Ads, not only one that
-         has delivered - because "bought, built and waiting" is itself the answer to "where is
-         Google Ads?". Gateway Braddon buys no Google, so it never sees this tab. -->
-    <section id="tab-google" class="tabpane">
-      <div class="section first"><h2 id="gaTitle">Google Ads</h2><span class="sub" id="gaSub"></span></div>
-      <div id="gaPending"></div>
-      <div id="gaLive" style="display:none">
-        <div class="kpis" id="gaKpis"></div>
-
-        <div class="card" style="margin-top:4px">
-          <div class="card-head">
-            <div class="titles"><h3>Search vs Video</h3><div class="hint">The plan buys Google Ads as <b>two different things</b>: a YouTube video line bought for reach, and search lines bought for enquiries. Their click-through rates are an order of magnitude apart, so a blended figure would describe neither - they are never summed into one rate on this tab.</div></div>
-          </div>
-          <div class="tablewrap"><table id="gaTypeTable"><thead><tr>
-            <th>Buy</th><th class="num">Spend</th><th class="num">Share</th><th class="num">Impressions</th>
-            <th class="num">Clicks</th><th class="num">CTR</th><th class="num">CPM</th><th class="num">CPC</th>
-            <th class="num c-conv">Conv.</th><th class="num c-conv">Cost/conv</th></tr></thead><tbody></tbody></table></div>
-        </div>
-
-        <div class="card" style="margin-top:16px">
-          <div class="card-head">
-            <div class="titles"><h3>Google Ads delivery over time</h3><div class="hint" id="gaTrendHint"></div></div>
-            <div class="card-ctrls">
-              <span class="seg" id="gaAxisSeg"><span class="cap">AXIS</span><button type="button" data-gaxis="rel" class="on">Relative</button><button type="button" data-gaxis="abs">Absolute</button></span>
-              <span class="seg" id="gaGrainSeg"><span class="cap">VIEW BY</span><button type="button" data-ggrain="month">Month</button><button type="button" data-ggrain="week" class="on">Week</button><button type="button" data-ggrain="day">Day</button></span>
-            </div>
-          </div>
-          <div class="chartbox tall"><canvas id="gaTrendChart"></canvas></div>
-        </div>
-
-        <div class="card" style="margin-top:16px">
-          <h3>Campaigns</h3>
-          <div class="hint">Every Google Ads campaign delivering in the selected range, with the media-plan line it was bought against. Google Ads exports at <b>campaign</b> grain, so there is no ad-set or creative tier below this - the network type (Search / Video) is the finest split the feed carries.</div>
-          <div class="tablewrap"><table id="gaCampTable"><thead><tr>
-            <th>Campaign</th><th>Buy</th><th>Plan line</th><th class="num">Spend</th>
-            <th class="num">Impressions</th><th class="num">Clicks</th><th class="num">CTR</th>
-            <th class="num">CPC</th><th class="num c-conv">Conv.</th></tr></thead><tbody></tbody></table></div>
-        </div>
-      </div>
-
-      <div class="card" style="margin-top:16px">
-        <h3>What the plan bought</h3>
-        <div class="hint" id="gaPlanHint">The signed Google Ads lines and the targets each is measured against.</div>
-        <div class="tablewrap"><table id="gaPlanTable"><thead><tr>
-          <th>Line</th><th>Phase</th><th class="num">Budget</th><th class="num">Impressions</th>
-          <th class="num">vs target</th><th class="num">Clicks</th><th class="num">vs target</th>
-          <th class="num">CTR</th><th class="num">vs target</th></tr></thead><tbody></tbody></table></div>
-      </div>
-
-      <div class="info-note" id="gaNote"></div>
-    </section>
-
     <footer id="footerNote"></footer>
   </div>
 </div>
@@ -902,8 +837,7 @@ const JSON_URL = '/data.json';
 let DATA = {};
 // `channels` is null (= every delivering channel) or a Set of selected channel names. It is reset
 // on a development change, because the roster is per development.
-let STATE = {view:'overview', dateStart:null, dateEnd:null, stage:'all', search:'', grain:'week', axis:'rel', property:null, channels:null,
-             gaGrain:'week', gaAxis:'rel'};
+let STATE = {view:'overview', dateStart:null, dateEnd:null, stage:'all', search:'', grain:'week', axis:'rel', property:null, channels:null};
 const HERO_HIDDEN = new Set();          // clickable-KPI series toggles for the hero (persist across re-render)
 const charts = {};
 const $ = id => document.getElementById(id);
@@ -1253,9 +1187,6 @@ function initProperty(){
 function setProperty(v){
   if(!propOpenable(v))return;
   STATE.property=v;
-  // The Google Ads tab is per development (Gateway Braddon buys none). Switching to a development
-  // without it while it is open would leave the user on a hidden pane showing the old development.
-  if(STATE.view==='google'&&!gaBought())STATE.view='overview';
   // The channel filter is per-development (Gateway Braddon buys one channel, Northbourne five), so
   // switching development must clear it or a chip that no longer exists would silently zero the page.
   STATE.channels=null;
@@ -1546,7 +1477,7 @@ function render(){
    renderFunnel,renderStageTable,renderInsights,renderNote,renderBenchTable,renderEffScatter,renderCplTrend,
    renderReachFreq,renderVideo,renderDow,renderLeadType,renderAudience,renderPlacement,
    renderSegment,renderTables,renderFatigue,renderBurn,renderCreative,renderPlatformTable,
-   renderGoogleTab,renderFooter,renderDateScope]
+   renderFooter,renderDateScope]
     .forEach(fn=>{try{fn();}catch(e){console.error('render step failed:',fn.name,e);}});
   // LAST, deliberately: the renderers above unhide panes and repopulate tables, so the placeholder
   // has to take the page back afterwards or a coming-soon development would flash its real tabs.
@@ -1564,7 +1495,7 @@ function renderHeader(){
   if(ts)ts.textContent=comingSoon()?'Coming soon':(awaitingDelivery()?'Planned':'Live');
   if(td)td.style.background=(comingSoon()||awaitingDelivery())?'var(--ctr)':'';
   const lead=leadShaped();
-  const notes={overview:lead?'Demand & qualified leads':'Reach & delivery',paid:'Paid-media performance',google:'Google Ads - search & YouTube',plan:'Signed media plan vs delivery',creative:'Creative library'};
+  const notes={overview:lead?'Demand & qualified leads':'Reach & delivery',paid:'Paid-media performance',plan:'Signed media plan vs delivery',creative:'Creative library'};
   $('ctrlNote').textContent=notes[STATE.view]||'';
   const a=agg(scoped());
   const prop=labelOfProp(STATE.property)||'Geocon';
@@ -1586,7 +1517,12 @@ function renderHeader(){
     // No delivery: state that, rather than narrating zeros as a result.
     $('introCopy').innerHTML=`<b>${safeName(prop)}</b> is not yet reporting delivery.`;
   }else{
-    const chans=deliveredChans();
+    // ACTIVE, not delivered. This sentence quotes the same figures the KPI tiles show, and those
+    // come from agg(scoped()), which honours the platform chips - so naming the delivering ROSTER
+    // made the copy read "across Meta, Trade Desk" beside a Meta-only spend the moment someone
+    // unticked Trade Desk. A caption that disagrees with the number beside it is exactly what makes
+    // a reader distrust a figure that is actually correct.
+    const chans=activeChans();
     // `lead_source_label` is a LEGACY top-level field describing the default development
     // (Gateway Braddon, Meta-only). Reading it for every development would caption Northbourne
     // Gateway's Trade Desk delivery as "Meta-reported".
@@ -2264,166 +2200,6 @@ function renderComingSoon(){
       <div class="cs-foot">Geocon · 100% Digital</div>
     </div>`;
 }
-// ===================== the Google Ads tab =====================
-// GA_CHAN is the payload's channel name; 'ga' scopes a row set to it. Everything on this tab reads
-// ROWS() (property + platform chips already applied) and then this one extra filter, so unticking
-// Google Ads in the chip row empties this tab exactly as it empties every other surface.
-const GA_CHAN='Google Ads';
-const gaRows=()=>scoped().filter(r=>chanOf(r)===GA_CHAN);
-const gaAll=()=>ROWS().filter(r=>chanOf(r)===GA_CHAN);
-// The plan's Google lines. `measurable` false is the A$7,500 management fee - a real cost the
-// client pays, but it reaches no ad server, so it is listed and never paced against.
-const gaPlan=()=>(propDef().plan||[]).filter(l=>l.channel===GA_CHAN);
-// The tab exists for a development that BUYS Google Ads, delivered or not - see the section
-// comment. Gateway Braddon buys none, so it never sees the tab.
-const gaBought=()=>gaPlan().length>0||gaAll().length>0;
-// SEARCH vs VIDEO. `adset` carries the channel type from sql/09_stg_google_ads (Google exports at
-// campaign grain, so the network type stands in for the ad-set tier).
-function gaByType(rows){
-  const g=groupRollup(rows,r=>r.adset||'Other',r0=>({type:r0.adset||'Other'}));
-  return g.sort((a,b)=>n(b.spend)-n(a.spend));
-}
-const gaTypeLabel=t=>({SEARCH:'Search',VIDEO:'Video (YouTube)',DISPLAY:'Display',
-                       PERFORMANCE_MAX:'Performance Max'}[t]||safeName(t));
-
-function renderGoogleTab(){
-  const tab=$('tabGoogle');if(tab)tab.style.display=gaBought()?'':'none';
-  if(!$('tab-google'))return;
-  const rows=gaRows(),live=gaAll().length>0;
-  $('gaLive').style.display=live?'':'none';
-  renderGaPending(live);
-  renderGaPlanTable(rows,live);
-  renderGaNote(live);
-  if(!live)return;
-  const a=agg(rows);
-  $('gaSub').textContent=`Search and YouTube delivery for the ${safeName(labelOfProp(STATE.property))} launch. Honours the date range and the platform chips.`;
-  const conv=hasConversions();
-  $('gaKpis').innerHTML=[
-    {color:MC.spend,label:'Google Ads spend',value:money(a.spend),sub:`${gaByType(rows).length} buy type(s) delivering`},
-    {color:MC.reach,label:'Impressions',value:compact(a.impressions),sub:`CPM ${a.cpm!=null?money(a.cpm,2):'-'}`},
-    {color:MC.ctr,label:'Clicks',value:int(a.clicks),sub:`CTR ${pctr(a.ctr)} \u00b7 CPC ${a.cpc!=null?money(a.cpc,2):'-'}`}
-  ].concat(conv?[{color:MC.qualified,label:'Conversions',value:int(a.conversions),
-                  sub:`Google-reported \u00b7 ${a.cost_per_conversion!=null?money(a.cost_per_conversion)+' each':'cost n/a'}`}]:[])
-   .map(kpiCard).join('');
-  renderGaTypeTable(rows);
-  renderGaCampTable(rows);
-  renderGaTrend();
-}
-
-// The "bought and waiting" state. A tab that renders nothing tells the reader the dashboard is
-// broken; this one names the campaigns, says exactly what is holding them, and disappears the day
-// the first row lands.
-function renderGaPending(live){
-  const el=$('gaPending');if(!el)return;
-  el.style.display=live?'none':'';
-  if(live){el.innerHTML='';return;}
-  const plan=gaPlan(),budget=plan.reduce((x,l)=>x+n(l.budget),0);
-  $('gaSub').textContent='Bought and built - not yet delivering.';
-  el.innerHTML=`<div class="card"><h3>Not yet delivering</h3>
-    <div class="hint">The Google Ads account is connected and its campaigns are built and correctly named, so delivery flows into this tab automatically - <b>no further work from us</b>. What is missing is that the campaigns have not been switched on.</div>
-    <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap">
-      <span class="pillc">${plan.length} plan line${plan.length===1?'':'s'}</span>
-      <span class="pillc">${money(budget)} committed</span>
-      <span class="status warn">Awaiting campaign activation</span>
-    </div>
-    <div class="hint" style="margin-top:12px">Everything below is the signed plan these lines will be measured against the moment they start.</div>
-  </div>`;
-}
-
-function renderGaTypeTable(rows){
-  const g=gaByType(rows),tot=agg(rows),ts=n(tot.spend)||1;
-  $('gaTypeTable').querySelector('tbody').innerHTML=g.map(r=>`<tr>
-    <td><b>${gaTypeLabel(r.type)}</b></td>
-    <td class="num">${money(r.spend)}</td><td class="num">${r.spend==null?'-':pct(n(r.spend)/ts,0)}</td>
-    <td class="num">${int(r.impressions)}</td><td class="num">${int(r.clicks)}</td>
-    <td class="num">${pctr(r.ctr)}</td><td class="num">${r.cpm!=null?money(r.cpm,2):'-'}</td>
-    <td class="num">${r.cpc!=null?money(r.cpc,2):'-'}</td>
-    <td class="num c-conv">${r.conversions==null?'<span class="muted-text">-</span>':int(r.conversions)}</td>
-    <td class="num c-conv">${r.cost_per_conversion!=null?money(r.cost_per_conversion):'<span class="muted-text">-</span>'}</td></tr>`).join('')
-    ||`<tr><td colspan="10" style="text-align:center;color:var(--muted2);padding:20px">No Google Ads delivery in this range.</td></tr>`;
-}
-
-function renderGaCampTable(rows){
-  const g=groupRollup(rows,r=>r.campaign,r0=>({campaign:r0.campaign,type:r0.adset,line:r0.plan_line}))
-    .sort((a,b)=>n(b.spend)-n(a.spend));
-  $('gaCampTable').querySelector('tbody').innerHTML=g.map(r=>`<tr>
-    <td class="name-cell">${prettyCampaign(r.campaign)}</td>
-    <td><span class="pillc">${gaTypeLabel(r.type)}</span></td>
-    <td>${r.line?safeName(r.line):'<span class="muted-text">outside the plan</span>'}</td>
-    <td class="num">${money(r.spend)}</td><td class="num">${int(r.impressions)}</td>
-    <td class="num">${int(r.clicks)}</td><td class="num">${pctr(r.ctr)}</td>
-    <td class="num">${r.cpc!=null?money(r.cpc,2):'-'}</td>
-    <td class="num c-conv">${r.conversions==null?'<span class="muted-text">-</span>':int(r.conversions)}</td></tr>`).join('')
-    ||`<tr><td colspan="9" style="text-align:center;color:var(--muted2);padding:20px">No Google Ads campaigns in this range.</td></tr>`;
-}
-
-// Delivery vs the bought targets, PER LINE. Whole-flight (like every other pacing surface), so it
-// does not move with the date picker.
-function renderGaPlanTable(rows,live){
-  const plan=gaPlan();
-  const byLine=new Map();
-  gaAll().forEach(r=>{const k=r.plan_line;if(!k)return;if(!byLine.has(k))byLine.set(k,[]);byLine.get(k).push(r);});
-  const cell=(actual,target,fmt,higherBetter)=>{
-    if(target==null||!target)return '<span class="muted-text">-</span>';
-    if(actual==null)return '<span class="muted-text">not started</span>';
-    const r=actual/target,cls=higherBetter?(r>=1?'good-text':r>=.85?'':'bad-text'):'';
-    return `<span class="${cls}">${Math.round(r*100)}% of ${fmt(target)}</span>`;
-  };
-  $('gaPlanTable').querySelector('tbody').innerHTML=plan.map(l=>{
-    const rs=byLine.get(l.line)||[];const a=rs.length?agg(rs):null;
-    const measurable=l.measurable!==false;
-    return `<tr>
-      <td class="name-cell">${safeName(l.line)}${measurable?'':' <span class="pillc">not media</span>'}</td>
-      <td><span class="pillc">${safeName(l.phase||'-')}</span></td>
-      <td class="num">${money(l.budget)}</td>
-      <td class="num">${a?int(a.impressions):'<span class="muted-text">-</span>'}</td>
-      <td class="num">${measurable?cell(a&&a.impressions,l.imp_target,compact,true):'<span class="muted-text">n/a</span>'}</td>
-      <td class="num">${a?int(a.clicks):'<span class="muted-text">-</span>'}</td>
-      <td class="num">${measurable?cell(a&&a.clicks,l.click_target,int,true):'<span class="muted-text">n/a</span>'}</td>
-      <td class="num">${a?pctr(a.ctr):'<span class="muted-text">-</span>'}</td>
-      <td class="num">${measurable?cell(a&&a.ctr,l.ctr_target,pctr,true):'<span class="muted-text">n/a</span>'}</td></tr>`;
-  }).join('')||`<tr><td colspan="9" style="text-align:center;color:var(--muted2);padding:20px">No Google Ads lines in the signed plan.</td></tr>`;
-  const ph=$('gaPlanHint');
-  if(ph)ph.innerHTML=`The signed Google Ads lines and the targets each is measured against. Whole-flight, so these do not move with the date filter.`
-    +(plan.some(l=>l.measurable===false)?` One line is the search <b>management fee</b> - a real cost, but it reaches no ad server, so it is listed and never paced against.`:'');
-}
-
-// The video gap is stated, never printed as zero. It is the one thing a client would reasonably
-// expect from a YouTube line and the feed genuinely cannot answer.
-function renderGaNote(live){
-  const el=$('gaNote');if(!el)return;
-  const hasVideoLine=gaPlan().some(l=>n(l.video_view_target)>0);
-  el.innerHTML=`<b>How to read this.</b> Google Ads exports at <b>campaign</b> grain, so there is no ad-set or creative tier here and the network type (Search / Video) is the finest split available. `
-    +`Conversions are <b>Google-reported</b> and are deliberately never added to the Meta enquiry count - a search conversion and a lead form can be the same person twice. `
-    +(hasVideoLine?`<b>Video views, view rate and quartiles are not in this feed at all</b> - not in the campaign stats, not in the video stats table, and not in the Windsor fallback - so the YouTube line's view target and cost-per-view cannot be reported against. That is a gap in the export, not a campaign that delivered nothing, which is why no zero is shown for it. `:'')
-    +`All figures ${meta().currency||'AUD'}.`;
-}
-
-function renderGaTrend(){
-  const days=dailyOf(gaRows());if(!days.length){destroyChart('gaTrendChart');return;}
-  const m=new Map();
-  days.forEach(d=>{const bk=trendBucketLabel(d.date,STATE.gaGrain);let o=m.get(bk.key);
-    if(!o){o={key:bk.key,label:bk.label,spend:0,imp:0,clk:0,conv:0};m.set(bk.key,o);}
-    o.spend=nAdd(o.spend,d.spend==null?null:n(d.spend));o.imp+=n(d.impressions);o.clk+=n(d.clicks);o.conv+=n(d.conversions);});
-  const wk=[...m.values()].sort((a,b)=>a.key.localeCompare(b.key));
-  const rel=STATE.gaAxis==='rel',gw=STATE.gaGrain==='month'?'Monthly':STATE.gaGrain==='week'?'Weekly':'Daily';
-  const labels=wk.map(o=>o.label),spend=wk.map(o=>o.spend),imp=wk.map(o=>o.imp),clk=wk.map(o=>o.clk),cv=wk.map(o=>o.conv);
-  const ds=[
-    {label:'Spend',_kind:'money',_raw:spend,type:'bar',data:spend,backgroundColor:'rgba(237,237,235,.55)',borderColor:MC.accent,borderRadius:4,maxBarThickness:34,yAxisID:'y1',order:4},
-    {label:'Impressions',_kind:'int',_raw:imp,type:'line',data:rel?indexToPeak(imp):imp,borderColor:MC.reach,backgroundColor:MC.reach,borderWidth:2.6,tension:.35,pointRadius:2,fill:false,yAxisID:rel?'y':'y2',order:2},
-    {label:'Clicks',_kind:'int',_raw:clk,type:'line',data:rel?indexToPeak(clk):clk,borderColor:MC.ctr,backgroundColor:MC.ctr,borderWidth:2.6,borderDash:[5,3],tension:.35,pointRadius:2,fill:false,yAxisID:rel?'y':'y2',order:1}
-  ];
-  if(hasConversions())ds.push({label:'Conversions',_kind:'int',_raw:cv,type:'line',data:rel?indexToPeak(cv):cv,borderColor:MC.qualified,backgroundColor:MC.qualified,borderWidth:2.6,tension:.35,pointRadius:2,fill:false,yAxisID:rel?'y':'y2',order:0});
-  const h=$('gaTrendHint');
-  if(h)h.textContent=`${gw} Google Ads spend (bars) against impressions, clicks${hasConversions()?' and conversions':''}.`+(rel?' Lines indexed to peak=100; tooltips show true values.':'');
-  const scales=rel
-    ? {x:axis({grid:{display:false}}),y:{position:'left',min:0,suggestedMax:110,grid:{color:GRID},border:{display:false},ticks:{color:MC.muted,font:{size:11}},title:{display:true,text:'Index (peak=100)',color:MC.muted2,font:{size:11}}},y1:{position:'right',beginAtZero:true,grid:{display:false},border:{display:false},ticks:{color:MC.muted,font:{size:11},callback:v=>'A$'+compact(v)},title:{display:true,text:'Spend',color:MC.muted2,font:{size:11}}}}
-    : {x:axis({grid:{display:false}}),
-       y1:{position:'left',beginAtZero:true,grid:{color:GRID},border:{display:false},ticks:{color:MC.muted,font:{size:11},callback:v=>'A$'+compact(v)},title:{display:true,text:'Spend',color:MC.muted2,font:{size:11}}},
-       y2:{position:'right',beginAtZero:true,grid:{display:false},border:{display:false},ticks:{color:MC.muted,font:{size:11},callback:v=>compact(v)},title:{display:true,text:'Impressions / clicks',color:MC.muted2,font:{size:11}}}};
-  makeChart('gaTrendChart',{data:{labels,datasets:ds},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
-    plugins:{legend:legendTop(),tooltip:{callbacks:{label:c=>{const d=c.dataset;const v=d._raw?d._raw[c.dataIndex]:c.parsed.y;return `${d.label}: ${v==null?'-':(d._kind==='money'?money(v):int(v))}`;}}}},scales}});
-}
 function renderFooter(){const f=flight();const chans=deliveredChans();
   $('footerNote').innerHTML=`${safeName(labelOfProp(STATE.property)||'Geocon')} · Geocon · 100% Digital · `
     +`${chans.length?chans.map(safeName).join(' · '):'awaiting delivery'} · all figures ${meta().currency||'AUD'} · `
@@ -2434,8 +2210,6 @@ function bindControls(){
   document.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>{STATE.view=b.dataset.view;renderViewState();}));
   document.querySelectorAll('#grainSeg button').forEach(b=>b.addEventListener('click',()=>{STATE.grain=b.dataset.grain;document.querySelectorAll('#grainSeg button').forEach(x=>x.classList.toggle('on',x.dataset.grain===STATE.grain));renderTrend();wireKpiToggles();}));
   document.querySelectorAll('#axisSeg button').forEach(b=>b.addEventListener('click',()=>{STATE.axis=b.dataset.axis;document.querySelectorAll('#axisSeg button').forEach(x=>x.classList.toggle('on',x.dataset.axis===STATE.axis));renderTrend();wireKpiToggles();}));
-  document.querySelectorAll('#gaGrainSeg button').forEach(b=>b.addEventListener('click',()=>{STATE.gaGrain=b.dataset.ggrain;document.querySelectorAll('#gaGrainSeg button').forEach(x=>x.classList.toggle('on',x.dataset.ggrain===STATE.gaGrain));renderGaTrend();}));
-  document.querySelectorAll('#gaAxisSeg button').forEach(b=>b.addEventListener('click',()=>{STATE.gaAxis=b.dataset.gaxis;document.querySelectorAll('#gaAxisSeg button').forEach(x=>x.classList.toggle('on',x.dataset.gaxis===STATE.gaAxis));renderGaTrend();}));
   $('searchBox').addEventListener('input',()=>{STATE.search=$('searchBox').value.trim();renderBenchTable();renderSegment();renderTables();renderBurn();renderCreative();renderPlatformTable();});
 }
 function renderViewCharts(){
@@ -2443,7 +2217,6 @@ function renderViewCharts(){
   // blank the rest of the tab.
   const R={overview:[renderTrend,renderPaceToGoal,renderStageDonut],
            paid:[renderEffScatter,renderCplTrend,renderSegment],
-           google:[renderGaTrend],
            creative:[]};
   (R[STATE.view]||[]).forEach(fn=>{try{fn();}catch(e){console.error('view chart render failed:',fn.name,e);}});
 }
