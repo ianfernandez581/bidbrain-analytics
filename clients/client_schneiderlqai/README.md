@@ -17,8 +17,13 @@ the multi-program Schneider Pacific dashboard.
   **On screen (2026-08-31): its OWN "Google Search (SEM)" section on the Overview tab** - 5 KPI
   tiles (spend EUR with the USD source figure, imps, clicks, CTR, CPC), a full-label engagement
   line, a market table (5 markets), a daily spend+clicks trend, and an FX + per-channel freshness
-  footnote ("Converted from USD at {fx_usd_eur}, {fx_rate_date}"). Deliberately OUTSIDE the
-  Channel chips (those gate the AUD delivery model); honours the Country chips + date picker, and
+  footnote ("Converted from USD at {fx_usd_eur}, {fx_rate_date}"). **Has its OWN Channel chip**
+  (Google yellow `#F5C542` with DARK ink - white is unreadable on that yellow; `section:true` in
+  `PLATFORMS`, so the blended delivery consumers iterate `DELIVERY_PLATFORMS` and can never see
+  it): the chip SHOWS/HIDES this section and nothing else - Search never enters the blended
+  figures, so unticking it cannot move a number, and it can NEVER hide the unavailable state
+  (fail-loud beats filter state; the chip leaves the roster when the scope empties). Honours the
+  Country chips + date picker, and
   **ROLLING date presets re-anchor to Search's own `data_through`** (`gsRange()` - Search loads ~a
   day behind, so a shared "Last 7 days" would truncate its newest day and zero-pad the missing
   one); calendar presets / custom ranges pass through. **Visibility contract:** `search.data_through`
@@ -63,7 +68,9 @@ the multi-program Schneider Pacific dashboard.
 > honoured by `pmRows()` + `crRows()` via `platOk()`. **Only engines with delivery in the current
 > country/date selection are rendered** (client rule - never advertise a channel this campaign does
 > not have), the last engine cannot be unticked, and the group hides itself on the Media Plan tab
-> (plan targets, not measured delivery) and whenever one engine is left.
+> (plan targets, not measured delivery) and whenever one engine is left. **+ a Google Search chip
+> (2026-08-31)** on the same roster rules, with different reach: it shows/hides the Google Search
+> (SEM) section ONLY (Search never enters the blended delivery model - see the Channels bullet).
 
 1. **Overview** — delivery KPIs (spend / impressions / clicks / CTR + CPM/CPC), a **pace-to-plan** card
    (delivered vs media-plan targets over the flight), a delivery-over-time hero chart (grain + Relative/
