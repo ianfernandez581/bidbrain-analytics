@@ -519,6 +519,17 @@ the *Delivery by publisher* footnote now says so per vendor (`CSPD_CLIENT_SET_VE
   grain; spend grossed by `bbApplySpendMult` like every money field). The Q3 benchmark workbook
   covers NO PMax metric - its $411 cybersecurity CPL is for qualified leads - so cost per
   conversion renders as an ACTUAL with that stated, never a vs-zero grade.
+- **Creative names decode to CS ASSET names** (2026-08-31, client approved): a `[GA]-XXX-n` or
+  bare short-code token in a creative name resolves through `ASSET_NAMES` and LEADS the row's
+  label (prettyCreative), so the creative tables and the CS assets chart speak one language.
+  Raw name stays in the row tooltip; an unmapped code keeps the old 'concept XXX-n' render
+  (never blank/Unknown). Unresolved at 2026-08-31: A-MSM-10, A-MSM-11, G-MSM-2 - add them to
+  ASSET_NAMES when the client supplies titles. Google Ads rows skip prettyCreative entirely
+  (their label is already 'campaign - Network').
+- **One-solution-per-asset resolver is WIRED but OFF** (`ASSET_SOLUTION_MODE = 'stacked'` +
+  `ASSET_SOLUTION_OVERRIDES` next to the assetAgg build): 'dominant' collapses each asset's
+  bar to its highest-lead solution, 'override' consults the client's master mapping first.
+  Waiting on Jade's rule - flipping it is a one-word edit + dash redeploy; totals never move.
 - **Section header rows (`.section`) wrap** (`flex-wrap:wrap`, and the creative CHANNEL seg is
   `flex:0 0 auto`): on a narrow window the right-pinned seg used to run past the page edge and
   its last button clipped mid-word ("Trade..." - client screenshot). Verified 700-1500px: no

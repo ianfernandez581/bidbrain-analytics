@@ -2903,6 +2903,28 @@ function aggregate(filterFn) {
   // asset's own lead count across two bars. The chart already stacks by solution, so the
   // per-solution split belongs INSIDE the bar. assetId() also folds the file-slug asset
   // names onto their short code - see ASSET_ALIASES.
+  //
+  // >>> ONE-SOLUTION-PER-ASSET RESOLVER (2026-08-31, plumbing only - NOT switched on) >>>
+  // 11 assets legitimately span solutions (e.g. A-MAT-2) and the client has not yet chosen
+  // the collapse rule, so the mechanism ships with the DEFAULT preserving today's behaviour:
+  //   'stacked'  - current: each asset's leads stack by the solution of the campaign each
+  //                lead arrived on (the per-solution split renders inside the bar).
+  //   'dominant' - collapse each asset to its single highest-lead solution (whole bar takes
+  //                that colour; the asset's total is unchanged).
+  //   'override' - the client's master mapping first (ASSET_SOLUTION_OVERRIDES, asset id ->
+  //                solution label), falling back to 'dominant' for unmapped assets.
+  // Flipping the rule is a one-word edit here + a dash redeploy; totals never move, only
+  // which colour(s) an asset's bar carries.
+  const ASSET_SOLUTION_MODE = 'stacked';
+  const ASSET_SOLUTION_OVERRIDES = {};   // e.g. {'A-MAT-2': 'Modernize Applications'}
+  function resolveAssetSolutions(svcMap, id) {
+    if (ASSET_SOLUTION_MODE === 'stacked' || svcMap.size < 2) return svcMap;
+    const entries = [...svcMap.entries()].sort((x, y) => y[1] - x[1]);
+    const total = entries.reduce((s, e) => s + e[1], 0);
+    const win = (ASSET_SOLUTION_MODE === 'override' && ASSET_SOLUTION_OVERRIDES[id])
+      ? ASSET_SOLUTION_OVERRIDES[id] : entries[0][0];
+    return new Map([[win, total]]);
+  }
   const assetAgg = new Map();
   for (const r of breakdownLeads) {
     const id = assetId(r.ASSET_1);
@@ -2917,7 +2939,7 @@ function aggregate(filterFn) {
     .sort((a,b) => b.total - a.total)
     .slice(0, 12)
     .map(a => ({ id: a.id, name: assetName(a.id), total: a.total,
-                 services: [...a.svc.entries()].sort((x,y) => y[1] - x[1]) }));
+                 services: [...resolveAssetSolutions(a.svc, a.id).entries()].sort((x,y) => y[1] - x[1]) }));
 
   // Per-market targets are quarter-anchored too (full-quarter plan per region), matching
   // the headline q2Target; mAccepted stays the in-range actual (QTD accepted per region).
@@ -5629,7 +5651,7 @@ function prettyCreative(raw) {
   if (!raw) return '(unnamed)';
   const toks = String(raw).replace(/\s+/g, '_').split('_').filter(Boolean);
   let msgAcq = false, msgCnc = false, fmt = '', size = '', sizeName = '',
-      market = '', obj = '', concept = '', ver = '';
+      market = '', obj = '', concept = '', ver = '', asset = '';
   const extra = [];
   for (const t of toks) {
     const T = t.toUpperCase();
@@ -5640,10 +5662,18 @@ function prettyCreative(raw) {
     if (CR_MARKET[T]) { if (!market) market = CR_MARKET[T]; continue; }       // first market wins (dedupe JAPAN-JPN + JP)
     const m = t.match(/^([GAga])-([A-Za-z]{2,4})-(\d+)$/);
     if (m) { fmt = m[1].toUpperCase() === 'A' ? 'Animated' : 'Static';
-             concept = 'concept ' + m[2].toUpperCase() + '‑' + m[3]; continue; }
+             // The token is a CS ASSET short code (2026-08-31, client request): resolve it to
+             // the asset's full name via the SAME map the CS assets chart uses, so the two
+             // surfaces speak one language. An unmapped code keeps the old 'concept XXX-n'
+             // rendering - never blank, never 'Unknown' - and the raw string stays in the
+             // row's tooltip for tracing the creative back to the ad platform.
+             if (ASSET_NAMES[T]) { asset = ASSET_NAMES[T]; }
+             else { concept = 'concept ' + m[2].toUpperCase() + '‑' + m[3]; }
+             continue; }
     if (/^SOC\d+$/i.test(T)) { obj = 'Social v' + T.replace('SOC', ''); continue; }
     if (/^V\d+$/i.test(T)) { ver = 'v' + T.replace(/^V/i, ''); continue; }
     if (CR_OBJ[T]) { obj = CR_OBJ[T]; continue; }
+    if (ASSET_NAMES[T]) { if (!asset) asset = ASSET_NAMES[T]; continue; }     // bare short codes (MAT2, CCT10)
     extra.push(T);                                                           // e.g. AIF, AGL - keep verbatim & distinct
   }
   const msg = [msgAcq ? 'Acquisition' : null, msgCnc ? 'Connectivity Cloud' : null]
@@ -5653,7 +5683,7 @@ function prettyCreative(raw) {
     fmtPart = [fmt, sizeName].filter(Boolean).join(' ');
     if (size) fmtPart += (fmtPart ? ' ' : '') + '(' + size.replace('x', '×') + ')';
   }
-  const parts = [msg, fmtPart, market, obj, ...extra, concept, ver].filter(Boolean);
+  const parts = [asset, msg, fmtPart, market, obj, ...extra, concept, ver].filter(Boolean);
   return parts.length ? parts.join(' · ') : String(raw);
 }
 // Channel filter for the creatives tables (single-select). The creatives feed carries a per-row
@@ -5731,7 +5761,11 @@ function renderCreativeTable(bodyId, rows) {
     return;
   }
   tbody.innerHTML = rows.map(o => `<tr>
-    <td><span class="pill ${creativePill(o.channel)}">${esc(o.channel)}</span> <span class="cr-name" title="${esc(o.creative)}">${esc(prettyCreative(o.creative))}</span></td>
+    <td><span class="pill ${creativePill(o.channel)}">${esc(o.channel)}</span> <span class="cr-name" title="${esc(o.creative)}">${
+      // Google Ads rows are already 'campaign - Network' (sql/06 builds the label; the feed has
+      // no creative grain), not the CLOUD_ACQ naming convention - tokenising them through
+      // prettyCreative renders noise ('Japan · CF · Q3 · LEADGEN · ...'), so show them as-is.
+      esc(o.channel === 'Google Ads' ? o.creative : prettyCreative(o.creative))}</span></td>
     <td>${fmtNum(o.imp)}</td>
     <td>${fmtNum(o.clk)}</td>
     <td><b>${fmtPct2(o.ctr, 2)}</b></td>
