@@ -14,7 +14,20 @@ the multi-program Schneider Pacific dashboard.
   `engagement_actions` = raw Google CONVERSIONS renamed — the account counts Se.com page views / CTA
   clicks / file downloads as conversion actions (~1,517 vs 660 clicks), so "conversions" would read
   as leads and be wrong by two orders of magnitude; no lead-only split exists in this source.
-  Dashboard section = Stage 3, pending.
+  **On screen (2026-08-31): its OWN "Google Search (SEM)" section on the Overview tab** - 5 KPI
+  tiles (spend EUR with the USD source figure, imps, clicks, CTR, CPC), a full-label engagement
+  line, a market table (5 markets), a daily spend+clicks trend, and an FX + per-channel freshness
+  footnote ("Converted from USD at {fx_usd_eur}, {fx_rate_date}"). Deliberately OUTSIDE the
+  Channel chips (those gate the AUD delivery model); honours the Country chips + date picker, and
+  **ROLLING date presets re-anchor to Search's own `data_through`** (`gsRange()` - Search loads ~a
+  day behind, so a shared "Last 7 days" would truncate its newest day and zero-pad the missing
+  one); calendar presets / custom ranges pass through. **Visibility contract:** `search.data_through`
+  null -> section hidden (never delivered); set but `daily` empty -> a loud UNAVAILABLE state
+  (the job carries the last published `data_through` forward when the sql/05 scope empties, so a
+  campaign rename shows on screen instead of silently removing the section). The media-plan tab's
+  Search line stays `live=0` / unwired to pacing until the plan line is confirmed to be this buy.
+  The overview CSV export and the AI-deck payload stay delivery-only (raise before adding Search
+  to either - mixed currency columns).
 - **Countries (6):** India (dominant), Brazil, Australia, Chile, Saudi Arabia (KSA), UAE.
   Media-plan regions: South America (BR+CL), MEA (SA+AE), Pacific (AU), India.
 - **Awareness only** — objective is Website visits / display reach. **No leads, no conversions, no
@@ -55,7 +68,8 @@ the multi-program Schneider Pacific dashboard.
 1. **Overview** — delivery KPIs (spend / impressions / clicks / CTR + CPM/CPC), a **pace-to-plan** card
    (delivered vs media-plan targets over the flight), a delivery-over-time hero chart (grain + Relative/
    Absolute toggles), a LinkedIn-vs-Trade-Desk channel table, spend-by-channel + spend-by-country charts,
-   and a country summary table.
+   a country summary table, and the **Google Search (SEM) section** (own lane + currency basis - see
+   the Channels bullet above).
 2. **Creative** — LinkedIn message concepts (3), Trade Desk display concepts (Accelerate AI / Cooling
    Performance / Cool & Smart / Every Degree / Generic) + banner-format mix, best creatives by CTR, and
    a sortable/searchable creative detail table.
