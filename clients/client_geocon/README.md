@@ -647,12 +647,55 @@ if the pull hasn't run. **Real qualified leads** still need a client CRM feed (t
 The service serves `dashboard.html` with `Cache-Control: no-store`, so a redeploy is live immediately;
 it always reads whatever `geocon.json` is currently in the bucket.
 
+## Website analytics (GA4) — the Website tab (2026-08-31)
+
+Google Analytics is CONNECTED. Two Geocon GA4 properties were connected to the Windsor connector
+in late August 2026 (both are brand-new — that is the full history, not a gap):
+
+| GA4 property | name in GA4 | what it actually is |
+|---|---|---|
+| `550962241` | GEOCON | the geocon.com.au brand site (organic/direct traffic) |
+| `551838402` | Gatewaybraddon | the campaign LANDING site — carries almost exclusively **Northbourne Gateway** campaign traffic (verified 2026-08-31: 3,767 of its first 3,975 sessions arrive from `0201_*` campaigns) |
+
+**The property names do not name the development the traffic belongs to** — so `sql/11_stg_ga4`
+resolves the DEVELOPMENT from the GA4 **session campaign name** via the same `seed_property_map`
+tokens every delivery view uses, and the on-screen site figures stay whole-site and say so. Events
+(`sql/12_stg_ga4_events`) carry no campaign dimension, so they are site-level only. **Web enquiry
+tracking is thin**: the sites record `form_start` but no form-submit key event is configured in
+GA4 — worth asking the client for one; until then nothing on the Website tab is an enquiry count.
+
+Pipe: `windsor-ga4-ingest` (scheduled 21:25 UTC daily, `scripts/deploy_ingest_jobs.ps1`) runs both
+GA4 loaders **pinned to these two properties** via `GA4_ACCOUNTS` → `raw_windsor.perf_ga4` +
+`perf_ga4_events` → views 11/12 → job `ga4` block → the **Website** tab (auto-hides on an older
+JSON). GA4 **DTS transfers for both properties exist and FAIL on permissions** — they self-heal
+the day the client grants `ian@100.digital` Viewer on the two properties, and the views can then
+move DTS-first (the VMCH pattern) and the Windsor job can retire.
+
+The job prints a per-site audit line each run (`ga4 <site>: N sessions, M attributed…`) — an
+all-zero "attributed" figure under paid delivery means the seed tokens stopped matching the GA4
+utm campaign names (the same class of break as the delivery scope, and just as silent).
+
+### Channel connection status (verified 2026-08-31)
+
+- **LinkedIn — still blocked on the Windsor grant.** No Geocon LinkedIn ad account exists in the
+  connector (probed via the Windsor API, not the table). The socket (`sql/07`) is ready; when the
+  account is connected at onboard.windsor.ai, add its id to `SELECT_ACCOUNTS` +
+  `LINKEDIN_ACCOUNT_TO_CLIENT` (→ `('geocon','100-digital')`) in
+  `ingest/windsor_data_pull/linkedin/linkedin_loader.py` and redeploy `windsor-linkedin-ingest`.
+- **Google Ads — the live campaigns are OUTSIDE our mirror.** The three campaigns under MCC
+  3451896252 (customer 5457742070) are still PAUSED with zero stats, yet GA4 records `google/cpc`
+  sessions from those exact campaign names since 2026-08-27 (plus a `..._SearchNonBrand_CNV`
+  name variant) — someone rebuilt/launched them in a DIFFERENT Google Ads account. Ask the
+  agency/client for the delivering CID and link it under MCC 3451896252; `sql/09` then needs that
+  `customer_id` added. Until then the Google Ads lane correctly shows nothing.
+
 ## Freshness
 
 `geocon-export` is **self-gating** on a Cloud Scheduler `*/10` UTC tick (`scheduler.ps1`): each tick
-cheaply probes whether any of its **four** upstream tables advanced (`__TABLES__.last_modified`
+cheaply probes whether any of its **six** upstream tables advanced (`__TABLES__.last_modified`
 vs the `_freshness.json` watermark) and rebuilds only when one did: `raw_windsor.perf_meta`,
-`raw_windsor.perf_linkedin`, `raw_windsor.perf_the_trade_desk` and the Google Ads DTS base table
+`raw_windsor.perf_linkedin`, `raw_windsor.perf_the_trade_desk`, `raw_windsor.perf_ga4`,
+`raw_windsor.perf_ga4_events` and the Google Ads DTS base table
 `raw_google_ads.p_ads_CampaignBasicStats_3451896252` (the BASE table, never the frozen bridge
 view). The three added in 2026-08 are shared with other clients, so their delivery also trips this
 gate and geocon rebuilds more often than its own data strictly changes - the alternative, gating on

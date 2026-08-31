@@ -218,6 +218,12 @@
   #platformTable tr.totrow td{border-top:1px solid rgba(255,255,255,.14)}
 
   .tabpane{display:none}
+/* Website (GA4) view: the Platform / Stage / Search filters act on the PAID fact and have no
+   effect on GA4 sessions - a visible control that moves nothing teaches the reader to distrust
+   the figures, so they hide on this tab (the schneider precedent). The date range stays: GA4
+   rows honour it. !important beats the inline display renderChanChips manages. */
+body.ga-view #chanDiv,body.ga-view #chanGrp,body.ga-view #stageDiv,body.ga-view #stageGrp,
+body.ga-view #searchDiv,body.ga-view #searchGrp{display:none!important}
   section[id^="tab-"]{background:
        radial-gradient(1100px 440px at 50% -70px, rgba(237,237,235,.08), transparent 66%),
        radial-gradient(680px 300px at 50% -46px, rgba(255,255,255,.05), transparent 62%)}
@@ -662,6 +668,9 @@
         <div class="tabs" id="tabRow">
           <button class="tab" data-view="overview">Overview</button>
           <button class="tab" data-view="paid">Paid Media</button>
+          <!-- Website (GA4): shows itself only when the payload carries ga4 rows, so an older
+               JSON (or a fresh project without the GA4 pull) renders exactly as before. -->
+          <button class="tab" data-view="website" id="tabWebsiteBtn" style="display:none">Website</button>
 
         </div>
         <div class="tabs-right">
@@ -695,10 +704,10 @@
              divider stay hidden there and the control bar is unchanged. -->
         <div class="fdiv" id="chanDiv" style="display:none"></div>
         <div class="filter-grp" id="chanGrp" style="display:none"><span class="lbl">Platform</span><div class="chips" id="chanChips"></div></div>
-        <div class="fdiv"></div>
-        <div class="filter-grp"><span class="lbl">Stage</span><div class="chips" id="stageChips"></div></div>
-        <div class="fdiv"></div>
-        <div class="filter-grp"><input class="search" id="searchBox" type="text" placeholder="Search campaign / adset / ad…" autocomplete="off"></div>
+        <div class="fdiv" id="stageDiv"></div>
+        <div class="filter-grp" id="stageGrp"><span class="lbl">Stage</span><div class="chips" id="stageChips"></div></div>
+        <div class="fdiv" id="searchDiv"></div>
+        <div class="filter-grp" id="searchGrp"><input class="search" id="searchBox" type="text" placeholder="Search campaign / adset / ad…" autocomplete="off"></div>
       </div>
     </div>
 
@@ -826,6 +835,39 @@
       </div>
     </section>
 
+    <!-- ============ WEBSITE (GA4) ============
+         Two Geocon GA4 properties, Windsor-fed (see sql/11_stg_ga4.sql for the property ids, the
+         "Gatewaybraddon property carries Northbourne traffic" evidence, and why Windsor not DTS).
+         SITE figures are whole-site and say so; the one development-scoped card resolves sessions
+         from the CAMPAIGN name via the same seed_property_map tokens the delivery views use.
+         Events are site-level only (GA4 events carry no campaign dimension). -->
+    <section id="tab-website" class="tabpane">
+      <div class="section first">
+        <h2>Website analytics</h2>
+        <div class="hint" id="gaIntro"></div>
+      </div>
+      <div class="filter-grp" style="margin:2px 0 4px"><span class="lbl">Site</span><div class="chips" id="gaSiteChips"></div></div>
+      <div class="kpis" id="gaKpis"></div>
+      <div class="card" style="margin-top:16px">
+        <h3>Sessions by channel</h3><div class="hint" id="gaTrendHint"></div>
+        <div class="chartbox tall"><canvas id="gaTrendChart"></canvas></div>
+      </div>
+      <div class="grid cols-2">
+        <div class="card"><h3>Traffic by channel</h3><div class="hint">GA4 default channel groups for the selected site and date range. Engagement rate = engaged sessions ÷ sessions.</div>
+          <div class="tablewrap"><table id="gaChanTable"><thead><tr><th>Channel</th><th class="num">Sessions</th><th class="num">Share</th><th class="num">Engagement rate</th><th class="num">Users</th></tr></thead><tbody></tbody></table></div></div>
+        <div class="card"><h3>Top sources</h3><div class="hint">Where the sessions came from (GA4 session source / medium), selected site and range.</div>
+          <div class="tablewrap"><table id="gaSourceTable"><thead><tr><th>Source / medium</th><th class="num">Sessions</th><th class="num">Share</th></tr></thead><tbody></tbody></table></div></div>
+      </div>
+      <div class="card" id="gaDevCard" style="margin-top:16px">
+        <h3 id="gaDevTitle"></h3><div class="hint" id="gaDevHint"></div>
+        <div class="tablewrap"><table id="gaDevTable"><thead><tr><th>Campaign</th><th>Channel</th><th>Site</th><th class="num">Sessions</th><th class="num">Engagement rate</th></tr></thead><tbody></tbody></table></div>
+      </div>
+      <div class="card" style="margin-top:16px">
+        <h3>On-site actions</h3><div class="hint" id="gaEvHint"></div>
+        <div class="tablewrap"><table id="gaEventsTable"><thead><tr><th>Event</th><th class="num">Count</th></tr></thead><tbody></tbody></table></div>
+      </div>
+    </section>
+
     <footer id="footerNote"></footer>
   </div>
 </div>
@@ -837,7 +879,7 @@ const JSON_URL = '/data.json';
 let DATA = {};
 // `channels` is null (= every delivering channel) or a Set of selected channel names. It is reset
 // on a development change, because the roster is per development.
-let STATE = {view:'overview', dateStart:null, dateEnd:null, stage:'all', search:'', grain:'week', axis:'rel', property:null, channels:null};
+let STATE = {view:'overview', dateStart:null, dateEnd:null, stage:'all', search:'', grain:'week', axis:'rel', property:null, channels:null, gaSite:null};
 const HERO_HIDDEN = new Set();          // clickable-KPI series toggles for the hero (persist across re-render)
 const charts = {};
 const $ = id => document.getElementById(id);
@@ -1477,7 +1519,7 @@ function render(){
    renderFunnel,renderStageTable,renderInsights,renderNote,renderBenchTable,renderEffScatter,renderCplTrend,
    renderReachFreq,renderVideo,renderDow,renderLeadType,renderAudience,renderPlacement,
    renderSegment,renderTables,renderFatigue,renderBurn,renderCreative,renderPlatformTable,
-   renderFooter,renderDateScope]
+   renderWebsite,renderFooter,renderDateScope]
     .forEach(fn=>{try{fn();}catch(e){console.error('render step failed:',fn.name,e);}});
   // LAST, deliberately: the renderers above unhide panes and repopulate tables, so the placeholder
   // has to take the page back afterwards or a coming-soon development would flash its real tabs.
@@ -1495,7 +1537,7 @@ function renderHeader(){
   if(ts)ts.textContent=comingSoon()?'Coming soon':(awaitingDelivery()?'Planned':'Live');
   if(td)td.style.background=(comingSoon()||awaitingDelivery())?'var(--ctr)':'';
   const lead=leadShaped();
-  const notes={overview:lead?'Demand & qualified leads':'Reach & delivery',paid:'Paid-media performance',plan:'Signed media plan vs delivery',creative:'Creative library'};
+  const notes={overview:lead?'Demand & qualified leads':'Reach & delivery',paid:'Paid-media performance',plan:'Signed media plan vs delivery',creative:'Creative library',website:'Website analytics (GA4)'};
   $('ctrlNote').textContent=notes[STATE.view]||'';
   const a=agg(scoped());
   const prop=labelOfProp(STATE.property)||'Geocon';
@@ -2205,6 +2247,125 @@ function renderFooter(){const f=flight();const chans=deliveredChans();
     +`${chans.length?chans.map(safeName).join(' · '):'awaiting delivery'} · all figures ${meta().currency||'AUD'} · `
     +`flight ${fmtDate(f.start)} – ${fmtDate(f.end)} · updated <b>${fmtDateTime(meta().last_updated)}</b>`;}
 
+// ---------- Website (GA4) tab ----------
+// Whole-SITE analytics for the two Geocon GA4 properties (Windsor-fed; sql/11_stg_ga4.sql has the
+// property ids and the naming caveat). Three scoping rules, each stated on screen:
+//   * SITE figures are whole-site - a site serves every campaign that lands on it, so they follow
+//     the site chips and the date filter, NEVER the development selector or the platform chips.
+//   * The one development-scoped card resolves sessions from the session CAMPAIGN name via the
+//     same seed_property_map tokens the delivery views use - and it spans BOTH sites, because the
+//     attribution is the campaign, not the site.
+//   * Events are site-level only (GA4 events carry no campaign dimension), and today's event set
+//     is thin (form starts, no configured key events) - the copy says so rather than letting a
+//     form_start read as an enquiry.
+// The tab hides itself when the payload has no ga4 block, so an older JSON renders as before.
+const GA_CHAN_COLORS={'Paid Social':MC.leads,'Display':MC.reach,'Paid Search':MC.accent,
+  'Paid Video':MC.qualified,'Organic Search':MC.forest,'Direct':MC.muted2,'Referral':MC.ctr,
+  'Organic Social':MC.lpv,'Unassigned':MC.muted};
+const gaChanColor=(c,i)=>GA_CHAN_COLORS[c]||CHART_SERIES[i%CHART_SERIES.length];
+const gaAll=()=>((DATA.ga4||{}).rows)||[];
+const gaEventsAll=()=>((DATA.ga4||{}).events)||[];
+const gaSites=()=>[...new Set(gaAll().map(r=>r.site).filter(Boolean))].sort();
+// The selected site, self-healing: a stale selection (older payload, renamed site) falls back to
+// the first site rather than blanking the tab.
+function gaSite(){const s=gaSites();if(!s.length)return null;return (STATE.gaSite&&s.includes(STATE.gaSite))?STATE.gaSite:s[0];}
+const gaRows=()=>gaAll().filter(r=>r.site===gaSite()&&inRange(r.date));
+function renderWebsite(){
+  const has=gaAll().length>0;
+  showPanel('tabWebsiteBtn',has);
+  if(!has){if(STATE.view==='website'){STATE.view='overview';renderViewState();}return;}
+  const sites=gaSites(),cur=gaSite();
+  const chips=$('gaSiteChips');
+  chips.innerHTML=sites.map(s=>`<button class="chip${s===cur?' on':''}" data-site="${escProp(s)}">${escProp(s)}</button>`).join('');
+  chips.querySelectorAll('.chip').forEach(b=>b.addEventListener('click',()=>{STATE.gaSite=b.dataset.site;renderWebsite();}));
+  const rows=gaRows();
+  const S=k=>rows.reduce((a,r)=>a+n(r[k]),0);
+  const sessions=S('sessions'),eng=S('engaged_sessions'),users=S('users'),nu=S('new_users'),pv=S('pageviews');
+  const dmin=gaAll().length?[...gaAll().map(r=>r.date)].sort()[0]:null;
+  $('gaIntro').innerHTML=`Google Analytics for the Geocon web presence - <b>whole site</b>, not scoped to the `
+    +`development selector or the platform chips (a site serves every campaign that lands on it). `
+    +`Honours the date filter. Both GA4 properties were created in late August 2026, so data genuinely `
+    +`begins <b>${fmtDate(dmin)}</b> - that is the full history, not a gap.`;
+  $('gaKpis').innerHTML=[
+    {label:'Sessions',value:int(sessions),color:MC.accent,sub:`page views ${int(pv)}`},
+    {label:'Engaged sessions',value:int(eng),color:MC.leads,sub:`engagement rate ${sessions?pct(eng/sessions):'-'}`},
+    {label:'Users',value:int(users),color:MC.reach,sub:`new users ${int(nu)}`},
+    {label:'Avg engagement / session',value:sessions?Math.round(S('engagement_sec')/sessions)+'s':'-',color:MC.forest,sub:'time actively engaged'},
+  ].map(kpiCard).join('');
+  renderGaTrend();
+  renderGaChanTable(rows,sessions);
+  renderGaSources(rows,sessions);
+  renderGaDevCard();
+  renderGaEvents();
+}
+function renderGaTrend(){
+  if(!gaAll().length||!$('gaTrendChart'))return;
+  const rows=gaRows();
+  const days=[...new Set(rows.map(r=>r.date))].sort();
+  const sum=c=>rows.filter(r=>r.channel===c).reduce((a,r)=>a+n(r.sessions),0);
+  const chans=[...new Set(rows.map(r=>r.channel))].sort((a,b)=>sum(b)-sum(a));
+  const byKey=new Map();rows.forEach(r=>{const k=r.date+'|'+r.channel;byKey.set(k,(byKey.get(k)||0)+n(r.sessions));});
+  makeChart('gaTrendChart',{type:'bar',
+    data:{labels:days.map(fmtDate),datasets:chans.map((c,i)=>({label:c,data:days.map(d=>byKey.get(d+'|'+c)||0),
+      backgroundColor:gaChanColor(c,i)+'CC',borderColor:gaChanColor(c,i),borderWidth:1,stack:'s',borderRadius:2,maxBarThickness:34}))},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{position:'bottom',labels:{color:MC.muted,boxWidth:10,font:{size:11}}}},
+      scales:{x:{stacked:true,grid:{display:false},ticks:{color:MC.muted,font:{size:11}}},
+              y:{stacked:true,beginAtZero:true,grid:{color:GRID},border:{display:false},ticks:{color:MC.muted,font:{size:11}}}}}});
+  const th=$('gaTrendHint');if(th)th.textContent=`Daily sessions on ${gaSite()||''}, stacked by GA4 default channel group.`;
+}
+function renderGaChanTable(rows,total){
+  const agg=new Map();
+  rows.forEach(r=>{const o=agg.get(r.channel)||{c:r.channel,s:0,e:0,u:0};o.s+=n(r.sessions);o.e+=n(r.engaged_sessions);o.u+=n(r.users);agg.set(r.channel,o);});
+  const list=[...agg.values()].sort((a,b)=>b.s-a.s);
+  $('gaChanTable').querySelector('tbody').innerHTML=list.map(o=>
+    `<tr><td>${escProp(o.c)}</td><td class="num">${int(o.s)}</td><td class="num">${total?pct(o.s/total):'-'}</td>`
+    +`<td class="num">${o.s?pct(o.e/o.s):'-'}</td><td class="num">${int(o.u)}</td></tr>`).join('');
+}
+function renderGaSources(rows,total){
+  const agg=new Map();
+  rows.forEach(r=>{const k=`${r.source||'(not set)'} / ${r.channel}`;const o=agg.get(k)||{k,s:0};o.s+=n(r.sessions);agg.set(k,o);});
+  const list=[...agg.values()].sort((a,b)=>b.s-a.s).slice(0,12);
+  $('gaSourceTable').querySelector('tbody').innerHTML=list.map(o=>
+    `<tr><td>${escProp(o.k)}</td><td class="num">${int(o.s)}</td><td class="num">${total?pct(o.s/total):'-'}</td></tr>`).join('');
+}
+function renderGaDevCard(){
+  // The development-scoped slice: sessions whose GA4 campaign name matched the SELECTED
+  // development's seed tokens. Cross-SITE on purpose (the attribution is the campaign) and it says
+  // so - everything above it is whole-site.
+  const card=$('gaDevCard');if(!card)return;
+  const dev=STATE.property;
+  const rows=gaAll().filter(r=>r.property===dev&&inRange(r.date));
+  if(!dev||!rows.length){card.style.display='none';return;}
+  card.style.display='';
+  $('gaDevTitle').textContent=`Sessions from ${labelOfProp(dev)} campaigns`;
+  $('gaDevHint').textContent=`Website sessions whose GA4 campaign matches a ${labelOfProp(dev)} campaign name - `
+    +`across BOTH sites, independent of the site chips above. This is the slice that belongs to the selected `
+    +`development; the site figures above are the whole site.`;
+  const agg=new Map();
+  rows.forEach(r=>{const k=[r.campaign,r.channel,r.site].join('|');
+    const o=agg.get(k)||{campaign:r.campaign,channel:r.channel,site:r.site,s:0,e:0};
+    o.s+=n(r.sessions);o.e+=n(r.engaged_sessions);agg.set(k,o);});
+  const list=[...agg.values()].sort((a,b)=>b.s-a.s);
+  const tot=list.reduce((a,o)=>a+o.s,0),te=list.reduce((a,o)=>a+o.e,0);
+  $('gaDevTable').querySelector('tbody').innerHTML=list.map(o=>
+    `<tr><td>${escProp(o.campaign)}</td><td>${escProp(o.channel)}</td><td>${escProp(o.site)}</td>`
+    +`<td class="num">${int(o.s)}</td><td class="num">${o.s?pct(o.e/o.s):'-'}</td></tr>`).join('')
+    +`<tr><td><b>Total</b></td><td></td><td></td><td class="num"><b>${int(tot)}</b></td><td class="num"><b>${tot?pct(te/tot):'-'}</b></td></tr>`;
+}
+function renderGaEvents(){
+  const rows=gaEventsAll().filter(r=>r.site===gaSite()&&inRange(r.date));
+  const agg=new Map();
+  rows.forEach(r=>{const o=agg.get(r.event)||{event:r.event,conv:!!r.conversion,count:0};o.count+=n(r.count);agg.set(r.event,o);});
+  const list=[...agg.values()].sort((a,b)=>b.count-a.count);
+  $('gaEventsTable').querySelector('tbody').innerHTML=list.map(o=>
+    `<tr><td>${escProp(o.event)}${o.conv?' · key event':''}</td><td class="num">${int(o.count)}</td></tr>`).join('');
+  const eh=$('gaEvHint');if(eh)eh.innerHTML=`GA4 events on ${escProp(gaSite()||'')} in the selected range. `
+    +`<b>Web enquiry tracking is thin today</b>: the sites record <b>form starts</b> but no form-submit key `
+    +`event is configured yet, so nothing here is an enquiry count - platform-reported enquiries remain the `
+    +`source of truth. Worth asking for a GA4 key event on the enquiry form.`;
+}
+
 // ---------- controls ----------
 function bindControls(){
   document.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>{STATE.view=b.dataset.view;renderViewState();}));
@@ -2217,11 +2378,14 @@ function renderViewCharts(){
   // blank the rest of the tab.
   const R={overview:[renderTrend,renderPaceToGoal,renderStageDonut],
            paid:[renderEffScatter,renderCplTrend,renderSegment],
+           website:[renderGaTrend],
            creative:[]};
   (R[STATE.view]||[]).forEach(fn=>{try{fn();}catch(e){console.error('view chart render failed:',fn.name,e);}});
 }
 function renderViewState(){
   document.querySelectorAll('[data-view]').forEach(b=>b.classList.toggle('on',b.dataset.view===STATE.view));
+  // GA4 ignores the paid-fact filters, so they hide on the Website view (see the CSS note).
+  document.body.classList.toggle('ga-view',STATE.view==='website');
   // On a coming-soon development the placeholder owns the page - showing the selected pane here
   // would put an empty dashboard back on screen underneath it.
   const cs=comingSoon();
@@ -2260,6 +2424,7 @@ function exportAllData(){const cols=['date','channel','plan_line','campaign','ad
 function exportThisTab(){
   const[a,b]=rangeBounds();const stamp=(a&&b?a+'_'+b:'all');
   if(STATE.view==='overview'){const cols=[{label:'date',key:'date'},{label:'spend',key:'spend'},{label:'leads',key:'leads'},{label:'qualified_modelled',get:r=>qualified(r.leads)},{label:'cum_leads',key:'cum_leads'}];downloadCSV(`geocon_daily_${stamp}.csv`,toCSV(dailyOf(scoped()),cols));}
+  else if(STATE.view==='website'){const cols=['date','site','channel','source','campaign','property','sessions','engaged_sessions','users','new_users','pageviews'].map(k=>({label:k,key:k}));downloadCSV(`geocon_website_${stamp}.csv`,toCSV(gaAll().filter(r=>inRange(r.date)),cols));}
   else{const cols=[{label:'ad',key:'ad'},{label:'adset',key:'adset'},{label:'campaign',key:'campaign'},{label:'stage',key:'stage'},{label:'spend',key:'spend'},{label:'leads',key:'leads'},{label:'cpl',key:'cpl'},{label:'ctr',key:'ctr'},{label:'cpm',key:'cpm'},{label:'cpc',key:'cpc'},{label:'lpv',key:'lpv'},{label:'cost_per_lpv',key:'cost_per_lpv'},{label:'frequency',key:'frequency'}];downloadCSV(`geocon_by_ad_${stamp}.csv`,toCSV(byAd(searched(scoped())),cols));}
 }
 

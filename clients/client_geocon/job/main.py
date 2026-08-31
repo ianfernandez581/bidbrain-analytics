@@ -324,7 +324,12 @@ def build_env(bq, observed):
               f"${round(sum(num(r['spend']) or 0 for r in off_plan), 2)} spend matched no media-plan "
               f"line (delivery is counted, but it paces against nothing) -> {names[:10]}")
 
-    dates = [r["date"] for r in fact if r.get("date")]
+    # The meta date window bounds the dashboard's date picker AND its default "All time" range —
+    # so it must span EVERYTHING the payload carries, not just the paid fact. GA4 lands with less
+    # lag than some ad feeds, so fact-only bounds were silently clipping the newest GA4 day off
+    # the Website tab (1,304 sessions on the first day this shipped).
+    dates = ([r["date"] for r in fact if r.get("date")]
+             + [r["date"] for r in ga4 if r.get("date")])
     spend_total = sum(num(r["spend"]) or 0 for r in fact)
     leads_total = sum(int(r["leads"] or 0) for r in fact)
 

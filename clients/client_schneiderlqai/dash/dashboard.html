@@ -608,12 +608,17 @@
            chips (those gate the AUD delivery model); it honours the Country chips + date range,
            and rolling date presets re-anchor to Search's OWN latest day because Search loads ~a
            day behind the display channels (see gsRange / renderSearch).
+           It has its OWN Channel chip (google_search in PLATFORMS): the chip SHOWS/HIDES this
+           section and nothing else - Search never enters the blended figures, so unticking it can
+           never move a number up there. The chip leaves the roster when Search has no rows in the
+           current selection, and it can never hide the UNAVAILABLE state below.
            Visibility contract (2026-08-31): DATA.search.data_through null -> whole section hidden
            (channel never delivered); data_through set but daily empty -> the UNAVAILABLE state
-           renders (a channel that had data must fail loud, never silently vanish). -->
+           renders (a channel that had data must fail loud, never silently vanish); otherwise the
+           chip decides. -->
       <div id="gsSection" style="display:none">
         <div class="section"><h2>Google Search (SEM)</h2>
-          <span class="sub">Paid search delivery for the <b>AI &amp; Liquid Cooling</b> SEM campaigns across 5 markets (Australia, UAE, Saudi Arabia, Brazil, Chile - no India line). Reflects the selected countries &amp; date range; independent of the Channel filter above. Reporting currency EUR.</span>
+          <span class="sub">Paid search delivery for the <b>AI &amp; Liquid Cooling</b> SEM campaigns across 5 markets (Australia, UAE, Saudi Arabia, Brazil, Chile - no India line). Reflects the selected countries &amp; date range; the <b>Google Search</b> chip above shows or hides this section (Search does not enter the blended channel figures higher up). Reporting currency EUR.</span>
         </div>
         <div id="gsUnavailable" class="info-note warn" style="display:none;margin-top:14px"></div>
         <div id="gsBody">
@@ -696,7 +701,17 @@ const C = {
 const PLATFORMS = [
   {key:'linkedin',  label:'LinkedIn',       color:C.li},
   {key:'tradedesk', label:'The Trade Desk', color:C.td},
+  // Google Search is a CHIP-level channel only: its chip shows/hides the Google Search (SEM)
+  // section, and it NEVER enters the blended delivery model above it (different billing currency
+  // + FX basis - see the gsSection markup note), so unticking it can never move a blended number.
+  // `section:true` keeps it out of the delivery-model consumers (DELIVERY_PLATFORMS below);
+  // `ink` because white text is unreadable on Google's yellow (the colour cloudflare uses for
+  // Google Ads).
+  {key:'google_search', label:'Google Search', color:'#F5C542', ink:'#1A1A1A', section:true},
 ];
+// The blended delivery model (channel table / spend donut / KPI rollups) iterates THIS roster -
+// never PLATFORMS - so a chip-only channel cannot leak a zero row (or an undefined key) into it.
+const DELIVERY_PLATFORMS = PLATFORMS.filter(p=>!p.section);
 const PLAT_LABEL = Object.fromEntries(PLATFORMS.map(p=>[p.key,p.label]));
 const PROG_PALETTE = ['#007E2A','#2867B2','#F2A900','#8E44AD','#0E7C86','#B97400','#5A6B78','#12B5C9','#9AD4B5'];
 
@@ -1068,12 +1083,17 @@ function renderControls(){
   // since a lone chip you cannot untick is clutter rather than a control.
   const livePlats=new Set((DATA.delivery||[])
     .filter(r=>countryOk(r.country) && inRangeDate(r.date)).map(r=>r.platform));
+  // Google Search joins the roster on the same rule as the delivery engines: only when it has
+  // rows in the current country/date selection (gsRows applies Search's own date window). When
+  // its scope empties upstream the chip leaves the roster - the section's UNAVAILABLE state is
+  // what stays loud, and renderSearch deliberately ignores the chip for that state.
+  if(DATA.search && DATA.search.data_through && gsRows().length) livePlats.add('google_search');
   const shownPlats=PLATFORMS.filter(p=>livePlats.has(p.key));
   const cw=el('channelChips'); cw.innerHTML='';
   shownPlats.forEach(p=>{ const on=platOk(p.key);
     const b=document.createElement('button');
     b.className='chip'+(on?' on':'');
-    b.style.cssText = on ? `background:${p.color};border-color:${p.color};color:#fff` : '';
+    b.style.cssText = on ? `background:${p.color};border-color:${p.color};color:${p.ink||'#fff'}` : '';
     b.title=`Show / hide ${p.label}`;
     b.innerHTML=`<span class="check">✓</span>${p.label}`;
     b.onclick=()=>toggleChannel(p.key); cw.appendChild(b); });
@@ -1144,10 +1164,10 @@ function renderOverview(){
   renderPacing(el('pacing'));
 
   // channel comparison table
-  const byPlat={}; PLATFORMS.forEach(p=>byPlat[p.key]={imps:0,clk:0,spend:0});
+  const byPlat={}; DELIVERY_PLATFORMS.forEach(p=>byPlat[p.key]={imps:0,clk:0,spend:0});
   rows.forEach(r=>{ const p=byPlat[r.platform]; if(p){ p.imps+=r.imps||0; p.clk+=r.clicks||0; p.spend+=r.spend_aud||0; } });
   const tb=el('pmPlatTable').querySelector('tbody');
-  tb.innerHTML=PLATFORMS.filter(p=>byPlat[p.key].imps||byPlat[p.key].spend).map(p=>{ const x=byPlat[p.key]; return `<tr><td><span class="pill"><span class="dot" style="background:${p.color}"></span>${p.label}</span></td><td class="num">${money(x.spend)}</td><td class="num">${fmtN(x.imps)}</td><td class="num">${fmtN(x.clk)}</td><td class="num">${fmtPct(pct(x.clk,x.imps),2)}</td><td class="num">${money(x.imps?x.spend/x.imps*1000:0,2)}</td><td class="num">${money(x.clk?x.spend/x.clk:0,2)}</td></tr>`; }).join('')
+  tb.innerHTML=DELIVERY_PLATFORMS.filter(p=>byPlat[p.key].imps||byPlat[p.key].spend).map(p=>{ const x=byPlat[p.key]; return `<tr><td><span class="pill"><span class="dot" style="background:${p.color}"></span>${p.label}</span></td><td class="num">${money(x.spend)}</td><td class="num">${fmtN(x.imps)}</td><td class="num">${fmtN(x.clk)}</td><td class="num">${fmtPct(pct(x.clk,x.imps),2)}</td><td class="num">${money(x.imps?x.spend/x.imps*1000:0,2)}</td><td class="num">${money(x.clk?x.spend/x.clk:0,2)}</td></tr>`; }).join('')
     + `<tr class="total"><td>Combined</td><td class="num">${money(t.spend)}</td><td class="num">${fmtN(t.imps)}</td><td class="num">${fmtN(t.clk)}</td><td class="num">${fmtPct(ctr,2)}</td><td class="num">${money(cpm,2)}</td><td class="num">${money(cpc,2)}</td></tr>`;
   if(!rows.length) tb.innerHTML=`<tr><td colspan="7" style="text-align:center;color:var(--se-mute);padding:14px">No delivery in the current filter.</td></tr>`;
 
@@ -1173,7 +1193,7 @@ function renderOverview(){
   wireKpiToggles();
 
   // spend by channel doughnut
-  const sp=PLATFORMS.filter(p=>byPlat[p.key].spend>0);
+  const sp=DELIVERY_PLATFORMS.filter(p=>byPlat[p.key].spend>0);
   charts.pmSpendPlat=new Chart(el('pmSpendPlat'),{ type:'doughnut',
     data:{ labels:sp.map(p=>p.label), datasets:[{ data:sp.map(p=>byPlat[p.key].spend), backgroundColor:sp.map(p=>p.color), borderColor:'#fff', borderWidth:2 }]},
     options:{ maintainAspectRatio:false, cutout:'60%', plugins:{ legend:legendBottom(), bbCenter:{label:'Total spend',prefix:'€',color:C.dark,labelColor:C.mute}, tooltip:{callbacks:{label:c=>` ${c.label}: ${money(c.parsed)} (${fmtPct(pct(c.parsed,t.spend),0)})`}} } } });
@@ -1233,7 +1253,12 @@ function renderSearch(){
     u.innerHTML=`<b>Google Search data is currently unavailable.</b> The channel last reported through <b>${dateLabel(S.data_through)}</b> and its campaigns are returning no rows - the campaign naming may have changed upstream. LinkedIn &amp; Trade Desk figures above are unaffected.`;
     return;
   }
-  el('gsUnavailable').style.display='none'; el('gsBody').style.display='block';
+  el('gsUnavailable').style.display='none';
+  // The Google Search chip gates the RENDERED section only - never the unavailable state above,
+  // which must stay loud even while unticked (when the scope empties, the chip itself leaves the
+  // roster, so a stale unticked state could otherwise hide the failure).
+  if(!platOk('google_search')){ sec.style.display='none'; return; }
+  el('gsBody').style.display='block';
 
   const rows=gsRows();
   const T={imps:0,clk:0,eur:0,usd:0,eng:0};

@@ -1190,6 +1190,16 @@
           </div>
         </div>
 
+        <!-- 3.3b weekly pacing chart (2026-08-31, John's request): target vs accepted per week,
+             the APJ weekly-pacing chart's shape pointed at this section's scope. Follows the
+             campaign + publisher pickers; clicking a bar selects that week (rej-chart pattern). -->
+        <div class="card">
+          <h3>Weekly pacing - target vs accepted</h3>
+          <div class="hint">Bars: each week's target next to its accepted leads. Click a bar to select that week.</div>
+          <div class="chart-wrap tall"><canvas id="cspdWeeklyChart"></canvas></div>
+          <div class="cspd-note" id="cspdWeeklyNote"></div>
+        </div>
+
         <!-- 3.4 two charts, side by side -->
         <div class="grid">
           <div class="card">
@@ -3854,6 +3864,7 @@ function renderCsPacingDetail(){
                     : deficit > 0 ? 'accepted leads behind target' : 'target met');
 
   cspdRenderMarketChart(cfg, slice, wkName);
+  cspdRenderWeeklyChart(cfg, rows);
   cspdRenderRejChart(cfg, rows);
   cspdRenderVendorTable(cfg);
   cspdRenderReasons(cfg, wkName);
@@ -4050,6 +4061,54 @@ function cspdRenderMarketChart(cfg, slice, wkName){
   }
 }
 
+// Weekly pacing: each week's TARGET next to its ACCEPTED leads (2026-08-31, John's request -
+// the APJ weekly-pacing chart's read, pointed at this section's book/publisher scope). Same
+// series shape and colours as the APJ #weeklyChart (Target vs Accepted actual); same
+// click-to-select and selected-week emphasis as the rejection chart beside it.
+function cspdRenderWeeklyChart(cfg, rows){
+  destroy('cspdWeeklyChart');
+  const el = document.getElementById('cspdWeeklyChart');
+  if (!el) return;
+  const byWk = {};
+  for (const r of rows){
+    if (!r.week_start) continue;
+    const o = byWk[r.week_start] = byWk[r.week_start] || { target:0, accepted:0 };
+    o.target += (r.target || 0); o.accepted += (r.accepted || 0);
+  }
+  const wks = cfg.weeks;
+  // Single-publisher scope with allocation-only targets: pace against nothing, not the
+  // allocation (the same cfg.targetsApply rule every other panel follows).
+  const tgt = wks.map(k => cfg.targetsApply ? ((byWk[k] || {}).target || 0) : 0);
+  const acc = wks.map(k => (byWk[k] || {}).accepted || 0);
+  const dimIf = (base, k) => k === CSPD.week || CSPD.week === 'qtd'
+    ? base : 'color-mix(in srgb,' + base + ' 45%,transparent)';
+  charts['cspdWeeklyChart'] = new Chart(el, {
+    type: 'bar',
+    data: { labels: wks.map(cspdWkLabel), datasets: [
+      { label: 'Target',   data: tgt, borderRadius: 3, maxBarThickness: 22,
+        backgroundColor: wks.map(k => dimIf(TARGET, k)) },
+      { label: 'Accepted', data: acc, borderRadius: 3, maxBarThickness: 22,
+        backgroundColor: wks.map(k => dimIf(CF, k)) },
+    ]},
+    options: { responsive: true, maintainAspectRatio: false,
+      onClick: (e, act) => { if (act.length) cspdSetWeek(wks[act[0].index]); },
+      // Legend swatches draw from backgroundColor[0], which is dimmed unless week 1 is the
+      // selection - same trap as the rejection chart - but with TWO series the legend has to
+      // exist, so force full-strength swatches via generateLabels instead of hiding it.
+      plugins: { legend: { position: 'bottom', labels: { boxWidth: 9, boxHeight: 9, padding: 12,
+          generateLabels: chart => chart.data.datasets.map((d, i) => (
+            { text: d.label, fillStyle: i === 0 ? TARGET : CF, strokeStyle: 'transparent',
+              datasetIndex: i })) } },
+        tooltip: { callbacks: { label: c => ' ' + c.dataset.label + ': ' + fmtN(c.parsed.y) } } },
+      scales: { x: { grid: { display: false } },
+        y: { beginAtZero: true, grid: { color: LINE }, ticks: { precision: 0 } } } },
+  });
+  const n = document.getElementById('cspdWeeklyNote');
+  if (n) n.textContent = CSPD.week === 'qtd'
+    ? 'Showing every week of the ' + cfg.period_label + ' plan.'
+    : 'Selected: week of ' + cspdWkLabel(CSPD.week) + '.';
+}
+
 // Rejected count per week with the rejection rate overlaid. Bars are clickable and
 // stay in sync with the chips above.
 function cspdRenderRejChart(cfg, rows){
@@ -4180,17 +4239,25 @@ function cspdRenderVendorTable(cfg){
     // Content Syndication" pacing sheet (streams 2&3, per publisher per region per week) -
     // calling those "not client-set" would undersell the client's own numbers.
     const CSPD_CLIENT_SET_VENDORS = new Set(['Pipeline360', 'Inbox Insight', 'Acquisition']);
+    // EMEA ONLY: Roverpath + Final Funnel carry the plan's IDE Lite line (2,565 - the plan's
+    // own note says "IDE Lite is Rover Path and Final Funnel") split PRO RATA TO DELIVERY TO
+    // DATE, an INTERIM split pending the client's confirmed ratio - the ratio lives in
+    // targets/build_ide_lite_split.py (one-line change when Jade answers). On APJ the same
+    // vendor names carry the 2:1:1 internal allocation and keep the allocation wording.
+    const CSPD_INTERIM_SPLIT_VENDORS = new Set(['Roverpath', 'Final Funnel']);
     const withTgt   = list.filter(o => o.target).map(o => o.vendor);
+    const interim   = cfg.theatre === 'EMEA' ? withTgt.filter(v => CSPD_INTERIM_SPLIT_VENDORS.has(v)) : [];
     const clientSet = withTgt.filter(v => CSPD_CLIENT_SET_VENDORS.has(v));
-    const alloc     = withTgt.filter(v => !CSPD_CLIENT_SET_VENDORS.has(v));
-    let allocated;
-    if (clientSet.length && alloc.length) {
-      allocated = clientSet.join(', ') + ' targets come from the client\'s own pacing sheet. '
-        + alloc.join(', ') + ' targets are an internal allocation of the market-level plan, so '
-        + 'their publisher pacing is indicative.';
-    } else if (clientSet.length) {
-      allocated = 'Publisher targets come from the client\'s own pacing sheet.';
-    } else {
+    const alloc     = withTgt.filter(v => !CSPD_CLIENT_SET_VENDORS.has(v) && !interim.includes(v));
+    const parts = [];
+    if (clientSet.length) parts.push(clientSet.join(', ') + ' targets come from the client\'s own pacing sheet.');
+    if (interim.length)   parts.push(interim.join(', ') + ' share the plan\'s IDE Lite target, '
+      + 'split in proportion to delivery to date - an interim split pending client confirmation.');
+    if (alloc.length)     parts.push(alloc.join(', ') + ' targets are an internal allocation of '
+      + 'the market-level plan, so their publisher pacing is indicative.');
+    let allocated = parts.join(' ');
+    // APJ (no client-set, no interim vendors) keeps its original wording byte-for-byte.
+    if (!clientSet.length && !interim.length) {
       allocated = 'Publisher targets are an internal allocation of the market plan, not a '
         + 'client-set target. Publisher pacing is indicative.';
     }
