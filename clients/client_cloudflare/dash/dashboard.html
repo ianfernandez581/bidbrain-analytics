@@ -3848,17 +3848,32 @@ function renderCsPacingDetail(){
   // the plan is bought in and what every other pacing figure on this tab already uses - the
   // campaign-to-date band, the publisher table, and the deficit tile itself. The caption names
   // the metric explicitly so nobody re-derives it from the Delivered tile above.
-  S('cspd_w_pace',  cspdPct(w.accepted, w.target));
+  //
+  // LIKE FOR LIKE (2026-08-31, Calvin): pace only the publishers the target covers. In a week
+  // where SOME publishers carry a target (EMEA weeks 1-3 are IDE Lite = Roverpath/Final Funnel
+  // only - streams 2&3 targets start at plan week 4/5 by design), blending EVERY publisher's
+  // accepted into the numerator against that partial denominator read 983%. The pacing
+  // numerator and the deficit now count accepted leads from (publisher, week) cells that carry
+  // a target - the same universe as the denominator, which is what APJ's pacing has always
+  // effectively compared (every APJ publisher carries a target every week, so the distinction
+  // never surfaces there). Delivered / Rejected / Acceptance-rate tiles stay whole-scope facts,
+  // and the caption says when the numerator is narrower than the Delivered tile above it.
+  const tgtCells = new Set(slice.filter(r => (r.target || 0) > 0)
+                                .map(r => r.vendor + '||' + r.week_start));
+  const paceAcc = slice.filter(r => tgtCells.has(r.vendor + '||' + r.week_start))
+                       .reduce((s, r) => s + (r.accepted || 0), 0);
+  S('cspd_w_pace',  cspdPct(paceAcc, w.target));
   // A week still running is measured against its FULL target, so it always reads behind -
   // APAC's w/c 24 Aug showed 67.6% on day 4 of 7. The band is deliberately whole-week (it is
   // a weekly delivery report, not a pace curve; the prorated pace lives in the KPI strip
   // above), so the fix is to SAY the week is incomplete rather than to prorate this figure.
   const wkDay = (!qtd && CSPD.week) ? cspdDayInWeek(CSPD.week) : 0;
   S('cspd_w_pace_cnt', w.target
-      ? w.accepted.toLocaleString() + ' accepted vs ' + w.target.toLocaleString() + ' target'
+      ? paceAcc.toLocaleString() + ' accepted vs ' + w.target.toLocaleString() + ' target'
+        + (paceAcc !== w.accepted ? ' - publishers with a target ' + (qtd ? 'in these weeks' : 'this week') + ' only' : '')
         + (wkDay && wkDay < 7 ? ' - week in progress, day ' + wkDay + ' of 7' : '')
       : 'no target for this week');
-  const deficit = w.target - w.accepted;
+  const deficit = w.target - paceAcc;
   S('cspd_w_def', w.target ? (deficit > 0 ? deficit.toLocaleString() : '0') : '-');
   S('cspd_w_def_cnt', !w.target ? 'no target to measure against'
                     : deficit > 0 ? 'accepted leads behind target' : 'target met');
