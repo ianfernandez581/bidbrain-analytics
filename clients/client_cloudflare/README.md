@@ -439,9 +439,9 @@ week keeps its verdict and just drops by that week's rejection rate. **Nothing t
 the client's sheet moves**: the campaign-to-date band (APJ 1,450 of 2,290 / 63.3%), the top KPI
 strip and every delivered/accepted/rejected count are untouched. Only this one tile.
 
-**The per-publisher targets are an INTERNAL ALLOCATION - for the ORIGINAL seed rows** (EMEA
-Stream 1 = Roverpath/Final Funnel, and all of APJ; **the streams 2&3 vendors added 2026-08-31
-are CLIENT-SET, see the block below**). Cloudflare's Core DG
+**The per-publisher targets are an INTERNAL ALLOCATION - now APJ-ONLY** (the EMEA Roverpath/
+Final Funnel 1:1 rows described below were REMOVED 2026-08-31 - superseded Stream 1 scope, see
+the streams 2&3 block; **the EMEA vendors seeded 2026-08-31 are CLIENT-SET**). Cloudflare's Core DG
 plan sets targets per MARKET per WEEK and has no publisher dimension at all - the supplied sheet
 (`raw files/CF_FY26 Q3_Core DG Lead Pacing...csv`) is Week / Date / Region / Country and never
 names a vendor. The split in `targets/cs_targets_q3.csv` was applied when the seed was built:
@@ -471,7 +471,15 @@ fixing only the table would leave it reading "no target" under a band still show
 ### Streams 2&3 targets + Acquisition (2026-08-31, per Jade)
 
 `targets/cs_targets_q3.csv` gained **174 EMEA rows** for **Pipeline360 (3,039), Inbox Insight
-(2,714) and Acquisition (3,740)** - EMEA Core DG flight target moved 830 -> **10,323**. Source:
+(2,714) and Acquisition (3,740)** - EMEA Core DG flight target is **9,493**. (It briefly read
+10,323: the pre-existing 830 Roverpath/Final Funnel allocation rows - built from the SUPERSEDED
+"Media Plan 28-07-26 - Stream 1" scope - were still seeded underneath; they were REMOVED
+2026-08-31 per Calvin, so Roverpath/Final Funnel now show delivery with no pacing on EMEA and
+the publisher-table footnote says so by itself. NOTE the open question this surfaced: the
+APPROVED "Media Plan 29-07-26" tab carries its own **IDE Lite** lines totalling **2,565** -
+the tab's own header total is 12,058 = 9,493 + 2,565 - and those are NOT loaded because
+mapping IDE Lite targets onto the delivering Salesforce vendors (Roverpath/Final Funnel) is a
+client/Calvin decision. Do not load them without that call.) Source:
 the client's own **"Cloudflare EMEA - Q3 Content Syndication Pacing.xlsx"**, sheet
 `Media Plan 29-07-26`, columns **X-AJ** (per publisher x region x week, six campaign blocks:
 CF1 ACQ / CF1 EXP / Modernize Security / Retail / BFSI / Closed Lost, DT+ST lines summed).
@@ -497,6 +505,34 @@ the *Delivery by publisher* footnote now says so per vendor (`CSPD_CLIENT_SET_VE
 - **Expect the vendors' early delivery to sit in week 08/21 with no target** - the plan's first
   counted weeks are W4/W5 (08-24 / 08-31 Mondays) and the partners front-loaded ~650 leads just
   before that. The FULL OUTER JOIN shows both sides; it is the plan's own schedule, not a bug.
+
+### Current state (recorded 2026-08-31, verification pass)
+
+**Deployed:** `cloudflare-dash-00146-cwt` (dash), `cloudflare-export` image from `bd27b7d`
+(carries `ga_campaigns`). Batch commits: `bd27b7d` + `a1b66ca` on the dev branch; the
+2026-08-31 verification pass (EMEA 9,493 correction, config lock) is the commit after those.
+Deployed artifacts == committed files, verified by hash at each push.
+
+**Live from the 2026-08-31 batches:** EMEA streams 2&3 targets (9,493; the superseded 830
+removed), Acquisition + EXP in scope, Google Ads plan benchmarks + CPC actual-only + PMax
+strip, canonical solution labels, creative names decoded to asset names, Google Ads creatives
+restored to the creative tables/switcher, section-header wrap fix, exact-domain test-lead
+filter (sql/10/14/16).
+
+**Blocked - do not build until the owner moves:**
+- One-solution-per-asset: mechanism WIRED, `ASSET_SOLUTION_MODE='stacked'` deliberately -
+  waiting on the CLIENT's rule via Jade (highest volume / original solution / master mapping).
+- IDE Lite EMEA targets (2,565 on the approved plan tab): waiting on CALVIN's call on whether
+  to load them and how they map to Roverpath/Final Funnel (see the streams 2&3 block).
+- Asset table layout rework: waiting on JADE's spec.
+- Channel/TTD chart fix: waiting on the SCREENSHOT of what's wrong.
+- PMax benchmarks: NONE exist in the Q3 workbook - the strip says so; nothing to grade until
+  the client supplies one.
+- Asset codes `A-MSM-10` / `A-MSM-11` / `G-MSM-2`: unresolved in `ASSET_NAMES` - waiting on
+  titles from the client; they render as `concept ...` meanwhile.
+- Snowflake `V_SALESFORCE_CS_APAC_CLOUDFLARE`: PARKED - corrected DDL is committed at
+  `snowflake_v_salesforce_cs_apac_cloudflare.sql`, needs a manual ACCOUNTADMIN paste (Calvin),
+  and NOTHING in our pipeline reads it.
 
 ### 2026-08-31 batch (Calvin's EDA list)
 

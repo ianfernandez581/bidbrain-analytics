@@ -57,7 +57,14 @@ $JOBS = @(
   @{ key="fields";    dir="ingest/windsor_data_pull/fields";    job="windsor-fields-ingest";    mem="1Gi"; cpu="1"; cron="45 21 * * *" },
   @{ key="reddit";    dir="ingest/windsor_data_pull/reddit";    job="windsor-reddit-ingest";    mem="1Gi"; cpu="1"; cron="50 21 * * *" },
   @{ key="linkedin";  dir="ingest/windsor_data_pull/linkedin";  job="windsor-linkedin-ingest";  mem="1Gi"; cpu="1"; cron="40 21 * * *" },
-  @{ key="hubspot";   dir="ingest/windsor_data_pull/hubspot";   job="windsor-hubspot-ingest";   mem="1Gi"; cpu="1"; cron="55 21 * * *" }
+  @{ key="hubspot";   dir="ingest/windsor_data_pull/hubspot";   job="windsor-hubspot-ingest";   mem="1Gi"; cpu="1"; cron="55 21 * * *" },
+  # GA4 (2026-08-31): PINNED to the two Geocon properties via GA4_ACCOUNTS - the loaders' full
+  # laptop lists include ~20 properties whose GA4 comes via DTS (or is dormant), and a scheduled
+  # unpinned run would attempt full backfills for all of them. `env` uses gcloud's custom
+  # delimiter syntax (^;^) because the VALUE itself contains a comma. Retire this job if/when
+  # the client grants ian@100.digital GA4 Viewer and the (already-created, currently failing)
+  # DTS transfers for 550962241 / 551838402 take over.
+  @{ key="ga4";       dir="ingest/windsor_data_pull/ga4";       job="windsor-ga4-ingest";       mem="1Gi"; cpu="1"; cron="25 21 * * *"; env="^;^GA4_ACCOUNTS=550962241,551838402" }
 )
 
 # ---- one-time shared service account + least-privilege IAM (idempotent) --------------
@@ -85,8 +92,11 @@ foreach ($j in $JOBS) {
   }
 
   Write-Host "[$($j.key)] Deploying Cloud Run job $($j.job) ..."
+  # Optional per-job env (quoted: PS mangles bareword commas, and gcloud splits on them unless
+  # the value carries its own ^<delim>^ prefix - see the ga4 row).
+  $envArgs = @(); if ($j.env) { $envArgs = @("--set-env-vars", $j.env) }
   gcloud run jobs deploy $j.job --image $img --region $REGION --project $PROJECT `
-    --service-account $SA --memory $j.mem --cpu $j.cpu --task-timeout 3600 --max-retries 1; Must "deploy $($j.key)"
+    --service-account $SA --memory $j.mem --cpu $j.cpu --task-timeout 3600 --max-retries 1 @envArgs; Must "deploy $($j.key)"
 
   # daily scheduler (create-or-update) + let the SA invoke the job
   gcloud run jobs add-iam-policy-binding $j.job --region $REGION --project $PROJECT `

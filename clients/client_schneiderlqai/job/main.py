@@ -156,6 +156,21 @@ def main():
         "fx_usd_eur": num(st.get("fx_usd_eur")), "fx_rate_date": ymd(st.get("fx_rate_date")),
         "data_through": ymd(st.get("data_through")),
     }
+    if not search_daily and not search_totals["data_through"]:
+        # A channel that HAD data must fail loud on the client dashboard, not vanish: the exact
+        # five-name scope in sql/05 empties on a campaign rename, and hiding the section would
+        # leave the Cloud Run WARN above as the only signal. Carry the last published data_through
+        # forward so the dash can tell "never delivered" (data_through null -> section hidden)
+        # from "delivered, now gone" (data_through set + no rows -> visible unavailable state).
+        try:
+            prev = json.loads(storage.Client(project=PROJECT).bucket(BUCKET)
+                              .blob(DATA_OBJECT).download_as_text())
+            search_totals["data_through"] = (prev.get("search") or {}).get("data_through")
+            if search_totals["data_through"]:
+                print(f"search: carrying forward previous data_through "
+                      f"{search_totals['data_through']} so the dash shows an unavailable state")
+        except Exception as e:
+            print(f"search: no previous JSON to carry data_through from ({e})")
 
     env = {
         "last_updated": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),

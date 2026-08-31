@@ -38,7 +38,11 @@ from freshness import probe_bq_last_modified, read_watermark, write_watermark, i
 # the raw_google_ads.perf_google_ads BRIDGE VIEW, whose last_modified is frozen forever (the
 # repo-wide DTS fact in CLAUDE.md).
 WINDSOR_TABLES = ["raw_windsor.perf_meta", "raw_windsor.perf_linkedin",
-                  "raw_windsor.perf_the_trade_desk"]
+                  "raw_windsor.perf_the_trade_desk",
+                  # GA4 (Website tab, 2026-08-31): the two Geocon properties land here via the
+                  # scheduled windsor-ga4-ingest job (GA4_ACCOUNTS-pinned). Gated like everything
+                  # else the job reads.
+                  "raw_windsor.perf_ga4", "raw_windsor.perf_ga4_events"]
 GOOGLE_TABLES  = ["raw_google_ads.p_ads_CampaignBasicStats_3451896252"]
 GATING_TABLES = WINDSOR_TABLES + GOOGLE_TABLES
 WATERMARK_OBJECT = "_freshness.json"
@@ -237,6 +241,27 @@ def build_env(bq, observed):
         bd = rows(bq, f"SELECT * FROM {t('breakdowns')} ORDER BY date")
     except Exception:
         bd = []
+    # GA4 website analytics (2026-08-31): the two Geocon GA4 properties, Windsor-fed. Tolerated
+    # absent (views not applied yet / a fresh project) so the export never breaks on them — the
+    # dashboard's Website tab hides itself when the block is empty.
+    try:
+        ga4 = rows(bq, f"SELECT * FROM {t('stg_ga4')} ORDER BY date, site, channel_group")
+        ga4_ev = rows(bq, f"SELECT * FROM {t('stg_ga4_events')} ORDER BY date, site, event_name")
+    except Exception as e:
+        print(f"  ga4 views unavailable ({e}) — Website tab will hide itself")
+        ga4, ga4_ev = [], []
+    if ga4:
+        # Per-site audit line (the cheap check that the pull is alive and the campaign->development
+        # attribution still matches — an all-NULL `property` under paid channels means the
+        # seed_property_map tokens stopped matching the GA4 utm_campaign names).
+        by_site = {}
+        for r in ga4:
+            o = by_site.setdefault(r.get("site"), [0, 0])
+            o[0] += int(num(r.get("sessions")) or 0)
+            if r.get("property"):
+                o[1] += int(num(r.get("sessions")) or 0)
+        for s, (tot, attributed) in sorted(by_site.items(), key=lambda x: str(x[0])):
+            print(f"  ga4 {s}: {tot} sessions, {attributed} attributed to a development by campaign")
 
     today = datetime.datetime.now(datetime.timezone.utc).date()
     bud_by_prop = {r.get("property_key"): r for r in bud}
@@ -365,6 +390,28 @@ def build_env(bq, observed):
             "view_through_conversions": num(r.get("view_through_conversions")),
             "objective": r.get("objective"), "effective_status": r.get("effective_status"),
         } for r in fact],
+        # GA4 website analytics — session-acquisition rows for the two Geocon GA4 properties plus
+        # site-level event counts. `site` is the PROPERTY's descriptive label; `property` is the
+        # DEVELOPMENT resolved from the session's campaign name via seed_property_map (NULL =
+        # organic/direct/unmatched — site traffic that belongs to no development). Events carry no
+        # campaign dimension, so they are site-level ONLY. Tiny (channel-grain), so no cap needed.
+        "ga4": {
+            "rows": [{
+                "date": iso(r["date"]), "site": r.get("site"),
+                "channel": r.get("channel_group"), "source": r.get("source"),
+                "campaign": r.get("campaign"), "property": r.get("property"),
+                "sessions": num(r.get("sessions")), "engaged_sessions": num(r.get("engaged_sessions")),
+                "users": num(r.get("total_users")), "new_users": num(r.get("new_users")),
+                "pageviews": num(r.get("screen_page_views")),
+                "engagement_sec": num(r.get("user_engagement_duration")),
+                "conversions": num(r.get("conversions")),
+            } for r in ga4],
+            "events": [{
+                "date": iso(r["date"]), "site": r.get("site"), "event": r.get("event_name"),
+                "conversion": bool(r.get("is_conversion_event")),
+                "count": num(r.get("event_count")),
+            } for r in ga4_ev],
+        },
         # Audience (age x gender) + placement breakdowns — per (date x campaign x seg); the
         # dashboard date-filters + rolls up. seg2 is gender for age_gender, null otherwise.
         # META ONLY: these come from the geocon-only Meta breakdown pull, so a development with no

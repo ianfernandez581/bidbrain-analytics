@@ -2915,6 +2915,10 @@ function aggregate(filterFn) {
   //                solution label), falling back to 'dominant' for unmapped assets.
   // Flipping the rule is a one-word edit here + a dash redeploy; totals never move, only
   // which colour(s) an asset's bar carries.
+  //
+  // DELIBERATELY 'stacked' - DO NOT FLIP THIS AS CLEANUP. The client (Jade) has not yet
+  // chosen the collapse rule (highest volume vs original solution vs a master mapping list);
+  // this stays 'stacked' until that decision lands, however finished the other modes look.
   const ASSET_SOLUTION_MODE = 'stacked';
   const ASSET_SOLUTION_OVERRIDES = {};   // e.g. {'A-MAT-2': 'Modernize Applications'}
   function resolveAssetSolutions(svcMap, id) {
