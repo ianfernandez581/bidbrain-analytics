@@ -1155,7 +1155,14 @@ const hasBreakdowns=()=>(DATA.breakdowns||[]).some(r=>propOk(r));
 // Google Ads is the only channel here that reports conversions, and they are NOT leads - see agg().
 // Deliberately NOT part of leadShaped(): a development delivering search conversions and no lead
 // form must not switch the page into its lead-gen shape and start drawing an enquiry funnel.
-const hasConversions=()=>reports('conversions');
+//
+// `hasAny`, NOT `reports` (client instruction 2026-09-01). Google returns `conversions = 0`, not
+// NULL, whether or not a conversion action has ever been configured on the account - so nullness
+// cannot separate "none yet" from "never tracked", and a confident 0 asserts the first while the
+// second may be true. Requiring a POSITIVE value means the whole conversions surface - the KPI tile
+// AND the `Conv.` / `Cost per conv` table columns, which this same flag drives - stays off until
+// there is a real number, then appears together. No edit needed when the first one lands.
+const hasConversions=()=>hasAny('conversions');
 // How much of the signed plan is actually in market - and, since 2026-08-28, the basis pacing is
 // drawn against (see job/main.py `_flight`). Read from the PAYLOAD, not recomputed from ROWS():
 // pacing is full-flight and must not move when someone unticks a platform chip, which is exactly

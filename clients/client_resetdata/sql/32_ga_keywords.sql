@@ -15,14 +15,18 @@ CREATE OR REPLACE VIEW `bidbrain-analytics.client_resetdata.ga_keywords` AS
 -- Google stopped serving metrics at manager level, and Reset Data's own per-account set takes
 -- over from 08-25. Reading only one of them would either drop the history or double-count the
 -- overlap a DTS refresh window creates. Same cutover as raw_google_ads.perf_google_ads.
+-- NOTE the asymmetry with st_src below, and do not "tidy" it: ads_Keyword_* is a DIMENSION
+-- table (criterion id -> text + match type) and carries NO segments_date, so the cutover
+-- predicate that belongs on the stats tables fails the view outright here (400 Unrecognized
+-- name: segments_date). No date split is needed either - the kw CTE below collapses both
+-- sets with GROUP BY cid + ANY_VALUE, so a criterion in both resolves to one row.
 WITH kw_src AS (
   SELECT ad_group_criterion_criterion_id, ad_group_criterion_keyword_text, ad_group_criterion_keyword_match_type
   FROM `bidbrain-analytics.raw_google_ads.ads_Keyword_3451896252`
-  WHERE customer_id = 1054407474 AND segments_date <= DATE '2026-08-24'
+  WHERE customer_id = 1054407474
   UNION ALL
   SELECT ad_group_criterion_criterion_id, ad_group_criterion_keyword_text, ad_group_criterion_keyword_match_type
   FROM `bidbrain-analytics.raw_google_ads.ads_Keyword_1054407474`
-  WHERE segments_date >= DATE '2026-08-25'
 ),
 st_src AS (
   SELECT ad_group_criterion_criterion_id, metrics_impressions, metrics_clicks, metrics_cost_micros, metrics_conversions
