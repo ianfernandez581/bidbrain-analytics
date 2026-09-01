@@ -46,13 +46,27 @@ SELECT
     ELSE 'Other'
   END                                          AS status_bucket,
   -- AUDIENCE INTELLIGENCE fields (the Content Syndication tab; the Executive Scorecard tab they were
-  -- built for was removed 2026-08-18). Verified populated for SE:
-  -- COMPANY_NAME 300/300, JOB_FUNCTION 300/300, JOB_LEVEL 120/300; INDUSTRY/ASSET/STATE/REVENUE
-  -- are empty for SE so are NOT surfaced. '' and '-' are normalised to NULL. No PII beyond the
-  -- account (COMPANY_NAME) is carried forward — name/email/phone are intentionally dropped here.
+  -- built for was removed 2026-08-18). Verified populated for SE (re-measured 2026-09-01 over the
+  -- 1,101 flight-clamped leads): COMPANY_NAME 100%, JOB_FUNCTION 100%, JOB_LEVEL ~40%,
+  -- JOB_TITLE 90.6% (997/1,101); INDUSTRY/ASSET/STATE/REVENUE are empty for SE so are NOT
+  -- surfaced. '' and '-' are normalised to NULL.
+  --
+  -- PII SCOPE. name / email / phone are deliberately dropped here and must stay dropped. JOB_TITLE
+  -- was added 2026-09-01 at the client's request ("identify the top 1-2 job titles from each
+  -- account" on the Top-accounts card) and it IS a step closer to a named individual than
+  -- COMPANY_NAME alone - at a small account, "Chief Operating Officer" + the company name is one
+  -- person. It is the client's own CRM field about their own leads, the dashboard is password-gated
+  -- and the JSON lives in a private bucket, so the exposure does not change WHO can see it. Keep it
+  -- that way: title is aggregated to a COUNT per company (view 22), never emitted per lead.
   CASE WHEN TRIM(COALESCE(s.COMPANY_NAME, '')) IN ('', '-') THEN NULL ELSE TRIM(s.COMPANY_NAME) END AS company,
   CASE WHEN TRIM(COALESCE(s.JOB_FUNCTION, '')) IN ('', '-') THEN NULL ELSE TRIM(s.JOB_FUNCTION) END AS job_function,
-  CASE WHEN TRIM(COALESCE(s.JOB_LEVEL,    '')) IN ('', '-') THEN NULL ELSE TRIM(s.JOB_LEVEL)    END AS job_level
+  CASE WHEN TRIM(COALESCE(s.JOB_LEVEL,    '')) IN ('', '-') THEN NULL ELSE TRIM(s.JOB_LEVEL)    END AS job_level,
+  -- Free-text lead-form field: 342 distinct spellings over 997 leads, so titles are mostly unique
+  -- per lead. Internal runs of whitespace are squashed (the only mechanical noise present - 0 rows
+  -- carry a double space today, so this is forward protection); case is NOT folded here because a
+  -- display form has to be chosen deterministically, which view 22 does when it groups.
+  CASE WHEN TRIM(COALESCE(s.JOB_TITLE, '')) IN ('', '-') THEN NULL
+       ELSE REGEXP_REPLACE(TRIM(s.JOB_TITLE), r'\s+', ' ') END AS job_title
 FROM `bidbrain-analytics.raw_snowflake.salesforce_cs_apac_all` s
 JOIN `bidbrain-analytics.client_schneider.seed_salesforce_map` m
   ON m.salesforce_campaign_id = s.CAMPAIGN_ID

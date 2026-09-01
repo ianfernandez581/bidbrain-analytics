@@ -64,11 +64,20 @@ leads_allocated AS (
         a.RIG                                   AS RIG,
         COALESCE(a.FINAL_TIER, 'Other')         AS TIER,
 
+        -- Solution labels = the client's canonical names (2026-08-31, Calvin's EDA). The feed
+        -- carries BOTH vintages ('Modernize Security' Q2, 'Modernized Security' Q3) but the
+        -- match below is SUBSTRING ('%modernize%security%' catches both), so the fold was
+        -- always one row - this change renames the emitted LABEL to the canonical form only,
+        -- for all three Modernize solutions, not just the Security pair. Census of every
+        -- solution token in the 2026 mirror (2026-08-31): Connectivity Cloud / Modernize
+        -- Security / Modernize Applications / Modernize Network (+ the 'Modernized Security'
+        -- variant, folded here). The dashboard's solution COLOUR MAP keys on these exact
+        -- strings - rename them together or the assets chart loses its colours.
         CASE
             WHEN LOWER(a.CAMPAIGN) LIKE '%connectivity%cloud%'  THEN 'Connectivity Cloud'
-            WHEN LOWER(a.CAMPAIGN) LIKE '%modernize%network%'   THEN 'Modernized Networks'
-            WHEN LOWER(a.CAMPAIGN) LIKE '%modernize%security%'  THEN 'Modernized Security'
-            WHEN LOWER(a.CAMPAIGN) LIKE '%modernize%app%'       THEN 'Modernized Applications'
+            WHEN LOWER(a.CAMPAIGN) LIKE '%modernize%network%'   THEN 'Modernize Network'
+            WHEN LOWER(a.CAMPAIGN) LIKE '%modernize%security%'  THEN 'Modernize Security'
+            WHEN LOWER(a.CAMPAIGN) LIKE '%modernize%app%'       THEN 'Modernize Applications'
             ELSE 'Unknown'
         END AS SERVICE,
 

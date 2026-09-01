@@ -169,6 +169,13 @@ def main():
     bm  = rows(bq, f"SELECT * FROM {t('benchmarks_market')}")
     lw  = rows(bq, f"SELECT * FROM {t('li_weekly_targets')} ORDER BY WEEK_START")
     cre = rows(bq, f"SELECT * FROM {t('paid_creatives_model')}")
+    # Google Ads per-campaign aggregates (2026-08-31): feeds the PMax lead-gen strip under the
+    # video block. Campaign grain because the PMax read (cost per platform conversion, the
+    # 50-conversion validity rule) needs PMax-ONLY spend/conversions, and ga_market_day is
+    # channel-blended. Whole-flight (no date column downstream) - labelled so in the UI.
+    gac = rows(bq, f"SELECT CAMPAIGN_NAME_NORM AS CAMPAIGN, MIN(DAY) AS FIRST_DAY, MAX(DAY) AS LAST_DAY,"
+                   f" SUM(COSTS) AS SPEND_USD, SUM(IMPRESSIONS) AS IMPS, SUM(CLICKS) AS CLICKS,"
+                   f" SUM(CONVERSIONS) AS CONVERSIONS FROM {t('stg_google_ads')} GROUP BY 1")
     csp = rows(bq, f"SELECT * FROM {t('cs_pacing_v2')} ORDER BY THEATRE, BOOK, VENDOR, MARKET_SEQ, WEEK_START")
     tx = build_transmission(bq, t)   # "Internal Notes" tab: committed Source IDs + pacing plan
 
@@ -234,6 +241,17 @@ def main():
             # channel because they have no lead form at all - not zero starts. See sql/06.
             "form_opens": jval(r.get("FORM_OPENS")),
         } for r in cre],
+        # Google Ads campaign grain (2026-08-31) - see the gac query above. spend_usd is RAW
+        # media cost; the dashboard's bbApplySpendMult grosses it like every other spend field.
+        "ga_campaigns": [{
+            "campaign":    r.get("CAMPAIGN"),
+            "first_day":   ymd(r.get("FIRST_DAY")),
+            "last_day":    ymd(r.get("LAST_DAY")),
+            "spend_usd":   jval(r.get("SPEND_USD")),
+            "imps":        jval(r.get("IMPS")),
+            "clicks":      jval(r.get("CLICKS")),
+            "conversions": jval(r.get("CONVERSIONS")),
+        } for r in gac],
         "benchmarks":        {r["CHANNEL"]: {"ctr": jval(r["CTR"]), "cpm": jval(r["CPM"]), "cpc": jval(r["CPC"])} for r in bc},
         "benchmarks_market": {r["MARKET"]:  {"ctr": jval(r["CTR"]), "cpm": jval(r["CPM"]), "cpc": jval(r["CPC"])} for r in bm},
         "li_weekly": [{

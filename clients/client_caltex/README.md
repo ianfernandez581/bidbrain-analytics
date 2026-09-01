@@ -368,7 +368,7 @@ need `FORCE_REBUILD=1`.
 
 **Before reporting a "stuck" dashboard, work out what day it CAN show** (this was mis-read as a
 stall on 2026-08-18, when the pipeline was healthy). The cap is **yesterday UTC**, and Sydney runs
-10-11 hours ahead, so between Sydney midnight and ~11:35 AEST the freshest possible day is
+10-11 hours ahead, so between Sydney midnight and ~14:45 AEST the freshest possible day is
 **Sydney-yesterday-minus-one**. Worked example, 2026-08-18 07:50 AEST = 2026-08-17 21:50 UTC: the
 newest publishable day was **08-16**, and the dashboard reading 08-15 was ONE export tick behind, not
 broken. Two things make that last tick lag: the 21:35 UTC loader stamps `ingested_at` at the start of
@@ -379,11 +379,16 @@ rebuilds. Diagnose with `MAX(metric_date)` on `raw_windsor.perf_the_trade_desk` 
 wait 10 minutes.
 
 **Expected lag is 1 day, never 0** — TTD refuses same-day dates, and the shared loader caps every
-pull at yesterday UTC. Since 2026-08-07 `windsor-tradedesk-ingest` runs **twice daily**
-(`35 1,21 * * *` UTC): the 01:35 UTC (= 11:35 AEST) run lands Sydney-yesterday data by ~midday
-Sydney, so the dashboard shows through yesterday instead of 2 days back. The newest day can still
-firm up slightly on the next 21:35 UTC re-pull (MERGE is idempotent). Client comms precedent: the
-lag was explained to Tilly (Caltex) 2026-08-07 as a TTD platform limit.
+pull at yesterday UTC. `windsor-tradedesk-ingest` runs **twice daily** (`35 4,21 * * *` UTC): the
+04:35 UTC (= 14:35 AEST) run lands Sydney-yesterday data by ~14:45 Sydney, so the dashboard shows
+through yesterday from mid-afternoon instead of 2 days back. (That run sat at 01:35 UTC from
+2026-08-07 to 2026-09-01 — moved because Windsor's TTD endpoint is degraded ~00:00-03:30 UTC every
+night while TTD finalises the prior day, so it failed or limped for weeks and the dashboard ran 2
+days behind through Sydney business hours; that is the gap Ben flagged on 08-31. If the 04:35 run
+proves too early for TTD's publish time it loads nothing and the 21:35 run covers it — slide the
+hour in `scripts/deploy_ingest_jobs.ps1` if that keeps happening.) The newest day can still firm
+up slightly on the next 21:35 UTC re-pull (MERGE is idempotent). Client comms precedent: the lag
+was explained to Tilly (Caltex) 2026-08-07 as a TTD platform limit.
 
 ## Coordinates
 

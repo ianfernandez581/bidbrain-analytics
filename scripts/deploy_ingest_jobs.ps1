@@ -2,8 +2,9 @@
 #
 # These are the raw-layer loaders that feed EVERY client dashboard. They replace the old
 # "run the loader from a laptop" step: each lands data in a shared raw_* BigQuery dataset on
-# a daily Cloud Scheduler trigger (tradedesk: twice daily - the 01:35 UTC run gets Sydney-yesterday
-# data live by ~midday AEST), staggered BEFORE the 22:00 UTC *-export jobs so every
+# a daily Cloud Scheduler trigger (tradedesk: twice daily - the 04:35 UTC run gets Sydney-yesterday
+# data live by ~14:45 AEST; 01:35 was abandoned 2026-09-01, Windsor's TTD endpoint is degraded
+# ~00:00-03:30 UTC every night), staggered BEFORE the 22:00 UTC *-export jobs so every
 # dashboard's nightly export reads fresh raw data.
 #
 #   raw_neto.orders                  <- neto-orders-ingest        (City Perfume sales truth)
@@ -53,11 +54,18 @@ $JOBS = @(
   @{ key="snowflake"; dir="ingest/snowflake_data_pull";         job="snowflake-ingest";         mem="4Gi"; cpu="2"; cron="*/10 * * * *" },
   @{ key="neto";      dir="ingest/neto_data_pull/orders";       job="neto-orders-ingest";       mem="1Gi"; cpu="1"; cron="0 21 * * *"  },
   @{ key="meta";      dir="ingest/windsor_data_pull/meta";      job="windsor-meta-ingest";      mem="1Gi"; cpu="1"; cron="15 21 * * *" },
-  @{ key="tradedesk"; dir="ingest/windsor_data_pull/tradedesk"; job="windsor-tradedesk-ingest"; mem="1Gi"; cpu="1"; cron="35 1,21 * * *" },  # 2nd run 01:35 UTC = 11:35 AEST: pulls Sydney-yesterday same (Sydney) day, halving the dashboard lag (applied live 2026-08-07)
+  @{ key="tradedesk"; dir="ingest/windsor_data_pull/tradedesk"; job="windsor-tradedesk-ingest"; mem="1Gi"; cpu="1"; cron="35 4,21 * * *"; env="WINDSOR_LOOKBACK_DAYS=35,WINDSOR_MAX_ATTEMPTS=4" },  # 2nd run 04:35 UTC = 14:35 AEST: pulls Sydney-yesterday same (Sydney) day by ~14:45. Moved from 01:35 on 2026-09-01 - Windsor's TTD endpoint is degraded ~00:00-03:30 UTC while TTD finalises the prior day, so every 01:35 run failed or limped for 2 weeks. Env: bounded lookback + a retry budget that FITS the 3600s task cap (see tradedesk_loader.py)
   @{ key="fields";    dir="ingest/windsor_data_pull/fields";    job="windsor-fields-ingest";    mem="1Gi"; cpu="1"; cron="45 21 * * *" },
   @{ key="reddit";    dir="ingest/windsor_data_pull/reddit";    job="windsor-reddit-ingest";    mem="1Gi"; cpu="1"; cron="50 21 * * *" },
   @{ key="linkedin";  dir="ingest/windsor_data_pull/linkedin";  job="windsor-linkedin-ingest";  mem="1Gi"; cpu="1"; cron="40 21 * * *" },
-  @{ key="hubspot";   dir="ingest/windsor_data_pull/hubspot";   job="windsor-hubspot-ingest";   mem="1Gi"; cpu="1"; cron="55 21 * * *" }
+  @{ key="hubspot";   dir="ingest/windsor_data_pull/hubspot";   job="windsor-hubspot-ingest";   mem="1Gi"; cpu="1"; cron="55 21 * * *" },
+  # GA4 (2026-08-31): PINNED to the two Geocon properties via GA4_ACCOUNTS - the loaders' full
+  # laptop lists include ~20 properties whose GA4 comes via DTS (or is dormant), and a scheduled
+  # unpinned run would attempt full backfills for all of them. `env` uses gcloud's custom
+  # delimiter syntax (^;^) because the VALUE itself contains a comma. Retire this job if/when
+  # the client grants ian@100.digital GA4 Viewer and the (already-created, currently failing)
+  # DTS transfers for 550962241 / 551838402 take over.
+  @{ key="ga4";       dir="ingest/windsor_data_pull/ga4";       job="windsor-ga4-ingest";       mem="1Gi"; cpu="1"; cron="25 21 * * *"; env="^;^GA4_ACCOUNTS=550962241,551838402" }
 )
 
 # ---- one-time shared service account + least-privilege IAM (idempotent) --------------
@@ -85,8 +93,11 @@ foreach ($j in $JOBS) {
   }
 
   Write-Host "[$($j.key)] Deploying Cloud Run job $($j.job) ..."
+  # Optional per-job env (quoted: PS mangles bareword commas, and gcloud splits on them unless
+  # the value carries its own ^<delim>^ prefix - see the ga4 row).
+  $envArgs = @(); if ($j.env) { $envArgs = @("--set-env-vars", $j.env) }
   gcloud run jobs deploy $j.job --image $img --region $REGION --project $PROJECT `
-    --service-account $SA --memory $j.mem --cpu $j.cpu --task-timeout 3600 --max-retries 1; Must "deploy $($j.key)"
+    --service-account $SA --memory $j.mem --cpu $j.cpu --task-timeout 3600 --max-retries 1 @envArgs; Must "deploy $($j.key)"
 
   # daily scheduler (create-or-update) + let the SA invoke the job
   gcloud run jobs add-iam-policy-binding $j.job --region $REGION --project $PROJECT `

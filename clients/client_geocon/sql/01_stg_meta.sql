@@ -5,16 +5,25 @@
 -- table carrying six Meta ad accounts incl. other agencies', so the account_id pins the slice
 -- to the 100% Digital - Clients account (act 3754165911553001); and that account hosts SEVERAL
 -- 100-digital clients (geocon, bellshakespeare, nextsmile), so the prefix is still needed to
--- split them. The prefix test runs on the name with any leading BRIEF NUMBER stripped
--- ('0201_Geocon_NGW558_...' -> 'Geocon_NGW558_...'), which still pins the slice to Geocon while
--- surviving the numbering Geocon's agency now puts on every Northbourne campaign (confirmed on
--- its live Trade Desk and Google Ads lines, 2026-08-27). A bare STARTS_WITH(campaign_name,
--- 'Geocon_') would drop 100% of Northbourne's Meta delivery SILENTLY: the rows never reach the
--- property map below, so the export job's Unmapped WARNING cannot fire for them either. This is
--- the repo-wide rule in md/AGENTS.md -- campaign names are NOT stable keys, and STARTS_WITH is
--- the shape that breaks outright on a prefix. Normalising also lets future Geocon developments
--- (e.g. The Irving) flow in automatically and is immune to the trailing-space quirk in
--- 'Geocon_Traffic_MayJune 2026'.
+-- split them.
+--
+-- ***THE PREFIX IS A SET, NOT A LITERAL (2026-08-31).*** Northbourne Gateway's Meta campaigns are
+-- named `0201_GG_ACT Northboune Gateway_statics_CNV` - a brief number, then **GG** for Geocon
+-- Group, NOT the `Geocon_` that Gateway Braddon uses. A bare STARTS_WITH('Geocon_') returned FALSE
+-- for every one of them, so 100% of Northbourne's Meta delivery was dropped here: ~221k impressions
+-- across 6 live campaigns on the plan's LARGEST line (seq 9, A$90,000). Silent, because a row
+-- excluded at this gate never reaches the property map, so the export's `Unmapped` warning cannot
+-- fire for it either - the dashboard just reads zero and looks healthy.
+--
+-- An earlier fix stripped a leading `^[0-9]+_` before the same `Geocon_` test and was signed off as
+-- "a strict no-op, 0 newly admitted campaigns". **That no-op WAS the bug**: it was written against
+-- the Trade Desk / Google Ads naming (`0201_Geocon_NGW558_*`), which Meta does not follow, so it
+-- verified green while still admitting nothing. When a scope fix is meant to ADMIT rows, "no change"
+-- is a FAILURE, not a pass - assert the new names are in, not merely that the old ones still are.
+--
+-- Both spellings are now accepted after the brief number is stripped. `Cairns Awareness` (another
+-- client on this same account) matches neither, so the split still holds and the property map's
+-- catch-all ELSE stays safe.
 CREATE OR REPLACE VIEW `bidbrain-analytics.client_geocon.stg_meta` AS
 -- PROPERTY MAP JOIN (client_schneider seed_campaign_map pattern, de-correlated). BigQuery cannot
 -- run the map as a correlated scalar subquery, so it is resolved exactly as schneider's idOf()
@@ -28,7 +37,8 @@ WITH map AS (
 base AS (
   SELECT * FROM `bidbrain-analytics.raw_windsor.perf_meta`
   WHERE account_id = '3754165911553001'   -- 100% Digital - Clients
-    AND STARTS_WITH(REGEXP_REPLACE(TRIM(campaign_name), r'^[0-9]+_', ''), 'Geocon_')
+    AND REGEXP_CONTAINS(REGEXP_REPLACE(TRIM(campaign_name), r'^[0-9]+_', ''),
+                        r'^(Geocon_|GG_)')   -- see header: GG = Geocon Group
 ),
 camps AS (SELECT DISTINCT TRIM(campaign_name) AS cname FROM base),
 camp_rank AS (

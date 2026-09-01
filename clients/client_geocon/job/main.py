@@ -38,8 +38,19 @@ from freshness import probe_bq_last_modified, read_watermark, write_watermark, i
 # the raw_google_ads.perf_google_ads BRIDGE VIEW, whose last_modified is frozen forever (the
 # repo-wide DTS fact in CLAUDE.md).
 WINDSOR_TABLES = ["raw_windsor.perf_meta", "raw_windsor.perf_linkedin",
-                  "raw_windsor.perf_the_trade_desk"]
-GOOGLE_TABLES  = ["raw_google_ads.p_ads_CampaignBasicStats_3451896252"]
+                  "raw_windsor.perf_the_trade_desk",
+                  # GA4 (Website tab, 2026-08-31): the two Geocon properties land here via the
+                  # scheduled windsor-ga4-ingest job (GA4_ACCOUNTS-pinned). Gated like everything
+                  # else the job reads.
+                  "raw_windsor.perf_ga4", "raw_windsor.perf_ga4_events"]
+# Repointed 2026-08-31 from the MCC set to Geocon's OWN account set: Google stopped serving
+# metrics at manager level on 08-18, so `*_3451896252` is frozen forever and a gate watching it
+# would never fire again. See md/AGENTS.md.
+GOOGLE_TABLES  = ["raw_google_ads.p_ads_CampaignBasicStats_5457742070",
+                  # the second Geocon account, opened 2026-08-31 to bill the YouTube line
+                  # separately - see sql/09_stg_google_ads.sql. Gating on BOTH means the export
+                  # wakes on whichever account moves.
+                  "raw_google_ads.p_ads_CampaignBasicStats_2020134915"]
 GATING_TABLES = WINDSOR_TABLES + GOOGLE_TABLES
 WATERMARK_OBJECT = "_freshness.json"
 
@@ -112,15 +123,27 @@ def _benchmarks(targets):
     }
 
 
-def _flight(bud_row, benchmarks, fact, prop, today):
+def _flight(bud_row, benchmarks, fact, prop, today, plan=None):
     """Flight / pacing for one development — flight-window based, independent of the dashboard's
     date filter.
 
-    PACING IS AGAINST THE MEASURABLE BUDGET, not the committed one. Northbourne commits A$205,600
-    but A$17,100 of that (the SEO retainer and the Google Search management fee) reaches no ad
-    server, so pacing spend-to-date against the full figure would report a permanent 8.3% shortfall
-    that no amount of delivery could ever close. `budget_committed` carries the signed number so
-    the dashboard can show both and the gap is stated rather than hidden.
+    PACING IS AGAINST THE BUDGET THAT IS ACTUALLY IN MARKET. Two reductions, each for the same
+    reason — a denominator no amount of delivery could ever close is not a pace, it is a permanent
+    accusation:
+
+      1. committed -> measurable. Northbourne commits A$205,600 but A$17,100 of that (the SEO
+         retainer and the Google Search management fee) reaches no ad server at all.
+      2. measurable -> IN MARKET. Only the media-plan lines that have actually started can spend.
+         Northbourne is a nine-line plan with one line running (Trade Desk High Impact, A$40,000),
+         so pacing its A$3.8k against the full A$188,500 read 11% of pace on a line that is
+         performing to plan — the eight lines waiting on creative and approvals were being counted
+         as a shortfall against the one that launched.
+
+    `budget` is the PACING denominator (the existing convention, so every consumer keeps its
+    meaning); `budget_in_market`, `budget_measurable` and `budget_committed` carry the other three
+    figures beside it so the whole commitment stays on screen and the gap is stated, never hidden.
+    A development with no seeded media plan (Gateway Braddon) has no line detail to reduce by and
+    paces on its measurable budget exactly as before.
     """
     b = bud_row or {}
     fstart = b.get("flight_start")
@@ -142,6 +165,21 @@ def _flight(bud_row, benchmarks, fact, prop, today):
     flight_leads = sum(int(r["leads"] or 0) for r in sel)
     flight_imps  = sum(int(r["impressions"] or 0) for r in sel)
 
+    # ---- which media-plan lines are IN MARKET ----------------------------------------------
+    # Delivery-derived, never the plan's own dates: a line is in market when rows carrying its
+    # `plan_line` have delivered inside the flight. Measured on the UNFILTERED fact, so the figure
+    # is stable — pacing is full-flight and must not move when someone unticks a platform chip.
+    plan = plan or []
+    lines_live = {r.get("plan_line") for r in sel if r.get("plan_line")}
+    measurable_lines = [l for l in plan if l.get("measurable")]
+    live_lines = [l for l in measurable_lines if l.get("line") in lines_live]
+    budget_in_market = round(sum(num(l.get("budget")) or 0 for l in live_lines), 2) if live_lines else None
+    # Reduce only when we actually know better: a seeded plan, at least one line live, and a figure
+    # smaller than the measurable budget. Anything else keeps the old denominator.
+    use_in_market = bool(plan and budget_in_market and measurable and budget_in_market < measurable)
+    pace_budget = budget_in_market if use_in_market else measurable
+    first_delivery = min((r.get("date") for r in sel if r.get("date")), default=None)
+
     days_total = (fend - fstart).days + 1 if (fstart and fend) else None
     days_elapsed = None
     if fstart:
@@ -150,14 +188,40 @@ def _flight(bud_row, benchmarks, fact, prop, today):
             days_elapsed = max(0, min(days_elapsed, days_total))
         else:
             days_elapsed = max(0, days_elapsed)
-    daily_pace = benchmarks["daily_pace"] or (measurable / days_total if (measurable and days_total) else None)
+    # The seeded `daily_pace_aud` describes the WHOLE plan, so it cannot be used once the
+    # denominator is the in-market subset — it would pace A$40,000 at A$2,356/day.
+    daily_pace = ((pace_budget / days_total) if (use_in_market and pace_budget and days_total)
+                  else (benchmarks["daily_pace"]
+                        or (measurable / days_total if (measurable and days_total) else None)))
     pace_expected = (daily_pace * days_elapsed) if (daily_pace and days_elapsed) else None
-    projected_spend = (flight_spend / days_elapsed * days_total) if (days_elapsed and days_total) else None
+    # Projection runs on the DELIVERING window, not the elapsed flight, whenever a line started
+    # late. Northbourne's flight opened 08-13 and its one line began 08-20: averaging over the
+    # seven dead days projected A$20.5k of a A$40k line that is in fact running slightly ABOVE
+    # plan rate and lands on budget. A projection that contradicts the campaign's own run-rate is
+    # worse than none — it argues for topping up a line that needs nothing.
+    run_days = ((today - first_delivery).days + 1) if first_delivery else None
+    if run_days and days_total and days_elapsed and run_days < days_elapsed:
+        projected_spend = flight_spend + (flight_spend / run_days) * max(0, days_total - days_elapsed)
+    else:
+        projected_spend = (flight_spend / days_elapsed * days_total) if (days_elapsed and days_total) else None
     return {
         "start": iso(fstart), "end": iso(fend),
         # `budget` stays the PACING budget so every existing consumer keeps its meaning; the
-        # committed total is additive information beside it.
-        "budget": measurable, "budget_committed": committed, "budget_measurable": measurable,
+        # in-market, measurable and committed totals are additive information beside it.
+        "budget": pace_budget, "budget_committed": committed, "budget_measurable": measurable,
+        "budget_in_market": budget_in_market,
+        # What the pacing denominator IS, so the dashboard can label it rather than leave the
+        # reader to work out which of four budget figures the bar is drawn against.
+        "pace_basis": "in_market" if use_in_market else "flight",
+        # MEASURABLE lines only, both sides. `plan_lines_live` has always counted measurable lines
+        # (a line is "in market" because rows carrying it delivered), so counting ALL nine here put
+        # two lines in the denominator that can never enter the numerator: the SEO retainer and the
+        # Google Search management fee reach no ad server. "3 of 9" was therefore a ratio that could
+        # never reach 9 of 9 - and it read the live SEO retainer as a line that had not started,
+        # which is wrong twice over. Northbourne buys 7 ad-served lines; that is the denominator.
+        "plan_lines_total": len(measurable_lines) or None,
+        "plan_lines_live": len(live_lines) if plan else None,
+        "first_delivery": iso(first_delivery),
         "budget_unmeasurable": (round(committed - measurable, 2)
                                 if (committed is not None and measurable is not None) else None),
         "days_total": days_total, "days_elapsed": days_elapsed,
@@ -191,6 +255,27 @@ def build_env(bq, observed):
         bd = rows(bq, f"SELECT * FROM {t('breakdowns')} ORDER BY date")
     except Exception:
         bd = []
+    # GA4 website analytics (2026-08-31): the two Geocon GA4 properties, Windsor-fed. Tolerated
+    # absent (views not applied yet / a fresh project) so the export never breaks on them — the
+    # dashboard's Website tab hides itself when the block is empty.
+    try:
+        ga4 = rows(bq, f"SELECT * FROM {t('stg_ga4')} ORDER BY date, site, channel_group")
+        ga4_ev = rows(bq, f"SELECT * FROM {t('stg_ga4_events')} ORDER BY date, site, event_name")
+    except Exception as e:
+        print(f"  ga4 views unavailable ({e}) — Website tab will hide itself")
+        ga4, ga4_ev = [], []
+    if ga4:
+        # Per-site audit line (the cheap check that the pull is alive and the campaign->development
+        # attribution still matches — an all-NULL `property` under paid channels means the
+        # seed_property_map tokens stopped matching the GA4 utm_campaign names).
+        by_site = {}
+        for r in ga4:
+            o = by_site.setdefault(r.get("site"), [0, 0])
+            o[0] += int(num(r.get("sessions")) or 0)
+            if r.get("property"):
+                o[1] += int(num(r.get("sessions")) or 0)
+        for s, (tot, attributed) in sorted(by_site.items(), key=lambda x: str(x[0])):
+            print(f"  ga4 {s}: {tot} sessions, {attributed} attributed to a development by campaign")
 
     today = datetime.datetime.now(datetime.timezone.utc).date()
     bud_by_prop = {r.get("property_key"): r for r in bud}
@@ -222,7 +307,8 @@ def build_env(bq, observed):
             "key": key,
             "label": p.get("display_name") or key,
             "status": p.get("status") or "live",
-            "flight": _flight(bud_by_prop.get(key), pbench, fact, key, today),
+            "flight": _flight(bud_by_prop.get(key), pbench, fact, key, today,
+                              plan_lines.get(key, [])),
             "benchmarks": pbench,
             "targets": ptargets,
             "plan": plan_lines.get(key, []),
@@ -252,7 +338,12 @@ def build_env(bq, observed):
               f"${round(sum(num(r['spend']) or 0 for r in off_plan), 2)} spend matched no media-plan "
               f"line (delivery is counted, but it paces against nothing) -> {names[:10]}")
 
-    dates = [r["date"] for r in fact if r.get("date")]
+    # The meta date window bounds the dashboard's date picker AND its default "All time" range —
+    # so it must span EVERYTHING the payload carries, not just the paid fact. GA4 lands with less
+    # lag than some ad feeds, so fact-only bounds were silently clipping the newest GA4 day off
+    # the Website tab (1,304 sessions on the first day this shipped).
+    dates = ([r["date"] for r in fact if r.get("date")]
+             + [r["date"] for r in ga4 if r.get("date")])
     spend_total = sum(num(r["spend"]) or 0 for r in fact)
     leads_total = sum(int(r["leads"] or 0) for r in fact)
 
@@ -318,6 +409,28 @@ def build_env(bq, observed):
             "view_through_conversions": num(r.get("view_through_conversions")),
             "objective": r.get("objective"), "effective_status": r.get("effective_status"),
         } for r in fact],
+        # GA4 website analytics — session-acquisition rows for the two Geocon GA4 properties plus
+        # site-level event counts. `site` is the PROPERTY's descriptive label; `property` is the
+        # DEVELOPMENT resolved from the session's campaign name via seed_property_map (NULL =
+        # organic/direct/unmatched — site traffic that belongs to no development). Events carry no
+        # campaign dimension, so they are site-level ONLY. Tiny (channel-grain), so no cap needed.
+        "ga4": {
+            "rows": [{
+                "date": iso(r["date"]), "site": r.get("site"),
+                "channel": r.get("channel_group"), "source": r.get("source"),
+                "campaign": r.get("campaign"), "property": r.get("property"),
+                "sessions": num(r.get("sessions")), "engaged_sessions": num(r.get("engaged_sessions")),
+                "users": num(r.get("total_users")), "new_users": num(r.get("new_users")),
+                "pageviews": num(r.get("screen_page_views")),
+                "engagement_sec": num(r.get("user_engagement_duration")),
+                "conversions": num(r.get("conversions")),
+            } for r in ga4],
+            "events": [{
+                "date": iso(r["date"]), "site": r.get("site"), "event": r.get("event_name"),
+                "conversion": bool(r.get("is_conversion_event")),
+                "count": num(r.get("event_count")),
+            } for r in ga4_ev],
+        },
         # Audience (age x gender) + placement breakdowns — per (date x campaign x seg); the
         # dashboard date-filters + rolls up. seg2 is gender for age_gender, null otherwise.
         # META ONLY: these come from the geocon-only Meta breakdown pull, so a development with no

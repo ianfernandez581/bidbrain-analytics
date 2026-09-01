@@ -33,9 +33,11 @@ BigQuery console (or the two drift). The `NN_` filename prefix sets apply order:
 | [`05_breakdowns.sql`](05_breakdowns.sql) | `breakdowns` | Meta-only audience (age × gender) + placement facts from the geocon-only `raw_windsor.geocon_meta_breakdown`. Property-resolved from the **same seed** `01_stg_meta` uses, so the charts can never disagree with the KPIs above them. |
 | [`06_media_plan.sql`](06_media_plan.sql) | `media_plan` | The signed media plan, one row per bought LINE, from `seed_media_plan`. Carries each line's own impression / click / CPM / CTR target, its `measurable` flag and its `match_pattern`. **Nothing on the dashboard renders it today** (the Media Plan tab was removed on request); it is kept because it holds the per-platform targets the platform lanes will be measured against, and its `channel` list feeds the coming-soon placeholder. |
 | [`07_stg_linkedin.sql`](07_stg_linkedin.sql) | `stg_linkedin` | LinkedIn slice of the shared `raw_windsor.perf_linkedin`. **Returns zero rows today** — there is no Geocon LinkedIn account in Windsor yet. |
-| [`08_stg_ttd.sql`](08_stg_ttd.sql) | `stg_ttd` | Trade Desk slice of the shared `raw_windsor.perf_the_trade_desk`. **Returns zero rows today** — no Geocon advertiser on the shared seat yet. |
+| [`08_stg_ttd.sql`](08_stg_ttd.sql) | `stg_ttd` | Trade Desk slice of the shared `raw_windsor.perf_the_trade_desk`. **LIVE since 2026-08-20** — advertiser `Geocon Group`, the Northbourne **High Impact** line (plan seq 1). Its explicit `CAST(NULL AS INT64)` on `leads` / `reach` / `landing_page_views` is what drives the dashboard's awareness mode: a metric the platform does not report is NULL, never 0. |
 | [`09_stg_google_ads.sql`](09_stg_google_ads.sql) | `stg_google_ads` | Google Ads slice of the **native DTS export**, customer `5457742070` (Geocon Group) under MCC `3451896252`. The three Northbourne campaigns exist and are PAUSED, so it returns zero rows until they are switched on. |
 | [`10_fact_all.sql`](10_fact_all.sql) | `fact_all` | **The fact the job ships.** Meta (verbatim from `fact`) + LinkedIn + Trade Desk + Google Ads, with each row's media-plan LINE resolved. |
+| [`11_stg_ga4.sql`](11_stg_ga4.sql) | `stg_ga4` | GA4 session-acquisition slice of `raw_windsor.perf_ga4` for the two Geocon properties (`550962241` brand site, `551838402` landing site). Resolves the DEVELOPMENT from the **session campaign name** via `seed_property_map` — the property NAMES do not name the development (the "Gatewaybraddon" property carries Northbourne's campaign traffic; the header has the evidence). Feeds the job's `ga4` block / the **Website** tab. NOT part of `fact_all` — sessions are not delivery. |
+| [`12_stg_ga4_events.sql`](12_stg_ga4_events.sql) | `stg_ga4_events` | GA4 event counts for the same two properties. Site-level ONLY (events carry no campaign dimension). Today's event set is thin — form starts, no configured key events — and the dashboard copy says so. |
 
 ---
 
@@ -69,11 +71,16 @@ client-side from summed components, so any date sub-range is exact (the repo-wid
 
 ---
 
-## Known gaps at 2026-08-24
+## Known gaps at 2026-08-28
 
-- **No Geocon LinkedIn account in Windsor** and **no Geocon Trade Desk advertiser on the shared
-  seat.** Both views are written and return nothing; each lights up on its own the first day a row
-  lands. Getting these granted is a Northbourne go-live blocker.
+- **No Geocon LinkedIn account in Windsor** (A$6,000, plan seq 4) - the view is written and returns
+  nothing; it lights up on its own the first day a row lands. **Trade Desk was granted and went live
+  on 2026-08-20** and is the only Northbourne line reporting today.
+- **A NULL metric is not a zero, and the dashboard depends on that.** `08_stg_ttd` casts `leads`,
+  `reach` and `landing_page_views` to NULL because Trade Desk does not measure them on this buy;
+  `dash/dashboard.html` reads exactly that nullness to decide which panels a development can render
+  (see the client README → "Awareness mode"). If a future staging view coalesces one of those to 0
+  to "tidy up", the dashboard will draw a lead funnel that dead-ends at zero on an awareness buy.
 - **Google Ads carries no video metric.** Neither `CampaignBasicStats`, `CampaignStats` nor the
   (empty) `VideoStats` table has views, view rate or quartiles, and `raw_windsor.perf_google_ads`
   has no video columns either. The YouTube line's 24,000-view target and A$0.50 CPV therefore

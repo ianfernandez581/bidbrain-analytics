@@ -65,6 +65,7 @@ MAX_ATTEMPTS, then the chunk fails loudly; permanent 4xx (bad field / auth /
 slug) fails fast with the response body.
 """
 import json
+import os
 import logging
 import re
 import sys
@@ -109,7 +110,15 @@ SELECT_ACCOUNTS = [
     "341827046",
     "341832593",
     "287370621",
+    "550962241",   # GEOCON (geocon.com.au brand site) - connected to Windsor ~2026-08
+    "551838402",   # Gatewaybraddon (Gateway Braddon development site)
 ]
+# GA4_ACCOUNTS (comma-separated property ids) narrows the run to a subset — the scheduled
+# windsor-ga4-ingest Cloud Run job pins itself to the Geocon properties this way, so scheduling
+# GA4 did not change the laptop-run behaviour for every other property in the list above.
+_env_accounts = os.environ.get("GA4_ACCOUNTS", "").strip()
+if _env_accounts:
+    SELECT_ACCOUNTS = [a.strip() for a in _env_accounts.split(",") if a.strip()]
 
 # --- Field groups (GA4 10-metric cap => two passes, identical dims) ---
 # account_id/account_name are connector-account metadata (the property we
@@ -164,6 +173,8 @@ LOG_FILE = WORK_DIR / "ga4_loader.log"
 # generic ("GA4 - example.com") and won't carry the client keyword. Fill as needed.
 PROPERTY_TO_CLIENT = {
     # "318963196": ("wehi", "ad-assembly"),
+    "550962241": ("geocon", "100-digital"),   # GEOCON brand site (property name carries no 'geocon'? it does - but pin it anyway)
+    "551838402": ("geocon", "100-digital"),   # Gatewaybraddon - name would slugify to 'gatewaybraddon', so the pin is required
 }
 
 # Fallback keyword match on property name / campaign (same dict as the other loaders).

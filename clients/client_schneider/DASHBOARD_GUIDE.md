@@ -168,7 +168,8 @@ Filters that apply: campaign, region, and date range. If the program has no paid
 today), a banner explains it is leads-only or pre-launch and points to the Content Syndication tab.
 (Advancing Energy Technology now shows LinkedIn delivery, live from July 2026.)
 
-**Four KPI cards:**
+**KPI cards** (the fifth appears only where LinkedIn reported lead-form activity in the current
+filter, so an awareness-only program never shows an implied zero):
 
 | Card | What it shows | How it is calculated |
 |---|---|---|
@@ -176,6 +177,7 @@ today), a banner explains it is leads-only or pre-launch and points to the Conte
 | **Impressions** | Total impressions; sub-label shows CPM | CPM = spend / impressions x 1000 |
 | **Clicks** | Total clicks; sub-label shows CTR | CTR = clicks / impressions |
 | **Blended CPC** | Cost per click | spend / clicks (read-only, does not toggle the chart) |
+| **Lead-form leads** | LinkedIn's own on-platform lead-gen-form submissions, plus the form-open count | Sum of LinkedIn's `leads`; the cost figure is **LinkedIn spend** / leads. **Corrected 1 Sep 2026** - it used to divide the BLENDED all-platform spend by LinkedIn-only leads, charging Trade Desk money to a metric only LinkedIn can produce (A$2,085 per lead against a true A$1,129 under the all-up scope). These are **not** the Salesforce Content-Syndication leads and must never be added to them |
 
 The first three cards are clickable: clicking one shows or hides that series on the chart below.
 (The **CS Leads** card was removed from Paid Media on 3 Jul 2026 — CS leads now live only on the
@@ -199,6 +201,35 @@ Clicks, CTR, CPM, CPC, plus a Combined total row.
 
 **Spend by platform** (doughnut) and **Spend by market** (bar), plus a **market summary table** (Spend
 / Imps / Clicks / CTR per market).
+
+**LinkedIn lead-gen-form funnel** (added 1 Sep 2026 at the client's request, mirroring the Cloudflare
+dashboard). Four stages - **Impressions -> Clicks -> Lead form opens -> Submitted leads** - with the
+step-to-step conversion rate on each connector, and a **Funnel by program** table beneath whose total
+row ties to the funnel exactly. Things worth knowing about it:
+
+- **"Lead form opens"** is LinkedIn's `oneClickLeadFormOpens` - the form being *opened* (what the
+  client's brief called the "LGF fill" stage). **"Submitted leads"** is a completed submission (the
+  "LGF completion"). Both are LinkedIn's own on-platform counts, separate from the Salesforce CS leads.
+- **It covers only the programs that actually ran a lead form.** Three of the nine run LinkedIn
+  awareness with no form at all (Advancing Energy Technology, MCSeT + EvoPacT, Microgrid): including
+  their 469,206 impressions would put 57% more impressions at the top of a lead-form funnel than ever
+  carried a form. The note under the funnel names how much was excluded and where it still appears
+  (the KPI band and the Platform comparison table).
+- **The whole section hides itself where no lead form ran**, rather than drawing a funnel of zeros -
+  a four-stage funnel of zeros reads as a campaign that failed rather than an awareness buy with no
+  form on it. Unticking LinkedIn on the Platform chips hides it too, for the same reason.
+- **The rates carry no green/red verdict.** A 0.25% impression-to-click rate is normal on a social
+  awareness buy and poor on search; there is no threshold here we could defend, so colouring the
+  number would be a judgement dressed up as a fact.
+- **A rate can legitimately read above 100%** on a narrow date range: LinkedIn dates a form open and
+  its submission independently, so a short window can hold one without the other. The card detects
+  that and says so rather than leaving the figure looking broken.
+- **The finest available scope is the program, not the campaign.** The underlying view is aggregated
+  to program x platform x day x market, so a program running both an awareness line and a lead-form
+  line contributes all of its LinkedIn delivery to the funnel.
+- Live at 1 Sep 2026, whole flight, all regions: **817,658 impressions -> 2,062 clicks (0.252%) ->
+  491 form opens (23.8%) -> 50 submitted leads (10.2%), A$861 per lead**, across EcoConsult (25),
+  AirSeT (14), New Energy Landscape (8), Heavy Industries (2) and Water & Environment (1).
 
 **Flight windows Gantt.** A horizontal timeline of all five programs' flight windows so overlapping
 flights (a cannibalisation risk) are visible at a glance. The selected program's bar is green, the
@@ -236,9 +267,39 @@ flight start but produced no lead until Jun 8), and charging target pace against
 made every campaign look behind at the start. (Note: the target pace here is an even spread; the client's
 own Lead Pacing files use an uneven weekly target, see §10, gap 4.)
 
-**Leads by market** (bar), **Leads by programme** (doughnut; the "programme" is the Salesforce pillar
-within a program, for example Heavy's four pillars), a **by-market summary grid**, and a **programme x
-market table** (Programme, Market, Leads, Status, Share, Last lead date).
+**Leads by market** and **Leads by programme** - two share doughnuts, each with the scope's lead total
+in the middle. The "programme" is the Salesforce pillar within a program (for example Heavy's four
+pillars). Then a **programme x market table** (Programme, Market, Leads, Share, Last lead date).
+
+Three changes here on **1 Sep 2026**, all at the client's request:
+
+- **The "by-market summary" grid is gone.** It restated *Leads by market* as horizontal bars plus a
+  share percentage; the client pointed out that the two sections showed the same thing. The share it
+  added now lives in the doughnut's own ring, tooltip and legend, so nothing it showed was lost.
+- **"Leads by market" is a share doughnut** rather than a column chart. Two consequences: a region
+  with **no leads in the current scope leaves the ring** and is named in the caption instead (a
+  doughnut cannot draw a 0% slice, where a bar chart can honestly draw a zero-high bar), and a scope
+  with no leads at all shows a plain message rather than an empty chart frame.
+- **The Status column is off the programme x market table.** Every Schneider lead is CRM-raw status
+  `New`, so the cell only ever read "New *n*" - the Leads column immediately to its left, restated.
+  The status counts are still in both CSV exports and in the data behind the AI report, and the
+  column comes back the day the CRM starts grading leads to MQL / SQL / HQL.
+
+**A note on the "Leads by programme" card:** where a program has only ONE Salesforce programme
+(EcoStruxure Building Activate and Water & Environment both do), there is no programme split to chart,
+so that card hides itself, the market doughnut takes the full row, and a line under it names the sole
+programme. Before 1 Sep 2026 the card fell back to a market-share chart in that case - which, next to
+a market doughnut, would have shown the same chart twice.
+
+**"Who we reached" - audience intelligence.** Job function (doughnut), seniority (bar; job level is
+disclosed on about 40% of leads and the rest are shown honestly as "Not disclosed"), and **Top accounts
+reached**: the named companies generating the most leads, each with **the job titles its own leads
+gave**, ranked by how many leads carried each title (added 1 Sep 2026). Job title is populated on
+**90.6%** of leads (997 of 1,101); it is free text, with 342 distinct spellings, so most titles are
+unique to one lead and a count appears only where a title genuinely repeats at that account. Two
+titles are shown per account and the rest are summarised as "+ N other titles". Leads that left the
+field blank are simply absent - the card states how many rather than inventing an "Unknown" bucket
+that would rank against real titles.
 
 A footnote repeats the CRM-raw caveat and notes that some plan lines (Trade Publication, IDE emails,
 Search CTR, Innovation Aus) have no warehouse source and are not shown here.

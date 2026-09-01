@@ -240,6 +240,231 @@ Also fixed in passing: **`tableCSV()` leaked `_`-prefixed internal stashes** —
 each row's pre-markup spend on `_rawSpend`, and `pm_delivery` exports were shipping it to the client.
 Underscore keys are now dropped from the header and every row (the repo-wide rule in `md/AGENTS.md`).
 
+## Content Syndication tab changes (2026-09-01, client) + the LinkedIn LGF funnel
+Four requests in one round, plus what verifying them turned up.
+
+### 1. "By-market summary" removed; "Leads by market" is a share doughnut
+> *"For content synd, there's the 'leads by market' section and the 'by-market summary' section but
+> they are both showing the exact same thing. Can we remove the 'by market summary' section? And
+> change the Leads by market column graph to a pie chart?"*
+
+Correct on both counts: the summary card restated the same per-region lead counts as horizontal bars
+plus a share percentage. `renderCSRegionGrid()` and the `.reg-*` CSS are **gone**; the share it added
+over the column chart now lives in the doughnut's own ring, tooltip and legend, so nothing it showed
+was lost. It is a **doughnut, not a solid pie**, so it matches the "Leads by programme" ring beside it
+and can carry the scope total in the middle (`bbDonutCenter`) — a solid pie is one token away
+(`cutout:'0%'`) if the client prefers it.
+
+**The trap was one card along.** `renderCSProgramme()` used to FALL BACK to a market-share doughnut
+whenever the scope holds a single Salesforce programme — which `eba` and `water_env` both do. Against
+a market doughnut on its left that would have drawn the identical chart twice under two headings:
+exactly the duplication the client asked us to remove, re-created next door. So:
+- the programme card **hides itself** at 0 or 1 programme,
+- `#csChartGrid` takes `.one-up` (`grid-template-columns:1fr`) so the surviving card is full width
+  rather than half a row with a hole in it,
+- `#csProgSole` — a `.card-foot` note **inside** the market card — names the sole programme, so the
+  fact does not leave with the card,
+- **`renderCSProgramme()` MUST run before `renderCSMarket()`** in `renderCS()`, because the second
+  reads the first's show/hide decision to size the row. There is a comment on the call site.
+
+**A doughnut cannot draw a zero**, which a bar chart can, so two things had to be added:
+- a region with **no leads leaves the ring** and is NAMED in the caption ("New Zealand has no leads in
+  this scope, so it is not in the ring") — stated, not silently missing;
+- an **all-zero scope hides the canvas** behind a sibling `.chart-empty` div. Chart.js renders literally
+  nothing for an all-zero dataset, so without this the card is a titled blank box. **Hide the canvas,
+  never replace its parent's `innerHTML`** — see the audience-block bug below.
+
+*Legend note:* a RIGHT-hand legend was tried for the one-up row (to use the width either side of the
+ring) and reverted the same pass — Chart.js reserves the legend's width out of the canvas, so the arc
+collapsed to a ~40px circle pinned left, `bbDonutCenter` kept drawing the total in the middle of the
+CANVAS detached from the ring, and the legend title clipped. Bottom legend, always.
+
+### 2. Top accounts reached now lists each account's own job titles
+> *"Under 'Top accounts reached' section, is it possible to identify the top 1 or 2 job titles from
+> each account? Would be useful info to have, but i want to understand if we have the existing data
+> to show this."*
+
+**Yes — Salesforce `JOB_TITLE`, and it is well populated: 90.6% (997 of the 1,101 flight-clamped
+leads), 605 of 670 companies with at least one title.** New data path:
+
+`raw_snowflake.salesforce_cs_apac_all.JOB_TITLE` → `sql/17_stg_salesforce.job_title` →
+**`sql/22_cs_account_titles`** (`campaign × market × company × title`, with a lead count per title) →
+`job/main.py` `cs_account_titles` → `audAcctTitles()` → the `.acct` blocks in `renderAudience()`.
+
+- **A separate view, not part of `21_cs_audience`.** 21 is a LONG one-value-per-row shape (`dim` /
+  `value`); a title belongs to a COMPANY, so it needs a two-level key and would have had to be
+  smuggled into `value` as a delimited string.
+- **Ranked client-side**, so it follows the Campaign dropdown and the Region chips exactly as the
+  account totals above it do (a company can appear in two campaigns and both markets).
+- **Case folded in BOTH places** — the view groups per market, the frontend sums across markets — with
+  a deterministic `MIN()` display spelling. Never `ANY_VALUE`: a client-facing label that flickers run
+  to run is the cloudflare pacing-tier lesson.
+- **342 distinct spellings across ~997 titled leads, so most titles are unique to one lead.** A count
+  is printed ONLY where a title genuinely repeats at that account (134 of 827 company×title pairs do,
+  max 4). Two titles are shown per the client's ask; the rest are summarised as "+ N other titles"
+  rather than silently truncated.
+- **Coverage is stated, never faked.** The card hint counts the shortfall across the accounts ON
+  SCREEN ("*N* of these *M* leads left the title field blank, so they are absent rather than
+  bucketed") - and the clause appears ONLY where there is a shortfall, which under the all-up scope's
+  top 18 accounts there currently is not. A blank title is **never** coalesced to an invented
+  `Unknown` that would rank against real ones; an account with no titled leads reads "No job title
+  recorded".
+- **`titlesLoaded` guard.** The dashboard and the export job are separate services, so between a dash
+  redeploy and the job's next run `cs_account_titles` legitimately does not exist. In that state the
+  card renders exactly as it did before this change — saying "all 1,101 leads left the title field
+  blank" would be a confident false statement about the client's CRM hygiene.
+- **PII.** Job title + company is one step closer to a named individual than `COMPANY_NAME` alone; at
+  a small account "Chief Operating Officer" + the company name is one person. It is the client's own
+  CRM field about their own leads, behind the same password gate and private bucket, so WHO can see it
+  does not change — but keep it aggregated to a count per company, and keep name / email / phone
+  dropped in `sql/17`. The reasoning is written into that view.
+- **Needs `bq` access to add more:** `INDUSTRY` / `ASSET` / `STATE` / `REVENUE` are empty for SE and
+  are still deliberately not surfaced.
+
+### 3. The Status column is off the programme × market table
+> *"Under the section 'Programme × market breakdown', the 'status' column doesn't make sense to me.
+> What is this supposed to convey? I think we can remove it."*
+
+Right again: every SE lead is CRM-raw status `New`, so the cell only ever printed `New <n>` — the
+Leads column immediately to its left, restated. **UI-only.** The status counts still travel
+`stg_salesforce` → `cs_by_programme` → the payload → both CSV exports → the AI-deck payload
+(`report.py`'s guardrail already forbids the model judging a quality mix from them), so the column
+returns with one `<th>` and one `<td>` the day the CRM starts grading leads. The empty-row `colspan`
+must track the column count — it is 5 now.
+
+### 4. LinkedIn lead-gen-form funnel on the Paid Media tab
+> *"For all LinkedIn campaigns with LGFs, can we include a view on pipeline progression, same as the
+> view we have on Cloudflare (Impressions > clicks > LGF fills > LGF completions)?"*
+
+`renderLiFunnel()` / `liFunnelAgg()`, a port of cloudflare's `#liFunnel` card, plus a **Funnel by
+program** table. **FRONTEND-ONLY** — `lead_form_opens` and `leads` have travelled `stg_linkedin` →
+`04_stg_ad_delivery` → `20_pm_delivery` → the payload since 2026-08-06.
+
+**SCOPE — the one thing to get right here, and the first cut got it wrong.** The funnel covers only
+the programs that actually RAN a lead form. Three of the nine (`global_rebrand`, `mcset`, `microgrid`)
+run LinkedIn AWARENESS with no form at all: 469,206 impressions, 785 clicks, A$13,390. Including them
+put 57% more impressions at the top of a lead-form funnel than ever carried a form, understated
+click→open (17.2% instead of the true 23.8%), and — the tell — left a **Total row of 1,286,864 above
+five rows summing to 817,658**. A total that does not sum its own rows is not a rounding quibble. The
+funnel headline, every stage rate, the cost figures and the table are now all summed from the same
+surviving programs, and the note names what was excluded and where it still lives (the KPI band and
+the Platform comparison table).
+
+**Grain limit, stated on screen:** `pm_delivery` is aggregated to program × platform × day × market
+and carries no campaign column (deliberately — see `sql/20`), so program is the finest scope
+available. A program running both an awareness line and a lead-form line contributes all of its
+LinkedIn delivery. Going finer needs a NEW campaign-grain view, not an un-grouping of `sql/20`.
+
+Other rules it encodes:
+- **LinkedIn only.** It filters `pmRows()` on `platform==='linkedin'`; the tab's blended `pmTotals()`
+  would have shown Trade Desk impressions feeding a LinkedIn lead form.
+- **It hides itself where no form ran.** A four-stage funnel of zeros reads as a campaign that failed
+  rather than an awareness buy with no form on it. Untick LinkedIn on the Platform chips and the
+  section goes too — correct, and attributable to a visible control.
+- **The per-program table appears only at 2+ programs**, where the blended funnel is a number nobody
+  can break down. For a single program it would restate the funnel.
+- **NO green/red verdict colour on the stage rates.** 0.25% impression→click is normal on a social
+  awareness buy and terrible on search; there is no threshold here we could defend, and a coloured
+  number makes a judgement while making none.
+- **Rates can legitimately exceed 100%.** LinkedIn dates a form open and its submission
+  independently, so a narrow date range can hold one without the other. The card detects the
+  inversion and explains it rather than leaving a 732% rate looking broken.
+- **Labels say "opens", not the client's "fills".** `oneClickLeadFormOpens` is the form being OPENED;
+  renaming it a "fill" would overstate intent. The note spells the mapping out in the client's own
+  vocabulary.
+- Live figures (whole flight, all regions, 2026-09-01): **817,658 imps → 2,062 clicks (0.252%) → 491
+  form opens (23.8%) → 50 submitted leads (10.2%), A$861 per lead**, across `ecoconsult` (25),
+  `airset` (14), `nel` (8), `heavy` (2), `water_env` (1). Every figure reconciles to
+  `pm_delivery` with zero delta.
+
+### Found while verifying — three defects that were already live
+1. **The audience-intelligence block could disappear for the rest of a session.** `renderAudience()`
+   drew its empty state with `el('scFunc').parentElement.innerHTML = '<div>No leads…</div>'`, which
+   DELETES the canvas; its own `if(!el('scFunc')) return;` guard then short-circuited the whole
+   function on every later pass. **Clearing the Region chips and ticking them straight back was enough
+   to trigger it** — job function, seniority, top accounts and the coverage note all stayed blank,
+   silently, until a reload. Both canvases now toggle against a sibling `.chart-empty` div. This is now
+   a repo-wide rule in `md/AGENTS.md`; **`client_schneidersecpwr` still carries the same pattern in
+   four places on its Creative tab** and should be fixed the next time that tab is touched.
+2. **The Lead-form-leads KPI divided BLENDED spend by LinkedIn-only leads** — Trade Desk money charged
+   to a metric only LinkedIn can produce: A$2,085 per lead against a true A$1,129 under the all-up
+   scope, and the error grew with every non-LinkedIn dollar in the filter. It now re-sums LinkedIn's
+   rows and says `(LinkedIn spend)` on the tile.
+3. **The topbar was the whole page's 832px min-width floor.** `.topbar .inner` is a non-wrapping flex
+   row (agency + logo + region tag + Campaign dropdown | Live pill + period). Below 832px it simply
+   overflowed and the DOCUMENT gained a horizontal scrollbar **on every tab** — 32px at 800, 132px at
+   700 — which then held every card at 832px regardless of viewport. One `@media (max-width:900px)`
+   block lets the row wrap; the page-level scroll is gone at every width down to 700. Also clamped the
+   `.goal-marker` pace label, which overhung its bar by ~24px whenever the marker sat at 100% (a
+   finished flight) and pushed the card, the tab pane and — below 760px — the page.
+
+### Verification (headless Edge over CDP, real `schneider.json` from GCS)
+Three responsive sweeps plus a grossing pass and a data-edge pass. Every assertion is read off the
+RENDERED DOM, never from JS state.
+
+**1. Scope sweep - 95 cases.** Widths **1500 / 1280 / 1100 / 1000 / 900 / 800 / 700** x the two
+changed tabs x all 10 Campaign scopes, plus region/platform edge cases. Run BOTH with fresh page loads
+and with state carried between cases - **the sticky run is what surfaced the audience-block bug**,
+because it only shows on the render AFTER an empty one.
+
+**2. CLIENT VIEW - 35 cases.** Every tab (Paid / CS / Compare / Other / Website) x every width, with
+exactly what a client session receives: no `BB_INTERNAL`, no staff dock, 4 tabs in the rail, and an
+empty `BB_SPEND_MULT` (schneider has no `spend_multipliers` in the registry today, so that is
+production-exact).
+
+**3. ADMIN VIEW - 35 cases.** The same grid with what the proxy injects for a staff session:
+`window.BB_INTERNAL`, the cloned **"Internal Notes"** 5th tab (re-appended by a MutationObserver
+because `renderControls()` rebuilds this dashboard's rail on every render - schneider is named in the
+platform's own comment for exactly that reason) and the fixed bottom-left dock. **The 5th tab does not
+overflow the rail or the control bar at any width.** The dock is `position:fixed`, so it floats over
+whatever is scrolled beneath it on every dashboard in the estate; probed against BOTH builds it is
+**identical before and after**, and `dockTouchesArc` is false at every width - it sits over the market
+canvas's transparent left margin, never on the ring. `.container`'s 60px bottom padding keeps it clear
+of the last card at full scroll.
+
+Asserted across all three: **zero JS errors and zero uncaught exceptions**, `docOverflow == 0` in every
+case (**11 cases failed before this change**), zero tab-rail and control-bar overflow, zero text
+overflow, zero single-row grid-height mismatch, uniform account-block heights, `cssRules` constant (a
+malformed CSS rule is silently DROPPED, so the count is the honest signal the stylesheet parsed), the
+funnel Total row summing its own tbody rows, and the funnel headline equalling that Total. The only
+residual overflow anywhere is `goal-marker +19` on the CS tab - the pace label is wider than the 2px
+marker it is centred on, which is inherent to the technique; after the clamp it no longer propagates to
+the card, the tab pane or the document.
+
+**4. Spend grossing.** Because schneider has no registry multiplier, every other run exercised the
+shim as a no-op. Re-run with a synthetic `{linkedin:2, ttd:1.5}`: LinkedIn spend A$56,445 -> A$112,890
+(ratio exactly 2.0), Trade Desk A$47,825 -> A$71,737 (1.5), and every NEW money surface followed -
+funnel media spend, cost per click / per open / per lead, the table's Cost/lead, the excluded-delivery
+figure in the scope note, and the corrected KPI tile (A$1,128.90 -> A$2,257.80). **Counts and rates did
+not move** (817,658 / 2,062 / 491 / 50 and 0.252% / 23.8% / 10.2%), which is the actual contract - see
+the repo-wide spend-multiplier rule in `md/AGENTS.md`.
+
+**5. Six synthetic data edges** that real data cannot reach: a zero-lead region, an all-zero scope, a
+funnel inversion (a 732% rate, explained rather than left looking broken), a zero-click program, an
+account with no titles, and a payload with no `cs_account_titles` key at all.
+
+**Two harness traps, both of which produced a false PASS before being caught. Worth knowing because
+either one makes a whole sweep worthless while looking green:**
+- Screenshots catch charts **mid-entry-animation** - a doughnut part-way through its entry looks like a
+  broken 40px sliver while `outerRadius` reports a correct 119, and a KPI tile mid-count-up reads lower
+  than its own table. Assert on the DOM; only capture with `Chart.defaults.animation=false`.
+- **`[].slice.call(new Set(x))` returns `[]`** - a Set has no `length`, so `Array.prototype.slice`
+  finds nothing to copy. That was the dedupe behind the clipped-element assertion, so it reported
+  "NONE" in every case regardless of what the page actually did. Use `Array.from`.
+
+### Deploy order (all three stages changed)
+```powershell
+# 1. views (17 gained job_title, 22 is new) - load seeds first, apply, then force the job
+.\clients\client_schneider\sql\deploy_views_schneider.ps1
+# 2. the job (job/main.py reads cs_account_titles) - build + deploy + run
+.\clients\client_schneider\job\deploy_job_schneider.ps1
+# 3. the dashboard
+.\clients\client_schneider\dash\deploy_dash_schneider.ps1
+```
+**Order matters:** the dashboard degrades gracefully if it is deployed first (the `titlesLoaded` guard
+above), but the job must run before the titles appear. `/ship` resolves all three from the changed
+paths.
+
 ## Platform (channel) chips — only engines this program actually ran
 **2026-08-15 (client):** the Platform chip group used to render engines that delivered for OTHER
 programs as a **dim** chip on the selected one. That is gone - `renderControls()` now filters the
@@ -403,16 +628,30 @@ except `website`, which is scope-independent and survives the switch.
    `2281_HI_P2_EnergyTransformation_LeadGen_ANZ`), which no Heavy/HeavyIndustries token matches. LinkedIn
    delivery is live since 2026-07-23 (day 1: 710 imps / 4 clicks / ~A$54, `_ANZ` → folded to Australia),
    alongside the **Trade Desk Programmatic** line `2281_SE Heavy Industries_AWR AU` (delivering since
-   2026-07-15; that name HAS the space, so the old `Heavy Indust` token caught it). Lead-gen-form leads
-   (`LEADS`/`LEAD_FORM_OPENS` in the raw) reach the dashboard through the Salesforce CS lane, not
-   `pm_delivery`.
+   2026-07-15; that name HAS the space, so the old `Heavy Indust` token caught it).
+   **CORRECTION (2026-09-01):** this section used to end "Lead-gen-form leads (`LEADS`/`LEAD_FORM_OPENS`
+   in the raw) reach the dashboard through the Salesforce CS lane, not `pm_delivery`." That was already
+   false when it was written and stayed on the page for a month. Both columns have travelled
+   `stg_linkedin` → `04_stg_ad_delivery` → `20_pm_delivery` → the payload since **2026-08-06** (see
+   *Update 2026-08-06* above — 04 silently dropping them is the bug that update fixed), they are a PAID
+   metric, and they are what the **LinkedIn lead-gen-form funnel** on this tab is built from. They are
+   still strictly separate from the Salesforce CS leads and must never be summed with them.
+   The Paid Media tab also carries, since 2026-09-01, the **LinkedIn lead-gen-form funnel**:
+   impressions → clicks → lead form opens → submitted leads, plus a *Funnel by program* table whose
+   total row ties to the funnel exactly. It renders only where a lead form actually ran — 5 of the 9
+   programs (`ecoconsult`, `airset`, `nel`, `heavy`, `water_env`); the other 4 report zero opens and
+   zero leads on LinkedIn and a four-stage funnel of zeros reads as a campaign that failed rather than
+   an awareness buy with no form on it. Frontend-only: `renderLiFunnel()` / `liFunnelAgg()` in
+   `dash/dashboard.html`, no view / job / payload change.
 2. **Content Syndication** — Salesforce leads vs the media-plan **MQL+HQL** target: the snapshot strip
    (Overall / Pacing / Delivery / Outlook), the **Plan-CPL** banner, **Leads-vs-target** + **Progress**
    panels, a **Weekly pacing** chart (real dated weekly leads vs the even target pace — both start at the
    campaign's **first actual-lead week**, not its booked flight_start, since paid media often runs weeks
-   before the first CS lead lands), **Leads-by-market**
-   + **Leads-by-programme** doughnuts, a by-market summary, and a programme × market table. Leads are
-   **CRM-raw** (`New`) — total leads vs target, not "MQLs achieved".
+   before the first CS lead lands), a **Leads-by-market** share doughnut + a **Leads-by-programme**
+   doughnut, a programme × market table, and the **audience intelligence** block (job function /
+   seniority / **top accounts with the job titles behind them**). Leads are **CRM-raw** (`New`) — total
+   leads vs target, not "MQLs achieved". See *Content Syndication tab changes (2026-09-01)* below for
+   what the client had removed from this tab and why.
 3. **CS Comparison** — pick two markets (e.g. Australia vs New Zealand) for the selected program and
    compare lead volume, share, programme mix and weekly pacing side by side.
 
@@ -438,6 +677,7 @@ Read-only on BigQuery (it only SELECTs views + writes JSON). No `src_*` landing,
 | Add a program that has NO map row yet (its delivery is currently unmatched/invisible) | append a row to `data/campaign_map.csv` **at the highest `seq`** — last place means first-match-wins can only give it campaigns nothing else claims — then the 2 scope edits above | 3 |
 | Which CAMPAIGNS a program claims (e.g. scoping to one wave of a repeating brief) | `match_pattern` in `data/campaign_map.csv` → `load_seeds.py` → the first-match-wins join in `sql/20`. Simulate before committing — see `ind_edge` Wave 3 | 1 |
 | Add a program that runs OUTSIDE Australia/New Zealand | the two above **PLUS** a multi-region arm ahead of the AU/NZ fold in `sql/20_pm_delivery.sql` (`WHEN cm.program IN ('<id>') THEN d.market`; the comment there has the worked example) — miss this and 100% of its foreign delivery reports as Australia, silently | 3 |
+| An **audience / lead-quality** dimension (job function, seniority, account, job title) | `sql/17_stg_salesforce.sql` (surface the Salesforce column) → `sql/21_cs_audience.sql` for a one-value dimension **or a new view** for anything keyed on two things (`sql/22_cs_account_titles.sql` is the worked example) → `job/main.py` → `renderAudience()` in `dash/dashboard.html`. Check the field is actually populated first — INDUSTRY / ASSET / STATE / REVENUE are all empty for SE and are deliberately not surfaced | 2+3 |
 | JSON shape | `job/main.py` (the `env = {...}` dict) | 2 |
 | Charts / tabs / branding | `dash/dashboard.html` | 3 |
 | Login / how JSON is served | `dash/main.py` (rarely) | 3 |
@@ -546,7 +786,7 @@ reports / CSV emails).
   mismatch). Written for a client review / chatbot Q&A. Start here for "how does this dashboard work".
 - [`data/`](data/) — the human-editable seed CSVs (campaign map / budgets / targets / flighting /
   channel split / media plan / salesforce map), loaded to `seed_*` tables by [`load_seeds.py`](load_seeds.py).
-- [`sql/`](sql/README.md) — the 30 BigQuery views (filter + CS leads + paid delivery + `cs_audience` + the GA4 Website layer `40-47`, shipped disabled).
+- [`sql/`](sql/README.md) — the 31 BigQuery views (filter + CS leads + paid delivery + `cs_audience` + `cs_account_titles` + the GA4 Website layer `40-47`, shipped disabled).
 - [`job/`](job/README.md) — the export job (stage 2): views + seed tables → `schneider.json`.
 - [`dash/`](dash/README.md) — the web app (stage 3): password gate + `dashboard.html`.
 - [`INTAKE.md`](INTAKE.md) — the resolved data slice + open items handed to the client.

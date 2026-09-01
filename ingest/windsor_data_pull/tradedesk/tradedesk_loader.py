@@ -25,6 +25,8 @@ MODES
 1. BACKWARD WALK (no date args) -- walks from yesterday back in CHUNK_DAYS
    windows, loading as it goes, until STOP_AFTER_EMPTY_CHUNKS consecutive empty
    chunks or the MIN_DATE floor. Auto-discovers how far back data exists.
+   With WINDSOR_LOOKBACK_DAYS=N set, becomes a fixed range of the last N days
+   instead (what the scheduled Cloud Run job runs, N=35).
 
        python windsor_data_pull/tradedesk/tradedesk_loader.py
 
@@ -35,9 +37,11 @@ MODES
 --force re-fetches even cached chunks (MERGE is idempotent on the key).
 
 RETRIES: transient errors (timeouts, 429, 5xx) retried with a fixed 5s delay up
-to MAX_ATTEMPTS times, then the chunk fails loudly (so an unattended/scheduled
-run can't hang forever); permanent 4xx (bad field / auth) fails fast with the
-response body.
+to MAX_ATTEMPTS times (env WINDSOR_MAX_ATTEMPTS; the scheduled job sets 4 so the
+budget fits the 3600s task cap), then the chunk fails loudly (so an unattended/
+scheduled run can't hang forever); permanent 4xx (bad field / auth) fails fast
+with the response body. A 400 for a day TTD has not PUBLISHED yet (shape has
+changed once already -- see fetch_chunk) steps the window back instead.
 """
 import json
 import logging
@@ -124,7 +128,14 @@ MIN_DATE = date(2015, 1, 1)
 # exactly as before unless WINDSOR_TIMEOUT_SEC is set.
 TIMEOUT_SEC = int(os.environ.get("WINDSOR_TIMEOUT_SEC", "120"))
 RETRY_SLEEP_SEC = 5        # fixed delay between retry attempts (no backoff)
-MAX_ATTEMPTS = 30          # per-chunk retry cap; then fail loudly instead of hanging forever
+# Per-chunk retry cap; then fail loudly instead of hanging forever. Env-tunable because the retry
+# budget must FIT the runtime that owns it: 30 attempts x ~125s is ~62 min, which OVERFLOWS the
+# Cloud Run task's 3600s cap -- one fully-degraded chunk killed the task before this cap was ever
+# reached (measured 2026-08-31: 28 ReadTimeout attempts, then the 3600s kill, on the 01:35 UTC
+# run). The scheduled job sets WINDSOR_MAX_ATTEMPTS=4 (worst chunk ~8.5 min; MAX_FETCH_FAILURES of
+# those ~45 min, inside the cap, so the job's exit code means something again); laptop/backfill
+# runs keep the patient default 30.
+MAX_ATTEMPTS = int(os.environ.get("WINDSOR_MAX_ATTEMPTS", "30"))
 INTER_CHUNK_SLEEP = 1
 
 # All runtime artifacts live under _run/ next to THIS script (not the cwd).
@@ -218,6 +229,12 @@ class ChunkFetchError(Exception):
 
 _CONFIGURED_RE = re.compile(r"configured accounts? (?:is|are):\s*([0-9,\s]+)", re.I)
 
+# Windsor's "that day isn't published by TTD yet" 400 message, in its 2026-08-31 shape (a JSON
+# body: {"error":"The Trade Desk does not provide report data for the current day (UTC): the
+# requested end date (...) must be yesterday or earlier. ..."}). See the DATA NOT PUBLISHED YET
+# comment in fetch_chunk for why this is matched by MEANING, not by shape.
+_UNPUBLISHED_RE = re.compile(r"not provide report data|must be yesterday or earlier", re.I)
+
 
 def parse_available_accounts(body):
     """Pull the '... The configured accounts are: 484, 512 ...' id list out of Windsor's
@@ -279,41 +296,57 @@ def fetch_chunk(api_key, d_from, d_to, idx, total, account, force=False):
             if status == 400 and "not available" in body.lower():
                 # Account isn't granted to this Windsor connector -- skippable per-account.
                 raise AccountUnavailableError(account, parse_available_accounts(body), body) from None
-            # DATA NOT PUBLISHED YET (root-caused 2026-08-11). Windsor/TTD answers a range whose END
-            # DATE it has not finalised with an INSTANT, EMPTY-BODIED 400 (~1s, no retries involved).
-            # This is NOT load-shedding and NOT a bad field: proven by bisection on the same day --
+            # DATA NOT PUBLISHED YET (root-caused 2026-08-11; RE-root-caused 2026-09-01 after the
+            # 400's SHAPE changed). Windsor answers a range whose END DATE TTD has not finalised
+            # with an INSTANT 400 (~1s, no retries involved). This is NOT load-shedding and NOT a
+            # bad field: proven by bisection on 2026-08-11 --
             #     2026-08-08..2026-08-10 -> HTTP 400 in 0.9s
             #     2026-08-08..2026-08-09 -> 200, 288 rows
-            # The backward walk always starts at yesterday, so the 01:35 UTC run asked for a day that
-            # is never ready at that hour, got the 400, and -- because a bodied-or-not 400 was treated
-            # as PERMANENT -- aborted the ENTIRE run for ALL FIVE TTD clients. It failed every single
-            # night (verified on 08-10, 08-11 and 08-12) while only the 21:35 run ever succeeded.
+            # That 400 was EMPTY-BODIED then; since at latest 2026-08-31 it carries a JSON body
+            # (captured live: {"error":"The Trade Desk does not provide report data for the current
+            # day (UTC): the requested end date (...) must be yesterday or earlier. ..."}), so the
+            # original empty-body test stopped matching and every early run aborted on the
+            # "permanent 400" branch below for weeks. Match the SEMANTICS, not the shape: empty
+            # body (the old form), the known message (the new form), or -- the backstop for
+            # Windsor's NEXT rewording -- any 400 on a chunk ending within 2 days of today that is
+            # not a lost-access 400. A 400 on OLDER dates still fails loudly below: a bad field
+            # name or an auth break must never be swallowed as "not published yet".
             #
             # Retrying is useless (the date cannot become published while we wait), so instead STEP
             # THE WINDOW BACK a day at a time and re-ask. That recovers every day TTD *has* published
             # inside the chunk rather than losing the whole chunk, and it self-adapts to whatever hour
             # TTD finalises on -- no schedule change and no per-run configuration.
-            if status == 400 and not body.strip() and d_to > d_from:
+            unpublished = status == 400 and (
+                not body.strip()
+                or _UNPUBLISHED_RE.search(body)
+                or d_to >= date.today() - timedelta(days=2)
+            )
+            if unpublished and d_to > d_from:
                 d_to = d_to - timedelta(days=1)
                 params["date_to"] = d_to.isoformat()
                 # Re-key the on-disk cache to the window we ACTUALLY fetched, or a later non-force
                 # run would read narrower rows back under the original (wider) range's filename.
                 cache_file = chunk_filename(d_from, d_to, account)
-                log.warning(f"    HTTP 400 with empty body in {elapsed:.1f}s -- TTD has not published "
-                            f"that day yet; stepping the window back to {d_from}..{d_to} and retrying")
+                log.warning(f"    HTTP 400 in {elapsed:.1f}s (body: {body[:160]!r}) -- TTD has not "
+                            f"published that day yet; stepping the window back to {d_from}..{d_to} "
+                            f"and retrying")
                 attempt = 0                      # a narrower window is a NEW request, not a retry
                 continue
-            # Single-day window and still an empty 400 => that one day simply is not available yet.
-            # Return empty rather than killing the account; the next run picks it up once published.
-            if status == 400 and not body.strip():
-                log.warning(f"  [{tag}] {d_from} not published by TTD yet -- skipping this chunk "
-                            f"(it will land on a later run). NOT an error.")
+            # Single-day window and still an unpublished 400 => that one day simply is not available
+            # yet. Return empty rather than killing the account; the next run picks it up once
+            # published.
+            if unpublished:
+                log.warning(f"  [{tag}] {d_from} not published by TTD yet (body: {body[:160]!r}) -- "
+                            f"skipping this chunk (it will land on a later run). NOT an error.")
                 return []
             # `from None` suppresses the chained HTTPError: its message embeds the full request URL,
             # which carries `api_key=...` -- that was leaking the Windsor secret into Cloud Logging.
+            # The body goes out as repr() ON THE SAME LINE: a bare JSON body printed on its own line
+            # is parsed by Cloud Run's logging agent into jsonPayload and VANISHES from textPayload
+            # queries -- exactly how the 2026-08-31 failures hid their cause.
             raise RuntimeError(
                 f"Chunk {d_from}..{d_to} got permanent HTTP {status}. This will NOT "
-                f"recover by retrying -- likely a bad field name or auth. Body:\n{body}"
+                f"recover by retrying -- likely a bad field name or auth. Body: {body!r}"
             ) from None
         except requests.exceptions.RequestException as e:
             # Includes ConnectionError/RemoteDisconnected -- Windsor dropping the
@@ -543,6 +576,17 @@ def main():
         end_d = date.fromisoformat(pos[1])
     else:
         end_d = date.today() - timedelta(days=1)
+        # WINDSOR_LOOKBACK_DAYS bounds a no-args run to the last N days (as a fixed range) instead
+        # of the full backward walk to MIN_DATE. The scheduled job sets 35: a nightly run needs the
+        # recent restatement window, not 11 years -- the unbounded walk re-merged the whole seat's
+        # history every run, which is the only reason scheduled runs were ever long enough to hit
+        # the Cloud Run 3600s task kill (see WINDSOR_MAX_ATTEMPTS above). A restatement older than
+        # the cap needs a manual fixed-range run (see the README). Laptop no-args runs (env unset)
+        # keep the auto-discovering backward walk unchanged.
+        lookback = int(os.environ.get("WINDSOR_LOOKBACK_DAYS", "0"))
+        if lookback > 0:
+            start_d = end_d - timedelta(days=lookback - 1)
+            fixed_range = True
 
     log.info("=" * 60)
     mode = (f"fixed range {start_d}..{end_d}" if fixed_range

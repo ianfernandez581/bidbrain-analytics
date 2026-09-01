@@ -600,6 +600,15 @@ def report_route():
     return Response(json.dumps(rpt), mimetype="application/json", headers={"Cache-Control": "no-store"})
 
 
+@app.get("/geocon-mark.png")
+def geocon_mark():
+    """The GEOCON wordmark on the login card. Public - the login page is pre-auth."""
+    if not GEOCON_MARK_PNG:
+        abort(404)
+    return Response(GEOCON_MARK_PNG, mimetype="image/png",
+                    headers={"Cache-Control": "public, max-age=86400"})
+
+
 @app.get("/sketch.png")
 def sketch():
     """The architectural elevation behind the login card. Public - pre-auth, like the logo."""
@@ -615,16 +624,6 @@ def logo():
     if LOGO_PNG is None:
         abort(404)
     return Response(LOGO_PNG, mimetype="image/png",
-                    headers={"Cache-Control": "public, max-age=86400"})
-
-
-@app.get("/geocon-mark.png")
-def geocon_mark():
-    """Serve the Geocon corporate wordmark. Public - the LOGIN page renders it, so requiring auth
-    here would leave a broken image on the one page nobody is authenticated for yet."""
-    if GEOCON_MARK_PNG is None:
-        abort(404)
-    return Response(GEOCON_MARK_PNG, mimetype="image/png",
                     headers={"Cache-Control": "public, max-age=86400"})
 
 

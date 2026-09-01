@@ -3,12 +3,32 @@
 -- awareness video (A$12,000 / 266,667 imps / plan CPV A$0.50) and Canberra-investor search
 -- (A$16,500 / 350 clicks / plan CTR 2.5%), plus a A$7,500 management fee that is not media.
 --
--- SOURCE IS DTS, NOT WINDSOR, and that is deliberate. Geocon Group (customer_id 5457742070) is
--- ALREADY linked under the MCC 3451896252 that DTS mirrors and it refreshes daily and free;
+-- SOURCE IS DTS, NOT WINDSOR, and that is deliberate. It refreshes daily and free;
 -- raw_windsor.perf_google_ads is a laptop-run fallback loader that last ran 2026-06-06 and does
 -- not carry the account at all.
 --
--- THE THREE NORTHBOURNE CAMPAIGNS ALREADY EXIST AND ARE PAUSED (verified 2026-08-24):
+-- ***PER-ACCOUNT TABLE SET, NOT THE MCC's (2026-08-31).*** This used to read the MCC's own table
+-- set. On 2026-08-18 every MCC-level run began failing with, in Google's words:
+--   "Metrics cannot be requested for a manager account. To retrieve metrics, issue separate
+--    requests against each client account under the manager account."
+-- Nothing about our access changed (ian@100.digital still holds Read only on the manager account);
+-- Google stopped serving metrics at manager level. The MCC mirror froze at 2026-08-24 while the
+-- transfer kept reporting SUCCEEDED, so the break was invisible from the data alone - the tell was
+-- that TWO other accounts certainly still spending stopped on the very same day.
+-- The fix is a DTS transfer PER CLIENT ACCOUNT, which writes its own `p_ads_*_<customer_id>` set.
+-- Geocon Group is customer 5457742070.
+--
+-- ***TWO GEOCON ACCOUNTS (2026-08-31).*** A SECOND Google Ads account was opened under the same
+-- 100% Digital MCC purely to bill the YouTube line separately:
+--     5457742070  "Geocon Group"                - search brand + non-brand (+ the original YouTube)
+--     2020134915  "Geocon Group (100D Billed)"  - the A$6,000 YouTube line, flight 08-30..10-31
+-- Both are unioned below, and CAMPAIGN_ID is unique across accounts so nothing double-counts. A
+-- third account needs one more arm in each CTE and nothing else - the plan-line match, the property
+-- map and every downstream consumer key off the campaign NAME, not the account. `CUSTOMER_ID` is
+-- carried through so a per-account split stays possible without another schema change.
+--
+-- THE THREE NORTHBOURNE CAMPAIGNS (status verified 2026-08-31: both SEARCH lines ENABLED and
+-- delivering since 08-29; the YouTube line ran on 08-29 and is PAUSED again):
 --   0201_Geocon_NGW558_ANZ_YouTube_AWR                (VIDEO)
 --   0201_Geocon_NGW558_National_SearchBrand_CNV       (SEARCH)
 --   0201_Geocon_NGW558_National_SearchNonBrand_CNV    (SEARCH)
@@ -39,9 +59,15 @@ WITH map AS (
   WHERE COALESCE(match_pattern, '') != ''
 ),
 camp AS (
-  SELECT DISTINCT campaign_id, campaign_name, campaign_advertising_channel_type AS ch_type, campaign_status
-  FROM `bidbrain-analytics.raw_google_ads.p_ads_Campaign_3451896252`
+  SELECT DISTINCT customer_id, campaign_id, campaign_name,
+         campaign_advertising_channel_type AS ch_type, campaign_status
+  FROM `bidbrain-analytics.raw_google_ads.p_ads_Campaign_5457742070`
   WHERE customer_id = 5457742070
+  UNION DISTINCT
+  SELECT DISTINCT customer_id, campaign_id, campaign_name,
+         campaign_advertising_channel_type AS ch_type, campaign_status
+  FROM `bidbrain-analytics.raw_google_ads.p_ads_Campaign_2020134915`
+  WHERE customer_id = 2020134915
 ),
 names AS (SELECT DISTINCT campaign_name AS nm FROM camp),
 nm_rank AS (
@@ -58,8 +84,15 @@ stats AS (
          SUM(metrics_cost_micros) / 1e6          AS spend,
          SUM(metrics_conversions)                AS conversions,
          SUM(metrics_view_through_conversions)   AS view_through_conversions
-  FROM `bidbrain-analytics.raw_google_ads.p_ads_CampaignBasicStats_3451896252`
-  WHERE customer_id = 5457742070
+  FROM (
+    SELECT campaign_id, segments_date, metrics_impressions, metrics_clicks, metrics_cost_micros,
+           metrics_conversions, metrics_view_through_conversions
+    FROM `bidbrain-analytics.raw_google_ads.p_ads_CampaignBasicStats_5457742070` WHERE customer_id = 5457742070
+    UNION ALL
+    SELECT campaign_id, segments_date, metrics_impressions, metrics_clicks, metrics_cost_micros,
+           metrics_conversions, metrics_view_through_conversions
+    FROM `bidbrain-analytics.raw_google_ads.p_ads_CampaignBasicStats_2020134915` WHERE customer_id = 2020134915
+  )
   GROUP BY 1, 2
 )
 SELECT

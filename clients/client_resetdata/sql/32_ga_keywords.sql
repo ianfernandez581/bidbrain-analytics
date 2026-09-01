@@ -11,12 +11,33 @@
 -- -> AUD via /1e6. Aggregated across ad groups by (keyword, match_type) so a keyword used in several
 -- ad groups shows once. Top 50 by impressions (the dashboard shows the leaders).
 CREATE OR REPLACE VIEW `bidbrain-analytics.client_resetdata.ga_keywords` AS
-WITH kw AS (
+-- TWO table sets, split on one cutover (2026-08-31): the MCC-wide set froze at 2026-08-24 when
+-- Google stopped serving metrics at manager level, and Reset Data's own per-account set takes
+-- over from 08-25. Reading only one of them would either drop the history or double-count the
+-- overlap a DTS refresh window creates. Same cutover as raw_google_ads.perf_google_ads.
+WITH kw_src AS (
+  SELECT ad_group_criterion_criterion_id, ad_group_criterion_keyword_text, ad_group_criterion_keyword_match_type
+  FROM `bidbrain-analytics.raw_google_ads.ads_Keyword_3451896252`
+  WHERE customer_id = 1054407474 AND segments_date <= DATE '2026-08-24'
+  UNION ALL
+  SELECT ad_group_criterion_criterion_id, ad_group_criterion_keyword_text, ad_group_criterion_keyword_match_type
+  FROM `bidbrain-analytics.raw_google_ads.ads_Keyword_1054407474`
+  WHERE segments_date >= DATE '2026-08-25'
+),
+st_src AS (
+  SELECT ad_group_criterion_criterion_id, metrics_impressions, metrics_clicks, metrics_cost_micros, metrics_conversions
+  FROM `bidbrain-analytics.raw_google_ads.ads_KeywordBasicStats_3451896252`
+  WHERE customer_id = 1054407474 AND segments_date <= DATE '2026-08-24'
+  UNION ALL
+  SELECT ad_group_criterion_criterion_id, metrics_impressions, metrics_clicks, metrics_cost_micros, metrics_conversions
+  FROM `bidbrain-analytics.raw_google_ads.ads_KeywordBasicStats_1054407474`
+  WHERE segments_date >= DATE '2026-08-25'
+),
+kw AS (
   SELECT ad_group_criterion_criterion_id AS cid,
     ANY_VALUE(ad_group_criterion_keyword_text)       AS keyword,
     ANY_VALUE(ad_group_criterion_keyword_match_type) AS match_type
-  FROM `bidbrain-analytics.raw_google_ads.ads_Keyword_3451896252`
-  WHERE customer_id = 1054407474
+  FROM kw_src
   GROUP BY cid
 ),
 st AS (
@@ -25,8 +46,7 @@ st AS (
     SUM(metrics_clicks)                      AS clicks,
     ROUND(SUM(metrics_cost_micros) / 1e6, 2) AS spend_aud,
     ROUND(SUM(metrics_conversions), 1)       AS conversions
-  FROM `bidbrain-analytics.raw_google_ads.ads_KeywordBasicStats_3451896252`
-  WHERE customer_id = 1054407474
+  FROM st_src
   GROUP BY cid
 )
 SELECT
