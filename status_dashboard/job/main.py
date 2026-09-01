@@ -1584,8 +1584,14 @@ def read_definitions(client):
 # (1-indexed; part 2 = the email domain) — the SEMANTIC equivalent of sql/10's BigQuery
 # `SPLIT(EMAIL,'@')[SAFE_OFFSET(1)]`. Snowflake has no SAFE_OFFSET, so the byte-copy of the BQ clause
 # threw "Unknown function SAFE_OFFSET" on every CS check (fixed 2026-07-16).
+# 2026-08-27: EXACT domain list, was LIKE '%transmission%'. The substring also matched
+# allisontransmission.com and dhoottransmission.com - real companies, not Transmission.
+# Verified a strict no-op (the two predicates differ on 11 rows, NONE of them inside any
+# client-view scope), but this side and clients/client_cloudflare/sql/{10,14,16} must move
+# TOGETHER or this check and the dashboard stop agreeing.
 _CF_TEST_LEAD_FILTER = (
-    "\n  AND LOWER(COALESCE(SPLIT_PART(EMAIL, '@', 2), '')) NOT LIKE '%transmission%'")
+    "\n  AND LOWER(COALESCE(SPLIT_PART(EMAIL, '@', 2), '')) NOT IN"
+    "\n      ('transmissionagency.com', 'transmission.com')")
 
 
 def _cf_cs_cte(defs):

@@ -91,9 +91,18 @@ FROM `bidbrain-analytics.raw_snowflake.salesforce_cs_apac_all`
 WHERE CAMPAIGN_ID IN (SELECT campaign_id FROM `bidbrain-analytics.client_cloudflare.seed_cs_campaign_ids`)
   -- Exclude Transmission TEST leads (2026-07-07, per the Jade call): the vendors were sent
   -- >=2 test leads each, all on Transmission emails (Nabeel/Shalvi/Jade). They inflate the
-  -- rejection rate and every count, so drop any lead whose email DOMAIN contains 'transmission'
-  -- (covers transmission.com / transmissionagency.com / any Transmission variant). Real leads keep.
-  AND LOWER(IFNULL(SPLIT(EMAIL, '@')[SAFE_OFFSET(1)], '')) NOT LIKE '%transmission%'
+  -- rejection rate and every count, so drop any lead sent from a Transmission email DOMAIN.
+  --
+  -- EXACT DOMAIN LIST, never LIKE '%transmission%' (fixed 2026-08-27). The substring also matched
+  -- REAL companies whose domain merely ends in the word: allisontransmission.com (Allison
+  -- Transmission, 10 leads) and dhoottransmission.com (Dhoot Transmission, 1). None is in scope
+  -- today, so tightening this moved no figure - but the day one of them submits on an in-scope
+  -- campaign the substring would silently delete a genuine client lead, and silence is the failure
+  -- mode this repo cannot afford. An exact list fails the other way: a NEW Transmission domain
+  -- leaks test leads back in, which shows up as counts going UP and gets noticed. Add it here.
+  -- (This is the same trap the note in sql/16 already warned about for Advantest Corporation.)
+  AND LOWER(IFNULL(SPLIT(EMAIL, '@')[SAFE_OFFSET(1)], '')) NOT IN
+      ('transmissionagency.com', 'transmission.com')
   -- Q2-ONLY campaigns (2026-08-05, client request): the 4 P* Surround-ABM/Modernize campaigns are
   -- Q2 campaigns that still receive REPLACEMENT leads for rejected Q2 leads; the replacements
   -- carry Q3 created dates (DAY) and were surfacing on the Q3 side of the dashboard. Their leads

@@ -41,12 +41,18 @@ desktop.ini
 _run/
 
 # Claude Code harness / session state (not part of the project) -- but DO track the shared
-# team slash commands under .claude/commands/ (/push, /ship). Ignore everything else.
+# team slash commands under .claude/commands/ (/push, /ship) and the shared team skills under
+# .claude/skills/ (agent guidance that encodes repo rules). Ignore everything else.
 .claude/*
 !.claude/commands/
+!.claude/skills/
 
 # Per-developer branch name remembered by scripts/push-branch.ps1 (machine-local)
 scripts/.devname
+
+# Personal timesheet / work-record exports (per-developer, for ClickUp). The repo rule is that
+# the git log is the changelog, so narrative summaries of one's own work stay out of the tree.
+DEV_WORK_*.md
 
 # Local client-demo previews (static design snapshots incl. a data.json copy — never commit).
 # Serve with staging/serve.ps1 to show a redesign to a client before deploying it.

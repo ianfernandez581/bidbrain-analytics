@@ -5,6 +5,16 @@
 > [`ingest/windsor_data_pull/`](../README.md) — read that first for the shared loader design
 > (chunking, retries, MERGE, run modes).
 
+**SCHEDULED since 2026-08-31** as `windsor-ga4-ingest` (21:25 UTC daily, one Cloud Run job running
+`ga4_loader.py` then `events_loader.py`; `scripts/deploy_ingest_jobs.ps1`). The job is **PINNED to
+the two Geocon GA4 properties** (`550962241` / `551838402`) via the `GA4_ACCOUNTS` env var — those
+are the only properties whose dashboard depends on this pipe (geocon's Website tab); every other
+property in `SELECT_ACCOUNTS` gets GA4 via the free native DTS route or is dormant, and an
+unpinned nightly run would attempt full backward-walk backfills for ~20 of them. Laptop runs
+without the env var keep the full-list behaviour. Retire the job if Geocon ever grants
+`ian@100.digital` GA4 Viewer — the (already-created, currently permission-failing) DTS transfers
+for the two properties then take over.
+
 **Plain English:** Meta and Trade Desk tell us what an ad *delivered* (impressions, clicks,
 spend). GA4 tells us what the click *did on the website* — how many sessions it drove, whether
 people engaged, and whether they converted or bought. This fetches those on-site numbers per

@@ -67,9 +67,15 @@ WITH base AS (
     -- Match on the email DOMAIN, never on the string 'test' anywhere: a real rejected lead
     -- from Advantest Corporation (advantest.com) carries 'test' inside the company name and
     -- inside its domain, and a naive 'test' match would silently drop a genuine client lead.
-    -- The only domain this catches today is transmissionagency.com (13 leads at 2026-08-27);
-    -- the substring keeps transmission.com and any other variant covered.
-    AND LOWER(IFNULL(SPLIT(EMAIL, '@')[SAFE_OFFSET(1)], '')) NOT LIKE '%transmission%'
+    -- The only domain this catches today is transmissionagency.com (13 leads at 2026-08-27).
+    --
+    -- And match the domain EXACTLY, not with LIKE '%transmission%' (fixed 2026-08-27): the
+    -- substring hit the same trap one level down, dropping allisontransmission.com (Allison
+    -- Transmission, 10 leads) and dhoottransmission.com (Dhoot Transmission, 1) - real
+    -- manufacturers. Neither is in scope here, so this moved nothing; it stops a genuine lead
+    -- disappearing silently the day one of them lands on an in-scope campaign.
+    AND LOWER(IFNULL(SPLIT(EMAIL, '@')[SAFE_OFFSET(1)], '')) NOT IN
+        ('transmissionagency.com', 'transmission.com')
 ),
 typed AS (
   SELECT
@@ -94,6 +100,14 @@ typed AS (
       WHEN 'INTERLINK'        THEN 'Interlink'
       WHEN 'PIPELINE360'      THEN 'Pipeline360'
       WHEN 'INBOXINSIGHT'     THEN 'Inbox Insight'
+      -- SPECULATIVE (2026-08-31): SitPub is on the client's regional-publisher list but has
+      -- NO delivery in the feed yet, so this token is a guess at the convention above. If it
+      -- lands under a different spelling it renders raw - fix the token here when it arrives.
+      WHEN 'SITPUB'           THEN 'SitPub'
+      -- Acquisition (2026-08-31, per Jade): a REAL EMEA CS partner (streams 2&3 of the
+      -- "Q3 EMEA Content Syndication" plan), previously excluded below as "not a publisher".
+      -- The display name is the join key for its rows in seed_cs_targets_q3.
+      WHEN 'ACQUISITION'      THEN 'Acquisition'
       ELSE SEG_VENDOR
     END AS VENDOR,
     -- BOOK: which plan the campaign is bought under. Added 2026-08-27 on Lydia's request to
@@ -116,7 +130,13 @@ typed AS (
     -- Adding a programme = one line here, and the job log names it for you.
     CASE
       WHEN SEG_PROGRAM = 'ANZ DnB' THEN 'Regional'
-      WHEN SEG_PROGRAM IN ('CF1', 'GENERAL', 'Tier 3', 'All Verticals', 'Japan Tier 2',
+      -- 'EXP' joined the Core DG list 2026-08-31: the client's "Q3 EMEA Content Syndication"
+      -- pacing sheet buys the CF1 EXP line as part of the same plan (streams 2&3 - Pipeline360,
+      -- Inbox Insight, Acquisition all carry CF1 EXP lead targets), so it is Core DG, not the
+      -- excluded expansion motion the 2026-08-27 note assumed. Its names carry an extra
+      -- segment (2026_Q3_<region>_<vendor>_EXP_CF1_...) but that segment sits AFTER the three
+      -- this view reads, so region/vendor parse identically and 'EXP' is the program label.
+      WHEN SEG_PROGRAM IN ('CF1', 'GENERAL', 'Tier 3', 'All Verticals', 'Japan Tier 2', 'EXP',
                            'VER-DIGITAL NATIVE', 'VER-FINANCE', 'VER-RETAIL') THEN 'Core DG'
       ELSE 'Unclassified'
     END AS BOOK,
@@ -143,16 +163,15 @@ scoped AS (
   -- see the BOOK CASE above. It has no seeded targets, so it surfaces as delivery with no
   -- pacing, exactly like Pipeline360 did; that is correct and must not be suppressed.
   --
-  -- Still out of scope, both deliberately:
-  --   * SEG_PROGRAM 'EXP' - the expansion motion, not a Content-Syndication demand-gen buy.
-  --   * VENDOR 'ACQUISITION' - NOT a publisher. Those campaign names are shaped differently
-  --     (e.g. 2026_Q3_EMEA-DACH_ACQUISITION_EXP_CF1_... carries an extra segment), so the
-  --     vendor-position token is a motion label and every downstream offset is shifted by
-  --     one. 482 rows at 2026-08-27, ALL still LEAD_STATUS='New' (zero delivered), so nothing
-  --     is being hidden from a pacing figure. Revisit if Transmission regularises the naming.
+  -- The 2026-08-27 exclusions of SEG_PROGRAM 'EXP' and VENDOR 'ACQUISITION' were REMOVED
+  -- 2026-08-31, and both of that note's premises are dead:
+  --   * Jade confirmed Acquisition IS a CS partner (streams 2&3 of the "Q3 EMEA Content
+  --     Syndication" plan, CPL $32, with seeded weekly targets) - not a motion label.
+  --   * Its 482 all-'New' rows had become mostly DELIVERED by 08-31 (e.g. EXP UKI 60 accepted /
+  --     17 rejected), so the exclusion was hiding real delivery from the pacing figures.
+  --   * CF1 EXP is a bought line on the same plan (all three partners carry EXP lead targets),
+  --     and the extra `EXP` segment sits after the segments this view parses - see BOOK above.
   SELECT * FROM typed
-  WHERE SEG_PROGRAM <> 'EXP'
-    AND UPPER(VENDOR) <> 'ACQUISITION'
 )
 SELECT
   THEATRE,

@@ -393,12 +393,15 @@
     --li-blue:#3B93E8; --li-blue-soft:rgba(59,147,232,.18);
     --rd-red:#FF4500; --purple:#6B3FA0;
   }
-  .panel-paid-scope .section,#panel-main .section{margin:24px 0 12px 0;display:flex;align-items:baseline;gap:14px;border-top:1px solid var(--on-canvas-line);padding-top:18px}
+  /* flex-wrap (2026-08-31): a long .sub note + a right-pinned control (the creative CHANNEL
+     seg) used to SQUEEZE the control - .seg has overflow:hidden, so its end buttons clipped
+     mid-word instead of wrapping. Wrapping costs nothing when everything fits. */
+  .panel-paid-scope .section,#panel-main .section{margin:24px 0 12px 0;display:flex;flex-wrap:wrap;align-items:baseline;gap:14px;border-top:1px solid var(--on-canvas-line);padding-top:18px}
   .panel-paid-scope .section h2,#panel-main .section h2{font-size:16px;margin:0;letter-spacing:-.2px;color:var(--on-canvas)}
   .panel-paid-scope .section .sub,#panel-main .section .sub{font-size:12px;color:var(--on-canvas-mute);margin:0}
   .panel-paid-scope .section.first{border-top:none;padding-top:0;margin-top:0}
   .panel-paid-scope .section.creatives-head h2{white-space:nowrap;flex-shrink:0}
-  .panel-paid-scope .section.creatives-head .seg{align-self:center;margin-left:auto}
+  .panel-paid-scope .section.creatives-head .seg{align-self:center;margin-left:auto;flex:0 0 auto}
 
   .kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:14px}
   .kpi{background:var(--cf-card);border:1px solid var(--cf-line);border-radius:12px;padding:14px 16px;position:relative;overflow:hidden;box-shadow:var(--shadow-card)}
@@ -1187,6 +1190,16 @@
           </div>
         </div>
 
+        <!-- 3.3b weekly pacing chart (2026-08-31, John's request): target vs accepted per week,
+             the APJ weekly-pacing chart's shape pointed at this section's scope. Follows the
+             campaign + publisher pickers; clicking a bar selects that week (rej-chart pattern). -->
+        <div class="card">
+          <h3>Weekly pacing - target vs accepted</h3>
+          <div class="hint">Bars: each week's target next to its accepted leads. Click a bar to select that week.</div>
+          <div class="chart-wrap tall"><canvas id="cspdWeeklyChart"></canvas></div>
+          <div class="cspd-note" id="cspdWeeklyNote"></div>
+        </div>
+
         <!-- 3.4 two charts, side by side -->
         <div class="grid">
           <div class="card">
@@ -1504,6 +1517,22 @@
             <div class="kpis" id="gaVideoKpis" style="grid-template-columns:repeat(4,1fr)"></div>
             <div style="height:200px"><canvas id="gaVideoFunnel"></canvas></div>
             <div class="sub" id="gaVideoFoot" style="margin-top:10px"></div>
+          </div>
+        </div>
+
+        <!-- Google Ads PMax lead-gen strip (2026-08-31). Whole-flight campaign grain from
+             paid_media.ga_campaigns - the Q3 benchmark workbook carries NO PMax benchmark
+             (its $411 cybersecurity CPL covers qualified leads, not platform form fills), so
+             cost per conversion is shown as an ACTUAL with that said out loud, never graded
+             against zero. The third tile is Google's own 50-conversion validity rule. -->
+        <div id="gaPmaxBlock" style="display:none">
+          <div class="section" style="margin-top:18px">
+            <h2>Google Ads - Performance Max lead generation</h2>
+            <span class="sub">Whole flight, independent of the date picker. Conversions are <b>platform-reported form fills</b> - a different thing from LinkedIn lead-gen leads or Salesforce CS leads, so they are never folded into a lead total.</span>
+          </div>
+          <div class="card">
+            <div class="kpis" id="gaPmaxKpis" style="grid-template-columns:repeat(3,1fr)"></div>
+            <div class="sub" id="gaPmaxFoot" style="margin-top:10px"></div>
           </div>
         </div>
 
@@ -1834,6 +1863,8 @@ function bbApplySpendMult(){
   const pm = C.paid_media || {};
   (pm.rows || []).forEach(r=>{ if(r._rawSpend==null) r._rawSpend=_n(r.spend_usd); r.spend_usd = r._rawSpend * bbMultFor(bbChannelKey(r.channel)); });
   (pm.creatives || []).forEach(r=>{ if(r._rawSpend==null) r._rawSpend=_n(r.spend_usd); r.spend_usd = r._rawSpend * bbMultFor(bbChannelKey(r.channel)); });
+  // Google Ads campaign grain (2026-08-31, PMax strip) - all rows are Google Ads by definition.
+  (pm.ga_campaigns || []).forEach(r=>{ if(r._rawSpend==null) r._rawSpend=_n(r.spend_usd); r.spend_usd = r._rawSpend * bbMultFor('google'); });
   // Single-campaign LinkedIn views (CF1 / peyc / coles_hyper) are LinkedIn-only. Their
   // `totals` + `by_campaign` are PRECOMPUTED (read directly, not re-derived from `daily`),
   // so gross all three spend fields by the LinkedIn factor. The CF1 `cs` block is leads.
@@ -2882,6 +2913,32 @@ function aggregate(filterFn) {
   // asset's own lead count across two bars. The chart already stacks by solution, so the
   // per-solution split belongs INSIDE the bar. assetId() also folds the file-slug asset
   // names onto their short code - see ASSET_ALIASES.
+  //
+  // >>> ONE-SOLUTION-PER-ASSET RESOLVER (2026-08-31, plumbing only - NOT switched on) >>>
+  // 11 assets legitimately span solutions (e.g. A-MAT-2) and the client has not yet chosen
+  // the collapse rule, so the mechanism ships with the DEFAULT preserving today's behaviour:
+  //   'stacked'  - current: each asset's leads stack by the solution of the campaign each
+  //                lead arrived on (the per-solution split renders inside the bar).
+  //   'dominant' - collapse each asset to its single highest-lead solution (whole bar takes
+  //                that colour; the asset's total is unchanged).
+  //   'override' - the client's master mapping first (ASSET_SOLUTION_OVERRIDES, asset id ->
+  //                solution label), falling back to 'dominant' for unmapped assets.
+  // Flipping the rule is a one-word edit here + a dash redeploy; totals never move, only
+  // which colour(s) an asset's bar carries.
+  //
+  // DELIBERATELY 'stacked' - DO NOT FLIP THIS AS CLEANUP. The client (Jade) has not yet
+  // chosen the collapse rule (highest volume vs original solution vs a master mapping list);
+  // this stays 'stacked' until that decision lands, however finished the other modes look.
+  const ASSET_SOLUTION_MODE = 'stacked';
+  const ASSET_SOLUTION_OVERRIDES = {};   // e.g. {'A-MAT-2': 'Modernize Applications'}
+  function resolveAssetSolutions(svcMap, id) {
+    if (ASSET_SOLUTION_MODE === 'stacked' || svcMap.size < 2) return svcMap;
+    const entries = [...svcMap.entries()].sort((x, y) => y[1] - x[1]);
+    const total = entries.reduce((s, e) => s + e[1], 0);
+    const win = (ASSET_SOLUTION_MODE === 'override' && ASSET_SOLUTION_OVERRIDES[id])
+      ? ASSET_SOLUTION_OVERRIDES[id] : entries[0][0];
+    return new Map([[win, total]]);
+  }
   const assetAgg = new Map();
   for (const r of breakdownLeads) {
     const id = assetId(r.ASSET_1);
@@ -2896,7 +2953,7 @@ function aggregate(filterFn) {
     .sort((a,b) => b.total - a.total)
     .slice(0, 12)
     .map(a => ({ id: a.id, name: assetName(a.id), total: a.total,
-                 services: [...a.svc.entries()].sort((x,y) => y[1] - x[1]) }));
+                 services: [...resolveAssetSolutions(a.svc, a.id).entries()].sort((x,y) => y[1] - x[1]) }));
 
   // Per-market targets are quarter-anchored too (full-quarter plan per region), matching
   // the headline q2Target; mAccepted stays the in-range actual (QTD accepted per region).
@@ -3388,8 +3445,13 @@ function assetTooltipTitle(raw) {
 function renderAssets(agg) {
   destroy('assetsChart');
   const solColors = {
-    'Connectivity Cloud':'#F38020','Modernized Security':'#0A66C2',
-    'Modernized Applications':'#1F9D55','Modernized Networks':'#6B3FA0',
+    // Keys = sql/13's SERVICE labels, renamed 2026-08-31 to the client's canonical solution
+    // names ('Modernize X', not 'Modernized X') - keep in lockstep with the SQL CASE. The
+    // legacy spellings stay as fallbacks so a cached pre-rename payload keeps its colours.
+    'Connectivity Cloud':'#F38020','Modernize Security':'#0A66C2',
+    'Modernize Applications':'#1F9D55','Modernize Network':'#6B3FA0',
+    'Modernized Security':'#0A66C2','Modernized Applications':'#1F9D55',
+    'Modernized Networks':'#6B3FA0',
     'Unknown':'#5A6B78','Other':'#5A6B78'
   };
   const rows = agg.assets;
@@ -3786,22 +3848,38 @@ function renderCsPacingDetail(){
   // the plan is bought in and what every other pacing figure on this tab already uses - the
   // campaign-to-date band, the publisher table, and the deficit tile itself. The caption names
   // the metric explicitly so nobody re-derives it from the Delivered tile above.
-  S('cspd_w_pace',  cspdPct(w.accepted, w.target));
+  //
+  // LIKE FOR LIKE (2026-08-31, Calvin): pace only the publishers the target covers. In a week
+  // where SOME publishers carry a target (EMEA weeks 1-3 are IDE Lite = Roverpath/Final Funnel
+  // only - streams 2&3 targets start at plan week 4/5 by design), blending EVERY publisher's
+  // accepted into the numerator against that partial denominator read 983%. The pacing
+  // numerator and the deficit now count accepted leads from (publisher, week) cells that carry
+  // a target - the same universe as the denominator, which is what APJ's pacing has always
+  // effectively compared (every APJ publisher carries a target every week, so the distinction
+  // never surfaces there). Delivered / Rejected / Acceptance-rate tiles stay whole-scope facts,
+  // and the caption says when the numerator is narrower than the Delivered tile above it.
+  const tgtCells = new Set(slice.filter(r => (r.target || 0) > 0)
+                                .map(r => r.vendor + '||' + r.week_start));
+  const paceAcc = slice.filter(r => tgtCells.has(r.vendor + '||' + r.week_start))
+                       .reduce((s, r) => s + (r.accepted || 0), 0);
+  S('cspd_w_pace',  cspdPct(paceAcc, w.target));
   // A week still running is measured against its FULL target, so it always reads behind -
   // APAC's w/c 24 Aug showed 67.6% on day 4 of 7. The band is deliberately whole-week (it is
   // a weekly delivery report, not a pace curve; the prorated pace lives in the KPI strip
   // above), so the fix is to SAY the week is incomplete rather than to prorate this figure.
   const wkDay = (!qtd && CSPD.week) ? cspdDayInWeek(CSPD.week) : 0;
   S('cspd_w_pace_cnt', w.target
-      ? w.accepted.toLocaleString() + ' accepted vs ' + w.target.toLocaleString() + ' target'
+      ? paceAcc.toLocaleString() + ' accepted vs ' + w.target.toLocaleString() + ' target'
+        + (paceAcc !== w.accepted ? ' - publishers with a target ' + (qtd ? 'in these weeks' : 'this week') + ' only' : '')
         + (wkDay && wkDay < 7 ? ' - week in progress, day ' + wkDay + ' of 7' : '')
       : 'no target for this week');
-  const deficit = w.target - w.accepted;
+  const deficit = w.target - paceAcc;
   S('cspd_w_def', w.target ? (deficit > 0 ? deficit.toLocaleString() : '0') : '-');
   S('cspd_w_def_cnt', !w.target ? 'no target to measure against'
                     : deficit > 0 ? 'accepted leads behind target' : 'target met');
 
   cspdRenderMarketChart(cfg, slice, wkName);
+  cspdRenderWeeklyChart(cfg, rows);
   cspdRenderRejChart(cfg, rows);
   cspdRenderVendorTable(cfg);
   cspdRenderReasons(cfg, wkName);
@@ -3998,6 +4076,54 @@ function cspdRenderMarketChart(cfg, slice, wkName){
   }
 }
 
+// Weekly pacing: each week's TARGET next to its ACCEPTED leads (2026-08-31, John's request -
+// the APJ weekly-pacing chart's read, pointed at this section's book/publisher scope). Same
+// series shape and colours as the APJ #weeklyChart (Target vs Accepted actual); same
+// click-to-select and selected-week emphasis as the rejection chart beside it.
+function cspdRenderWeeklyChart(cfg, rows){
+  destroy('cspdWeeklyChart');
+  const el = document.getElementById('cspdWeeklyChart');
+  if (!el) return;
+  const byWk = {};
+  for (const r of rows){
+    if (!r.week_start) continue;
+    const o = byWk[r.week_start] = byWk[r.week_start] || { target:0, accepted:0 };
+    o.target += (r.target || 0); o.accepted += (r.accepted || 0);
+  }
+  const wks = cfg.weeks;
+  // Single-publisher scope with allocation-only targets: pace against nothing, not the
+  // allocation (the same cfg.targetsApply rule every other panel follows).
+  const tgt = wks.map(k => cfg.targetsApply ? ((byWk[k] || {}).target || 0) : 0);
+  const acc = wks.map(k => (byWk[k] || {}).accepted || 0);
+  const dimIf = (base, k) => k === CSPD.week || CSPD.week === 'qtd'
+    ? base : 'color-mix(in srgb,' + base + ' 45%,transparent)';
+  charts['cspdWeeklyChart'] = new Chart(el, {
+    type: 'bar',
+    data: { labels: wks.map(cspdWkLabel), datasets: [
+      { label: 'Target',   data: tgt, borderRadius: 3, maxBarThickness: 22,
+        backgroundColor: wks.map(k => dimIf(TARGET, k)) },
+      { label: 'Accepted', data: acc, borderRadius: 3, maxBarThickness: 22,
+        backgroundColor: wks.map(k => dimIf(CF, k)) },
+    ]},
+    options: { responsive: true, maintainAspectRatio: false,
+      onClick: (e, act) => { if (act.length) cspdSetWeek(wks[act[0].index]); },
+      // Legend swatches draw from backgroundColor[0], which is dimmed unless week 1 is the
+      // selection - same trap as the rejection chart - but with TWO series the legend has to
+      // exist, so force full-strength swatches via generateLabels instead of hiding it.
+      plugins: { legend: { position: 'bottom', labels: { boxWidth: 9, boxHeight: 9, padding: 12,
+          generateLabels: chart => chart.data.datasets.map((d, i) => (
+            { text: d.label, fillStyle: i === 0 ? TARGET : CF, strokeStyle: 'transparent',
+              datasetIndex: i })) } },
+        tooltip: { callbacks: { label: c => ' ' + c.dataset.label + ': ' + fmtN(c.parsed.y) } } },
+      scales: { x: { grid: { display: false } },
+        y: { beginAtZero: true, grid: { color: LINE }, ticks: { precision: 0 } } } },
+  });
+  const n = document.getElementById('cspdWeeklyNote');
+  if (n) n.textContent = CSPD.week === 'qtd'
+    ? 'Showing every week of the ' + cfg.period_label + ' plan.'
+    : 'Selected: week of ' + cspdWkLabel(CSPD.week) + '.';
+}
+
 // Rejected count per week with the rejection rate overlaid. Bars are clickable and
 // stay in sync with the chips above.
 function cspdRenderRejChart(cfg, rows){
@@ -4120,13 +4246,36 @@ function cspdRenderVendorTable(cfg){
     + 'Pacing is accepted leads against target. Click a row to scope the panels above to it.';
   const note = document.getElementById('cspdVendorNote');
   if (note){
-    // The client's plan sets targets per market per week and has no publisher dimension, so the
-    // per-publisher column is OUR split of it - a flat 1:1 on EMEA, 2:1:1 on APJ. Both theatres
-    // get this line for that reason: APJ's allocation is no more client-set than EMEA's. The
-    // numbers stay on screen (they are how the book is actually run); this is what stops them
-    // being read as a commitment Cloudflare made. See CSPD_PUBLISHER_TARGETS_ARE_REAL.
-    const allocated = 'Publisher targets are an internal allocation of the market plan, not a '
-      + 'client-set target. Publisher pacing is indicative.';
+    // TWO kinds of publisher target since 2026-08-31, and the footnote must not call one the
+    // other. The Stream 1 / APJ plans set targets per market per week with no publisher
+    // dimension, so those rows carry OUR split (EMEA Stream 1 flat 1:1, APJ 2:1:1) - labelled
+    // indicative so they are never read as a commitment Cloudflare made. But Pipeline360,
+    // Inbox Insight and Acquisition targets come straight off the client's OWN "Q3 EMEA
+    // Content Syndication" pacing sheet (streams 2&3, per publisher per region per week) -
+    // calling those "not client-set" would undersell the client's own numbers.
+    const CSPD_CLIENT_SET_VENDORS = new Set(['Pipeline360', 'Inbox Insight', 'Acquisition']);
+    // EMEA ONLY: Roverpath + Final Funnel carry the plan's IDE Lite line (2,565 - the plan's
+    // own note says "IDE Lite is Rover Path and Final Funnel") split PRO RATA TO DELIVERY TO
+    // DATE, an INTERIM split pending the client's confirmed ratio - the ratio lives in
+    // targets/build_ide_lite_split.py (one-line change when Jade answers). On APJ the same
+    // vendor names carry the 2:1:1 internal allocation and keep the allocation wording.
+    const CSPD_INTERIM_SPLIT_VENDORS = new Set(['Roverpath', 'Final Funnel']);
+    const withTgt   = list.filter(o => o.target).map(o => o.vendor);
+    const interim   = cfg.theatre === 'EMEA' ? withTgt.filter(v => CSPD_INTERIM_SPLIT_VENDORS.has(v)) : [];
+    const clientSet = withTgt.filter(v => CSPD_CLIENT_SET_VENDORS.has(v));
+    const alloc     = withTgt.filter(v => !CSPD_CLIENT_SET_VENDORS.has(v) && !interim.includes(v));
+    const parts = [];
+    if (clientSet.length) parts.push(clientSet.join(', ') + ' targets come from the client\'s own pacing sheet.');
+    if (interim.length)   parts.push(interim.join(', ') + ' share the plan\'s IDE Lite target, '
+      + 'split in proportion to delivery to date - an interim split pending client confirmation.');
+    if (alloc.length)     parts.push(alloc.join(', ') + ' targets are an internal allocation of '
+      + 'the market-level plan, so their publisher pacing is indicative.');
+    let allocated = parts.join(' ');
+    // APJ (no client-set, no interim vendors) keeps its original wording byte-for-byte.
+    if (!clientSet.length && !interim.length) {
+      allocated = 'Publisher targets are an internal allocation of the market plan, not a '
+        + 'client-set target. Publisher pacing is indicative.';
+    }
     const noTgt = list.filter(o => !o.target).map(o => o.vendor);
     note.className = 'cspd-note';
     note.textContent = allocated + ' ' + (noTgt.length
@@ -4873,7 +5022,10 @@ function adaptPayload(data) {
       TTD:      {ctr:0.00112, cpm:10.07, cpc:9.02},
       LinkedIn: {ctr:0.00488, cpm:49.48, cpc:10.13},
       Reddit:   {ctr:0.002,   cpm:5.0,   cpc:2.0},
-      LINE:     {ctr:0.001,   cpm:0.7,   cpc:0.7}
+      LINE:     {ctr:0.001,   cpm:0.7,   cpc:0.7},
+      // Q3 benchmark workbook (CF_Q3_July_Channel_Benchmarks_v3): YouTube in-stream CTR /
+      // Japan YouTube CPM. No CPC benchmark exists in that set -> null, rendered as "-".
+      GoogleAds:{ctr:0.0012,  cpm:4.0,   cpc:null}
     },
     benchmarks_market: data.benchmarks_market || {
       ANZ:   {ctr:0.00179, cpm:29.06, cpc:16.27},
@@ -4885,6 +5037,9 @@ function adaptPayload(data) {
       GCR:   {ctr:0.00214, cpm:17.39, cpc:11.42}
     },
     li_weekly: data.li_weekly || [],
+    // Google Ads campaign grain (2026-08-31) - feeds the PMax strip only. Empty on a
+    // pre-rename payload, which simply keeps the block hidden.
+    ga_campaigns: data.ga_campaigns || [],
     window: data.window || {start:'', end:'', days:0}
   };
 }
@@ -5307,10 +5462,14 @@ function renderGaVideoNote() {
   const cpv  = a.views ? a.sp / a.views : 0;
   const pct  = v => vimp ? fmtPct2(v / vimp, 1) : '-';
 
+  // Benchmark points from the client-shared Q3 workbook (CF_Q3_July_Channel_Benchmarks_v3):
+  // view rate = skippable in-stream 31.9% (band 29-66%), CPV = Japan rate card $0.067 (band
+  // $0.033-$0.133). Same source as the GoogleAds row in benchmarks_channel - update together.
+  const GA_VTR_BM = 0.319, GA_CPV_BM = 0.067;
   document.getElementById('gaVideoKpis').innerHTML = [
     ['accent', 'Video views',   fmtNum(Math.round(a.views)), 'of ' + fmtNum(Math.round(vimp)) + ' video impressions'],
-    ['',       'View rate',     fmtPct2(vtr, 1),             'impressions that became a view'],
-    ['',       'Cost per view', fmt$(cpv, 4),                fmt$(a.sp) + ' spent on this channel'],
+    ['',       'View rate',     fmtPct2(vtr, 1),             'vs ' + fmtPct2(GA_VTR_BM, 1) + ' in-stream benchmark'],
+    ['',       'Cost per view', fmt$(cpv, 4),                'vs ' + fmt$(GA_CPV_BM, 3) + ' benchmark - ' + fmt$(a.sp) + ' spent'],
     ['',       'Watched to 75%', a.q75 ? fmtNum(Math.round(a.q75)) : '-', a.q75 ? pct(a.q75) + ' of video impressions' : 'not reported by the feed'],
   ].map(([cls, label, value, delta]) =>
     `<div class="kpi ${cls}"><span class="stripe"></span><div class="label">${label}</div>`
@@ -5340,6 +5499,38 @@ function renderGaVideoNote() {
     + 'no completion rate is reported. Google Ads has no creative-level data in this feed either '
     + '- the creative table below shows campaign and network, which is the finest grain available.';
 }
+function renderGaPmaxNote() {
+  // PMax lead-gen read (2026-08-31). Whole-flight campaign grain (ga_campaigns has no date
+  // column), so the strip deliberately ignores the date picker and its header says so. The
+  // Q3 benchmark workbook covers NO PMax metric - its $411 cybersecurity CPL is for
+  // marketing-qualified leads, and the workbook's own note says a PMax form fill is not one -
+  // so cost per conversion renders as an ACTUAL with the gap named, never a "vs $0" grade
+  // (the same rule as the CPC column above). The third tile is Google's own operating rule
+  // from the same workbook: 50 conversions before the data means anything.
+  const block = document.getElementById('gaPmaxBlock');
+  if (!block) return;
+  const pmax = (PAYLOAD.ga_campaigns || []).find(c => /pmax/i.test(c.campaign || ''));
+  if (!pmax || !chanIsActive('GoogleAds') || !(pmax.spend_usd > 0)) { block.style.display = 'none'; return; }
+  block.style.display = '';
+  const conv = pmax.conversions || 0;
+  const costPer = conv ? pmax.spend_usd / conv : 0;
+  const VALID_MIN = 50;   // Google Ads Help, Demand Gen / PMax guide (via the Q3 benchmark set)
+  document.getElementById('gaPmaxKpis').innerHTML = [
+    ['accent', 'Platform conversions', fmtNum(Math.round(conv)),
+     'live since ' + (pmax.first_day || '-') + ' - ' + fmt$(pmax.spend_usd) + ' spent'],
+    ['', 'Cost per conversion', conv ? fmt$(costPer, 2) : '-',
+     'actual only - no benchmark covers platform conversions'],
+    ['', "Google's validity bar", Math.round(conv) >= VALID_MIN ? 'met' : fmtNum(Math.round(conv)) + ' of ' + VALID_MIN,
+     Math.round(conv) >= VALID_MIN ? '50+ conversions - performance is readable'
+                                   : 'below the 50 conversions Google requires for a valid read'],
+  ].map(([cls, label, value, delta]) =>
+    `<div class="kpi ${cls}"><span class="stripe"></span><div class="label">${label}</div>`
+    + `<div class="value">${value}</div><div class="delta">${delta}</div></div>`).join('');
+  document.getElementById('gaPmaxFoot').innerHTML =
+    'The Q3 benchmark set has no PMax comparator: its $411 cybersecurity CPL covers '
+    + 'marketing-qualified leads, and a platform form fill is not one. Google\'s own guidance '
+    + 'for this campaign type: allow ~6 weeks of ramp and 50+ conversions before judging.';
+}
 function renderBenchmarkTable() {
   // One row per LIVE channel. TTD has no lead pixel, so its Leads cell stays a note.
   // The right-hand Leads/CPL "vs plan" columns grade LinkedIn against the Q3 lead-gen commit
@@ -5356,7 +5547,9 @@ function renderBenchmarkTable() {
             // LinkedIn lead-gen leads and Salesforce CS leads this column otherwise holds.
             // Labelled rather than folded in, so the Total row cannot quietly gain them.
             leads: c.key === 'TTD'       ? '<span class="bench">no pixel</span>'
-                 : c.key === 'GoogleAds' ? `${fmtNum(data.conv || 0)} <span class="bench">platform conv.</span>`
+                 // Math.round because PMax conversions arrive FRACTIONAL (modeled): the raw
+                 // float rendered "44.332 platform conv.", which reads as 44,332. (QA 2026-08-31)
+                 : c.key === 'GoogleAds' ? `${fmtNum(Math.round(data.conv || 0))} <span class="bench">platform conv.</span>`
                  : (data.leads || 0)};
   });
   let totSp=0, totImp=0, totClk=0, totLeads=0;
@@ -5367,10 +5560,19 @@ function renderBenchmarkTable() {
     return;
   }
   const neutral = '<span class="delta-pm neutral">-</span>';
+  // A channel with no benchmark for a metric shows the bare actual, never "vs $0.00" - a zero
+  // plan figure reads as a broken number, not an absent one (client flag, 2026-08-31: Google Ads
+  // has no media-plan CPC benchmark). deltaCell already returns "-" for a falsy plan.
+  const benchVs = (val, fmt) => val ? ` <span class="bench">vs ${fmt(val)}</span>` : '';
   rows.forEach(r => {
     const ctr = r.data.imp ? r.data.clk/r.data.imp : 0;
     const cpm = r.data.imp ? r.data.sp/r.data.imp*1000 : 0;
     const cpc = r.data.clk ? r.data.sp/r.data.clk : 0;
+    // Google Ads' CTR/CPM benchmarks come from the Q3 benchmark workbook, not the media plan
+    // (the channel joined in Q3) - say so where the number is, or "vs plan" overclaims.
+    const bmTitle = r.key === 'GoogleAds'
+      ? ' title="Benchmark source: Q3 channel benchmark set (YouTube in-stream CTR band, Japan YouTube CPM rate card) - the media plan carries no Google Ads benchmarks. No CPC benchmark exists in that set."'
+      : '';
     totSp += r.data.sp; totImp += r.data.imp; totClk += r.data.clk;
     if (typeof r.leads === 'number') totLeads += r.leads;
     let leadsCell = r.leads, leadsVs = neutral, leadsTitle = '', cplCell = '-', cplVs = neutral, cplTitle = '';
@@ -5400,11 +5602,11 @@ function renderBenchmarkTable() {
       <td>${fmt$(r.data.sp)}</td>
       <td>${fmtNum(r.data.imp)}</td>
       <td>${fmtNum(r.data.clk)}</td>
-      <td>${fmtPct2(ctr,2)} <span class="bench">vs ${fmtPct2(r.bm.ctr,2)}</span></td>
+      <td${bmTitle}>${fmtPct2(ctr,2)}${benchVs(r.bm.ctr, v => fmtPct2(v,2))}</td>
       <td>${deltaCell(ctr, r.bm.ctr, false)}</td>
-      <td>${fmt$(cpm,2)} <span class="bench">vs ${fmt$(r.bm.cpm,2)}</span></td>
+      <td${bmTitle}>${fmt$(cpm,2)}${benchVs(r.bm.cpm, v => fmt$(v,2))}</td>
       <td>${deltaCell(cpm, r.bm.cpm, true)}</td>
-      <td>${fmt$(cpc,2)} <span class="bench">vs ${fmt$(r.bm.cpc,2)}</span></td>
+      <td${bmTitle}>${fmt$(cpc,2)}${benchVs(r.bm.cpc, v => fmt$(v,2))}</td>
       <td>${deltaCell(cpc, r.bm.cpc, true)}</td>
       <td${leadsTitle}>${leadsCell}</td>
       <td>${leadsVs}</td>
@@ -5509,7 +5711,8 @@ function renderPacing() {
 const CREATIVE_MIN_IMPS = 1000;
 function creativePill(ch) {
   return ch === 'TTD' ? 'cf' : ch === 'LinkedIn' ? 'li'
-       : ch === 'Reddit' ? 'rd' : ch === 'LINE' ? 'ln' : 'cf';
+       : ch === 'Reddit' ? 'rd' : ch === 'LINE' ? 'ln'
+       : (ch === 'Google Ads' || ch === 'GoogleAds') ? 'ga' : 'cf';
 }
 // Decode Cloudflare's ad-naming convention into a stakeholder-friendly label.
 // Structural metadata (size / market+language / objective / version) decodes cleanly;
@@ -5534,7 +5737,7 @@ function prettyCreative(raw) {
   if (!raw) return '(unnamed)';
   const toks = String(raw).replace(/\s+/g, '_').split('_').filter(Boolean);
   let msgAcq = false, msgCnc = false, fmt = '', size = '', sizeName = '',
-      market = '', obj = '', concept = '', ver = '';
+      market = '', obj = '', concept = '', ver = '', asset = '';
   const extra = [];
   for (const t of toks) {
     const T = t.toUpperCase();
@@ -5545,10 +5748,18 @@ function prettyCreative(raw) {
     if (CR_MARKET[T]) { if (!market) market = CR_MARKET[T]; continue; }       // first market wins (dedupe JAPAN-JPN + JP)
     const m = t.match(/^([GAga])-([A-Za-z]{2,4})-(\d+)$/);
     if (m) { fmt = m[1].toUpperCase() === 'A' ? 'Animated' : 'Static';
-             concept = 'concept ' + m[2].toUpperCase() + '‑' + m[3]; continue; }
+             // The token is a CS ASSET short code (2026-08-31, client request): resolve it to
+             // the asset's full name via the SAME map the CS assets chart uses, so the two
+             // surfaces speak one language. An unmapped code keeps the old 'concept XXX-n'
+             // rendering - never blank, never 'Unknown' - and the raw string stays in the
+             // row's tooltip for tracing the creative back to the ad platform.
+             if (ASSET_NAMES[T]) { asset = ASSET_NAMES[T]; }
+             else { concept = 'concept ' + m[2].toUpperCase() + '‑' + m[3]; }
+             continue; }
     if (/^SOC\d+$/i.test(T)) { obj = 'Social v' + T.replace('SOC', ''); continue; }
     if (/^V\d+$/i.test(T)) { ver = 'v' + T.replace(/^V/i, ''); continue; }
     if (CR_OBJ[T]) { obj = CR_OBJ[T]; continue; }
+    if (ASSET_NAMES[T]) { if (!asset) asset = ASSET_NAMES[T]; continue; }     // bare short codes (MAT2, CCT10)
     extra.push(T);                                                           // e.g. AIF, AGL - keep verbatim & distinct
   }
   const msg = [msgAcq ? 'Acquisition' : null, msgCnc ? 'Connectivity Cloud' : null]
@@ -5558,20 +5769,25 @@ function prettyCreative(raw) {
     fmtPart = [fmt, sizeName].filter(Boolean).join(' ');
     if (size) fmtPart += (fmtPart ? ' ' : '') + '(' + size.replace('x', '×') + ')';
   }
-  const parts = [msg, fmtPart, market, obj, ...extra, concept, ver].filter(Boolean);
+  const parts = [asset, msg, fmtPart, market, obj, ...extra, concept, ver].filter(Boolean);
   return parts.length ? parts.join(' · ') : String(raw);
 }
 // Channel filter for the creatives tables (single-select). The creatives feed carries a per-row
 // CHANNEL (LinkedIn / TTD / Reddit / LINE); without this, TTD's high-volume display creatives
 // dominate the CTR ranking and bury LinkedIn. Stacks with the existing market filter.
 let creativeChannel = 'all';
-const CH_LABEL = {TTD:'Trade Desk', LinkedIn:'LinkedIn', Reddit:'Reddit', LINE:'LINE'};
+const CH_LABEL = {TTD:'Trade Desk', LinkedIn:'LinkedIn', Reddit:'Reddit', LINE:'LINE', GoogleAds:'Google Ads'};
+// The creatives feed says 'Google Ads' (sql/06's CHANNEL literal) while PM_CHANS keys it
+// 'GoogleAds' - normalise once, or the switcher can never offer the channel and its rows only
+// ever show under "All channels" (found in the 2026-08-31 QA sweep; it had been silently
+// missing since the channel landed 2026-08-11).
+const creativeChanKey = ch => ch === 'Google Ads' ? 'GoogleAds' : ch;
 function renderCreativeChannelSeg() {
   const seg = document.getElementById('creativeChannelSeg');
   if (!seg) return;
   // Offer only channels that BOTH have creatives in the feed AND ran in the current
   // selection - a channel that didn't run has nothing to say about creative performance.
-  const present = new Set((PAYLOAD.creatives || []).filter(progOk).map(r => r.channel).filter(Boolean));
+  const present = new Set((PAYLOAD.creatives || []).filter(progOk).map(r => creativeChanKey(r.channel)).filter(Boolean));
   const chans = activeChans().map(c => c.key).filter(c => present.has(c));
   // A pick that is no longer offered (its channel stopped delivering in the new range) falls back to All.
   if (creativeChannel !== 'all' && !chans.includes(creativeChannel)) creativeChannel = 'all';
@@ -5598,8 +5814,11 @@ function renderCreativeTables() {
     if (r.market === 'RIG' && paidRigHidden()) continue;
     // A channel that didn't run in the selection contributes no creatives either, so its
     // whole-flight creatives can't sneak into a quarter it wasn't live in.
-    if (!live.has(r.channel)) continue;
-    if (creativeChannel !== 'all' && r.channel !== creativeChannel) continue;
+    // creativeChanKey: the feed says 'Google Ads', activeChans() keys say 'GoogleAds' - the
+    // unnormalised compare here DROPPED every Google Ads creative row from these tables from
+    // the day the channel landed (2026-08-11) until the 2026-08-31 QA sweep caught it.
+    if (!live.has(creativeChanKey(r.channel))) continue;
+    if (creativeChannel !== 'all' && creativeChanKey(r.channel) !== creativeChannel) continue;
     const key = r.channel + '||' + r.creative;
     let o = map.get(key);
     if (!o) { o = {channel:r.channel, creative:r.creative, imp:0, clk:0, sp:0, leads:0}; map.set(key, o); }
@@ -5628,7 +5847,11 @@ function renderCreativeTable(bodyId, rows) {
     return;
   }
   tbody.innerHTML = rows.map(o => `<tr>
-    <td><span class="pill ${creativePill(o.channel)}">${esc(o.channel)}</span> <span class="cr-name" title="${esc(o.creative)}">${esc(prettyCreative(o.creative))}</span></td>
+    <td><span class="pill ${creativePill(o.channel)}">${esc(o.channel)}</span> <span class="cr-name" title="${esc(o.creative)}">${
+      // Google Ads rows are already 'campaign - Network' (sql/06 builds the label; the feed has
+      // no creative grain), not the CLOUD_ACQ naming convention - tokenising them through
+      // prettyCreative renders noise ('Japan · CF · Q3 · LEADGEN · ...'), so show them as-is.
+      esc(o.channel === 'Google Ads' ? o.creative : prettyCreative(o.creative))}</span></td>
     <td>${fmtNum(o.imp)}</td>
     <td>${fmtNum(o.clk)}</td>
     <td><b>${fmtPct2(o.ctr, 2)}</b></td>
@@ -6162,6 +6385,7 @@ function renderPaidMediaAll() {
     ['Daily stack', renderDailyStack], ['Market bar', renderMarketBar], ['Efficiency trio', renderEffTrio],
     ['Market stack', renderMarketStack], ['Market table', renderMarketTable],
     ['Benchmark table', renderBenchmarkTable], ['Google Ads video', renderGaVideoNote],
+    ['Google Ads PMax', renderGaPmaxNote],
     ['Budget pacing', renderPacing], ['Creative tables', renderCreativeTables],
     ['Weekly target', renderWeeklyTarget], ['LinkedIn funnel', renderLiFunnel],
     ['LinkedIn creative efficiency', renderLiCreativeEfficiency],

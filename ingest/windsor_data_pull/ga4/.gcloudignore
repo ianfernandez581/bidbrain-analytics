@@ -1,0 +1,6 @@
+# Keep the Cloud Build context tiny: runtime artifacts and caches never belong in the image
+# (the Dockerfile COPYs named files only, but gcloud uploads the whole dir without this).
+_run/
+_run_events/
+__pycache__/
+*.log

@@ -59,6 +59,7 @@ MAX_ATTEMPTS, then the chunk fails loudly; permanent 4xx (bad field / auth / slu
 fast with the response body.
 """
 import json
+import os
 import logging
 import re
 import sys
@@ -101,7 +102,14 @@ SELECT_ACCOUNTS = [
     "341827046",
     "341832593",
     "287370621",
+    "550962241",   # GEOCON (geocon.com.au brand site) - connected to Windsor ~2026-08
+    "551838402",   # Gatewaybraddon (Gateway Braddon development site)
 ]
+# GA4_ACCOUNTS narrows the run to a subset — kept in lockstep with ga4_loader.py (the scheduled
+# windsor-ga4-ingest job pins both loaders to the Geocon properties via this env var).
+_env_accounts = os.environ.get("GA4_ACCOUNTS", "").strip()
+if _env_accounts:
+    SELECT_ACCOUNTS = [a.strip() for a in _env_accounts.split(",") if a.strip()]
 
 # --- Fields (events: single pass, 3 dims + 3 metrics; well under GA4 9/10 caps) ---
 # account_id/account_name are connector-account metadata (the property we selected),
@@ -138,6 +146,8 @@ LOG_FILE = WORK_DIR / "events_loader.log"
 # both tables.
 PROPERTY_TO_CLIENT = {
     # "318963196": ("wehi", "ad-assembly"),
+    "550962241": ("geocon", "100-digital"),   # GEOCON brand site
+    "551838402": ("geocon", "100-digital"),   # Gatewaybraddon - would slugify to 'gatewaybraddon' without the pin
 }
 
 # Fallback keyword match on property name (same dict as the other loaders).
