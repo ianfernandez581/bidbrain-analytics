@@ -181,7 +181,16 @@ SELECT
   SEG_PROGRAM AS PROGRAM,
   DAY,
   -- Week anchors differ by theatre: APAC weeks commence MONDAY from 2026-07-06,
-  -- EMEA weeks commence FRIDAY from 2026-08-07.
+  -- EMEA weeks commence FRIDAY from 2026-07-31.
+  --
+  -- EMEA anchor moved 2026-08-07 -> 2026-07-31 (2026-08-31, Calvin): the media plan's weeks
+  -- are MONDAY-anchored (W1 = Mon 2026-08-03) and each plan week maps to the Friday bucket
+  -- that CONTAINS its Monday - W1 -> Fri 07-31, W4 (Mon 08-24) -> Fri 08-21. The seed
+  -- (targets/cs_targets_q3.csv) carries those bucket dates, and W1's bucket is 07-31, so the
+  -- clamp floor must be 07-31 or week-1 targets would sit in a bucket no lead can reach.
+  -- Both anchors are Fridays, so for any lead dated >= 08-07 the bucket assignment is
+  -- IDENTICAL to before; only leads dated 07-31..08-06 move (from the old clamped 08-07
+  -- bucket into their true 07-31 bucket, where plan W1's target now lives).
   --
   -- TWO deliberate deviations from the Snowflake original, both load-bearing:
   --
@@ -201,8 +210,8 @@ SELECT
   -- visible and reconciles; a missing lead is neither.
   GREATEST(
     DATE_SUB(DAY, INTERVAL MOD(MOD(DATE_DIFF(
-      DAY, IF(THEATRE = 'EMEA', DATE '2026-08-07', DATE '2026-07-06'), DAY), 7) + 7, 7) DAY),
-    IF(THEATRE = 'EMEA', DATE '2026-08-07', DATE '2026-07-06')
+      DAY, IF(THEATRE = 'EMEA', DATE '2026-07-31', DATE '2026-07-06'), DAY), 7) + 7, 7) DAY),
+    IF(THEATRE = 'EMEA', DATE '2026-07-31', DATE '2026-07-06')
   ) AS WEEK_START,
   LEAD_STATUS,
   IF(LEAD_STATUS = 'Accepted', 1, 0)                     AS IS_ACCEPTED,

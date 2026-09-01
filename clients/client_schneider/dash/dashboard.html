@@ -237,6 +237,15 @@
   #articleNote b{color:var(--on-canvas)}
 
   .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:14px}
+  /* A two-card row whose second card hid itself. Without this the surviving card keeps its 1fr
+     column and the row reads as a card that failed to load rather than one that isn't needed. */
+  .grid.one-up{grid-template-columns:1fr}
+  /* A note that belongs to the card it sits in - states a fact a hidden sibling card took with it.
+     Inside a card, so it takes the INK colours, never the --on-canvas pair (the repo-wide
+     dark-on-dark trap: anything rendered straight onto the green canvas needs --on-canvas). */
+  .card-foot{font-size:11.5px;color:var(--se-mute);line-height:1.5;margin-top:12px;
+    padding-top:11px;border-top:1px solid var(--se-line)}
+  .card-foot b{color:var(--se-ink)}
   .grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:14px}
   .grid-2-1{display:grid;grid-template-columns:1.9fr 1fr;gap:16px;margin-top:14px}
   .card{background:var(--se-card);border:1px solid var(--se-line);border-radius:12px;padding:16px;box-shadow:var(--shadow-card);display:flex;flex-direction:column;min-width:0}
@@ -319,7 +328,17 @@
   .goal-track{position:absolute;inset:0;border-radius:8px;background:#EDF1EF;border:1px solid var(--se-line);overflow:hidden}
   .goal-fill{height:100%;background:linear-gradient(90deg,#007E2A,#17B24E);box-shadow:0 0 16px rgba(0,149,48,.5);transition:width .4s ease}
   .goal-marker{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--se-dark);opacity:.6;z-index:2}
-  .goal-marker::after{content:attr(data-lbl);position:absolute;bottom:100%;left:50%;transform:translateX(-50%);margin-bottom:3px;font-size:9px;font-weight:700;color:var(--se-ink);white-space:nowrap}
+  .goal-marker::after{content:attr(data-lbl);position:absolute;bottom:100%;left:50%;translate:-50% 0;margin-bottom:3px;font-size:9px;font-weight:700;color:var(--se-ink);white-space:nowrap}
+  /* The label is centred on a 2px marker, so once the marker reaches either END of the bar half the
+     label hangs outside it - ~24px past the right edge for a finished flight, whose marker sits at
+     100%. That pushed the card, the tab pane and (at <=760px, where the container padding shrinks)
+     the whole page. Anchor the label INSIDE the bar at the extremes instead. `translate` not the
+     `transform` shorthand - the motion kit composes transforms and the shorthand would replace them. */
+  /* At 100% the 2px marker rule itself starts exactly ON the track's right edge, i.e. entirely
+     outside it - 2px of overflow, and visually a tick floating past the end of the bar. */
+  .goal-marker.at-end{margin-left:-2px}
+  .goal-marker.at-end::after{left:auto;right:0;translate:0 0}
+  .goal-marker.at-start::after{left:0;translate:0 0}
   .goal-legend{display:flex;justify-content:space-between;font-size:10.5px;color:var(--se-mute);margin-top:4px}
   .verdict{display:inline-flex;align-items:center;gap:8px;font-size:14px;font-weight:800;padding:8px 14px;border-radius:10px;margin-bottom:14px}
   .verdict .big{font-size:16px;line-height:1}
@@ -327,12 +346,64 @@
   .verdict.warn{color:#8A5A00;background:rgba(185,116,0,.13);border:1px solid rgba(185,116,0,.32)}
   .verdict.behind{color:#9B241A;background:rgba(200,54,42,.12);border:1px solid rgba(200,54,42,.3)}
 
-  /* by-market summary grid */
-  .reg-row{display:grid;grid-template-columns:78px 1fr 46px;align-items:center;gap:9px;margin:6px 0;font-size:11.5px}
-  .reg-lbl{color:var(--se-mute)}
-  .reg-bar{height:8px;border-radius:999px;background:#EEF1F0;overflow:hidden}
-  .reg-fill{height:100%;border-radius:999px;background:var(--se-green)}
-  .reg-num{text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
+  /* LINKEDIN LGF FUNNEL. Seven grid tracks at full width - step, connector, step, connector, ... -
+     which collapses to a SINGLE stacked column below 1060px. Items are placed in DOM order, so the
+     one-column form stacks step / connector / step correctly with no reordering, and the connector
+     rotates its arrow to point down. Deliberately NOT `flex-wrap` (a wrapped connector strands at the
+     start of a line) and deliberately NOT `overflow-x:auto` (the cloudflare card scrolls sideways;
+     this estate's brief is no horizontal scroll at any width). */
+  .funnel{display:grid;grid-template-columns:1fr auto 1fr auto 1fr auto 1fr;align-items:stretch;margin-top:14px}
+  .fstep{min-width:0;background:linear-gradient(155deg,color-mix(in srgb,var(--li) 8%,#fff),#fff 64%);
+    border:1px solid color-mix(in srgb,var(--li) 24%,var(--se-line));border-bottom:3px solid var(--li);
+    border-radius:11px;padding:13px 15px}
+  .fstep .fk{font-size:10.5px;color:var(--se-mute);text-transform:uppercase;letter-spacing:.5px;font-weight:600}
+  .fstep .fv{font-size:23px;font-weight:700;letter-spacing:-.5px;color:var(--li);line-height:1.15;margin-top:6px;
+    font-variant-numeric:tabular-nums}
+  .fstep .fs{font-size:11px;color:var(--se-mute);margin-top:4px;line-height:1.35}
+  .fstep .fv.pending{font-size:14px;font-weight:600;color:var(--se-mute)}
+  .fconn{flex:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+    padding:0 12px;min-width:96px;text-align:center}
+  .fconn .fa{font-size:15px;color:var(--se-grey);line-height:1}
+  /* Neutral, never green/red - see the funnel markup comment. */
+  .fconn .fp{font-size:12.5px;font-weight:700;color:var(--se-ink);font-variant-numeric:tabular-nums;line-height:1.1}
+  .fconn .fl{font-size:10px;color:var(--se-mute);line-height:1.25}
+  .funnel-note{font-size:11.5px;color:var(--se-mute);margin-top:12px;line-height:1.5}
+  .funnel-note b{color:var(--se-ink)}
+  @media (max-width:1060px){
+    .funnel{grid-template-columns:1fr}
+    .fconn{flex-direction:row;gap:8px;min-width:0;padding:8px 0}
+    .fconn .fa{transform:rotate(90deg)}
+  }
+
+  /* TOP ACCOUNTS REACHED. One block per company: name + share bar + lead count on the first line,
+     the leads' own job titles beneath. auto-fit/minmax keeps it 1-3 up with no breakpoint of its own;
+     280px is the narrowest column a 2-line title can hold without the count column being squeezed. */
+  .acct-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px 24px;margin-top:14px}
+  .acct{min-width:0}
+  .acct-top{display:flex;align-items:center;gap:10px}
+  .acct-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12.5px;font-weight:600;color:var(--se-ink)}
+  .acct-bar{width:74px;height:8px;background:#EEF1F0;border-radius:999px;overflow:hidden;flex:none}
+  .acct-bar i{display:block;height:100%;background:var(--se-green);border-radius:999px}
+  .acct-n{width:26px;text-align:right;font-weight:700;font-size:12px;flex:none;font-variant-numeric:tabular-nums;color:var(--se-dark)}
+  /* Titles: a fixed left indent aligns every title list under its account name, and each row is a
+     2-column grid so a wrapped title can never push its count out of the card. */
+  /* min-height = the tallest a title list can get (2 titles + the "+N others" summary), so every
+     account block in the grid is the same height and the row bottoms line up. Without it the blocks
+     come out 39 / 57 / 74px depending on how many titles an account happens to have, and a 3-up grid
+     reads as ragged rather than as a list. 3 rows x (11.5px x 1.35 line-height) + 2 x 2px gap. */
+  .acct-titles{margin-top:5px;padding-left:2px;display:flex;flex-direction:column;gap:2px;min-height:51px}
+  .acct-title{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:baseline;font-size:11.5px;color:var(--se-mute);line-height:1.35}
+  .acct-title span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .acct-title b{font-weight:600;color:var(--se-ink);font-variant-numeric:tabular-nums;white-space:nowrap}
+  .acct-title.more{color:var(--se-grey)}
+  .acct-title.none{font-style:italic}
+  /* Empty state for a card whose chart cannot draw (a doughnut with an all-zero dataset renders
+     NOTHING, so the card would otherwise be a titled blank box). Replaces the canvas visually
+     without removing it from the DOM - see renderCSMarket for why that matters. */
+  .chart-empty{flex:1;display:flex;align-items:center;justify-content:center;text-align:center;
+    color:var(--se-mute);font-size:12.5px;font-style:italic;padding:30px 14px;min-height:170px}
+  /* The .reg-* rules that styled the retired "By-market summary" card were removed with it
+     (2026-09-01) - nothing else in the dashboard used them. */
 
   table{width:100%;border-collapse:collapse;font-size:12.5px}
   table th,table td{padding:8px 10px;text-align:left;border-bottom:1px solid var(--se-line)}
@@ -369,7 +440,26 @@
   footer b{color:var(--on-canvas)}
 
   @media (max-width:1100px){.grid-3,.grid-2-1{grid-template-columns:1fr}.kpis{grid-template-columns:repeat(2,1fr)}.compare-grid{grid-template-columns:1fr}}
-  @media (max-width:760px){.grid{grid-template-columns:1fr}.cs-snap .group{border-right:none}}
+  /* THE TOPBAR WAS THE WHOLE PAGE'S MIN-WIDTH FLOOR (found + fixed 2026-09-01). `.topbar .inner` is a
+     non-wrapping flex row - agency mark, divider, logo, region tag, Campaign dropdown on the left; the
+     Live pill and the reporting period on the right - which together need ~832px. Below that the row
+     simply overflowed and the DOCUMENT gained a horizontal scrollbar on EVERY tab (32px at 800, 132px
+     at 700), which then made every card 832px wide regardless of the viewport. Letting the row wrap
+     costs nothing above 900px and removes the page-level scroll entirely. */
+  @media (max-width:900px){
+    .topbar .inner{flex-wrap:wrap;row-gap:12px}
+    .topbar-left{flex-wrap:wrap;row-gap:10px}
+    .topbar-right{text-align:left;flex:1 1 100%}
+    /* The dropdown takes its own line rather than being crushed - it is the primary control here. */
+    .topbar-camp{flex:1 1 100%}
+    .topbar-camp .dash-select{flex:1;min-width:0}
+    /* Two of the four dividers only make sense inside a single unbroken row. */
+    .topbar-left .topbar-divider:last-of-type{display:none}
+  }
+  @media (max-width:760px){.grid{grid-template-columns:1fr}.cs-snap .group{border-right:none}
+    .container{padding:18px 16px 50px}
+    .topbar .inner{padding:0 16px}
+    .acct-grid{grid-template-columns:1fr}}
 
 /* BB-MOTION-KIT:css v1 */
 
@@ -679,6 +769,38 @@
         <table id="pmPlatTable"><thead><tr><th>Platform</th><th class="num">Spend</th><th class="num">Imps</th><th class="num">Clicks</th><th class="num">CTR</th><th class="num">CPM</th><th class="num">CPC</th><th class="num" id="pmPlatLeadsHead" style="display:none" title="LinkedIn on-platform lead-form submissions">Lead-form leads</th></tr></thead><tbody></tbody></table>
       </div></div>
 
+      <!-- ============ LINKEDIN LEAD-GEN-FORM FUNNEL ============
+           Client request 2026-09-01: "For all LinkedIn campaigns with LGFs, can we include a view on
+           pipeline progression, same as the view we have on Cloudflare (Impressions > clicks > LGF
+           fills > LGF completions)?" - the cloudflare `#liFunnel` card, ported.
+
+           FRONTEND-ONLY: `lead_form_opens` and `leads` have travelled stg_linkedin -> stg_ad_delivery
+           -> pm_delivery -> the payload since 2026-08-06. No view, job or payload change.
+
+           Three things this must get right:
+             * LINKEDIN ONLY. The impressions and clicks in the funnel are LinkedIn's, filtered off
+               pmRows() by platform - NOT the tab's blended pmTotals(), which would show Trade Desk
+               impressions feeding a LinkedIn lead form.
+             * It HIDES ITSELF where no lead form ran. Four of the nine programs have zero opens and
+               zero leads on LinkedIn (global_rebrand, mcset, microgrid, and eba which has no LinkedIn
+               delivery at all); a four-stage funnel of zeros reads as a campaign that failed rather
+               than an awareness buy with no form on it. Same rule as the Lead-form-leads KPI above.
+             * NO verdict colour on the conversion rates. A 0.2% impression-to-click rate is normal on
+               a social awareness buy and terrible on search; there is no threshold here we could
+               defend, and a coloured number makes a judgement while making none. -->
+      <div class="section" id="liFunnelSec" style="display:none"><h2 style="font-size:15px">LinkedIn lead-gen-form funnel</h2><span class="sub" id="liFunnelSub"></span></div>
+      <div class="card" id="liFunnelCard" style="margin-top:14px;display:none">
+        <div class="funnel" id="liFunnel"></div>
+        <div class="funnel-note" id="liFunnelNote"></div>
+      </div>
+      <div class="card" id="liFunnelProgCard" style="margin-top:16px;display:none">
+        <h3>Funnel by program</h3>
+        <div class="hint">Every program running a LinkedIn lead-gen form in the current filter. The total row ties exactly to the funnel above.</div>
+        <div style="overflow:auto;margin-top:4px">
+          <table id="liFunnelProgTable"><thead><tr><th>Program</th><th class="num">Impressions</th><th class="num">Clicks</th><th class="num">CTR</th><th class="num">Form opens</th><th class="num">Submitted leads</th><th class="num" title="Share of clicks that opened the lead form">Click → open</th><th class="num" title="Share of form opens that were submitted">Open → submit</th><th class="num">Cost / lead</th></tr></thead><tbody></tbody><tfoot></tfoot></table>
+        </div>
+      </div>
+
       <div class="section"><h2 style="font-size:15px">Spend &amp; market breakdown</h2><span class="sub">Where the media budget went - by platform and by market (AUD).</span></div>
       <div class="grid">
         <div class="card card-tall"><h3>Spend by platform</h3><div class="hint">Share of media spend (AUD).</div><div class="chart-wrap"><canvas id="pmSpendPlat"></canvas></div></div>
@@ -732,17 +854,29 @@
         <div class="chart-wrap" style="height:300px"><canvas id="csWeekly"></canvas></div>
       </div>
 
-      <div class="grid">
-        <div class="card card-tall"><h3>Leads by market</h3><div class="hint">Delivered leads per region for the current scope.</div><div class="chart-wrap"><canvas id="csMarket"></canvas></div></div>
-        <div class="card card-tall"><h3 id="csProgTitle">Leads by programme</h3><div class="hint" id="csProgHint">Share of leads across the program's Salesforce programmes.</div><div class="chart-wrap"><canvas id="csProgramme"></canvas></div></div>
+      <!-- LEADS BY MARKET is a share DOUGHNUT since 2026-09-01 (client request) and the old
+           "By-market summary" card below it is GONE - it restated the same per-region lead counts as
+           horizontal bars, which is exactly the duplication the client called out. The doughnut keeps
+           the one thing the summary card added over the bar chart (each region's share of the scope)
+           and puts the scope total in the middle, so nothing was lost with it.
+           The SECOND card is conditional: renderCSProgramme() used to fall back to a market-share
+           doughnut whenever a program has only ONE Salesforce programme (eba, water_env), which
+           against a market doughnut on its left would have drawn the SAME chart twice - re-creating
+           the duplication under a different heading. It now hides itself and the row goes one-up. -->
+      <div class="grid" id="csChartGrid">
+        <div class="card card-tall" id="csMarketCard"><h3>Leads by market</h3><div class="hint" id="csMarketHint">Share of delivered leads per region for the current scope.</div><div class="chart-wrap"><canvas id="csMarket"></canvas></div><div class="chart-empty" id="csMarketEmpty" style="display:none">No content-syndication leads for the selected scope / region(s).</div><div class="card-foot" id="csProgSole" style="display:none"></div></div>
+        <div class="card card-tall" id="csProgCard"><h3 id="csProgTitle">Leads by programme</h3><div class="hint" id="csProgHint">Share of leads across the program's Salesforce programmes.</div><div class="chart-wrap"><canvas id="csProgramme"></canvas></div></div>
       </div>
 
-      <div class="card" style="margin-top:16px"><h3>By-market summary</h3><div class="hint">Delivered leads per region, scaled to the largest region.</div>
-        <div id="csRegionGrid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;margin-top:14px"></div></div>
-
       <div class="section"><h2 style="font-size:15px">Programme × market breakdown</h2><span class="sub">Underlying Salesforce programmes for the current scope &amp; region(s).</span></div>
+      <!-- The STATUS column was removed 2026-09-01 (client: "the status column doesn't make sense to
+           me. What is this supposed to convey?"). It was right: every SE lead is CRM-raw status New,
+           so the cell only ever read "New <n>" - the Leads column immediately to its left, restated.
+           The status COUNTS are still carried end to end (stg_salesforce -> cs_by_programme -> the
+           payload -> the CSV export -> the AI-deck payload), so this is a UI-only removal and the
+           column comes back with one <th> and one <td> the day the CRM starts grading leads. -->
       <div class="card" style="margin-top:14px"><div style="overflow:auto">
-        <table id="csTable"><thead><tr><th>Programme</th><th>Market</th><th class="num">Leads</th><th>Status</th><th class="num">Share</th><th>Last lead</th></tr></thead><tbody></tbody></table>
+        <table id="csTable"><thead><tr><th>Programme</th><th>Market</th><th class="num">Leads</th><th class="num">Share</th><th>Last lead</th></tr></thead><tbody></tbody></table>
       </div></div>
       <div class="section" id="csByProgSec" style="display:none"><h2 style="font-size:15px">Lead pacing by program</h2><span class="sub">Which programs the all-up lead figures above are made of. <b>Awareness programs carry no lead target</b> - they are paced on reach instead, so their lead cells read "-" rather than a misleading zero. Honours the selected region(s).</span></div>
       <div class="card" id="csByProgCard" style="margin-top:14px;display:none"><div style="overflow:auto">
@@ -754,14 +888,24 @@
            tab is where they belong, and unlike on the scorecard they now follow the Campaign dropdown -
            portfolio-wide under "All campaigns", one program's audience when a program is picked. -->
       <div class="section"><h2 style="font-size:15px">Who we reached - audience intelligence</h2><span class="sub" id="audSub">From the Salesforce lead records: the job functions and seniority of the people who engaged, and the named accounts behind the numbers. This is the lead-quality lens beyond raw volume.</span></div>
+      <!-- Both canvases carry a sibling EMPTY STATE div rather than having their parent's innerHTML
+           overwritten when there is nothing to plot. That overwrite was a real bug until 2026-09-01:
+           it deleted the canvas from the DOM, renderAudience's own `if(!el('scFunc')) return;` guard
+           then short-circuited on every later pass, and the entire audience block stayed blank for the
+           rest of the session - clearing the Region chips and ticking them straight back was enough to
+           trigger it. Hide the canvas, never remove it. -->
       <div class="grid">
-        <div class="card card-tall"><h3>Leads by job function</h3><div class="hint">Which functions engaged with the content.</div><div class="chart-wrap"><canvas id="scFunc"></canvas></div></div>
-        <div class="card card-tall"><h3>Seniority of leads</h3><div class="hint">Job level where disclosed (~40% of leads state a level); the rest are shown honestly as "Not disclosed".</div><div class="chart-wrap"><canvas id="scSen"></canvas></div></div>
+        <div class="card card-tall"><h3>Leads by job function</h3><div class="hint">Which functions engaged with the content.</div><div class="chart-wrap"><canvas id="scFunc"></canvas></div><div class="chart-empty" id="scFuncEmpty" style="display:none"></div></div>
+        <div class="card card-tall"><h3>Seniority of leads</h3><div class="hint">Job level where disclosed (~40% of leads state a level); the rest are shown honestly as "Not disclosed".</div><div class="chart-wrap"><canvas id="scSen"></canvas></div><div class="chart-empty" id="scSenEmpty" style="display:none"></div></div>
       </div>
 
+      <!-- TOP ACCOUNTS + their leading JOB TITLES (client, 2026-09-01: "is it possible to identify the
+           top 1 or 2 job titles from each account?"). Yes - Salesforce JOB_TITLE, ~90% populated; see
+           sql/22_cs_account_titles.sql. Titles are the leads' OWN titles, ranked by how many leads at
+           that account carried each one; they are not a modelled or inferred seniority. -->
       <div class="card" style="margin-top:16px"><h3>Top accounts reached <span id="scAcctCount" style="font-weight:400;font-size:11.5px;color:var(--se-mute)"></span></h3>
-        <div class="hint">Named companies generating the most content-syndication leads - the account-level view behind the totals.</div>
-        <div id="scAccounts" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:10px 24px;margin-top:14px"></div>
+        <div class="hint" id="scAcctHint">Named companies generating the most content-syndication leads - the account-level view behind the totals, with the job titles those leads gave.</div>
+        <div id="scAccounts" class="acct-grid"></div>
       </div>
 
       <div class="info-note" id="scFootNote" style="margin-top:14px"></div>
@@ -889,6 +1033,14 @@ const PLATFORMS = [
 const PLAT_LABEL = Object.fromEntries(PLATFORMS.map(p=>[p.key,p.label]));
 const CAMP_PALETTE = ['#007E2A','#2867B2','#F2A900','#8E44AD','#0E7C86'];
 const PROG_PALETTE = ['#007E2A','#2867B2','#F2A900','#8E44AD','#0E7C86','#B97400','#5A6B78','#009530','#9AD4B5'];
+// Market ring colours, deliberately NOT the PROG_PALETTE order: the market doughnut and the programme
+// doughnut sit side by side, and sharing a first colour makes a reader look for a relationship between
+// "Australia" and the first programme that is not there.
+const MARKET_PALETTE = ['#005F20','#4E7FA8','#B97400','#6B5B95','#0E7C86','#5A6B78'];
+// HTML-escape anything that reaches innerHTML from the payload. Salesforce free text (programme names,
+// company names and - since 2026-09-01 - job titles) is partner-supplied and reaches this dashboard
+// unsanitised; an `&` or a `<` in a company name would otherwise silently mangle the row it is in.
+function esc(v){ return String(v==null?'':v).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
 //==============================================================================
 // SHARED DATE-RANGE PICKER (Looker-style)
@@ -1511,11 +1663,20 @@ function renderPaid(){
   el('pm_leads_card').style.display=hasLf?'':'none';
   if(hasLf){
     el('pm_leads').textContent=fmtN(t.leads);
-    el('pm_leads_sub').textContent=t.leads?`${money(t.spend/t.leads,2)} cost per lead · ${fmtN(t.opens)} form opens`:`${fmtN(t.opens)} form opens, no submissions yet`;
+    // COST PER LEAD MUST USE LINKEDIN SPEND (fixed 2026-09-01). This divided the BLENDED all-platform
+    // spend by LinkedIn's own lead-form leads, so Trade Desk money was being charged to a metric only
+    // LinkedIn can produce - A$2,085 per lead against a true A$1,129 under the all-up scope, and the
+    // error grew with every non-LinkedIn dollar in the filter. `t` is all platforms by design (it
+    // feeds Spend / Impressions / Clicks / blended CPC), so this one figure re-sums LinkedIn's rows.
+    const liSpend=rows.reduce((a,r)=>a+(r.platform==='linkedin'?(r.spend_aud||0):0),0);
+    el('pm_leads_sub').textContent=t.leads
+      ? `${money(liSpend/t.leads,2)} per lead (LinkedIn spend) · ${fmtN(t.opens)} form opens`
+      : `${fmtN(t.opens)} form opens, no submissions yet`;
   }
   el('pmKpiHint').innerHTML='Tap Spend, Impressions or Clicks to show or hide it on the chart below. Blended CPC is a read-only efficiency figure.'
-    +(hasLf?' <b>Lead-form leads</b> are LinkedIn\'s own on-platform form submissions - a paid-media metric, separate from the Salesforce content-syndication leads.':'');
+    +(hasLf?' <b>Lead-form leads</b> are LinkedIn\'s own on-platform form submissions - a paid-media metric, separate from the Salesforce content-syndication leads. The full funnel behind them is below.':'');
   renderPmBudget();
+  renderLiFunnel(rows);
 
   // platform comparison table
   const byPlat={}; PLATFORMS.forEach(p=>byPlat[p.key]={imps:0,clk:0,spend:0,leads:0});
@@ -1569,6 +1730,121 @@ function renderPaid(){
   el('pmMarketTable').querySelector('tbody').innerHTML=Object.keys(byMktFull).sort((a,b)=>byMktFull[b].spend-byMktFull[a].spend).map(x=>{ const e=byMktFull[x]; return `<tr><td>${x}</td><td class="num">${money(e.spend)}</td><td class="num">${fmtN(e.imps)}</td><td class="num">${fmtN(e.clk)}</td><td class="num">${fmtPct(pct(e.clk,e.imps),2)}</td></tr>`; }).join('') || `<tr><td colspan="5" style="text-align:center;color:var(--se-mute);padding:14px">No delivery.</td></tr>`;
 
   renderGantt();
+}
+
+// ---- LINKEDIN LEAD-GEN-FORM FUNNEL ----------------------------------------------------------
+// impressions -> clicks -> lead form opens -> submitted leads, off LinkedIn's own on-platform counts.
+// `rows` is the ALREADY-FILTERED pmRows() the rest of the tab renders from, so the funnel honours the
+// Campaign dropdown, Region chips, Platform chips and date range identically - untick LinkedIn and the
+// section hides itself, which is the correct answer for a card that only describes LinkedIn.
+//
+// STAGE NAMES: the client asked for "LGF fills > LGF completions". LinkedIn's metric is
+// oneClickLeadFormOpens - the form being OPENED, not a partial fill - so the labels say "opens" and
+// "submitted", and the note spells out the mapping. Renaming an open to a fill would overstate intent.
+// SCOPE: the programs that actually RAN a lead form. Everything - the funnel headline, every stage
+// rate, the cost figures and the per-program table - is summed from THOSE programs only.
+//
+// This is the whole correctness question in this card, and the first cut got it wrong. Three of the
+// nine programs (global_rebrand, mcset, microgrid) run LinkedIn AWARENESS with no lead form at all:
+// 469,206 impressions, 2,062-vs-2,847 clicks, A$13,390. Including them put 57% more impressions at
+// the top of a lead-form funnel than ever carried a lead form, understated click-to-open by the same
+// factor (17.2% instead of the true 23.8%), and - the tell - left a "Total" row of 1,286,864 above
+// five rows summing to 817,658. A total that does not sum its own rows is not a rounding quibble.
+//
+// GRAIN LIMIT, stated honestly on screen: `pm_delivery` is aggregated to program x platform x day x
+// market and carries NO campaign column (deliberately - see sql/20), so this is the finest scope
+// available. A program that ran BOTH an awareness line and a lead-form line contributes all of its
+// LinkedIn delivery here. Going finer needs a campaign-grain view, not an un-grouping of sql/20.
+function liFunnelAgg(rows){
+  const progs={}, excl={n:0,imps:0,clicks:0,spend:0};
+  rows.forEach(r=>{
+    if(r.platform!=='linkedin') return;
+    const t=progs[r.program]||(progs[r.program]={imps:0,clicks:0,opens:0,leads:0,spend:0});
+    t.imps+=r.imps||0; t.clicks+=r.clicks||0; t.opens+=r.lead_form_opens||0;
+    t.leads+=r.leads||0; t.spend+=r.spend_aud||0;
+  });
+  const o={imps:0,clicks:0,opens:0,leads:0,spend:0,progs:{},excl};
+  Object.keys(progs).forEach(k=>{
+    const t=progs[k];
+    // No opens AND no leads = no lead form on this program. Not part of a lead-form funnel, and a row
+    // of zeros would read as a form that failed rather than one that was never on the buy.
+    if(!t.opens && !t.leads){ excl.n++; excl.imps+=t.imps; excl.clicks+=t.clicks; excl.spend+=t.spend; return; }
+    o.progs[k]=t;
+    o.imps+=t.imps; o.clicks+=t.clicks; o.opens+=t.opens; o.leads+=t.leads; o.spend+=t.spend;
+  });
+  return o;
+}
+function renderLiFunnel(rows){
+  const sec=el('liFunnelSec'), card=el('liFunnelCard'), progCard=el('liFunnelProgCard');
+  if(!sec||!card) return;
+  const t=liFunnelAgg(rows);
+  const on=(t.opens>0 || t.leads>0);
+  sec.style.display=on?'':'none'; card.style.display=on?'':'none';
+  if(!on){
+    progCard.style.display='none';
+    // Clear the rows when hiding: the shared sortable engine keeps re-wiring a hidden table full of
+    // the previous scope's numbers, and they would resurface on any reflow.
+    const tb=el('liFunnelProgTable'); if(tb){ tb.querySelector('tbody').innerHTML=''; tb.querySelector('tfoot').innerHTML=''; }
+    return;
+  }
+  const nProg=Object.keys(t.progs).length;
+  el('liFunnelSub').innerHTML = `LinkedIn's own on-platform lead-gen-form pipeline for `
+    + (isAllCampaigns()
+        ? `the <b>${fmtN(nProg)}</b> program${nProg===1?'':'s'} running a lead form in this filter`
+        : `<b>${esc(campaign().label)}</b>`)
+    + `: impression to click to lead form opened to lead form submitted. Reflects the selected <b>region(s)</b> and <b>date range</b>; LinkedIn is the only engine in this dashboard that reports lead-form metrics, so the Platform chips scope it in and out.`;
+
+  const rate=(a,b)=>a>0?b/a:null;                       // stage-to-stage conversion (never a drop-off)
+  const r_ic=rate(t.imps,t.clicks), r_co=rate(t.clicks,t.opens), r_ol=rate(t.opens,t.leads);
+  const cpc=t.clicks?t.spend/t.clicks:null, cpo=t.opens?t.spend/t.opens:null, cpl=t.leads?t.spend/t.leads:null;
+
+  const step=(k,v,sub,pending)=>`<div class="fstep"><div class="fk">${k}</div>`
+    + `<div class="fv${pending?' pending':''}">${v}</div><div class="fs">${sub}</div></div>`;
+  const conn=(r,lbl)=>`<div class="fconn"><div class="fa">&#9654;</div>`
+    + `<div class="fp">${r==null?'-':fmtPct(r, r<0.01?3:r<0.1?2:1)}</div><div class="fl">${lbl}</div></div>`;
+
+  el('liFunnel').innerHTML =
+      step('Impressions', fmtN(t.imps), `${money(t.spend)} media spend`)
+    + conn(r_ic, 'impressions&nbsp;&rarr;&nbsp;clicks')
+    + step('Clicks', fmtN(t.clicks), cpc==null?'no clicks yet':`${money(cpc,2)} per click`)
+    + conn(r_co, 'clicks&nbsp;&rarr;&nbsp;form opens')
+    + step('Lead form opens', t.opens>0?fmtN(t.opens):'none yet', t.opens>0?`${money(cpo,2)} per open`:'no form opened in this filter', !(t.opens>0))
+    + conn(r_ol, 'form opens&nbsp;&rarr;&nbsp;submitted')
+    + step('Submitted leads', t.leads>0?fmtN(t.leads):'none yet',
+           t.leads>0?`${money(cpl,0)} per lead`:'no submissions in this filter', !(t.leads>0));
+
+  // An earlier stage can legitimately be SMALLER than the one after it, because LinkedIn dates an open
+  // and its submission independently - narrow the date range far enough and a lead lands in a window
+  // its own form-open does not. Say so where it happens rather than leaving a >100% rate looking broken.
+  const inverted=[[t.imps,t.clicks,'clicks exceed impressions'],[t.clicks,t.opens,'form opens exceed clicks'],
+                  [t.opens,t.leads,'submissions exceed form opens']].filter(x=>x[0]>0&&x[1]>x[0]).map(x=>x[2]);
+  el('liFunnelNote').innerHTML =
+    `<b>Lead form opens</b> is LinkedIn's <i>oneClickLeadFormOpens</i> - the form being opened (the "LGF fill" stage); `
+    + `<b>submitted leads</b> is a completed submission (the "LGF completion"). Both are LinkedIn's own on-platform counts and are <b>separate from the Salesforce content-syndication leads</b> on the Content Syndication tab - never add the two together. `
+    + `Costs use client-billed media spend, LinkedIn only.`
+    // Say what is NOT in the funnel and where it is, so the impressions here can be reconciled
+    // against the KPI band and the platform table above (which are all-platform, all-program).
+    + (t.excl.n
+        ? ` <b>Scope:</b> these figures cover only the ${fmtN(nProg)} program${nProg===1?'':'s'} that ran a lead form. A further <b>${fmtN(t.excl.imps)}</b> LinkedIn impressions and <b>${money(t.excl.spend)}</b> across <b>${fmtN(t.excl.n)}</b> awareness program${t.excl.n===1?'':'s'} carried no lead form and are excluded here - they are still in the KPI band and the <b>Platform comparison</b> table above.`
+        : '')
+    + (inverted.length?` <b>Note:</b> ${inverted.join(' and ')} in this date range - LinkedIn dates a form open and its submission independently, so a narrow window can hold one without the other. Widen the range to see the true rate.`:'');
+
+  // ---- per-program decomposition. Shown only with 2+ programs in scope, where the blended funnel
+  // above is a number nobody can break down; for a single program it would restate the funnel.
+  const keys=Object.keys(t.progs).sort((a,b)=>t.progs[b].leads-t.progs[a].leads || t.progs[b].imps-t.progs[a].imps);
+  const showProg=keys.length>1;
+  progCard.style.display=showProg?'':'none';
+  const tbl=el('liFunnelProgTable');
+  if(!showProg){ tbl.querySelector('tbody').innerHTML=''; tbl.querySelector('tfoot').innerHTML=''; return; }
+  const cells=x=>`<td class="num">${fmtN(x.imps)}</td><td class="num">${fmtN(x.clicks)}</td>`
+    + `<td class="num">${x.imps?fmtPct(pct(x.clicks,x.imps),2):'-'}</td>`
+    + `<td class="num">${fmtN(x.opens)}</td><td class="num">${fmtN(x.leads)}</td>`
+    + `<td class="num">${x.clicks?fmtPct(pct(x.opens,x.clicks),1):'-'}</td>`
+    + `<td class="num">${x.opens?fmtPct(pct(x.leads,x.opens),1):'-'}</td>`
+    + `<td class="num">${x.leads?money(x.spend/x.leads,0):'-'}</td>`;
+  tbl.querySelector('tbody').innerHTML=keys.map(k=>
+    `<tr><td><span class="pill"><span class="dot" style="background:${campColor(k)}"></span>${esc(campLabel(k))}</span></td>${cells(t.progs[k])}</tr>`).join('');
+  tbl.querySelector('tfoot').innerHTML=`<tr class="total"><td>Total</td>${cells(t)}</tr>`;
 }
 
 // Clickable Paid-Media KPI cards toggle their matching series on the hero delivery chart.
@@ -1642,7 +1918,7 @@ function renderCS(){
   const vcls=v.cls==='up'?'ahead':(v.cls==='down'?'behind':'warn'), fillMod=v.cls==='down'?' red':(v.cls==='neut'?' amber':'');
   el('csLeadsTarget').innerHTML=`
     <div class="goal-head"><span class="lbl">Leads delivered → target</span><span class="val"><b>${fmtN(p.leads)}</b> / ${p.hasTarget?fmtN(p.target):'-'}</span></div>
-    <div class="goal-bar"><div class="goal-track"><div class="goal-fill" style="width:${(lp*100).toFixed(1)}%"></div></div>${p.timePct!=null?`<div class="goal-marker" data-lbl="pace ${(tp*100).toFixed(0)}%" style="left:${(tp*100).toFixed(1)}%"></div>`:''}</div>
+    <div class="goal-bar"><div class="goal-track"><div class="goal-fill" style="width:${(lp*100).toFixed(1)}%"></div></div>${p.timePct!=null?`<div class="goal-marker${tp>0.88?' at-end':tp<0.12?' at-start':''}" data-lbl="pace ${(tp*100).toFixed(0)}%" style="left:${(tp*100).toFixed(1)}%"></div>`:''}</div>
     <div class="goal-legend"><span>0</span><span>${p.hasTarget?fmtPct(p.leadsPct,1)+' of target delivered':'no target set'}</span><span>${p.hasTarget?fmtN(p.target):''}</span></div>
     <div class="prog-note">The <b style="color:var(--se-green2)">green bar</b> is leads delivered; the marker is where an even pace should sit today.${p.vsTtd!=null?` Running at <b>${fmtPct(p.vsTtd,0)}</b> of the to-date pace.`:''}${csEst!=null?` ≈ <b>${money(csEst)}</b> spent of the <b>${money(p.committed)}</b> committed CS budget (bills per lead).`:''} CRM-raw leads (status New).</div>`;
 
@@ -1655,9 +1931,12 @@ function renderCS(){
     <div class="prog-note">${p.totalDays!=null?`Day <b>${p.elapsed}</b> of <b>${p.totalDays}</b> in the flight window`:'No flight dates seeded'}.</div>`;
 
   renderCSWeekly(p);
-  renderCSMarket();
+  // ORDER MATTERS: renderCSProgramme decides whether its own card is shown at all (it hides when the
+  // scope has a single Salesforce programme), and renderCSMarket reads that decision to size the row
+  // one-up vs two-up. Swap these two lines and the market doughnut is a column narrower than the row
+  // it sits in for one render.
   renderCSProgramme();
-  renderCSRegionGrid();
+  renderCSMarket();
   renderCSTable();
 
   el('csFootNote').innerHTML=`<b>Leads are CRM-raw.</b> Volume is live from Salesforce; all are status <b>New</b> (the CRM hasn't graded MQL/SQL/HQL yet). Targets &amp; CPL are from the media plan. Some plan lines (Trade Publication, IDE emails, Search CTR, Innovation Aus) have <b>no warehouse source</b> and aren't shown here.`;
@@ -1702,40 +1981,98 @@ function renderCSWeekly(p){
     options:{ maintainAspectRatio:false, plugins:{legend:legendTop(),tooltip:{callbacks:{label:c=>` ${c.dataset.label}: ${fmtN(c.parsed.y)}`}}},
       scales:{ x:axisX({ticks:{font:{size:10}}}), y:gridY({beginAtZero:true,title:{display:true,text:'Leads / week',color:C.mute,font:{size:11}}}) } } });
 }
+// LEADS BY MARKET - a share doughnut (client request 2026-09-01, replacing a column chart), and now
+// the only market-share surface on the tab, the "By-market summary" card having gone with it.
+//
+// Two things a doughnut needs that the column chart did not:
+//   * an EMPTY STATE. Chart.js draws literally nothing for an all-zero dataset, so a scope with no
+//     leads (a region chip cleared, a program with a target and no delivery yet) would leave a titled
+//     blank box. The canvas is HIDDEN, never replaced: overwriting the parent's innerHTML removes the
+//     canvas for good and every later render of the card silently no-ops. That is not hypothetical -
+//     it is the live bug in renderAudience, fixed in the same change.
+//   * ZERO-lead regions dropped. A bar chart can honestly draw a 0-high bar for New Zealand; a
+//     doughnut cannot represent a 0% slice, so a region with no leads is left out of the ring and
+//     NAMED in the caption instead - stated, not silently missing.
 function renderCSMarket(){
-  const byMkt={}; activeMarketList().forEach(m=>byMkt[m]=0); csRows().forEach(r=>{ if(byMkt[r.market]!=null) byMkt[r.market]+=r.total||0; });
-  const mk=Object.keys(byMkt).filter(m=>byMkt[m]>=0);
-  charts.csMarket=new Chart(el('csMarket'),{ type:'bar',
-    data:{ labels:mk, datasets:[{ label:'Leads', data:mk.map(m=>byMkt[m]), backgroundColor:campColor(activeCampaign), borderRadius:4, maxBarThickness:60 }]},
-    options:{ maintainAspectRatio:false, plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>` ${fmtN(c.parsed.y)} leads`}}}, scales:{ x:axisX(), y:gridY({beginAtZero:true,title:{display:true,text:'Leads',color:C.mute,font:{size:11}}}) } } });
+  const byMkt={}; activeMarketList().forEach(m=>byMkt[m]=0);
+  csRows().forEach(r=>{ if(byMkt[r.market]!=null) byMkt[r.market]+=r.total||0; });
+  const shown=activeMarketList().filter(m=>byMkt[m]>0);
+  const zero=activeMarketList().filter(m=>!byMkt[m]);
+  const tot=shown.reduce((a,m)=>a+byMkt[m],0);
+  const cv=el('csMarket'), empty=el('csMarketEmpty');
+  // Full width whenever the programme card beside it is hidden (the single-programme scopes).
+  const pc=el('csProgCard'), grid=el('csChartGrid');
+  if(grid) grid.classList.toggle('one-up', !!(pc && pc.style.display==='none'));
+  if(!shown.length){
+    cv.style.display='none'; empty.style.display='flex';
+    empty.textContent = activeMarketList().length
+      ? `No content-syndication leads in ${activeMarketList().join(' or ')} for this scope.`
+      : 'No regions selected - tick a region above to see the market split.';
+    el('csMarketHint').textContent='Share of delivered leads per region for the current scope.';
+    return;
+  }
+  cv.style.display=''; empty.style.display='none';
+  el('csMarketHint').innerHTML='Share of delivered leads per region for the current scope.'
+    + (zero.length?` <b>${esc(zero.join(' and '))}</b> ${zero.length>1?'have':'has'} no leads in this scope, so ${zero.length>1?'they are':'it is'} not in the ring.`:'');
+  // LEGEND STAYS AT THE BOTTOM, always. A right-hand legend was tried for the one-up row (to use the
+  // width a full-bleed card leaves either side of the ring) and REVERTED the same pass: Chart.js
+  // reserves the legend's width out of the canvas, so the arc collapsed to a ~40px circle pinned to
+  // the left edge, the vendored `bbDonutCenter` plugin kept drawing "207 TOTAL LEADS" in the middle of
+  // the CANVAS - detached from the ring it belongs to - and the legend's own title clipped. Bottom
+  // also keeps this ring identical to the programme doughnut beside it in the two-up case.
+  const legend = {position:'bottom',title:{...LEGEND_HINT,padding:{top:16,bottom:6}},labels:{boxWidth:8,boxHeight:8,font:{size:10,...FONT},color:C.ink,padding:6}};
+  charts.csMarket=new Chart(cv,{ type:'doughnut',
+    data:{ labels:shown, datasets:[{ data:shown.map(m=>byMkt[m]),
+      backgroundColor:shown.map((_,i)=>MARKET_PALETTE[i%MARKET_PALETTE.length]), borderColor:'#fff', borderWidth:2 }]},
+    options:{ maintainAspectRatio:false, cutout:'58%',
+      plugins:{ legend,
+        bbCenter:{label:'Total leads',color:C.dark,labelColor:C.mute},
+        tooltip:{callbacks:{label:c=>` ${c.label}: ${fmtN(c.parsed)} leads (${fmtPct(pct(c.parsed,tot),0)})`}} } } });
 }
+// LEADS BY PROGRAMME. Hides itself when the scope holds 0 or 1 Salesforce programme.
+// It used to FALL BACK to a market-share doughnut in that case, which was fine while the card beside
+// it was a column chart - but "Leads by market" IS a share doughnut since 2026-09-01, so the fallback
+// would have drawn the identical chart twice under two headings (live on eba and water_env, one
+// programme each). That is the duplication the client asked us to remove, re-created one card along.
+// A single programme has no split to show, so say it once in prose and give the row to the market ring.
 function renderCSProgramme(){
   const byProg={}; csRows().forEach(r=>{ byProg[r.programme]=(byProg[r.programme]||0)+(r.total||0); });
   let pairs=Object.entries(byProg).filter(x=>x[1]>0).sort((a,b)=>b[1]-a[1]);
+  const card=el('csProgCard'), sole=el('csProgSole');
+  if(pairs.length<=1){
+    if(card) card.style.display='none';
+    // Name the sole programme where there is one: the reader still needs to know WHAT they are
+    // looking at, and with the card hidden this is the only place that fact appears.
+    const only=pairs.length===1?pairs[0][0]:null;
+    if(sole){ sole.innerHTML = only?`All leads in this scope sit under a single Salesforce programme, <b>${esc(only)}</b>, so there is no programme split to chart.`:'';
+              sole.style.display = only?'':'none'; }
+    return;
+  }
+  if(card) card.style.display='';
+  if(sole){ sole.style.display='none'; sole.innerHTML=''; }
   let labels,data;
-  if(pairs.length<=1){ el('csProgTitle').textContent='Leads by market - share'; el('csProgHint').textContent='Share of delivered leads across the selected regions.';
-    const byMkt={}; csRows().forEach(r=>{ byMkt[r.market]=(byMkt[r.market]||0)+(r.total||0); }); const mp=Object.entries(byMkt).filter(x=>x[1]>0).sort((a,b)=>b[1]-a[1]); labels=mp.map(x=>x[0]); data=mp.map(x=>x[1]); }
-  else { el('csProgTitle').textContent='Leads by programme'; el('csProgHint').textContent=isAllCampaigns()?"Share of leads across every program's Salesforce programmes.":"Share of leads across the program's Salesforce programmes."; labels=pairs.map(x=>x[0]); data=pairs.map(x=>x[1]); }
+  el('csProgTitle').textContent='Leads by programme'; el('csProgHint').textContent=isAllCampaigns()?"Share of leads across every program's Salesforce programmes.":"Share of leads across the program's Salesforce programmes."; labels=pairs.map(x=>x[0]); data=pairs.map(x=>x[1]);
   const tot=data.reduce((s,x)=>s+x,0);
   charts.csProgramme=new Chart(el('csProgramme'),{ type:'doughnut',
     data:{ labels, datasets:[{ data, backgroundColor:labels.map((_,i)=>PROG_PALETTE[i%PROG_PALETTE.length]), borderColor:'#fff', borderWidth:2 }]},
     options:{ maintainAspectRatio:false, cutout:'58%', plugins:{ legend:{position:'bottom',title:{...LEGEND_HINT,padding:{top:16,bottom:6}},labels:{boxWidth:8,boxHeight:8,font:{size:10,...FONT},color:C.ink,padding:6}}, bbCenter:{label:'Total leads',color:C.dark,labelColor:C.mute}, tooltip:{callbacks:{label:c=>` ${c.label}: ${fmtN(c.parsed)} (${fmtPct(pct(c.parsed,tot),0)})`}} } } });
 }
-function renderCSRegionGrid(){
-  const grid=el('csRegionGrid'); grid.innerHTML='';
-  const byMkt={}; csRows().forEach(r=>{ byMkt[r.market]=(byMkt[r.market]||0)+(r.total||0); });
-  const mkts=activeMarketList().filter(m=>byMkt[m]>0); const max=Math.max(1,...mkts.map(m=>byMkt[m])); const tot=mkts.reduce((s,m)=>s+byMkt[m],0);
-  mkts.forEach(m=>{ const lds=byMkt[m]; grid.insertAdjacentHTML('beforeend',`<div style="border:1px solid var(--se-line);border-radius:10px;padding:14px 16px;background:#fff">
-    <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px"><div style="font-weight:700;font-size:14px">${m}</div><div style="font-size:11.5px;color:var(--se-mute);font-weight:600">${fmtPct(pct(lds,tot),0)} of program</div></div>
-    <div class="reg-row"><div class="reg-lbl">Leads</div><div class="reg-bar"><div class="reg-fill" style="width:${(lds/max*100).toFixed(1)}%"></div></div><div class="reg-num">${fmtN(lds)}</div></div></div>`); });
-  if(!grid.innerHTML) grid.innerHTML=`<div style="color:var(--se-mute);font-style:italic;font-size:12px">No leads for the selected region(s).</div>`;
-}
+// renderCSRegionGrid (the "By-market summary" card) was REMOVED 2026-09-01 at the client's request -
+// it restated "Leads by market" as horizontal bars plus a share percentage. The share moved into the
+// market doughnut's ring, tooltip and legend, so nothing it showed was lost. If a per-market view is
+// ever wanted back, build it as a TABLE beside the doughnut, never a second chart of the same numbers.
+// The STATUS column is gone (client, 2026-09-01: "the status column doesn't make sense to me").
+// Every SE lead is CRM-raw status New, so the cell only ever printed "New <n>" - the Leads column
+// immediately to its left, restated. The counts still travel stg_salesforce -> cs_by_programme -> the
+// payload -> both CSV exports -> the AI-deck payload, so no data was dropped and the column is one
+// <th> plus one <td> away the day the CRM starts grading leads. The empty-row colspan MUST track the
+// column count.
 function renderCSTable(){
   const tb=el('csTable').querySelector('tbody');
   const rows=csRows().filter(r=>r.total>0).sort((a,b)=>b.total-a.total); const tot=rows.reduce((s,r)=>s+r.total,0);
-  tb.innerHTML=rows.map(r=>{ const statuses=[['New',r.new],['Working',r.working],['Qualified',r.qualified],['Disqualified',r.disqualified]].filter(s=>s[1]>0).map(s=>`${s[0]} ${fmtN(s[1])}`).join(', ')||'-';
-    return `<tr><td><b>${r.programme||'-'}</b></td><td>${r.market}</td><td class="num">${fmtN(r.total)}</td><td>${statuses}</td><td class="num">${fmtPct(pct(r.total,tot),0)}</td><td>${dateLabel(r.last_lead_day)}</td></tr>`; }).join('')
-    || `<tr><td colspan="6" style="text-align:center;color:var(--se-mute);padding:14px">No content-syndication leads for the selected filters.</td></tr>`;
+  tb.innerHTML=rows.map(r=>
+    `<tr><td><b>${esc(r.programme||'-')}</b></td><td>${esc(r.market)}</td><td class="num">${fmtN(r.total)}</td><td class="num">${fmtPct(pct(r.total,tot),0)}</td><td>${dateLabel(r.last_lead_day)}</td></tr>`).join('')
+    || `<tr><td colspan="5" style="text-align:center;color:var(--se-mute);padding:14px">No content-syndication leads for the selected filters.</td></tr>`;
 }
 
 //==============================================================================
@@ -1752,6 +2089,34 @@ function renderCSTable(){
 // portfolio-wide; on the CS tab it must answer for whatever the dropdown says, or the charts would
 // silently describe a different population than the lead totals directly above them.
 function audAgg(dim){ const o={}; (DATA.cs_audience||[]).forEach(r=>{ if(r.dim===dim && inCamp(r.campaign) && marketOk(r.market)) o[r.value]=(o[r.value]||0)+(r.leads||0); }); return o; }
+// JOB TITLES PER ACCOUNT (client, 2026-09-01). Scoped by the SAME two predicates as audAgg, so the
+// titles under an account always describe the leads that produced that account's number - a company
+// can appear in two campaigns and both markets, and titles must follow whatever is selected.
+//
+// Returns {company: {titles:[[title, leads], ...] sorted desc, titled: <leads carrying a title>}}.
+// `titled` is what makes the coverage gap visible: JOB_TITLE is ~90% populated, so an account can
+// legitimately hold more leads than titles. The UI states the shortfall; it never invents an
+// "Unknown" title, which would rank against the real ones.
+// Case is folded here as well as in the view, because the view groups per market and this sums ACROSS
+// markets - the same title in AU and NZ must not list twice.
+function audAcctTitles(){
+  const out={};
+  (DATA.cs_account_titles||[]).forEach(r=>{
+    if(!inCamp(r.campaign) || !marketOk(r.market) || !r.company || !r.job_title) return;
+    const a=out[r.company]||(out[r.company]={m:{},titled:0});
+    const k=String(r.job_title).toUpperCase();
+    const e=a.m[k]||(a.m[k]={t:r.job_title,n:0});
+    // Keep a deterministic display spelling when two case variants meet (MIN, matching the view).
+    if(r.job_title<e.t) e.t=r.job_title;
+    e.n+=r.leads||0; a.titled+=r.leads||0;
+  });
+  Object.values(out).forEach(a=>{
+    a.titles=Object.values(a.m).map(e=>[e.t,e.n])
+      .sort((x,y)=>y[1]-x[1] || (x[0]<y[0]?-1:x[0]>y[0]?1:0));   // count desc, then A-Z so ties are stable
+    delete a.m;
+  });
+  return out;
+}
 // Planned paid impressions for a program = the media plan's paid channel lines. This is the target an
 // AWARENESS program is actually judged on; it is 0 while a plan is unsigned (Microgrid / EcoConsult).
 function progImpTarget(c){ return (c.channels||[]).filter(x=>x.group==='paid').reduce((a,x)=>a+(+x.imp_target||0),0); }
@@ -1801,34 +2166,71 @@ function renderAudience(){
   const scopeTxt = isAllCampaigns() ? 'across all programs' : `for ${campaign().label}`;
   el('audSub').innerHTML=`From the Salesforce lead records ${scopeTxt}: the job functions and seniority of the people who engaged, and the named accounts behind the numbers. This is the lead-quality lens beyond raw volume. Reflects the selected region(s).`;
 
+  // Show / hide a canvas against its sibling empty state. NEVER overwrite the parent's innerHTML to
+  // draw an empty state - that deletes the canvas and this whole function no-ops from then on.
+  const swap=(id,msg)=>{ const cv=el(id), em=el(id+'Empty');
+    cv.style.display=msg?'none':''; if(em){ em.style.display=msg?'flex':'none'; em.textContent=msg||''; }
+    return !msg; };
+
   // --- job function (doughnut) ---
   const fp=Object.entries(audAgg('function')).filter(x=>x[1]>0).sort((a,b)=>b[1]-a[1]);
   const ftot=fp.reduce((s,x)=>s+x[1],0);
-  if(fp.length) charts.scFunc=new Chart(el('scFunc'),{ type:'doughnut',
+  if(swap('scFunc', fp.length?null:'No leads in the selected scope / region(s).'))
+    charts.scFunc=new Chart(el('scFunc'),{ type:'doughnut',
     data:{ labels:fp.map(x=>x[0]), datasets:[{ data:fp.map(x=>x[1]), backgroundColor:fp.map((_,i)=>PROG_PALETTE[i%PROG_PALETTE.length]), borderColor:'#fff', borderWidth:2 }]},
     options:{ maintainAspectRatio:false, cutout:'58%', plugins:{ legend:{position:'bottom',title:{...LEGEND_HINT,padding:{top:16,bottom:6}},labels:{boxWidth:8,boxHeight:8,font:{size:10,...FONT},color:C.ink,padding:6}}, bbCenter:{label:'Total leads',color:C.dark,labelColor:C.mute}, tooltip:{callbacks:{label:c=>` ${c.label}: ${fmtN(c.parsed)} (${fmtPct(pct(c.parsed,ftot),0)})`}} } } });
-  else el('scFunc').parentElement.innerHTML='<div style="padding:40px 10px;text-align:center;color:var(--se-mute);font-size:12.5px">No leads in the selected scope / region(s).</div>';
 
   // --- seniority (horizontal bar) ---
   const sn=audAgg('seniority'), order=['Executive','Director','Manager','Other','Not disclosed'];
   const sl=order.filter(k=>sn[k]), scol={Executive:'#005F20',Director:'#007E2A',Manager:'#2867B2',Other:'#C9CED4','Not disclosed':'#E6E9ED'};
-  if(sl.length) charts.scSen=new Chart(el('scSen'),{ type:'bar',
+  if(swap('scSen', sl.length?null:'No disclosed seniority in the selected scope.'))
+    charts.scSen=new Chart(el('scSen'),{ type:'bar',
     data:{ labels:sl, datasets:[{ label:'Leads', data:sl.map(k=>sn[k]), backgroundColor:sl.map(k=>scol[k]||C.slate), borderRadius:4, maxBarThickness:48 }]},
     options:{ indexAxis:'y', maintainAspectRatio:false, plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>` ${fmtN(c.parsed.x)} leads`}}}, scales:{ x:gridY({beginAtZero:true}), y:axisX() } } });
-  else el('scSen').parentElement.innerHTML='<div style="padding:40px 10px;text-align:center;color:var(--se-mute);font-size:12.5px">No disclosed seniority in the selected scope.</div>';
 
-  // --- top accounts reached (ABM hook) ---
+  // --- top accounts reached (ABM hook) + the job titles behind each one --------------------------
+  // TITLES_PER_ACCT=2 is the client's ask ("the top 1 or 2 job titles"). Anything beyond that is
+  // summarised as a count rather than truncated silently, so a 6-title account never looks like a
+  // 2-title one. Titles are free text from the lead form, so they are ellipsised with the full string
+  // on hover - never wrapped, which would give the account blocks ragged heights.
+  const TITLES_PER_ACCT=2;
   const ap=Object.entries(audAgg('account')).filter(x=>x[1]>0).sort((a,b)=>b[1]-a[1]);
+  const AT=audAcctTitles();
+  const top=ap.slice(0,18);
   el('scAcctCount').textContent = ap.length?`· ${fmtN(ap.length)} companies, top ${Math.min(18,ap.length)} shown`:'';
-  const amax=Math.max(1,...ap.slice(0,18).map(x=>x[1]));
-  el('scAccounts').innerHTML = ap.slice(0,18).map(([name,n])=>`
-    <div style="display:flex;align-items:center;gap:10px">
-      <div style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12.5px" title="${String(name).replace(/"/g,'&quot;')}">${name}</div>
-      <div style="width:88px;height:8px;background:#EEF1F0;border-radius:999px;overflow:hidden;flex:none"><div style="height:100%;width:${(n/amax*100).toFixed(1)}%;background:${C.green}"></div></div>
-      <div style="width:24px;text-align:right;font-weight:700;font-size:12px;flex:none">${fmtN(n)}</div>
-    </div>`).join('') || `<div style="color:var(--se-mute);font-style:italic;font-size:12px">No leads for the selected scope / region(s).</div>`;
+  const amax=Math.max(1,...top.map(x=>x[1]));
+  // Coverage across the accounts ON SCREEN, not across the whole feed - the caption has to describe
+  // what the reader is looking at, and a narrow region/campaign scope can have very different coverage.
+  const shownLeads=top.reduce((a,x)=>a+x[1],0);
+  const shownTitled=top.reduce((a,x)=>a+((AT[x[0]]&&AT[x[0]].titled)||0),0);
+  // TITLES ABSENT FROM THE PAYLOAD is NOT the same fact as "every lead left the field blank", and the
+  // difference is a real deploy state: the dashboard is one service and the export job is another, so
+  // between a dash redeploy and the job's next run `cs_account_titles` legitimately does not exist.
+  // Saying "all 1,101 leads left the title field blank" there would be a confident false statement
+  // about the client's CRM hygiene. Render the accounts card exactly as it was instead.
+  const titlesLoaded=!!(DATA.cs_account_titles && DATA.cs_account_titles.length);
+  el('scAcctHint').innerHTML='Named companies generating the most content-syndication leads - the account-level view behind the totals.'
+    + (titlesLoaded && shownLeads
+        ? ` Beneath each account are the <b>job titles its own leads gave</b>, ranked by how many leads carried each one${shownTitled<shownLeads?` - <b>${fmtN(shownLeads-shownTitled)}</b> of these ${fmtN(shownLeads)} leads left the title field blank, so they are absent rather than bucketed`:''}.`
+        : '');
+  el('scAccounts').innerHTML = top.map(([name,n])=>{
+    const a=AT[name]||{titles:[],titled:0};
+    const rows=a.titles.slice(0,TITLES_PER_ACCT).map(([t,c])=>
+      `<div class="acct-title" title="${esc(t)}"><span>${esc(t)}</span>${c>1?`<b>${fmtN(c)}</b>`:''}</div>`);
+    const extra=a.titles.length-TITLES_PER_ACCT;
+    if(extra>0) rows.push(`<div class="acct-title more"><span>+ ${fmtN(extra)} other ${extra===1?'title':'titles'}</span></div>`);
+    if(titlesLoaded && !a.titles.length) rows.push(`<div class="acct-title none"><span>No job title recorded</span></div>`);
+    return `<div class="acct">
+      <div class="acct-top">
+        <div class="acct-name" title="${esc(name)}">${esc(name)}</div>
+        <div class="acct-bar"><i style="width:${(n/amax*100).toFixed(1)}%"></i></div>
+        <div class="acct-n">${fmtN(n)}</div>
+      </div>
+      ${titlesLoaded?`<div class="acct-titles">${rows.join('')}</div>`:''}
+    </div>`;
+  }).join('') || `<div style="color:var(--se-mute);font-style:italic;font-size:12px">No leads for the selected scope / region(s).</div>`;
 
-  el('scFootNote').innerHTML=`Audience fields come from the Salesforce lead records: <b>company 100%</b>, <b>job function 100%</b>, <b>job level ~40%</b> populated. Industry, company-size and downloaded-asset fields are empty in the current feed, so they are intentionally not shown. These figures follow the <b>Campaign</b> dropdown and the <b>Region</b> chips; they carry no delivering platform, so the Platform chips do not apply. All figures are true source data.`;
+  el('scFootNote').innerHTML=`Audience fields come from the Salesforce lead records: <b>company 100%</b>, <b>job function 100%</b>, ${titlesLoaded?'<b>job title ~90%</b>, ':''}<b>job level ~40%</b> populated. Industry, company-size and downloaded-asset fields are empty in the current feed, so they are intentionally not shown. ${titlesLoaded?"Job titles are the leads' own free-text entries - 342 distinct spellings across the flight, so most are unique to one lead and a count only appears where a title genuinely repeats at that account.":''} These figures follow the <b>Campaign</b> dropdown and the <b>Region</b> chips; they carry no delivering platform, so the Platform chips do not apply. All figures are true source data.`;
 }
 
 // ---- BY-PROGRAM DECOMPOSITION (only under "All campaigns") -----------------------------------
@@ -2053,12 +2455,16 @@ function exportThisTab(){
     .concat(tableCSV('cs_weekly (filtered)', csWeeklyRows()))
     // audience intelligence moved here with the Executive Scorecard's retirement; it is scoped by the
     // Campaign dropdown now, so the export must be too or the CSV would disagree with the screen.
-    .concat(tableCSV('cs_audience (filtered)', (DATA.cs_audience||[]).filter(r=>inCamp(r.campaign) && marketOk(r.market))));
+    .concat(tableCSV('cs_audience (filtered)', (DATA.cs_audience||[]).filter(r=>inCamp(r.campaign) && marketOk(r.market))))
+    // Job titles per account (2026-09-01). Scoped by the same two predicates the card on screen uses,
+    // or the CSV would answer for a different population than the section it came from.
+    .concat(tableCSV('cs_account_titles (filtered)', (DATA.cs_account_titles||[]).filter(r=>inCamp(r.campaign) && marketOk(r.market))));
   dl(`schneider_${activeTab}.csv`, lines);
 }
 function exportAllData(){
   let lines=['# Schneider Electric Pacific - Content Syndication - full export'];
-  lines=lines.concat(tableCSV('campaigns', DATA.campaigns)).concat(tableCSV('cs_by_programme', DATA.cs_by_programme)).concat(tableCSV('cs_weekly', DATA.cs_weekly)).concat(tableCSV('pm_delivery', DATA.pm_delivery));
+  lines=lines.concat(tableCSV('campaigns', DATA.campaigns)).concat(tableCSV('cs_by_programme', DATA.cs_by_programme)).concat(tableCSV('cs_weekly', DATA.cs_weekly)).concat(tableCSV('pm_delivery', DATA.pm_delivery))
+    .concat(tableCSV('cs_audience', DATA.cs_audience||[])).concat(tableCSV('cs_account_titles', DATA.cs_account_titles||[]));
   dl('schneider_content_syndication.csv', lines);
 }
 

@@ -45,14 +45,29 @@ or the `MIN_DATE` floor — auto-discovering how far back data exists.
 .\.venv\Scripts\python.exe windsor_data_pull\tradedesk\tradedesk_loader.py 2026-05-01 2026-05-31 --force
 ```
 
+**Scheduled runs are BOUNDED (2026-09-01):** the Cloud Run job sets `WINDSOR_LOOKBACK_DAYS=35`
+(no-args becomes a fixed range of the last 35 days, ~5 min instead of re-walking the seat's whole
+history into the 3600s task kill) and `WINDSOR_MAX_ATTEMPTS=4` (a retry budget that fits the task
+timeout, so a degraded Windsor gives up cleanly and the exit code stays meaningful). Neither env is
+set for laptop runs, so the commands above behave exactly as written. **Consequence: an upstream
+restatement older than 35 days no longer self-heals** — run a manual fixed range for the affected
+window (MERGE is idempotent). A 400 for a day TTD has not published yet is recognised by MESSAGE,
+not just by empty body — Windsor changed that error's shape once already (2026-08-31, empty →
+JSON body), which silently killed the early scheduled run for weeks; see the `DATA NOT PUBLISHED
+YET` comment in `fetch_chunk`.
+
 **Accounts loaded:** `569` (single TTD account; was `484` until the 2026-08-25 re-grant issued a
 new seat id - see the loader comment). An ungranted/revoked account is logged and
 skipped (`AccountUnavailableError`) rather than aborting the run.
 
-> **Status (2026-07-16):** healthy and flowing — `windsor-tradedesk-ingest` ran to success and
-> `perf_the_trade_desk` is fresh. The earlier "connector down" state (2026-06-13, endpoint down / grant
-> revoked) is resolved. If it recurs, re-grant at <https://onboard.windsor.ai?datasource=tradedesk>; an
-> ungranted account is logged + skipped (`AccountUnavailableError`), it doesn't abort the run. See the
+> **Status (2026-09-01):** healthy and flowing — `windsor-tradedesk-ingest` runs `35 4,21 * * *`
+> UTC in bounded mode (~5 min/run, both runs green). Know the two failure modes this loader has
+> already survived: a lapsed GRANT (2026-06-13 and again 2026-08-21 — re-grant at
+> <https://onboard.windsor.ai?datasource=tradedesk>; note the re-grant can issue a NEW seat id, 484
+> → 569, so a working re-auth can look like a failure until `SELECT_ACCOUNTS` is repointed), and
+> Windsor's nightly degraded window ~00:00-03:30 UTC (ReadTimeouts + "day not published" 400s —
+> which is why the early run sits at 04:35, not 01:35). An ungranted account is logged + skipped
+> (`AccountUnavailableError`), it doesn't abort the run. See the
 > [parent README](../README.md#deployment--scheduling-cloud-run-jobs).
 
 ---

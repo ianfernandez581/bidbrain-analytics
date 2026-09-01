@@ -12,9 +12,14 @@ ratios all work), rerun this script, reseed (seed_static.py or bq load) and forc
 job. Nothing else moves: per-line plan totals and the 2,565 grand total are preserved exactly
 by construction.
 
-Week mapping matches the streams 2&3 rows: plan week N (Mon 2026-08-03 grid) -> seed week N
-(Fri 2026-08-07 grid); each plan line spreads its total evenly over its live weeks (that is
-how the plan itself paces: L/13, L/10, L/9), rounded cumulatively so every line total is exact.
+Week mapping matches the streams 2&3 rows: plan week N (Monday grid, W1 = Mon 2026-08-03) maps
+to the Friday bucket that CONTAINS its Monday (W1 -> Fri 2026-07-31), i.e. seed week N starts
+2026-07-31 + 7(N-1). Mapping the Monday to the FOLLOWING Friday instead runs a full bucket
+late - week 4's targets landed in the 08/28 bucket while all of that plan week's delivery
+(dated 08-24..08-30) sits in the 08/21 bucket (Calvin, 2026-08-31). sql/16's EMEA week anchor
+is 2026-07-31 for the same reason - keep the two aligned. Each plan line spreads its total
+evenly over its live weeks (that is how the plan itself paces: L/13, L/10, L/9), rounded
+cumulatively so every line total is exact.
 """
 import csv, datetime, collections, os
 
@@ -25,7 +30,7 @@ IDE_LITE_SPLIT = {'Roverpath': 271, 'Final Funnel': 148}
 
 CSV_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'cs_targets_q3.csv')
 MARKET_SEQ = {'UKI': 1, 'DACH': 2, 'SEUR': 3, 'NEUR': 4, 'CEERI': 5, 'MEA': 6}
-FRI_ANCHOR = datetime.date(2026, 8, 7)
+FRI_ANCHOR = datetime.date(2026, 7, 31)   # Friday bucket CONTAINING plan W1's Monday (08-03)
 ALL_M = list(MARKET_SEQ)
 
 # IDE Lite plan lines from `Media Plan 29-07-26` (market, line total, first live plan week);

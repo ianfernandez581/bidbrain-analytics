@@ -11,7 +11,9 @@ Three tabs:
   * Paid Media          — DV360 / TradeDesk / LinkedIn delivery for the selected program (pm_delivery,
                           the match_pattern-tagged delivery at program × day × market × platform grain),
                           incl. LinkedIn's on-platform lead-form leads (`leads`/`lead_form_opens`).
-  * Content Syndication — Salesforce leads vs the media-plan MQL+HQL target (cs_by_programme / cs_weekly).
+  * Content Syndication — Salesforce leads vs the media-plan MQL+HQL target (cs_by_programme /
+                          cs_weekly), plus audience intelligence (cs_audience) and the top job
+                          titles behind each named account (cs_account_titles).
   * CS Comparison       — market A vs B for the selected program.
 The campaign→programme→market model: CAMPAIGN = internal program, PROGRAMME = SF pillar_label,
 MARKET = normalized COUNTRY_NAME (Australia / New Zealand / ANZ / Other).
@@ -108,6 +110,9 @@ def main():
     csw = rows(bq, "cs_weekly")
     pm = rows(bq, "pm_delivery")
     aud = rows(bq, "cs_audience")   # Content Syndication tab: account / function / seniority mix
+    # Top job titles per account (client, 2026-09-01). Companion to cs_audience, deliberately a
+    # SEPARATE array: a title belongs to a company, which the LONG dim/value shape cannot key.
+    acct_titles = rows(bq, "cs_account_titles")
     media = rows(bq, "seed_media_plan")
     budget = {b["internal_campaign_id"]: b for b in rows(bq, "seed_plan_budget")}
     display = {m["internal_campaign_id"]: m["display_name"]
@@ -313,6 +318,14 @@ def main():
             "campaign": r["campaign"], "market": r["market"], "dim": r["dim"],
             "value": r["value"], "leads": num(r["leads"]),
         } for r in aud],
+        # One row per company x job title x market. The dashboard sums across the selected markets
+        # and ranks, so the ranking honours the Campaign dropdown + Region chips. JOB_TITLE is ~90%
+        # populated, so per-account title counts can be LOWER than the account's lead total - that
+        # gap is stated on screen, never coalesced into an invented "Unknown" title.
+        "cs_account_titles": [{
+            "campaign": r["campaign"], "market": r["market"], "company": r["company"],
+            "job_title": r["job_title"], "leads": num(r["leads"]),
+        } for r in acct_titles],
         "ga4_enabled": ga4_enabled,
         "ga4": ga4,
     }
@@ -322,9 +335,11 @@ def main():
     write_watermark(BUCKET, WATERMARK_OBJECT, observed)
     n_leads = sum(r["total"] for r in env["cs_by_programme"])
     n_li = sum(c["li_leads"] or 0 for c in env["campaigns"])
+    n_titled = sum(r["leads"] or 0 for r in env["cs_account_titles"])
     print(f"wrote gs://{BUCKET}/{DATA_OBJECT} | {len(env['campaigns'])} programs, "
           f"{n_leads} CS leads, {n_li} LinkedIn lead-form leads, "
           f"{len(env['pm_delivery'])} paid-delivery rows, "
+          f"{len(env['cs_account_titles'])} account-title rows covering {n_titled}/{n_leads} leads, "
           f"window {env['window']['start']}..{env['window']['end']}")
 
 

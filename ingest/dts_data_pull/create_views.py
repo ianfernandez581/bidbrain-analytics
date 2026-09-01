@@ -151,9 +151,37 @@ def gads_client_case():
     return client_expr, agency_expr
 
 
+# ---------- the MCC table set is a FROZEN ARCHIVE (2026-08-31) ----------
+# Google stopped serving metrics at MANAGER level on 2026-08-18 ("Metrics cannot be requested for a
+# manager account"), so the MCC-wide transfer can never load another row - see the rule in
+# md/AGENTS.md. Each client account now has its OWN transfer writing its OWN `*_<customer_id>` table
+# set, and `discover()` unions every set it finds.
+#
+# That union is a plain UNION ALL with no dedupe, and a DTS run re-pulls a refresh window of recent
+# days - so any date present in BOTH the MCC set and a per-account set would be COUNTED TWICE, in
+# `perf_google_ads`, silently. The MCC set therefore stops contributing on the day it froze, and the
+# per-account sets own everything after it. Map an id here only when its set is genuinely dead.
+GADS_FROZEN_THROUGH = {"3451896252": "2026-08-24"}
+# ...and the per-account sets pick up the day after. BOTH halves are needed: bounding only the
+# frozen set stops double-counting AFTER the cutover, but a per-account backfill reaching back
+# BEFORE it would then be counted twice as well (a DTS backfill re-pulls whatever window you give
+# it, so this cannot be prevented by scheduling). One cutover, applied from both sides.
+GADS_LIVE_FROM = {"1869745895": "2026-08-25",   # The Little Marionette
+                  "1054407474": "2026-08-25",   # Reset Data
+                  "5457742070": "2026-08-25"}   # Geocon Group
+
+
 def gads_block(mcc):
     """One MCC's perf_google_ads SELECT block (campaign x date, summed over segments)."""
     client_expr, agency_expr = gads_client_case()
+    frozen = GADS_FROZEN_THROUGH.get(str(mcc))
+    live_from = GADS_LIVE_FROM.get(str(mcc))
+    if frozen:
+        frozen_where = (" WHERE segments_date <= DATE '%s'" % frozen)
+    elif live_from:
+        frozen_where = (" WHERE segments_date >= DATE '%s'" % live_from)
+    else:
+        frozen_where = ''
     return f"""SELECT
   'google_ads'                          AS platform,
   CAST(s.customer_id AS STRING)         AS customer_id,
@@ -180,7 +208,7 @@ FROM (
          CAST(SUM(metrics_cost_micros) / 1e6 AS NUMERIC) AS spend,
          CAST(SUM(metrics_conversions) AS NUMERIC)       AS conversions,
          CAST(SUM(metrics_conversions_value) AS NUMERIC) AS conversions_value
-  FROM `{PROJECT_ID}.{GADS_DATASET}.ads_CampaignBasicStats_{mcc}`
+  FROM `{PROJECT_ID}.{GADS_DATASET}.ads_CampaignBasicStats_{mcc}`{frozen_where}
   GROUP BY customer_id, campaign_id, segments_date
 ) s
 LEFT JOIN (

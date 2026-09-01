@@ -490,10 +490,14 @@ CF1 ACQ / CF1 EXP / Modernize Security / Retail / BFSI / Closed Lost, DT+ST line
 the *Delivery by publisher* footnote now says so per vendor (`CSPD_CLIENT_SET_VENDORS` in
 `renderCsPacingDetail`'s note block).
 
-- **Week mapping is BY NUMBER onto the EMEA Friday grid** (plan week N, Monday 2026-08-03 grid,
-  -> seed week N, Friday 2026-08-07 grid) - the SAME convention as Stream 1, whose sheet uses
-  the identical Monday grid. Weekly buckets therefore lag the plan's own weeks by ~4 days;
-  quarter totals reconcile exactly (repo rule: accepted, do not fix in code).
+- **Week mapping: each plan week maps to the Friday bucket that CONTAINS its Monday** (W1 =
+  Mon 08-03 -> Fri 07-31 ... W13 -> Fri 10-23), and sql/16's EMEA anchor is **2026-07-31** to
+  match. Mapping the Monday to the FOLLOWING Friday instead (the original by-number mapping)
+  ran a full bucket late: plan W4's targets sat in the 08/28 bucket while ALL of that week's
+  delivery (dated 08-24..08-30) lands in 08/21 - flight-to-date target read 192 instead of
+  ~720 (fixed 2026-08-31, Calvin). Both anchors are Fridays, so the remap moved NO lead dated
+  on/after 08-07; only leads dated 07-31..08-06 shift into their true 07-31 bucket. Weekly
+  buckets still smear the plan's Monday weeks by 3 days; quarter totals reconcile exactly.
 - **The seed's TARGET is INT64 and the plan's weeklies are fractional** (32.22/wk etc.) - each
   plan LINE was rounded week-by-week with cumulative rounding so every line total, and so every
   vendor total, matches the sheet EXACTLY. Rebuild script: the conversion lives in the git
@@ -523,6 +527,12 @@ theatres), Acquisition + EXP in scope, Google Ads plan benchmarks + CPC actual-o
 strip, canonical solution labels, creative names decoded to asset names, Google Ads creatives
 restored to the creative tables/switcher, section-header wrap fix, exact-domain test-lead
 filter (sql/10/14/16).
+
+**TEMPORARY (2026-09-01, Ian, for the client WIP meeting):** the By-region summary cards HIDE
+the Flight Target row on the EMEA lane (`showFlight` in `renderRegionGrid`) - the whole-flight
+number dwarfed the other bars. The value stays in "Leads vs target" above; Ian is raising the
+presentation with John. Restore = flip `showFlight` (hint text follows automatically). APJ
+cards unchanged.
 
 **Blocked - do not build until the owner moves:**
 - One-solution-per-asset: mechanism WIRED, `ASSET_SOLUTION_MODE='stacked'` deliberately -

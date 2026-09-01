@@ -209,6 +209,25 @@ account Viewer on the property; the numeric property id goes into `PROPERTY_NAME
 is created in the console; then views + job + tab. Same path `client_schneider` documents for
 Schneider Electric, whose placeholder is still commented out in that same map.
 
+**The Website tab shows NO enquiry figure while the site tracking is unverified (2026-09-01).**
+GA4 reports 63 `form_start` events on the Gateway Braddon site and **no `form_submit` at all**.
+`form_submit` is GA4 **enhanced measurement**, which does not fire on a form that submits by AJAX,
+calls `preventDefault()`, or sits in an **iframe** - which is how most property enquiry forms are
+embedded - so this is far more likely a tracking gap than a failing form. Any figure there, `0` or a
+dash, invites a conclusion the data cannot support, so the KPI is **omitted entirely** and returns on
+its own the moment either a GA4 **key event** is configured on the property or a real `form_submit`
+arrives. No edit needed when that happens.
+
+**It is NOT our pipeline, and that was checked before saying so:** `form_start` flows normally, and
+one `form_submit` DOES come through on the other property - a pipeline that carried a count of 1 is
+not truncating or filtering. The absence is a fact about the source data.
+
+**Related, and also not a dashboard fault:** Northbourne's Meta ads carry **Gateway Braddon's ad
+copy** ("Gateway Braddon balances the energy of Braddon...") under campaign
+`0201_GG_ACT Northboune Gateway_statics_CNV`. The campaign name is unambiguously Northbourne and the
+property map resolves it correctly; that body text is what Meta returns for the ad. A
+creative-trafficking question for the agency - but it reads like a scoping bug, so it is recorded here.
+
 **Google Ads conversions now have a surface (2026-08-28).** `conversions` and
 `view_through_conversions` have flowed `sql/09_stg_google_ads` -> `10_fact_all` -> `job/main.py` ->
 the payload since 2026-08-24, and **nothing rendered them** - so the day the A$16,500 "Canberra

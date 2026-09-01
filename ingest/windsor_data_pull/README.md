@@ -118,7 +118,7 @@ Windsor key from Secret Manager (`windsor-api-key`).
 | Loader | Cloud Run job | Cron (UTC) |
 |---|---|---|
 | Meta | `windsor-meta-ingest` | `15 21 * * *` (daily) |
-| Trade Desk | `windsor-tradedesk-ingest` | `35 1,21 * * *` (twice daily; the 01:35 UTC = 11:35 AEST run lands Sydney-yesterday data the same Sydney day — added 2026-08-07 for caltex freshness, benefits every TTD dashboard) |
+| Trade Desk | `windsor-tradedesk-ingest` | `35 4,21 * * *` (twice daily; the 04:35 UTC = 14:35 AEST run lands Sydney-yesterday data by ~14:45 the same Sydney day, benefiting every TTD dashboard. Was 01:35 from 2026-08-07; moved 2026-09-01 because Windsor's TTD endpoint is degraded ~00:00-03:30 UTC while TTD finalises the prior day, so the 01:35 run failed or limped for weeks. The job also sets `WINDSOR_LOOKBACK_DAYS=35` + `WINDSOR_MAX_ATTEMPTS=4` — bounded pulls that fit the 3600s task cap; see the loader header) |
 | Field catalogue | `windsor-fields-ingest` | `45 21 * * *` (daily) |
 | Reddit | `windsor-reddit-ingest` | `50 21 * * *` (daily) |
 | LinkedIn | `windsor-linkedin-ingest` | `40 21 * * *` (daily) |

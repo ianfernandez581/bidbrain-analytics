@@ -1692,8 +1692,17 @@ function renderKpisAwareness(a){
 // never read as one number a client could add up.
 function convTile(a){
   const src=deliveredChans().filter(c=>ROWS().some(r=>r.channel===c&&r.conversions!=null));
-  return {color:MC.qualified,label:'Conversions',value:int(a.conversions),
-          sub:`${src.map(safeName).join(' / ')||'platform'}-reported \u00b7 ${a.cost_per_conversion!=null?money(a.cost_per_conversion)+' each':'cost n/a'}`};
+  const who=src.map(safeName).join(' / ')||'platform';
+  // A 0 with clicks behind it is worth showing - a conversion campaign that served clicks and
+  // returned nothing is real information - but "cost n/a" tells the reader nothing about WHY the
+  // figure is empty. Name the clicks it has had instead, so an early read (three days, 172 clicks)
+  // is distinguishable from a mature one, and a conversion action that was never configured in the
+  // ad platform looks like what it is rather than like a failed campaign.
+  const cclicks=ROWS().filter(r=>r.conversions!=null).reduce((x,r)=>x+n(r.clicks),0);
+  const sub=n(a.conversions)>0
+    ? (who+'-reported · '+(a.cost_per_conversion!=null?money(a.cost_per_conversion)+' each':'cost unavailable'))
+    : (who+'-reported · none yet from '+int(cclicks)+' clicks');
+  return {color:MC.qualified,label:'Conversions',value:int(a.conversions),sub};
 }
 function budgetSub(spendPct,budget){
   const inMkt=flight().pace_basis==='in_market';
@@ -2307,13 +2316,25 @@ function renderWebsite(){
   $('gaKpis').innerHTML=[
     {label:'Sessions',value:int(sessions),color:MC.accent,sub:`page views ${int(pv)}`},
     {label:'Engaged sessions',value:int(eng),color:MC.leads,sub:`engagement rate ${sessions?pct(eng/sessions):'-'}`},
-    {label:'Website enquiries',value:int(enq),color:MC.qualified,
-     sub:onKeyEvents?`GA4 key events · ${int(starts)} form starts`
-                    :(starts?`form submissions · ${int(starts)} starts, ${pct(enq/starts)} completed`
-                            :'form submissions · no key event configured in GA4')},
+    // NO ENQUIRY TILE UNTIL THE SIGNAL IS TRUSTWORTHY (client instruction 2026-09-01, while the
+    // site tracking is being checked). `form_submit` is GA4 ENHANCED MEASUREMENT and does not fire
+    // on a form that submits by AJAX, calls preventDefault(), or sits in an IFRAME - which is how
+    // most property enquiry forms are embedded. Gateway Braddon shows 63 form STARTS and no submit
+    // at all, which is far more likely a tracking gap than a broken form, so ANY figure here - 0 or
+    // a dash - invites a conclusion the data cannot support. The tile is omitted entirely instead.
+    //
+    // It returns on its own, with no edit, as soon as there is something real to show: a GA4 KEY
+    // EVENT configured on the property (the right signal), or a `form_submit` actually arriving.
+    // Our pipeline is NOT the suspect - form_start flows, and one form_submit does come through on
+    // the other property, so the event name is carried correctly end to end.
+    (onKeyEvents||submits>0)
+      ? {label:'Website enquiries',value:int(enq),color:MC.qualified,
+         sub:onKeyEvents?`GA4 key events · ${int(starts)} form starts`
+                        :`form submissions · ${int(starts)} starts, ${pct(enq/starts)} completed`}
+      : null,
     {label:'Users',value:int(users),color:MC.reach,sub:`new users ${int(nu)}`},
     {label:'Avg engagement / session',value:sessions?Math.round(S('engagement_sec')/sessions)+'s':'-',color:MC.forest,sub:'time actively engaged'},
-  ].map(kpiCard).join('');
+  ].filter(Boolean).map(kpiCard).join('');
   renderGaTrend();
   renderGaChanTable(rows,sessions);
   renderGaSources(rows,sessions);

@@ -31,7 +31,10 @@ from freshness import probe_bq_last_modified, read_watermark, write_watermark, i
 GATING_TABLES = [
     # NOT raw_google_ads.perf_google_ads: that's a VIEW (frozen last_modified, gate never
     # fires). Watermark the native-DTS base TABLE its stats come from, which advances daily.
-    "raw_google_ads.p_ads_CampaignBasicStats_3451896252",
+    # Repointed 2026-08-31 from the MCC set to this client's OWN account set: Google stopped
+    # serving metrics at manager level on 08-18, so `*_3451896252` is frozen forever and a
+    # gate watching it would never fire again. See md/AGENTS.md.
+    "raw_google_ads.p_ads_CampaignBasicStats_1869745895",
     "raw_windsor.perf_the_trade_desk",
 ]
 WATERMARK_OBJECT = "_freshness.json"

@@ -285,9 +285,13 @@
      the campaign + publisher pickers above. The selected row gets a left accent rather than
      a fill, so it reads as "you are here" without competing with the numbers. */
   .cspd-vtbl{width:100%;border-collapse:collapse;font-size:13px}
-  .cspd-vtbl th,.cspd-vtbl td{padding:8px 10px;border-bottom:1px solid var(--cf-line);text-align:left}
+  /* 9 columns since Pending review (2026-09-01 layout pass): wider cell padding so columns
+     never touch, and headers keep whole words on one line - the wrapping table sits in an
+     overflow:auto wrapper, so at narrow widths it scrolls inside its own container (the
+     repo rule) instead of squeezing headers into mid-word wraps. */
+  .cspd-vtbl th,.cspd-vtbl td{padding:11px 16px;border-bottom:1px solid var(--cf-line);text-align:left}
   .cspd-vtbl th.num,.cspd-vtbl td.num{text-align:right;font-variant-numeric:tabular-nums}
-  .cspd-vtbl th{font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;color:var(--cf-mute);font-weight:600}
+  .cspd-vtbl th{font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;color:var(--cf-mute);font-weight:600;white-space:nowrap}
   .cspd-vtbl tbody tr:last-child td{border-bottom:none}
   .cspd-vtbl tbody tr{cursor:pointer}
   .cspd-vtbl tbody tr:hover td{background:var(--surface-2)}
@@ -322,6 +326,21 @@
 
   .reg-row{display:grid;grid-template-columns:96px 1fr 60px;align-items:center;gap:10px;margin:6px 0;font-size:11.5px}
   .reg-lbl{color:var(--cf-mute);font-size:11px}
+  /* EMEA labelled-basis rows (2026-09-01 layout pass, spacing ONLY): the longer labels
+     ("Completed target weeks", "Due incl. current week") wrapped inside the shared 110px/96px
+     label columns and crowded the bar track. Wider columns + taller rows, scoped by a class
+     the EMEA render path toggles on the containers - APJ's layout stays pixel-identical. */
+  .cspd-wide-lbl .progress-row{grid-template-columns:150px 1fr 70px;margin:11px 0}
+  .cspd-wide-lbl .progress-row>div:first-child{line-height:1.25}
+  #regionGrid.cspd-wide-lbl .reg-row{grid-template-columns:132px 1fr 54px;gap:12px;margin:11px 0}
+  #regionGrid.cspd-wide-lbl .reg-lbl{line-height:1.3}
+  /* KPI-strip sub-captions (EMEA-only elements): breathing room under the stat, and wrap
+     long captions inside the tile rather than overflowing it. */
+  #kpi_current_cnt,#kpi_overall_cnt,#kpi_unprocessed_note{margin-top:6px;line-height:1.4;overflow-wrap:break-word}
+  /* Pacing-detail chart trio (2026-09-01, client flag): a wider gutter between the weekly
+     pacing card, the market chart and the rejection chart - at 14px their hover shadows
+     bled into each other and the cards read as touching. */
+  #cspdSection .grid{gap:16px;margin-bottom:16px}
   .reg-bar{height:8px;background:var(--surface-2);border-radius:4px;overflow:hidden}
   .reg-bar .reg-fill{height:100%;background:var(--target-gray);border-radius:4px}
   .reg-bar .reg-fill.orange{background:var(--cf-orange)}
@@ -1036,14 +1055,14 @@
           <div class="pair" id="overallPair">
             <div class="stat"><div class="k"><span class="qlbl">Q3</span> Target</div><div class="v" id="kpi_target">-</div></div>
             <div class="stat"><div class="k">Accepted leads</div><div class="v" id="kpi_total">-</div></div>
-            <div class="stat" id="kpi_unprocessed_stat" style="display:none"><div class="k">Unprocessed (New)</div><div class="v" id="kpi_unprocessed">-</div><div class="cnt">internal - not shown to client</div></div>
+            <div class="stat" id="kpi_unprocessed_stat" style="display:none"><div class="k" id="kpi_unprocessed_k">Unprocessed (New)</div><div class="v" id="kpi_unprocessed">-</div><div class="cnt" id="kpi_unprocessed_note">internal - not shown to client</div></div>
           </div>
         </div>
         <div class="group">
           <div class="lbl">Pacing</div>
           <div class="pair">
-            <div class="stat"><div class="k">Current pacing</div><div class="v" id="kpi_current">-</div></div>
-            <div class="stat"><div class="k">Overall pacing</div><div class="v" id="kpi_overall">-</div></div>
+            <div class="stat"><div class="k" id="kpi_current_k">Current pacing</div><div class="v" id="kpi_current">-</div><div class="cnt" id="kpi_current_cnt" style="display:none"></div></div>
+            <div class="stat"><div class="k" id="kpi_overall_k">Overall pacing</div><div class="v" id="kpi_overall">-</div><div class="cnt" id="kpi_overall_cnt" style="display:none"></div></div>
           </div>
         </div>
         <div class="group">
@@ -1192,10 +1211,15 @@
 
         <!-- 3.3b weekly pacing chart (2026-08-31, John's request): target vs accepted per week,
              the APJ weekly-pacing chart's shape pointed at this section's scope. Follows the
-             campaign + publisher pickers; clicking a bar selects that week (rej-chart pattern). -->
-        <div class="card">
-          <h3>Weekly pacing - target vs accepted</h3>
-          <div class="hint">Bars: each week's target next to its accepted leads. Click a bar to select that week.</div>
+             campaign + publisher pickers; clicking a bar selects that week (rej-chart pattern).
+             margin-bottom is load-bearing: .card carries no margin of its own, so without it
+             this card sits FLUSH against the two-chart grid below (client flag 2026-09-01). -->
+        <div class="card" style="margin-bottom:16px">
+          <div class="card-head"><div><h3 id="cspdWeeklyTitle">Pacing - target vs actual</h3>
+          <div class="hint" id="cspdWeeklyHint">Accepted leads vs target per period, across the full quarter.</div></div>
+          <div class="ctrls">
+            <span class="seg" id="cspdWeekly_grain"><span class="cap">VIEW BY</span><button type="button" data-grain="month">Month</button><button type="button" data-grain="week" class="on">Week</button></span>
+          </div></div>
           <div class="chart-wrap tall"><canvas id="cspdWeeklyChart"></canvas></div>
           <div class="cspd-note" id="cspdWeeklyNote"></div>
         </div>
@@ -1231,6 +1255,7 @@
             <table class="cspd-vtbl" id="cspdVendorTbl">
               <thead><tr>
                 <th>Campaign</th><th>Publisher</th><th class="num">Target</th><th class="num">Delivered</th>
+                <th class="num" title="Delivered by the publisher, sitting in the review queue - not yet accepted or rejected">Pending review</th>
                 <th class="num">Accepted</th><th class="num">Rejected</th><th class="num">Rejection rate</th>
                 <th class="num">Acceptance rate</th><th class="num">Pacing</th>
               </tr></thead>
@@ -1274,7 +1299,7 @@
 
       <div class="card" id="csRegionCard">
         <h3>By-region summary</h3>
-        <div class="hint">Three bars per region, scaled to the region's <span class="qlbl">Q3</span> target.</div>
+        <div class="hint" id="regionGridHint">Three bars per region, scaled to the region's <span class="qlbl">Q3</span> target.</div>
         <div id="regionGrid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:16px;margin-top:14px"></div>
       </div>
 
@@ -2259,6 +2284,7 @@ let effGrain='day';      // shared by ctrTrend / clkTrend / cpcTrend
 let cmpGrain='day';      // shared by cmpDaily + cmpSpend
 let csDailyGrain='day';  // dailyChart (accepted leads)
 let csWeeklyGrain='week';// weeklyChart (pacing target vs actual; Month/Week only)
+let cspdWeeklyGrain='week';// cspdWeeklyChart - the same Month/Week control on the Pacing detail chart
 let currentCampaignKey=null;                  // active single-campaign view key
 let cmpTab='li';                              // CF1-view tab: 'li' (LinkedIn) | 'cs' (content syndication)
 
@@ -2318,6 +2344,10 @@ function initChartToggles(){
   // CS pacing weekly (target vs accepted bars, absolute counts).
   wireToggles('csWeekly_grain', null,
     v=>csWeeklyGrain=v, null, ()=>renderWeekly(aggregate()));
+  // Pacing detail's own copy of that control. Re-renders the whole section rather than just
+  // the chart: the note under it names the selection, and the week chips drive both.
+  wireToggles('cspdWeekly_grain', null,
+    v=>cspdWeeklyGrain=v, null, ()=>renderCsPacingDetail());
 }
 
 // Date range (Looker-style picker). ONE shared control over the union of both
@@ -3107,12 +3137,35 @@ function onCampaignChange(v) {
 }
 
 function renderKPIs(agg) {
+  const S = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
+  const emea = topFromPacing();
   // No target rows fall in the selected range (e.g. a custom range past the loaded
   // plan) -> show '-' rather than a misleading '0'. Q2 and Q3 both have targets now.
   document.getElementById('kpi_target').textContent = agg.q2Target ? fmtN(agg.q2Target) : '-';
   document.getElementById('kpi_total').textContent = fmtN(agg.accepted);
-  document.getElementById('kpi_overall').textContent = agg.q2Target ? (agg.accepted/agg.q2Target*100).toFixed(1)+'%' : '-';
-  document.getElementById('kpi_current').textContent = agg.ttdTarget ? (agg.accepted/agg.ttdTarget*100).toFixed(1)+'%' : '-';
+  if (emea) {
+    // EVERY pacing figure carries its BASIS (2026-08-31, Calvin): the plan is back-loaded
+    // (weeks 1-3 at ~64/wk, weeks 5-13 at ~1,260/wk), so "X% of expected" style blends read
+    // as verdicts while measuring the plan's shape. Two labelled figures, no unlabelled one:
+    //   - vs COMPLETED target weeks (the weeks whose full target has come due), and
+    //   - INCLUDING the week in progress, its target prorated to days elapsed.
+    const cw = agg.dueCompleted || 0, iw = agg.ttdTarget || 0;
+    S('kpi_current_k', 'Vs completed target weeks');
+    S('kpi_current', cw ? (agg.accepted/cw*100).toFixed(1)+'%' : '-');
+    S('kpi_current_cnt', cw ? fmtN(agg.accepted) + ' accepted vs ' + fmtN(cw) + ' target' : '');
+    S('kpi_overall_k', 'Incl. week in progress');
+    S('kpi_overall', iw ? (agg.accepted/iw*100).toFixed(1)+'%' : '-');
+    S('kpi_overall_cnt', iw ? 'vs ' + fmtN(iw) + ' due - current week prorated to days elapsed' : '');
+    const c1 = document.getElementById('kpi_current_cnt'), c2 = document.getElementById('kpi_overall_cnt');
+    if (c1) c1.style.display = ''; if (c2) c2.style.display = '';
+  } else {
+    S('kpi_current_k', 'Current pacing');
+    S('kpi_overall_k', 'Overall pacing');
+    document.getElementById('kpi_overall').textContent = agg.q2Target ? (agg.accepted/agg.q2Target*100).toFixed(1)+'%' : '-';
+    document.getElementById('kpi_current').textContent = agg.ttdTarget ? (agg.accepted/agg.ttdTarget*100).toFixed(1)+'%' : '-';
+    const c1 = document.getElementById('kpi_current_cnt'), c2 = document.getElementById('kpi_overall_cnt');
+    if (c1) c1.style.display = 'none'; if (c2) c2.style.display = 'none';
+  }
   // Acceptance / rejection rate denominator = REVIEWED leads only (accepted + rejected),
   // EXCLUDING unprocessed/New (client rule 2026-07-07, per the Jade call: unprocessed is our
   // internal backlog, not shown to Cloudflare, and must not drag the acceptance rate down).
@@ -3124,14 +3177,22 @@ function renderKPIs(agg) {
   document.getElementById('kpi_rej').textContent = (rejRatio*100).toFixed(2)+'%';
   document.getElementById('kpi_acc_cnt').textContent = fmtN(agg.accepted) + ' leads';
   document.getElementById('kpi_rej_cnt').textContent = fmtN(agg.rejected) + ' leads';
-  // Dev mode only: surface the unprocessed/New backlog as an explicit count (kept OUT of the
-  // acceptance-rate denominator above, which stays reviewed-only per the client rule).
+  // Pending/unprocessed tile. EMEA: ALWAYS shown to the client as "Pending review" (2026-08-31,
+  // Calvin - these leads sit in the client's own review queue, and hiding them understates the
+  // publishers; Inbox Insight read 22 delivered when it had delivered 75). APJ keeps the
+  // 2026-07-07 client rule EXACTLY as agreed: dev-mode only, original wording - do not unify.
+  // Either way the count stays OUT of the acceptance-rate denominator above.
   const upStat = document.getElementById('kpi_unprocessed_stat');
   if (upStat) {
-    upStat.style.display = devMode ? '' : 'none';
+    const show = emea || devMode;
+    upStat.style.display = show ? '' : 'none';
     const pair = document.getElementById('overallPair');
-    if (pair) pair.classList.toggle('triple', devMode);   // 2-col -> 3-col so the extra stat fits
-    if (devMode) document.getElementById('kpi_unprocessed').textContent = fmtN(agg.unprocessed);
+    if (pair) pair.classList.toggle('triple', show);   // 2-col -> 3-col so the extra stat fits
+    if (show) {
+      document.getElementById('kpi_unprocessed').textContent = fmtN(agg.unprocessed);
+      S('kpi_unprocessed_k', emea ? 'Pending review' : 'Unprocessed (New)');
+      S('kpi_unprocessed_note', emea ? 'delivered, not yet reviewed' : 'internal - not shown to client');
+    }
   }
 }
 
@@ -3140,8 +3201,31 @@ function renderKPIs(agg) {
 const NO_TARGET_MSG = '<div style="font-size:12.5px;color:var(--cf-mute);padding:10px 2px">Targets and pacing not set for the selected period yet (showing actuals only).</div>';
 
 function renderLeadsTarget(agg) {
+  // Wider label column for the EMEA labelled-basis rows (2026-09-01 layout pass) - toggled
+  // both ways so switching lanes always restores APJ's original geometry.
+  document.getElementById('leadsTarget').classList.toggle('cspd-wide-lbl', topFromPacing());
   if (!agg.q2Target) { document.getElementById('leadsTarget').innerHTML = NO_TARGET_MSG; return; }
   const QL = periodLabel();
+  // EMEA (2026-08-31, Calvin): every target row and percentage names its BASIS. "TTD Target"
+  // is gone on this theatre - on a dashboard with a Trade Desk channel that abbreviation is
+  // a trap, and the unlabelled blend it carried is the top/pacing-detail contradiction. APJ
+  // keeps its original rows and wording byte-for-byte.
+  if (topFromPacing()) {
+    const cw = agg.dueCompleted || 0, iw = agg.ttdTarget || 0;
+    const maxV = Math.max(agg.q2Target, iw, agg.accepted, 1);
+    const w = v => (v/maxV*100).toFixed(1);
+    document.getElementById('leadsTarget').innerHTML = `
+      <div class="progress-row"><div>${QL} target</div><div class="pbar gray"><div class="fill" style="width:${w(agg.q2Target)}%"></div></div><div style="text-align:right">${fmtN(agg.q2Target)}</div></div>
+      <div class="progress-row"><div>Completed target weeks</div><div class="pbar gray"><div class="fill" style="width:${w(cw)}%"></div></div><div style="text-align:right">${fmtN(cw)}</div></div>
+      <div class="progress-row"><div>Incl. week in progress</div><div class="pbar gray"><div class="fill" style="width:${w(iw)}%"></div></div><div style="text-align:right">${fmtN(iw)}</div></div>
+      <div class="progress-row"><div>${toDateWord()} Accepted</div><div class="pbar"><div class="fill" style="width:${w(agg.accepted)}%"></div></div><div style="text-align:right">${fmtN(agg.accepted)}</div></div>
+      <div style="font-size:12px;color:var(--cf-mute);margin-top:14px">
+        Accepted to date is <b>${cw ? (agg.accepted/cw*100).toFixed(1) : '0'}% of the completed target weeks</b> (${fmtN(cw)})
+        and <b>${iw ? (agg.accepted/iw*100).toFixed(1) : '0'}% including the week in progress</b> (${fmtN(iw)}, current week prorated to days elapsed).
+        The full ${QL.toLowerCase()} plan is ${fmtN(agg.q2Target)}.
+      </div>`;
+    return;
+  }
   const maxV = Math.max(agg.q2Target, agg.ttdTarget, agg.accepted, 1);
   const w = v => (v/maxV*100).toFixed(1);
   document.getElementById('leadsTarget').innerHTML = `
@@ -3149,14 +3233,50 @@ function renderLeadsTarget(agg) {
     <div class="progress-row"><div>TTD Target</div><div class="pbar gray"><div class="fill" style="width:${w(agg.ttdTarget)}%"></div></div><div style="text-align:right">${fmtN(agg.ttdTarget)}</div></div>
     <div class="progress-row"><div>${toDateWord()} Accepted</div><div class="pbar"><div class="fill" style="width:${w(agg.accepted)}%"></div></div><div style="text-align:right">${fmtN(agg.accepted)}</div></div>
     <div style="font-size:12px;color:var(--cf-mute);margin-top:14px">
-      ${topFromPacing()
-        ? `Accepted to date is <b>${agg.q2Target ? (agg.accepted/agg.q2Target*100).toFixed(1) : '0'}%</b> of the flight plan, <b>${agg.ttdTarget ? (agg.accepted/agg.ttdTarget*100).toFixed(1) : '0'}%</b> of the target due so far.`
-        : `QTD accepted is <b>${agg.q2Target ? (agg.accepted/agg.q2Target*100).toFixed(1) : '0'}%</b> of ${QL} plan, <b>${agg.ttdTarget ? (agg.accepted/agg.ttdTarget*100).toFixed(1) : '0'}%</b> of TTD target.`}
+      QTD accepted is <b>${agg.q2Target ? (agg.accepted/agg.q2Target*100).toFixed(1) : '0'}%</b> of ${QL} plan, <b>${agg.ttdTarget ? (agg.accepted/agg.ttdTarget*100).toFixed(1) : '0'}%</b> of TTD target.
     </div>`;
 }
 
 function renderProgress(agg) {
+  document.getElementById('progress').classList.toggle('cspd-wide-lbl', topFromPacing());
   if (!agg.q2Target) { document.getElementById('progress').innerHTML = NO_TARGET_MSG; return; }
+  // EMEA (2026-08-31, Calvin): the "% of expected" verdict (leads-complete / time-elapsed) is
+  // GONE here - it assumes an even spread, and this plan is back-loaded (weeks 1-3 at ~64/wk,
+  // weeks 5-13 at ~1,260/wk), so on-plan delivery at day 32 read "BEHIND PACE - 20% of
+  // expected" while the pacing detail below said "target met" ON THE SAME PAGE - the exact
+  // contradiction a client will challenge. The verdict is now a LABELLED PAIR - the same two
+  // bases the pacing detail uses - and neither figure ever renders without its label.
+  if (topFromPacing()) {
+    const cw = agg.dueCompleted || 0;               // full target of every COMPLETED week
+    const iw = agg.ttdTarget || 0;                  // + the in-progress week, prorated
+    const p1 = cw ? agg.accepted / cw : 0;
+    const p2 = iw ? agg.accepted / iw : 0;
+    const scale = Math.max(1.08, p1, p2);
+    const P = f => (Math.max(0, f) / scale * 100).toFixed(2);
+    const row = (label, pct, tgt, cls) => `
+      <div class="progress-row"><div>${label}</div>
+        <div class="pbar${cls ? '' : ' gray'}" style="display:flex">
+          <div class="fill" style="width:${P(Math.min(pct, 1))}%"></div>
+          ${pct > 1 ? `<div class="fill surplus" style="width:${P(pct - 1)}%"></div>` : ``}
+          <div class="prog-tgt" style="left:${P(1)}%"></div>
+        </div>
+        <div style="text-align:right;font-weight:700;color:${pct >= 1 ? 'var(--good-green)' : 'var(--cf-ink)'}">${(pct*100).toFixed(1)}%</div></div>`;
+    const upNote = agg.inProg && agg.inProg.unprocessed
+      ? ` - ${fmtN(agg.inProg.unprocessed)} leads delivered this week, awaiting review` : '';
+    const badge = p1 >= 1
+      ? `<div class="prog-badge good">✓ AHEAD - ${(p1*100).toFixed(1)}% of completed target weeks (${fmtN(agg.accepted)} accepted vs ${fmtN(cw)})</div>`
+      : `<div class="prog-badge warn">BEHIND - ${(p1*100).toFixed(1)}% of completed target weeks (${fmtN(agg.accepted)} accepted vs ${fmtN(cw)})</div>`;
+    document.getElementById('progress').innerHTML = `
+      ${badge}
+      ${row('Completed target weeks', p1, cw, true)}
+      ${row('Incl. week in progress', p2, iw, false)}
+      <div style="font-size:12px;color:var(--cf-mute);margin-top:10px">
+        <b>Completed target weeks:</b> ${fmtN(agg.accepted)} accepted vs ${fmtN(cw)} target - ${(p1*100).toFixed(1)}%${p1 >= 1 ? ' · ahead' : ''}.<br>
+        <b>Including week in progress:</b> ${fmtN(agg.accepted)} accepted vs ${fmtN(iw)} target - ${(p2*100).toFixed(1)}%.
+        <span style="display:block;margin-top:4px">Current week prorated to days elapsed${upNote}.</span>
+      </div>`;
+    return;
+  }
   const QL = periodLabel();
   const lp = agg.q2Target ? agg.accepted/agg.q2Target : 0;   // accepted leads ÷ target
   const tp = agg.timePct;                                    // quarter time elapsed
@@ -3534,28 +3654,54 @@ function renderDaily(agg) {
 function renderRegionGrid(agg) {
   const grid = document.getElementById('regionGrid');
   grid.innerHTML = '';
+  // EMEA (2026-08-31, Calvin): the same no-unlabelled-figures rule as the top verdict. The
+  // per-market chip names its basis ("of due", with the proration in the tooltip) instead of
+  // a bare "% pace", the "TTD Target" row is renamed (this dashboard has a Trade Desk channel),
+  // and the pending row shows in CLIENT view here like the top tile. APJ stays byte-identical.
+  const emea = topFromPacing();
+  grid.classList.toggle('cspd-wide-lbl', emea);
+  // TEMPORARY (2026-09-01, Ian, for the client WIP meeting): the Flight Target row is HIDDEN
+  // on EMEA - its whole-flight number dwarfed every other bar (the bars scale to the card max)
+  // and read badly in the room. The value still lives in the "Leads vs target" panel above.
+  // Ian is raising the presentation with John; restore by flipping showFlight (and let the
+  // hint text below follow). APJ keeps its original three rows and scaling.
+  const showFlight = !emea;
+  const hint = document.getElementById('regionGridHint');
+  if (hint) {
+    if (!hint.dataset.orig) hint.dataset.orig = hint.innerHTML;
+    if (emea) hint.textContent = 'Per-region delivery vs the target due to date (current week prorated to days elapsed).';
+    else hint.innerHTML = hint.dataset.orig;
+  }
   agg.regionRows.forEach(({market, q2, ttd, accepted, unprocessed}) => {
     const pace = ttd ? (accepted/ttd*100) : 0;
     const paceColor = !ttd ? 'var(--cf-mute)'
       : (accepted/ttd >= 1 ? 'var(--good-green)'
       : (accepted/ttd >= 0.7 ? '#A14B00' : 'var(--bad-red)'));
-    const denom = Math.max(q2, accepted, unprocessed || 0, 1);
+    // Bars scale to the LARGEST VISIBLE value: with the flight row hidden, keeping q2 in the
+    // denominator would leave every remaining bar a sliver against an invisible ceiling.
+    const denom = Math.max(showFlight ? q2 : 0, ttd, accepted, unprocessed || 0, 1);
     const wQ2 = (q2/denom*100).toFixed(1);
     const wTd = (ttd/denom*100).toFixed(1);
     const wA  = (accepted/denom*100).toFixed(1);
     const wU  = ((unprocessed||0)/denom*100).toFixed(1);
-    // Dev mode only: an extra grey "Unprocessed" bar under Accepted so the New backlog is visible per market.
-    const unpRow = devMode
-      ? `<div class="reg-row"><div class="reg-lbl">Unprocessed</div><div class="reg-bar"><div class="reg-fill" style="width:${wU}%;background:#B9C2CC"></div></div><div class="reg-num">${fmtN(unprocessed||0)}</div></div>`
+    const showPending = emea || devMode;
+    const unpRow = showPending
+      ? `<div class="reg-row"><div class="reg-lbl">${emea ? 'Pending review' : 'Unprocessed'}</div><div class="reg-bar"><div class="reg-fill" style="width:${wU}%;background:#B9C2CC"></div></div><div class="reg-num">${fmtN(unprocessed||0)}</div></div>`
       : '';
+    const chip = !ttd ? '-'
+      : emea ? `<span title="Accepted vs the target due to date for this market - current week prorated to days elapsed">${pace.toFixed(0)}% of due</span>`
+             : pace.toFixed(0) + '% pace';
+    const dueLbl = emea
+      ? `<span title="This market's target due to date - completed weeks in full, the current week prorated to days elapsed">Due incl. current week</span>`
+      : 'TTD Target';
     grid.insertAdjacentHTML('beforeend', `
-      <div style="border:1px solid var(--cf-line);border-radius:10px;padding:14px 16px;background:var(--surface-2)">
-        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px">
+      <div style="border:1px solid var(--cf-line);border-radius:10px;padding:${emea ? '16px 18px' : '14px 16px'};background:var(--surface-2)">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:${emea ? '12px' : '10px'}">
           <div style="font-weight:700;font-size:14px">${mktLabel(market)}</div>
-          <div style="font-size:11.5px;color:${paceColor};font-weight:600">${ttd ? pace.toFixed(0)+'% pace' : '-'}</div>
+          <div style="font-size:11.5px;color:${paceColor};font-weight:600">${chip}</div>
         </div>
-        <div class="reg-row"><div class="reg-lbl">${periodLabel()} Target</div><div class="reg-bar"><div class="reg-fill" style="width:${wQ2}%"></div></div><div class="reg-num">${fmtN(q2)}</div></div>
-        <div class="reg-row"><div class="reg-lbl">TTD Target</div><div class="reg-bar"><div class="reg-fill" style="width:${wTd}%"></div></div><div class="reg-num">${fmtN(ttd)}</div></div>
+        ${showFlight ? `<div class="reg-row"><div class="reg-lbl">${periodLabel()} Target</div><div class="reg-bar"><div class="reg-fill" style="width:${wQ2}%"></div></div><div class="reg-num">${fmtN(q2)}</div></div>` : ``}
+        <div class="reg-row"><div class="reg-lbl">${dueLbl}</div><div class="reg-bar"><div class="reg-fill" style="width:${wTd}%"></div></div><div class="reg-num">${fmtN(ttd)}</div></div>
         <div class="reg-row"><div class="reg-lbl">${toDateWord()} Accepted</div><div class="reg-bar"><div class="reg-fill orange" style="width:${wA}%"></div></div><div class="reg-num">${fmtN(accepted)}</div></div>
         ${unpRow}
       </div>`);
@@ -3849,33 +3995,52 @@ function renderCsPacingDetail(){
   // campaign-to-date band, the publisher table, and the deficit tile itself. The caption names
   // the metric explicitly so nobody re-derives it from the Delivered tile above.
   //
-  // LIKE FOR LIKE (2026-08-31, Calvin): pace only the publishers the target covers. In a week
-  // where SOME publishers carry a target (EMEA weeks 1-3 are IDE Lite = Roverpath/Final Funnel
-  // only - streams 2&3 targets start at plan week 4/5 by design), blending EVERY publisher's
-  // accepted into the numerator against that partial denominator read 983%. The pacing
-  // numerator and the deficit now count accepted leads from (publisher, week) cells that carry
-  // a target - the same universe as the denominator, which is what APJ's pacing has always
-  // effectively compared (every APJ publisher carries a target every week, so the distinction
-  // never surfaces there). Delivered / Rejected / Acceptance-rate tiles stay whole-scope facts,
-  // and the caption says when the numerator is narrower than the Delivered tile above it.
-  const tgtCells = new Set(slice.filter(r => (r.target || 0) > 0)
-                                .map(r => r.vendor + '||' + r.week_start));
-  const paceAcc = slice.filter(r => tgtCells.has(r.vendor + '||' + r.week_start))
-                       .reduce((s, r) => s + (r.accepted || 0), 0);
-  S('cspd_w_pace',  cspdPct(paceAcc, w.target));
-  // A week still running is measured against its FULL target, so it always reads behind -
-  // APAC's w/c 24 Aug showed 67.6% on day 4 of 7. The band is deliberately whole-week (it is
-  // a weekly delivery report, not a pace curve; the prorated pace lives in the KPI strip
-  // above), so the fix is to SAY the week is incomplete rather than to prorate this figure.
+  // COUNT EVERY ACCEPTED LEAD (2026-08-31, Calvin's final ruling - this REVERSES the brief
+  // same-day "like for like" restriction that paced only target-bearing publishers). The
+  // restriction dropped Acquisition's 415 accepted (its delivery landed a week before its
+  // targets start) while keeping every publisher's target in the denominator - a MANUFACTURED
+  // shortfall that read "60.2%, 286 behind" on a campaign delivering 847 against 718 due.
+  // Early delivery is delivery: the numerator is ALL accepted in the selection, so the pacing
+  // line's accepted figure always equals the Accepted tile - ONE accepted number on the page.
+  // The honest framing for early delivery is the CAPTION below, never exclusion.
+  const earlyAcc = slice.filter(r => !((r.target || 0) > 0))
+                        .reduce((s, r) => s + (r.accepted || 0), 0);
+  // A week still in progress is NOT measured against its full week target (Calvin,
+  // 2026-08-31): 4 days of processed delivery against 7 days of target read "0.0%, 1,268
+  // behind" on a week that was half over. Pro-rate the due target to days elapsed (the
+  // repo-wide "a weekly target against continuous time must be prorated" rule); when the
+  // in-progress week has NO processed delivery at all yet, show no pacing figure rather
+  // than 0% of anything. Complete weeks keep their full target. The qtd path prorates
+  // only whichever week in its span contains today.
   const wkDay = (!qtd && CSPD.week) ? cspdDayInWeek(CSPD.week) : 0;
-  S('cspd_w_pace_cnt', w.target
-      ? paceAcc.toLocaleString() + ' accepted vs ' + w.target.toLocaleString() + ' target'
-        + (paceAcc !== w.accepted ? ' - publishers with a target ' + (qtd ? 'in these weeks' : 'this week') + ' only' : '')
-        + (wkDay && wkDay < 7 ? ' - week in progress, day ' + wkDay + ' of 7' : '')
-      : 'no target for this week');
-  const deficit = w.target - paceAcc;
-  S('cspd_w_def', w.target ? (deficit > 0 ? deficit.toLocaleString() : '0') : '-');
+  const inProgress = wkDay >= 1 && wkDay < 7;
+  let tgtDue = w.target;
+  if (cfg.targetsApply && qtd) {
+    const perWk = {};
+    for (const r of slice) if (r.week_start) perWk[r.week_start] = (perWk[r.week_start] || 0) + (r.target || 0);
+    tgtDue = 0;
+    for (const wk of Object.keys(perWk)) {
+      const d = cspdDayInWeek(wk);
+      tgtDue += (d >= 1 && d < 7) ? perWk[wk] * d / 7 : perWk[wk];
+    }
+    tgtDue = Math.round(tgtDue);
+  } else if (inProgress) {
+    tgtDue = Math.round(w.target * wkDay / 7);
+  }
+  const noDeliveryYet = inProgress && w.delivered === 0;
+  S('cspd_w_pace', (!w.target || noDeliveryYet) ? '-' : cspdPct(w.accepted, tgtDue));
+  S('cspd_w_pace_cnt', !w.target ? 'no target for this week'
+      : noDeliveryYet
+        ? 'week in progress, day ' + wkDay + ' of 7 - no processed delivery yet (week target '
+          + w.target.toLocaleString() + ')'
+        : w.accepted.toLocaleString() + ' accepted vs ' + tgtDue.toLocaleString()
+          + (inProgress ? ' due by day ' + wkDay + ' of 7 (week target ' + w.target.toLocaleString() + ')' : ' target')
+          + (qtd && tgtDue !== w.target ? ' - current week prorated to days elapsed' : '')
+          + (earlyAcc > 0 ? ' - includes ' + earlyAcc.toLocaleString() + ' accepted ahead of their target start' : ''));
+  const deficit = tgtDue - w.accepted;
+  S('cspd_w_def', (!w.target || noDeliveryYet) ? '-' : (deficit > 0 ? deficit.toLocaleString() : '0'));
   S('cspd_w_def_cnt', !w.target ? 'no target to measure against'
+                    : noDeliveryYet ? 'week in progress'
                     : deficit > 0 ? 'accepted leads behind target' : 'target met');
 
   cspdRenderMarketChart(cfg, slice, wkName);
@@ -4087,41 +4252,81 @@ function cspdRenderWeeklyChart(cfg, rows){
   const byWk = {};
   for (const r of rows){
     if (!r.week_start) continue;
-    const o = byWk[r.week_start] = byWk[r.week_start] || { target:0, accepted:0 };
+    const o = byWk[r.week_start] = byWk[r.week_start] || { target:0, accepted:0, unprocessed:0 };
     o.target += (r.target || 0); o.accepted += (r.accepted || 0);
+    o.unprocessed += (r.unprocessed || 0);
   }
-  const wks = cfg.weeks;
+  // MONTHLY rolls the WEEK buckets up by the month each week STARTS in. cs_pacing carries no
+  // day grain, so a week straddling a month boundary - EMEA's are Friday-anchored, and 07/31
+  // covers Jul 31 to Aug 6 - is attributed WHOLLY to its start month. That is the only split
+  // that keeps sum(months) == sum(weeks) EXACTLY; apportioning by day would need data this
+  // model does not carry, and would break the reconciliation to the band above.
+  const monthly = cspdWeeklyGrain === 'month';
+  const keys = monthly ? [...new Set(cfg.weeks.map(w => w.slice(0, 7)))].sort() : cfg.weeks.slice();
+  const agg = {};
+  for (const k of keys) agg[k] = { target:0, accepted:0, unprocessed:0 };
+  for (const w of cfg.weeks){
+    const o = agg[monthly ? w.slice(0, 7) : w]; if (!o) continue;
+    const src = byWk[w] || {};
+    o.target += (src.target || 0); o.accepted += (src.accepted || 0);
+    o.unprocessed += (src.unprocessed || 0);
+  }
   // Single-publisher scope with allocation-only targets: pace against nothing, not the
   // allocation (the same cfg.targetsApply rule every other panel follows).
-  const tgt = wks.map(k => cfg.targetsApply ? ((byWk[k] || {}).target || 0) : 0);
-  const acc = wks.map(k => (byWk[k] || {}).accepted || 0);
-  const dimIf = (base, k) => k === CSPD.week || CSPD.week === 'qtd'
+  const tgt = keys.map(k => cfg.targetsApply ? agg[k].target : 0);
+  const acc = keys.map(k => agg[k].accepted);
+  const unp = keys.map(k => agg[k].unprocessed);
+  // Selection emphasis is a WEEK concept, so it only applies in the weekly view; a month bar
+  // covers four or five weeks and dimming it would misstate what is selected.
+  const dimIf = (base, k) => (monthly || k === CSPD.week || CSPD.week === 'qtd')
     ? base : 'color-mix(in srgb,' + base + ' 45%,transparent)';
+  const UNPROC = '#B9C2CC';                 // same swatch as the APJ chart's Unprocessed series
+  // Unprocessed is ADMIN-VIEW ONLY, exactly as on the APJ chart: the client rule of
+  // 2026-07-07 (Jade call) keeps the unreviewed backlog out of the client view. It is a
+  // DISPLAY series either way - never added into accepted, and no pacing figure reads it.
+  const datasets = [
+    { label: 'Target',   data: tgt, borderRadius: 3, maxBarThickness: 22,
+      backgroundColor: keys.map(k => dimIf(TARGET, k)) },
+    { label: 'Accepted actual', data: acc, borderRadius: 3, maxBarThickness: 22,
+      backgroundColor: keys.map(k => dimIf(CF, k)) },
+  ];
+  if (devMode) datasets.push(
+    { label: 'Unprocessed', data: unp, borderRadius: 3, maxBarThickness: 22,
+      backgroundColor: keys.map(k => dimIf(UNPROC, k)) });
+  const swatch = [TARGET, CF, UNPROC];
   charts['cspdWeeklyChart'] = new Chart(el, {
     type: 'bar',
-    data: { labels: wks.map(cspdWkLabel), datasets: [
-      { label: 'Target',   data: tgt, borderRadius: 3, maxBarThickness: 22,
-        backgroundColor: wks.map(k => dimIf(TARGET, k)) },
-      { label: 'Accepted', data: acc, borderRadius: 3, maxBarThickness: 22,
-        backgroundColor: wks.map(k => dimIf(CF, k)) },
-    ]},
+    data: { labels: monthly ? keys.slice() : keys.map(cspdWkLabel), datasets },
     options: { responsive: true, maintainAspectRatio: false,
-      onClick: (e, act) => { if (act.length) cspdSetWeek(wks[act[0].index]); },
+      // Clicking selects a week, so it is wired in the weekly view only.
+      onClick: monthly ? null : (e, act) => { if (act.length) cspdSetWeek(keys[act[0].index]); },
       // Legend swatches draw from backgroundColor[0], which is dimmed unless week 1 is the
-      // selection - same trap as the rejection chart - but with TWO series the legend has to
-      // exist, so force full-strength swatches via generateLabels instead of hiding it.
+      // selection - same trap as the rejection chart - so force full-strength swatches via
+      // generateLabels instead of hiding the legend.
       plugins: { legend: { position: 'bottom', labels: { boxWidth: 9, boxHeight: 9, padding: 12,
           generateLabels: chart => chart.data.datasets.map((d, i) => (
-            { text: d.label, fillStyle: i === 0 ? TARGET : CF, strokeStyle: 'transparent',
+            { text: d.label, fillStyle: swatch[i] || TARGET, strokeStyle: 'transparent',
               datasetIndex: i })) } },
         tooltip: { callbacks: { label: c => ' ' + c.dataset.label + ': ' + fmtN(c.parsed.y) } } },
       scales: { x: { grid: { display: false } },
         y: { beginAtZero: true, grid: { color: LINE }, ticks: { precision: 0 } } } },
   });
+  // TITLE IS LANE-AWARE, and it has to be. John asked EMEA's chart to carry APJ's wording,
+  // but this chart renders on BOTH lanes - and on APJ the APJ chart is visible too, so a
+  // straight rename put TWO cards titled "Pacing - target vs actual" on one page. EMEA hides
+  // the APJ chart, so there the name is unambiguous; on APJ this one keeps its own name.
+  const ttl = document.getElementById('cspdWeeklyTitle');
+  const hnt = document.getElementById('cspdWeeklyHint');
+  if (ttl) ttl.textContent = topFromPacing() ? 'Pacing - target vs actual' : 'Weekly pacing - target vs accepted';
+  if (hnt) hnt.textContent = topFromPacing()
+    ? 'Accepted leads vs target per period, across the full quarter.'
+    : "Bars: each week's target next to its accepted leads. Click a bar to select that week.";
   const n = document.getElementById('cspdWeeklyNote');
-  if (n) n.textContent = CSPD.week === 'qtd'
-    ? 'Showing every week of the ' + cfg.period_label + ' plan.'
-    : 'Selected: week of ' + cspdWkLabel(CSPD.week) + '.';
+  if (n) n.textContent = monthly
+    ? 'Monthly view - each month sums the weeks that START in it. Switch to Week to select a week.'
+    : (CSPD.week === 'qtd'
+        ? 'Showing every week of the ' + cfg.period_label + ' plan. Click a bar to select that week.'
+        : 'Selected: week of ' + cspdWkLabel(CSPD.week) + '. Click a bar to change it.');
 }
 
 // Rejected count per week with the rejection rate overlaid. Bars are clickable and
@@ -4196,9 +4401,10 @@ function cspdRenderVendorTable(cfg){
   for (const r of cfg.allRows){
     if (!r.vendor) continue;
     const book = cspdBookOf(r), key = book + ' ' + r.vendor;
-    const o = agg.get(key) || { book, vendor: r.vendor, target:0, delivered:0, accepted:0, rejected:0 };
+    const o = agg.get(key) || { book, vendor: r.vendor, target:0, delivered:0, accepted:0, rejected:0, unprocessed:0 };
     o.target += (r.target || 0); o.delivered += (r.delivered || 0);
     o.accepted += (r.accepted || 0); o.rejected += (r.rejected || 0);
+    o.unprocessed += (r.unprocessed || 0);
     agg.set(key, o);
   }
   // A publisher that is seeded with a target but has not started still belongs on this
@@ -4232,6 +4438,11 @@ function cspdRenderVendorTable(cfg){
       + '<td><b>' + esc(o.vendor) + '</b></td>'
       + '<td class="num">' + tgt + '</td>'
       + '<td class="num">' + o.delivered.toLocaleString() + '</td>'
+      // Pending review (2026-08-31, Calvin): delivered by the publisher, sitting in the
+      // client's review queue. Hiding it understated the publishers - Inbox Insight read
+      // 22 delivered when it had delivered 75. NOT in the pacing column (accepted vs target
+      // stays) and NOT in the rate denominators (reviewed-only, unchanged).
+      + '<td class="num">' + ((o.unprocessed || 0) ? o.unprocessed.toLocaleString() : '0') + '</td>'
       + '<td class="num">' + o.accepted.toLocaleString() + '</td>'
       + '<td class="num">' + o.rejected.toLocaleString() + '</td>'
       + '<td class="num">' + cspdPct(o.rejected, o.delivered) + '</td>'
@@ -4423,15 +4634,27 @@ function cspdTopAgg(){
   const sum = k => rows.reduce((s, r) => s + (r[k] || 0), 0);
 
   const mk = new Map();       // market -> full target, due-to-date target, actuals
-  let q2Target = 0, ttdTarget = 0;
+  let q2Target = 0, ttdTarget = 0, dueCompleted = 0;
+  // The week containing today, kept separate (2026-08-31, Calvin): the top verdict shows BOTH
+  // "vs completed target weeks" and "incl. the week in progress (prorated)", each labelled -
+  // a single unlabelled blend of the two is exactly what let the top band read "behind" while
+  // the pacing detail below read "target met" on the same page.
+  const inProg = { target: 0, unprocessed: 0, delivered: 0, week: null, day: 0 };
   for (const r of rows){
     // Same rule as the pacing band below: a publisher-filtered target is an allocation, so it
     // is not paced against. Zeroing it here makes every downstream figure (q2Target/ttdTarget,
     // the per-market rows, the progress bar) fall back to the no-target path together.
     const t = targetsApply ? (r.target || 0) : 0;
-    const due = t * weekDueFraction(f, elapsed, r.week_start);
+    const frac = weekDueFraction(f, elapsed, r.week_start);
+    const due = t * frac;
     q2Target  += t;
     ttdTarget += due;
+    if (frac >= 1) dueCompleted += t;
+    else if (frac > 0) {
+      inProg.target += t; inProg.unprocessed += (r.unprocessed || 0);
+      inProg.delivered += (r.delivered || 0);
+      inProg.week = r.week_start; inProg.day = Math.round(frac * 7);
+    }
     if (r.market === 'UNMAPPED') continue;   // surfaced as needs_review, never as a market
     const o = mk.get(r.market) || { market: r.market, seq: 999, q2: 0, ttd: 0, accepted: 0, unprocessed: 0 };
     if (r.market_seq !== null && r.market_seq !== undefined && r.market_seq < o.seq) o.seq = r.market_seq;
@@ -4446,7 +4669,7 @@ function cspdTopAgg(){
   return {
     accepted: sum('accepted'), rejected: sum('rejected'), unprocessed: sum('unprocessed'),
     delivered: sum('delivered'), needsReview: sum('needs_review'),
-    q2Target, ttdTarget: Math.round(ttdTarget),
+    q2Target, ttdTarget: Math.round(ttdTarget), dueCompleted, inProg,
     timePct: f && f.totalDays ? elapsed / f.totalDays : 0,
     flight: f, daysElapsed: elapsed,
     regionRows
@@ -4780,7 +5003,18 @@ const PROGRAMS = {
   // is simply unused here, since the Paid Media tab never renders on this lane.
   core_emea: {
     prog: 'CORE_DG', label: 'Core DG EMEA', theatre: 'EMEA',
-    tabs: ['main','txdata'], plans: false,
+    tabs: ['main','txdata'],
+    // Same rail ORDER as APJ, so a tab appearing later slots into the familiar position
+    // instead of being appended to the end.
+    tabOrder: ['paid','main','compare','qoq','txdata'],
+    // Data-gated: each becomes visible the day its data exists (see BB:EMEATABS).
+    // CS Comparison needs BOTH paid delivery and a prior quarter.
+    tabsWhenData: {
+      paid:    () => emeaHasPaid(),
+      qoq:     () => emeaHasPriorQuarter(),
+      compare: () => emeaHasPaid() && emeaHasPriorQuarter(),
+    },
+    plans: false,
     // NO shared date control on this lane: everything range-driven on the CS tab is APAC-scoped
     // and therefore hidden here (see applyRegionPanelScope), and the one section that DOES
     // render is driven by its own week selector. A visible picker that changes nothing on
@@ -6439,7 +6673,7 @@ function switchDashboard(val){
   applyLaneTabs();
   // A lane may not carry the tab you were on (Surround ABM is Paid Media only), so fall
   // back to its first allowed tab instead of leaving every panel hidden.
-  if (lane.tabs.indexOf(activeTab) < 0) activeTab = lane.tabs[0];
+  if (laneTabs().indexOf(activeTab) < 0) activeTab = laneTabs()[0];
   renderLaneNote(true);
   switchTab(activeTab);
   // A theatre change has to repaint the Content Syndication tab, and switchTab() does NOT
@@ -6456,8 +6690,50 @@ function switchDashboard(val){
 
 // Show only the tabs this lane is allowed to render. Layered ON TOP of the Admin-View gate:
 // "Internal Notes" needs BOTH the lane to allow it and devMode to be on.
+// >>> BB:EMEATABS >>>
+// TAB VISIBILITY IS DERIVED FROM THE PAYLOAD, NOT HARDCODED PER LANE (2026-09-01, John).
+// EMEA can fill Content Syndication and Transmission data today. Paid Media / CS Comparison /
+// Quarter on Quarter have NO EMEA data - no EMEA ad accounts are connected, and EMEA launched
+// part-way through the quarter - so they are HIDDEN rather than shown empty: an empty tab in
+// front of a client reads as a broken dashboard, not as a lane that has not started.
+//
+// They are hidden by ABSENCE OF DATA, not by a flag, so each one reappears on its own the day
+// its data lands (Paid Media is expected in Q4). Nothing to remember, nothing to switch on.
+//
+// APJ is unaffected: its lane declares its five tabs explicitly and laneTabs() returns them
+// untouched, so this can only ever ADD to a lane that opted in via `tabsWhenData`.
+function laneTabs(){
+  const c = laneCfg();
+  const base = c.tabs.slice();
+  const extra = c.tabsWhenData || {};
+  // Insert each data-gated tab in the lane's declared ORDER, so the rail never reshuffles.
+  const order = c.tabOrder || base;
+  for (const tab in extra){
+    if (base.indexOf(tab) >= 0) continue;
+    if (!extra[tab]()) continue;                       // no data yet -> stays hidden
+    base.push(tab);
+  }
+  return order.filter(t => base.indexOf(t) >= 0);
+}
+// Does the payload carry EMEA PAID delivery? Today: no. The paid fact has no theatre dimension
+// at all (it is APAC-only by construction), so this is deliberately a check for a NEW payload
+// block rather than a filter over the existing one - a filter would silently return zero rows
+// and could not tell "no EMEA paid" from "paid broke".
+function emeaHasPaid(){
+  const p = (typeof COMBINED !== 'undefined' && COMBINED.paid_media_emea) || null;
+  return !!(p && ((p.rows && p.rows.length) || (p.row_count || 0) > 0));
+}
+// A prior quarter for EMEA. Its first target week is 07/31, so Q3 is its first quarter; this
+// turns true once a completed earlier quarter exists in the pacing seed.
+function emeaHasPriorQuarter(){
+  const rows = (typeof CSPD_ROWS !== 'undefined' && CSPD_ROWS) || [];
+  const wks = rows.filter(r => r.theatre === 'EMEA' && r.week_start).map(r => r.week_start).sort();
+  return wks.length > 0 && wks[0] < '2026-07-01';
+}
+// <<< BB:EMEATABS <<<
+
 function applyLaneTabs(){
-  const allowed = laneCfg().tabs;
+  const allowed = laneTabs();
   document.querySelectorAll('#controlBar .tabs .tab').forEach(t => {
     const k = t.dataset.tab;
     let show = allowed.indexOf(k) >= 0;
