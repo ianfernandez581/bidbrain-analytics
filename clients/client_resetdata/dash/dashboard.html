@@ -665,7 +665,7 @@
       <div class="panelhead">
         <div>
           <h3>Ad spend &rarr; leads &rarr; paying</h3>
-          <p class="hint">Stacked bars = media spend by platform (AUD, filter-scoped). Lines = the funnel over time: <b>leads</b> (ad-reported) and <b>new paying customers</b> = HubSpot contacts who have gone on to spend on app billing, dated by when the contact was created (HubSpot records no first-payment date; the same Paying series as the Signups &amp; CRM tab). The paying line is whole-account (not filter-scoped) and sums to the all-time <b>Paying customers</b> card. <b>Relative</b> indexes each line to its own peak; <b>Absolute</b> plots both on a shared count axis. Click a month bar to drill into its weeks.</p>
+          <p class="hint">Stacked bars = ad spend by platform (AUD, filter-scoped). Lines = the funnel over time: <b>leads</b> (ad-reported) and <b>new paying customers</b> = HubSpot contacts who have gone on to spend on app billing, dated by when the contact was created (HubSpot records no first-payment date; the same Paying series as the Signups &amp; CRM tab). The paying line is whole-account (not filter-scoped) and sums to the all-time <b>Paying customers</b> card. <b>Relative</b> indexes each line to its own peak; <b>Absolute</b> plots both on a shared count axis. Click a month bar to drill into its weeks.</p>
         </div>
         <div class="ctrls">
           <span class="drillback" id="heroBack" onclick="heroDrillReset()">↩ All months</span>
@@ -800,7 +800,7 @@
   <section id="tab-ads2traffic" class="hide">
     <div class="panel-box">
       <div class="panelhead">
-        <div><h3>Ad spend vs sessions</h3><p class="hint">Media spend (bars) vs the <b>ad-driven</b> sessions it produced (solid line), with <b>total</b> sessions (dashed) for context - this is how our ads created the traffic. <b>Relative</b> indexes each line to its own peak; <b>Absolute</b> uses a dedicated sessions axis.</p></div>
+        <div><h3>Ad spend vs sessions</h3><p class="hint">Ad spend (bars) vs the <b>ad-driven</b> sessions it produced (solid line), with <b>total</b> sessions (dashed) for context - this is how our ads created the traffic. <b>Relative</b> indexes each line to its own peak; <b>Absolute</b> uses a dedicated sessions axis.</p></div>
         <div class="ctrls">
           <span class="seg" id="a2tmScaleSeg"><span class="cap">AXIS</span><button type="button" data-scale="rel" class="on" onclick="setA2tmScale('rel',this)">Relative</button><button type="button" data-scale="abs" onclick="setA2tmScale('abs',this)">Absolute</button></span>
           <span class="seg" id="a2tmGrainSeg"><span class="cap">VIEW&nbsp;BY</span><button type="button" data-grain="month" class="on" onclick="setA2tmGrain('month',this)">Month</button><button type="button" data-grain="week" onclick="setA2tmGrain('week',this)">Week</button><button type="button" data-grain="day" onclick="setA2tmGrain('day',this)">Day</button></span>
@@ -911,7 +911,7 @@ const MC = {
   // performance metrics (KPI accents + trend lines) - globally unique
   'Ad spend':'#64748B','Impressions':'#22D3EE','Clicks':'#A3E635','Sessions':'#E84A6F',
   'Key events':'#F59E0B','Ad-driven (paid)':'#8B5CF6','Engaged sessions':'#2DD4BF','Paying':'#34D399',
-  'Leads':'#3B82F6','New paying customers':'#34D399',
+  'Leads':'#3B82F6','Paying customers (by contact month)':'#34D399',
   'CPM':'#FDE047','CPC':'#FB7185',
   // GA4 traffic channels / signup sources
   'Direct':'#38BDF8','Organic Search':'#14B8A6','Organic Social':'#C084FC','Paid Search':'#818CF8',
@@ -1308,6 +1308,19 @@ window.DateRange = (function(){
 // all four channels are now raw media cost); a billed rate belongs here in the registry, not in a view. This
 // shim is generic and just applies whatever factor `BB_SPEND_MULT.reddit` carries (super admin sets it).
 // Empty/unset BB_SPEND_MULT ⇒ every factor defaults to 1 ⇒ total no-op.
+// What ARE the money figures on this page? The platform proxy states it authoritatively in
+// window.BB_SPEND_BASIS ('media' = what we paid the platform, 'billed' = the client-billed rate),
+// because the page cannot tell: an EXTERNAL tenant gets figures grossed SERVER-SIDE with no
+// multiplier injected, so BB_SPEND_MULT is empty over billed numbers. The fallback is for a DIRECT
+// login on the run.app URL, where there is no proxy and therefore no markup at all - raw media cost.
+// ONE reader (setNotes) states the basis in ONE place; every other spend caption stays neutral, so
+// no two strings on this dashboard can ever disagree about what a dollar means.
+function bbSpendBasis(){
+  const b = window.BB_SPEND_BASIS;
+  if (b === 'media' || b === 'billed') return b;
+  const m = window.BB_SPEND_MULT || {};
+  return Object.keys(m).some(k => Number(m[k]) > 1) ? 'billed' : 'media';
+}
 function bbMultFor(channel){const m=window.BB_SPEND_MULT||{};const v=Number(m[channel]);return (Number.isFinite(v)&&v>0)?v:1;}
 function bbChannelKey(p){var s=String(p||'').toLowerCase();
   if(s.includes('google'))return 'google';
@@ -1462,7 +1475,11 @@ function setNotes(){
   document.getElementById('paidNote').innerHTML=
     '<b>Conversion reporting differs by platform.</b> Google Ads conversions come from Google\'s own tracking (reliable). '+
     'Meta leads are the advertiser\'s <b>“Signup Button”</b> custom pixel conversion (the deliberate lead tracker); Reddit sign-up / lead clicks are configured but <b>sparse</b>. The Trade Desk reports <b>no conversions</b> upstream, so its '+
-    'cost-per-lead is shown as “-”. All spend is AUD (Trade Desk converted from USD at FX '+fmt1(DATA.fx_usd_aud)+').';
+    'cost-per-lead is shown as “-”. All spend is AUD (Trade Desk converted from USD at FX '+fmt1(DATA.fx_usd_aud)+') '+
+    'and is stated '+(bbSpendBasis()==='billed'
+      ? 'at the <b>billed rate</b>'
+      : 'as <b>media cost</b> - what was paid to each platform')+
+    ', on the same basis for all four platforms, so cost per lead, CPM and CPC compare like for like.';
   document.getElementById('gaNote').innerHTML=
     '<b>GA4 key-event tracking is real but low-volume.</b> Conversions populate (the configured event is '+
     '<code>Leadform_submit</code>; <code>sign_up</code>, <code>file_download</code>, <code>learn_more_click</code> and the '+
@@ -1560,7 +1577,7 @@ const LEGEND_TIPS={
     'Trade Desk':'Bars = money spent on The Trade Desk (programmatic display ads) in that period, in AUD.',
     'Reddit':'Bars = money spent on Reddit ads in that period, in AUD.',
     'Leads':'Leads the ad platforms themselves reported for that period (form fills / sign-up conversions attributed to ads). Follows the platform + campaign filters. Trade Desk display reports none.',
-    'New paying customers':'People who became paying app customers, plotted by the date their contact was created (the CRM records no first-payment date). Whole-account CRM data - this line does NOT move with the platform/campaign filters. Same basis as Paying on the Signups & CRM tab.'},
+    'Paying customers (by contact month)':'People who became paying app customers, plotted by the date their contact was created (the CRM records no first-payment date). Whole-account CRM data - this line does NOT move with the platform/campaign filters. Same basis as Paying on the Signups & CRM tab.'},
   crmSignupsChart:{
     'Signups':'New app.reset.ai accounts created in that period.',
     'Paying':'How many of the signups from that period have spent real money as of today (not payments made in the period).'},
@@ -1868,8 +1885,19 @@ function renderOverview(){
   // ad spend. Leads/CPL are AD-ATTRIBUTED (Google·Meta·Reddit, filter-scoped); TTD display reports no
   // leads so it's EXCLUDED from the CPL basis (its spend is noted on the Ad-spend card). Paying customers
   // = crm.kpi.paying = rd_total_spend>0 (app billing, all-time, NOT filter-scoped). Its card toggles the
-  // hero's 'New paying customers' line - the SAME payers dated by contact created date (HubSpot records
-  // no first-payment date), so the line sums to this card. NOT lifecycle 'Customer' (77, ~zero overlap).
+  // hero's 'Paying customers (by contact month)' line - the SAME payers dated by contact created date
+  // (HubSpot records no first-payment date), so the line sums to this card. NOT lifecycle 'Customer'
+  // (77, ~zero overlap).
+  //
+  // THIS CARD IS THE ODD ONE OUT IN A ROW HEADED "Campaign goal", and its sublabel has to say so.
+  // Leads / CPL / Ad spend are ad-attributed and filter-scoped; this is EVERY paying customer the
+  // business has, however they arrived. By HubSpot's own Original Source only 27 of the 150 came
+  // from a paid source (Paid Search 18 + Paid Social 9) - 120 are Offline/Sales and Direct. Sitting
+  // unqualified next to three ad metrics, it read as "the campaign produced 150 paying customers".
+  // Do NOT put the 27 on the card: `ad_attributed` in sql/28 counts contacts with a click id, NOT
+  // paying ones, and HubSpot attribution here is thin (most signups land Offline/Direct), so a
+  // paid-source count on a client card would understate the ads and invite an argument we would
+  // lose on data quality. Scope it honestly; leave the attribution split to the source table below.
   const LEADP=['google','meta','reddit'];
   const byP={}; PLATFORMS.forEach(p=>byP[p]={spend:0,conv:0});
   // spend uses nAdd so a WITHHELD row makes that platform's spend unknown, not a partial sum.
@@ -1886,7 +1914,7 @@ function renderOverview(){
   document.getElementById('ovNorthStar').innerHTML=[
     nsCard('k-ns-leads','Ad-reported leads',fmtN(adLeads),'Google · Meta · Reddit conversions', leadsBy, false, {chart:H,series:'Leads'}),
     nsCard('k-ns-cpl','Cost per lead',aud(cpl),'lead-channel spend &divide; leads', cplBy, true, null),
-    nsCard('k-ns-paying','Paying customers',fmtN(heldNum(crmKpi.paying)),'all-time · app billing (has spent) · not filter-scoped', null, false, {chart:H,series:'New paying customers'}),
+    nsCard('k-ns-paying','Paying customers',fmtN(heldNum(crmKpi.paying)),'all sources · all time · app billing · not ad-attributed', null, false, {chart:H,series:'Paying customers (by contact month)'}),
     nsCard('k-ns-spend','Ad spend',aud(spend),(ttdSpend==null?'Trade Desk display spend not available':(ttdSpend?aud(ttdSpend)+' on Trade Desk display (no lead tracking)':'all lead channels')), acmMoneyBy('spend_aud'), false, {chart:H,stack:'spend'}),
   ].join('');
 
@@ -1978,7 +2006,7 @@ function renderHero(){
     {label:'Leads',            color:mc('Leads'),       data:leads,    w:2.8, axis:'y1'},
     // crm.held => the block was not given to this session. Drop the series rather than plotting a
     // flat zero line, which would read as "no-one ever became a paying customer".
-    crm.held?null:{label:'New paying customers', color:mc('Paying'),  data:crm.pay,  w:2.5, dash:true,  axis:'y1'},
+    crm.held?null:{label:'Paying customers (by contact month)', color:mc('Paying'),  data:crm.pay,  w:2.5, dash:true,  axis:'y1'},
   ].filter(e=>e&&e.data);
   // A platform whose spend is withheld carries an all-null series; drop its bar rather than
   // stacking a zero-height bar that reads as "this platform spent nothing".

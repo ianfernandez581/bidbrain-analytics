@@ -16,6 +16,92 @@ sessions, engagement, and the demand-gen key events (lead form, sign-up, $50-cre
 
 ---
 
+## "Paying customers" - what it is, and what it is NOT (2026-08-31)
+
+The **Campaign goal** strip on Overview holds four cards. Three are ad-attributed and
+filter-scoped (Ad-reported leads, Cost per lead, Ad spend). The fourth, **Paying customers**, is
+NOT: it is `crm.kpi.paying` = every HubSpot contact with `rd_total_spend > 0` - every paying
+customer the business has, **however they arrived**.
+
+Sitting unqualified in a row headed "Campaign goal", it read as *"the campaign produced 150 paying
+customers."* By HubSpot's own Original Source it did not:
+
+| Original Source | paying |
+|---|---|
+| Offline / Sales | 60 |
+| Direct | 60 |
+| **Paid Search** | **18** |
+| **Paid Social** | **9** |
+| Organic / other | 3 |
+| **total** | **150** |
+
+So **27 of 150 (18%)** came from a paid source; 120 are Offline/Sales and Direct. The card's
+sublabel now says **`all sources · all time · app billing · not ad-attributed`** - the number is
+unchanged and still worth showing (it IS the business outcome the campaign is aiming at), it just
+no longer claims to be the campaign's output.
+
+**Do NOT put "27 from paid" on the client card.** Two reasons: `ad_attributed` in
+`sql/28_crm_source_quality` is `COUNTIF(has_ad_click_id)` - contacts carrying a gclid/fbclid, NOT
+*paying* contacts, so it is not the number it looks like (147 vs 150 is a coincidence of scale);
+and HubSpot attribution here is thin by design - most signups land Offline/Direct, which is exactly
+why the `Ad-ID` column and the ad tabs exist. A paid-source count on a headline card would
+understate the ads and invite an argument we would lose on data quality. The attribution split
+already lives, correctly caveated, in **Which sources drive paying customers vs free signups**.
+
+**The hero line was renamed** `New paying customers` -> **`Paying customers (by contact month)`**.
+It is plotted by **contact-created date**, because HubSpot records no first-payment date - so it is
+a cohort curve ("contacts created that month who have since paid"), not a timeline of people who
+started paying that month. "New paying customers" beside a monthly ad-spend bar implied the second
+reading. The rename touches FOUR sites that must stay in step: the `mc()` colour key, the tooltip
+map, the `nsCard` toggle target (`{chart:H,series:...}`) and the dataset label. Verified: colour
+`#34D399` preserved, 9 points, and card-toggle behaviour byte-identical to the previous build.
+
+**Two different "customers" exist and are not interchangeable:** `paying` = 150 (app billing, has
+spent) and lifecycle `customers` = 77 (maintained by sales, does not auto-advance when someone
+starts paying). Near-zero overlap. The Signups & CRM tab shows both.
+
+## What the spend figures ARE, and how the page says so (2026-08-27)
+
+Removing the hardcoded x2 Reddit markup put all four platforms on ONE basis - raw **media cost**,
+what was paid to Google / Meta / Trade Desk / Reddit. That is the whole value of the change: the
+`Cost per lead by platform` table, CPM, CPC and the blended cost per lead are now comparable
+across platforms, which they were not while Reddit alone carried an agency markup.
+
+**The client-facing copy now STATES the basis, in exactly one place** - the end of the Paid Media
+tab's `paidNote`, extending the sentence that already covered currency. Every other spend caption
+is deliberately NEUTRAL ("Ad spend", not "media spend"), so no two strings on the dashboard can
+disagree about what a dollar means. Two captions were reworded for that reason.
+
+**The basis is not guessed - the platform proxy states it.** `window.BB_SPEND_BASIS`
+(`_spend_basis_script` in `bidbrain-platform/dash/main.py`) is `'media'` or `'billed'`, and
+`bbSpendBasis()` in the dashboard reads it. This exists because **the page cannot work it out**:
+there are two independent routes to a billed figure and the browser only sees one.
+
+| session | how it becomes billed | `BB_SPEND_MULT` | label without the flag |
+|---|---|---|---|
+| client / agency | registry factor, applied in the BROWSER | carries the factor | correct |
+| **EXTERNAL tenant (Extrablack)** | grossed **SERVER-SIDE**, factor deliberately withheld (it is our margin) | **empty** | **WRONG - would say "media cost" over billed numbers** |
+| direct run.app login | no proxy, no markup at all | absent | correct (media cost) |
+
+Extrablack is external AND has `resetdata`, so that middle row is live, not theoretical. The
+fallback (derive from `BB_SPEND_MULT`) is only for the no-proxy case.
+
+**Verified in a headless render, all three states:** no flag + no factor -> "media cost", Reddit
+A$5,071; `BB_SPEND_BASIS='billed'` -> "billed rate"; no flag + `{reddit:2}` -> "billed rate" AND
+Reddit A$10,142. **The label follows the number automatically** - if the x2 is ever restored in the
+registry, the copy flips with no code change. That is the point: a label that can contradict the
+figure beside it is the defect being fixed here.
+
+**Reddit spend is now an accuracy check** (`Reddit - Spend`, status pipeline): source A$5,071.15 vs
+dashboard A$5,071.15, matching to the cent. It was uncheckable while the x2 lived in SQL - one of
+the three reasons for removing it, and the one that is now realised.
+
+**STILL OPEN - a commercial decision, not a technical one.** The registry has
+`resetdata.spend_multipliers.reddit = 1.0`, so the client sees media cost. Reddit spend therefore
+reads **A$5,071** where it read **A$10,142** before, and blended spend **A$69,073** vs **A$74,144**
+(-6.8%). If Reddit should still be shown at the billed rate, set that factor to 2.0 in the
+registry - no deploy, and the label flips itself.
+
 ## What's different from `client_STT` (the deltas)
 
 | | STT | **ResetData** |

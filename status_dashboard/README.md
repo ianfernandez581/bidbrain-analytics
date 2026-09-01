@@ -125,8 +125,10 @@ OWN ingest jobs land (Windsor.ai connectors, the Neto job, native BigQuery DTS).
   `build_at` = `<client>.json last_updated`. `digital_behind` = raw advanced but our export didn't rebuild;
   new **`source_stale`** = the raw layer itself is > 2 days old (upstream/ingest down); `ok` = build current.
 
-Whatever the query can't reproduce exactly is flagged in its note: **spend is never checked** (FX / float /
-Reddit's ×2 markup); **native-AUD money** (City Perfume revenue, TLM revenue) and **counts** are. Two
+Whatever the query can't reproduce exactly is flagged in its note: **spend is usually not checked** (FX /
+float); **native-AUD money** (City Perfume revenue, TLM revenue) and **counts** are. **ResetData's Reddit
+spend IS checked since 2026-08-27** - removing the hardcoded ×2 markup from `stg_reddit` is what made it
+checkable, which was one of the reasons for removing it. Two
 documented non-exact cases: **VMCH** headline TTD imps/clicks add a **modelled-April** overlay with no raw
 source (so the check validates the *measured* delivery instead), and any GA4/HubSpot metric noted with its
 own floor/slug. Filters transcribed line-by-line from each client's `sql/` + `job/main.py` (watch: the

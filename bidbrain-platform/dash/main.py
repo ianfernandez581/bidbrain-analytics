@@ -2362,6 +2362,31 @@ def _spend_mult_script(client):
             + b");</script>")
 
 
+def _spend_basis_script(client):
+    """Tell the proxied dashboard WHAT ITS MONEY FIGURES ARE, as window.BB_SPEND_BASIS:
+       'billed' - the client-billed rate.   'media' - raw media cost (what we paid the platform).
+
+    This exists because a page CANNOT work it out for itself, and a spend label that guesses is a
+    label that will eventually contradict the number beside it. There are two independent routes to
+    the billed basis and the browser can only see one of them:
+      * a per-channel factor in the registry, applied in the BROWSER by each dashboard's gross-up
+        shim - visible to the page as window.BB_SPEND_MULT; and
+      * an EXTERNAL tenant, where the proxy grosses the payload SERVER-SIDE and deliberately injects
+        NO factor (the factor is our margin - see _spend_mult_script). The page therefore sees an
+        EMPTY BB_SPEND_MULT over figures that are already billed.
+    Deriving the basis from BB_SPEND_MULT alone would label an external tenant's billed figures
+    'media cost' - precisely the wrong-label failure this is here to prevent.
+
+    Harmless for dashboards that do not read it, exactly like BB_DEV."""
+    import json
+    if _ext_setting("scrub_payload"):
+        basis = "billed"                      # grossed server-side by _gross_external_payload
+    else:
+        mults = store.get_spend_multipliers(client) or {}
+        basis = "billed" if any((v or 0) > 1 for v in mults.values()) else "media"
+    return b"<script>window.BB_SPEND_BASIS=" + json.dumps(basis).encode() + b";</script>"
+
+
 def _dev_flag_script():
     """Expose window.BB_DEV=true to the proxied dashboard IFF the viewer may see INTERNAL tooling:
     an admin / super-admin session, or the agency portal of the client's OWNING agency (Transmission
@@ -2950,7 +2975,7 @@ def proxy(client, subpath):
             # scripts run (the gross-up shim reads window.BB_SPEND_MULT; the CS dev-mode toggle reads
             # window.BB_DEV). Inject high in <head> so it wins even if a dashboard renders
             # synchronously; fall back to </body> if there's no </head>.
-            head_inject = (_spend_mult_script(client) + _dev_flag_script()
+            head_inject = (_spend_mult_script(client) + _spend_basis_script(client) + _dev_flag_script()
                            + _internal_flag_script(client))
             if b"</head>" in body:
                 body = body.replace(b"</head>", head_inject + b"</head>", 1)
