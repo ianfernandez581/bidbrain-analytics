@@ -133,23 +133,27 @@
      option here). Selected programs are removable TAGS in the box; the list below ticks what is in
      scope. The dark palette is the topbar's, not the card body's. ---- */
   .ms{position:relative;min-width:320px;max-width:580px}
-  .ms-box{display:flex;align-items:center;gap:6px;flex-wrap:wrap;background:#2A2A2A;
+  /* ONE LINE. A wrapping box let the input claim a full-width row of its own, which read as a text
+     field to fill in rather than a list to pick from - and the extra rows shoved the topbar around.
+     It wraps only while the "+N" tags are expanded. */
+  .ms-box{display:flex;align-items:center;gap:6px;flex-wrap:nowrap;overflow:hidden;background:#2A2A2A;
     border:1px solid rgba(255,255,255,.22);border-radius:8px;padding:5px 30px 5px 7px;
-    cursor:text;min-height:38px}
+    cursor:text;height:38px}
+  .ms-box.wrap{flex-wrap:wrap;height:auto;min-height:38px;overflow:visible}
   .ms-box:hover{border-color:var(--se-green)}
   .ms.on .ms-box{border-color:var(--se-green);box-shadow:0 0 0 3px rgba(0,149,48,.22)}
-  .ms-tag{display:inline-flex;align-items:center;gap:6px;background:#3A3A3A;color:#fff;
+  .ms-tag{display:inline-flex;align-items:center;gap:6px;background:#3A3A3A;color:#fff;flex:none;
     border:1px solid rgba(255,255,255,.16);border-radius:5px;padding:3px 7px;font-size:12.5px;
-    font-weight:600;line-height:1.35;max-width:210px}
+    font-weight:600;line-height:1.35;max-width:180px}
   .ms-tag .dot{width:7px;height:7px;border-radius:50%;flex:none}
   .ms-tag .lb{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .ms-tag .x{cursor:pointer;color:rgba(255,255,255,.55);font-size:14px;line-height:1;padding:0 1px}
   .ms-tag .x:hover{color:#fff}
   .ms-tag.locked .x{opacity:.3;cursor:not-allowed}
-  .ms-more{background:rgba(255,255,255,.1);border:1px dashed rgba(255,255,255,.28);color:#fff;
+  .ms-more{background:rgba(255,255,255,.1);border:1px dashed rgba(255,255,255,.28);color:#fff;flex:none;
     border-radius:5px;padding:3px 8px;font-size:12px;font-weight:600;cursor:pointer}
-  .ms-input{flex:1 1 90px;min-width:70px;background:none;border:none;outline:none;color:#fff;
-    font:inherit;font-size:13px;padding:3px 2px}
+  .ms-input{flex:1 1 40px;min-width:30px;width:40px;background:none;border:none;outline:none;
+    color:#fff;font:inherit;font-size:13px;padding:3px 2px}
   .ms-input::placeholder{color:rgba(255,255,255,.45);font-weight:500}
   .ms-ico{position:absolute;right:11px;top:50%;translate:0 -50%;pointer-events:none;
     color:rgba(255,255,255,.5);font-size:12px}
@@ -160,7 +164,9 @@
   .ms-opt{display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:6px;cursor:pointer;
     color:#E6ECE8;font-size:13px}
   .ms-opt:hover,.ms-opt.hi{background:rgba(255,255,255,.08)}
-  .ms-opt.sel{background:rgba(0,149,48,.22);color:#fff;font-weight:600}
+  /* Selection is the TICK, not a fill: with everything selected, nine filled rows made the state
+     harder to read, not easier. Hover/keyboard highlight is the only background in the list. */
+  .ms-opt.sel{color:#fff;font-weight:600}
   .ms-opt .dot{width:8px;height:8px;border-radius:50%;flex:none}
   .ms-opt .sub{font-size:11px;color:rgba(255,255,255,.45);font-weight:500}
   .ms-opt .tick{margin-left:auto;color:var(--se-green);opacity:0;font-size:13px}
@@ -1565,7 +1571,7 @@ function setCampaign(id){ id===ALL_ID?allPrograms():onlyProgram(id); }   // lega
 // Selected programs are removable TAGS in the box; the popover ticks what is in scope. Every path
 // funnels into setScope(), which is also what keeps the last program un-removable.
 //==============================================================================
-const MS_MAX_TAGS=4;   // beyond this the box collapses to "+N" - 9 full-length tags wrap the topbar
+const MS_MAX_TAGS=2;   // beyond this the box collapses to "+N", so it can never exceed one line
 const MS={
   open:false, q:'', hi:0, showAll:false,
   boxClick(ev){ if(ev.target && ev.target.closest('.ms-tag,.ms-more')) return; MS.show(); const i=el('campInput'); if(i) i.focus(); },
@@ -1590,6 +1596,16 @@ const MS={
     box.classList.toggle('on', MS.open);
     // --- the tags in the box ---
     const sel=selCampaigns(), locked=sel.length===1;   // the last tag cannot be removed
+    const boxEl=el('campBox'); if(boxEl) boxEl.classList.toggle('wrap', MS.showAll);
+    // The whole book is ONE tag. Listing every program in the default state said nothing - it was
+    // the noisiest thing on the page while carrying no information a single word doesn't.
+    if(isWholeBook()){
+      tags.innerHTML=`<span class="ms-tag" title="Every campaign is in scope"><span class="dot" style="background:var(--se-green)"></span><span class="lb">All campaigns</span></span>`;
+      if(inp) inp.placeholder='';
+      pop.classList.toggle('ms-hide', !MS.open);
+      if(MS.open) MS.paintList(pop);
+      return;
+    }
     const shown=MS.showAll?sel:sel.slice(0,MS_MAX_TAGS), rest=sel.length-shown.length;
     tags.innerHTML=shown.map(c=>`<span class="ms-tag${locked?' locked':''}" title="${esc(c.label)}">`
         +`<span class="dot" style="background:${campColor(c.id)}"></span>`
@@ -1602,10 +1618,13 @@ const MS={
     // --- the popover list ---
     pop.classList.toggle('ms-hide', !MS.open);
     if(!MS.open) return;
+    MS.paintList(pop);
+  },
+  paintList(pop){
     const L=MS.list();
     const head=(!MS.q)?`<div class="ms-opt${isWholeBook()?' sel':''}" data-all="1">`
         +`<span class="dot" style="background:var(--se-green)"></span><b>All campaigns</b>`
-        +`<span class="sub">${progIds().length} programs</span><span class="tick">&#10003;</span></div><div class="ms-sep"></div>`:'';
+        +`<span class="sub">Select all ${progIds().length}</span><span class="tick">&#10003;</span></div><div class="ms-sep"></div>`:'';
     pop.innerHTML = head + (L.length?L.map((c,i)=>{
         const on=activeCampaigns.has(c.id);
         return `<div class="ms-opt${on?' sel':''}${i===MS.hi?' hi':''}" data-id="${esc(c.id)}">`
