@@ -258,6 +258,33 @@ _SECPWR_SCOPE = (
     "    OR STARTSWITH(TRIM(CAMPAIGN_NAME), '2305_'))"
 )
 
+# LinkedIn ONLY: the same token set applied to the campaign GROUP as well, mirroring the
+# CAMPAIGN_NAME-wins / CAMPAIGN_GROUP_NAME-fallback COALESCE in client_schneidersecpwr/sql/
+# 01_stg_linkedin.sql (2026-09-02). For a SUM over rows, a flat OR of the two tiers is
+# EQUIVALENT to that COALESCE - a row is in scope if either its name or its group names a brief,
+# and either way the row is counted exactly once - so this is the right translation of a
+# precedence rule, not a nested CASE.
+# This constant exists because brief 2305's A/B test states its brief ONLY on the campaign group
+# (ad sets `ANZ Ad Set A - Expert Page` / `ANZ Ad Set B - Interactive Demo`). Without it the two
+# LinkedIn checks would have gone RED the moment the widened view shipped: the dashboard would
+# carry 1,333 impressions that the check's own predicate refuses to count. That is the repo-wide
+# trap of an accuracy check mirroring a view's parse (md/AGENTS.md) - it must move in the SAME
+# change as the view.
+# Trade Desk deliberately keeps the name-only `_SECPWR_SCOPE`: `TradeDesk_APAC ALL` carries no
+# campaign-group column, and 2305's Trade Desk line (`SE_EcoStruxureIT_AWR_2026`) already
+# matches by name.
+_SECPWR_SCOPE_LI = (
+    _SECPWR_SCOPE[:-1] + "\n"
+    "    OR CONTAINS(CAMPAIGN_GROUP_NAME, 'EntIT')\n"
+    "    OR CONTAINS(CAMPAIGN_GROUP_NAME, 'SE_Industrial Edge_')\n"
+    "    OR CONTAINS(CAMPAIGN_GROUP_NAME, 'Industrial Edge Wave3')\n"
+    "    OR CONTAINS(CAMPAIGN_GROUP_NAME, 'Industrial Edge W3')\n"
+    "    OR STARTSWITH(TRIM(CAMPAIGN_GROUP_NAME), '2463_')\n"
+    "    OR CONTAINS(CAMPAIGN_GROUP_NAME, 'Software First')\n"
+    "    OR CONTAINS(CAMPAIGN_GROUP_NAME, 'EcoStruxureIT')\n"
+    "    OR STARTSWITH(TRIM(CAMPAIGN_GROUP_NAME), '2305_'))"
+)
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # The per-client spec — the comprehensive list of every important data pull that
@@ -877,7 +904,7 @@ CLIENTS = [
              "sql": "SELECT SUM(IMPRESSIONS) AS li_imps\n"
                     "FROM APAC_ALL_PLATFORM.PUBLIC.\"LinkedIn Ads - APAC\"\n"
                     "WHERE ACCOUNT_NAME LIKE 'SchneiderElectric_TransmissionSG%'\n"
-                    + _SECPWR_SCOPE + ";",
+                    + _SECPWR_SCOPE_LI + ";",
              "note": "The three Secure Power briefs only. Built via the raw_snowflake."
                      "linkedin_ads_apac mirror, so it equals Snowflake only when the mirror is in "
                      "sync. vs sum(delivery[platform='linkedin'].imps)."},
@@ -886,7 +913,7 @@ CLIENTS = [
              "sql": "SELECT SUM(CLICKS) AS li_clicks\n"
                     "FROM APAC_ALL_PLATFORM.PUBLIC.\"LinkedIn Ads - APAC\"\n"
                     "WHERE ACCOUNT_NAME LIKE 'SchneiderElectric_TransmissionSG%'\n"
-                    + _SECPWR_SCOPE + ";",
+                    + _SECPWR_SCOPE_LI + ";",
              "note": "vs sum(delivery[platform='linkedin'].clicks)."},
             {"label": "Trade Desk · Impressions", "kind": "sum", "group": "Trade Desk",
              "dash": _secpwr_delivery("tradedesk", "imps"),
