@@ -1388,6 +1388,9 @@ function campaign(){
   }
 }
 function campColor(id){ const i=(DATA.campaigns||[]).findIndex(c=>c.id===id); return CAMP_PALETTE[(i<0?0:i)%CAMP_PALETTE.length]; }
+// A translucent version of a palette colour, for a bar whose end is not a real date.
+function hexAlpha(hex,a){ const m=/^#?([0-9a-f]{6})$/i.exec(String(hex||'')); if(!m) return hex;
+  const v=parseInt(m[1],16); return `rgba(${(v>>16)&255},${(v>>8)&255},${v&255},${a})`; }
 // A program's display label from its id. Needed by the by-program tables, which key on the raw
 // program id in the delivery rows rather than on the selected campaign object.
 function campLabel(id){ const c=(DATA.campaigns||[]).find(x=>x.id===id); return c?c.label:id; }
@@ -1434,6 +1437,17 @@ function csWeeklyRows(mp){ mp=mp||marketOk; return (DATA.cs_weekly||[]).filter(r
 function pmRows(){ return (DATA.pm_delivery||[]).filter(r=>inCamp(r.program) && platOk(r.platform) && marketOk(r.market) && inRangeDate(r.date)); }
 
 function elapsedFrac(start,end){ if(!start||!end) return null; const s=+new Date(start), e=+new Date(end), now=Date.now(); if(now<=s) return 0; if(e<=s||now>=e) return 1; return (now-s)/(e-s); }
+// HOW FAR THROUGH THE FLIGHT ARE WE - null when that question has no answer (2026-09-02).
+// Callers used to pass `c.flight_end || now`, and elapsedFrac returns 1 once now >= end, so a
+// campaign with NO AGREED END DATE was treated as a flight that had FINISHED: expected-to-date
+// became 100% of the target, and the verdict cell called it "Behind reach plan" against a bar no
+// amount of delivery could ever clear (the repo-wide "pace against the budget that can actually
+// spend" rule - a denominator nothing can close is an accusation, not a pace). There is no honest
+// fraction without an end: inventing a flight length (90 days? quarter-end?) would just move the
+// fabrication into the maths where the reader cannot see it. So it returns null, and each caller
+// prints what IS true - delivery to date, share of the whole target - with no ahead/behind claim.
+// The job never synthesizes an end (job/main.py) precisely so the UI can tell the two apart.
+function flightFrac(c){ return (c&&c.flight_start&&c.flight_end)?elapsedFrac(c.flight_start,c.flight_end):null; }
 
 // CS pacing aggregate (mongodb csPacing analogue). mp = market predicate.
 function csPacing(mp){
@@ -1444,14 +1458,22 @@ function csPacing(mp){
   const target=c.target||0, hasTarget=target>0;
   const fs=c.flight_start, fe=c.flight_end;
   let totalDays=null, elapsed=null, timePct=null;
-  if(fs){ const s=+new Date(fs); const eRaw=fe?+new Date(fe):Date.now(); totalDays=Math.max(1,Math.round((eRaw-s)/864e5)+1); elapsed=Math.max(0,Math.min(totalDays,Math.round((Date.now()-s)/864e5)+1)); timePct=elapsedFrac(fs, fe||new Date(Date.now()).toISOString()); }
+  // totalDays/elapsed stay descriptive (days live so far when the flight is open); timePct is the
+  // PACING fraction and is null without an agreed end, so no lead target gets a time-to-date bar.
+  if(fs){ const s=+new Date(fs); const eRaw=fe?+new Date(fe):Date.now(); totalDays=Math.max(1,Math.round((eRaw-s)/864e5)+1); elapsed=Math.max(0,Math.min(totalDays,Math.round((Date.now()-s)/864e5)+1)); timePct=flightFrac(c); }
   const ttd=(hasTarget && timePct!=null)?target*timePct:0;
   const committed=c.committed_spend||0;
   const cpl=hasTarget?committed/target:null;
   return {leads, target, hasTarget, ttd, timePct, totalDays, elapsed, byStatus, lastDay, committed, cpl,
+          openFlight: !!(fs && !fe),
           leadsPct: target?leads/target:0, vsTtd: ttd?leads/ttd:null};
 }
-function paceVerdict(vsTtd){ if(vsTtd==null) return {cls:'neut',txt:'no flight dates'}; if(vsTtd>=1) return {cls:'up',txt:'Ahead of plan ✓'}; if(vsTtd>=0.7) return {cls:'neut',txt:'Slightly behind'}; return {cls:'down',txt:'Behind plan'}; }
+// Mirror of reachVerdict for the lead-gen lane: no agreed end date, no ahead/behind. No campaign is
+// in that state today (every program carrying a lead target has a plan end), so this is the guard
+// for the next one that is - the reach lane got there first only by accident of which plans are signed.
+function paceVerdict(vsTtd,p){ if(vsTtd==null && p && p.flightStart && !p.flightEnd)
+    return {cls:'neut', txt:`${fmtPct(p.leadsPct||0,0)} of lead target · no agreed end date`};
+  if(vsTtd==null) return {cls:'neut',txt:'no flight dates'}; if(vsTtd>=1) return {cls:'up',txt:'Ahead of plan ✓'}; if(vsTtd>=0.7) return {cls:'neut',txt:'Slightly behind'}; return {cls:'down',txt:'Behind plan'}; }
 
 //==============================================================================
 // CHART HELPERS
@@ -1928,7 +1950,7 @@ function budgetPace(){
   list.forEach(c=>{
     const ch=c.channels||[], g=grp=>ch.filter(x=>x.group===grp).reduce((a,x)=>a+(x.spend||0),0);
     const paid=g('paid'), cs=c.committed_spend||0, other=g('other'), tot=paid+cs+other;
-    const tf=elapsedFrac(c.flight_start, c.flight_end||new Date(Date.now()).toISOString());
+    const tf=flightFrac(c);        // an open-ended flight contributes NO expected-to-date
     o.paid+=paid; o.cs+=cs; o.other+=other; o.total+=tot;
     if(tf!=null){ o.paidTtd+=paid*tf; o.totalTtd+=tot*tf; }
   });
@@ -2336,19 +2358,58 @@ function wireKpiToggles(){
 function renderGantt(){
   // Under "All campaigns" no single bar is "the selection", so each flight takes its own program
   // colour - matching the pills in the by-program tables - and the caption stops promising a highlight.
-  if(el('ganttSub')) el('ganttSub').textContent = isAllCampaigns()
-    ? "Each bar is a program's plan flight. Programs in scope are coloured; the rest stay drawn but greyed, so an overlapping flight outside the selection (cannibalisation risk) is still visible - and overlaps are why blended pacing across programs is indicative rather than one plan."
-    : "Each bar is a program's plan flight; the selected program is highlighted. Overlapping flights (cannibalisation risk) are visible here.";
-  const winEnd=(DATA.window&&DATA.window.end)||new Date(Date.now()).toISOString().slice(0,10);
-  const gr=(DATA.campaigns||[]).filter(c=>c.flight_start).map(c=>({id:c.id,name:c.label,start:c.flight_start,end:c.flight_end||winEnd}))
+  // AN OPEN FLIGHT IS DRAWN OPEN, NEVER GIVEN AN END (fixed 2026-09-02, client: "the dates aren't
+  // right, many showing they are ending in September"). This read `c.flight_end || DATA.window.end`,
+  // so the four campaigns with NO agreed end date were drawn AND tooltipped as ending on the last day
+  // of delivery DATA - a date nobody agreed, presented under a caption calling it "a plan flight".
+  // The job is deliberate about this (job/main.py: "The end is NEVER synthesized - an unsigned plan
+  // has no agreed end date"), so the fabrication was purely presentational. Open bars now run to
+  // TODAY, carry a translucent fill and a square (uncapped) right edge, and say so in the tooltip.
+  const today=new Date().toISOString().slice(0,10);
+  const allCs=(DATA.campaigns||[]);
+  const gr=allCs.filter(c=>c.flight_start).map(c=>({id:c.id,name:c.label,start:c.flight_start,
+      end:c.flight_end||today, open:!c.flight_end}))
     .filter(g=>!isNaN(+new Date(g.start)) && !isNaN(+new Date(g.end))).sort((a,b)=>new Date(a.start)-new Date(b.start));
+  // A campaign with no start at all is not drawable - but it must not vanish silently either.
+  const noFlight=allCs.filter(c=>!c.flight_start).map(c=>c.label);
+  const nOpen=gr.filter(g=>g.open).length;
+  if(el('ganttSub')){
+    el('ganttSub').innerHTML = (isAllCampaigns()
+      ? "Each bar is a campaign's plan flight. Campaigns in scope are coloured; the rest stay drawn but greyed, so an overlapping flight outside the selection (cannibalisation risk) is still visible - and overlaps are why blended pacing across campaigns is indicative rather than one plan."
+      : "Each bar is a campaign's plan flight; the selected campaign is highlighted. Overlapping flights (cannibalisation risk) are visible here.")
+      + (nOpen?` <b>${nOpen}</b> campaign${nOpen===1?' has':'s have'} <b>no agreed end date</b> - drawn faded to today's dashed line, not to an end.`:'')
+      + (noFlight.length?` Not shown (no flight dates at all): ${noFlight.map(esc).join(', ')}.`:'');
+  }
   if(!gr.length){ return; }
+  // ONE ROW PER CAMPAIGN, with room for its name. The container was a fixed 300px: Chart.js caps a
+  // tick label's width and WRAPS it, so "EcoStruxure Building Activate" became 2-3 lines, overflowed
+  // its ~30px slot, and autoSkip (on by default) dropped every other LABEL while still drawing every
+  // BAR - hence 9 bars against 5 names. Height per row + autoSkip:false is the actual fix.
+  const wrap=el('ganttWrap'); if(wrap) wrap.style.height=Math.max(300, gr.length*34+56)+'px';
   const DAY=864e5, starts=gr.map(g=>+new Date(g.start)), ends=gr.map(g=>+new Date(g.end));
   const minT=Math.min(...starts), maxT=Math.max(...ends), pad=Math.max((maxT-minT)*0.04,7*DAY);
-  charts.pmGantt=new Chart(el('pmGantt'),{ type:'bar',
-    data:{ labels:gr.map(g=>g.name), datasets:[{ data:gr.map(g=>[+new Date(g.start),+new Date(g.end)]), backgroundColor:gr.map(g=>inCamp(g.id)?(isMultiProgram()?campColor(g.id):C.green):C.grey), borderRadius:4, barThickness:16 }]},
-    options:{ indexAxis:'y', maintainAspectRatio:false, plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>{ const g=gr[c.dataIndex]; return ` ${dateLabel(g.start)} → ${dateLabel(g.end)}`; }}}},
-      scales:{ x:gridY({type:'linear',min:minT-pad,max:maxT+pad,ticks:{color:C.mute,font:{size:10},callback:v=>new Date(v).toLocaleDateString('en-US',{month:'short',year:'2-digit'})}}), y:axisX({ticks:{color:C.ink,font:{size:11}}}) } } });
+  const base=gr.map(g=>inCamp(g.id)?(isMultiProgram()?campColor(g.id):C.green):C.grey);
+  // Marks TODAY, so a bar that stops there reads as "still running" rather than "ended on that date".
+  // In the chart's own plugins[] array - NEVER options.plugins, where a function is treated as a
+  // scriptable option, throws, and silently blanks the whole chart (the repo-wide Chart.js v4 rule).
+  const todayLine={id:'ganttToday', afterDatasetsDraw(ch){
+    const xs=ch.scales.x, t=Date.now(); if(!xs||t<xs.min||t>xs.max) return;
+    const px=xs.getPixelForValue(t), a=ch.chartArea, g=ch.ctx;
+    g.save(); g.setLineDash([4,4]); g.strokeStyle=C.mute; g.lineWidth=1;
+    g.beginPath(); g.moveTo(px,a.top); g.lineTo(px,a.bottom); g.stroke(); g.restore(); }};
+  charts.pmGantt=new Chart(el('pmGantt'),{ type:'bar', plugins:[todayLine],
+    data:{ labels:gr.map(g=>g.name), datasets:[{ data:gr.map(g=>[+new Date(g.start),+new Date(g.end)]),
+      backgroundColor:gr.map((g,i)=>g.open?hexAlpha(base[i],.42):base[i]),
+      borderColor:gr.map((g,i)=>base[i]), borderWidth:gr.map(g=>g.open?1:0),
+      // square right edge = the flight does not end here
+      borderRadius:gr.map(g=>g.open?{topLeft:4,bottomLeft:4,topRight:0,bottomRight:0}:4),
+      barThickness:16 }]},
+    options:{ indexAxis:'y', maintainAspectRatio:false, plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>{ const g=gr[c.dataIndex];
+        if(!g.open) return ` ${dateLabel(g.start)} → ${dateLabel(g.end)}`;
+        const days=Math.max(1,Math.round((Date.now()-+new Date(g.start))/DAY)+1);
+        return [` ${dateLabel(g.start)} → no agreed end date`,` live ${fmtN(days)} days`]; }}}},
+      scales:{ x:gridY({type:'linear',min:minT-pad,max:maxT+pad,ticks:{color:C.mute,font:{size:10},callback:v=>new Date(v).toLocaleDateString('en-US',{month:'short',year:'2-digit'})}}),
+        y:axisX({ticks:{autoSkip:false,color:C.ink,font:{size:11}}}) } } });
 }
 
 //==============================================================================
@@ -2377,7 +2438,8 @@ function renderCS(){
   el('cs_overall').textContent=p.hasTarget?fmtPct(p.leadsPct,1):'-';
   const remaining=Math.max(0,p.target-p.leads), daysLeft=p.totalDays!=null?Math.max(0,p.totalDays-p.elapsed):null;
   el('cs_remaining').textContent=p.hasTarget?fmtN(remaining):'-'; el('cs_remaining_cnt').textContent=p.hasTarget?fmtPct(p.leadsPct,0)+' delivered':'-';
-  el('cs_daysleft').textContent=daysLeft!=null?fmtN(daysLeft):'-'; el('cs_daysleft_cnt').textContent=p.totalDays!=null?'of '+p.totalDays+' days':'no flight dates';
+  el('cs_daysleft').textContent=(p.openFlight||daysLeft==null)?'-':fmtN(daysLeft);
+  el('cs_daysleft_cnt').textContent=p.openFlight?'no agreed end date':(p.totalDays!=null?'of '+p.totalDays+' days':'no flight dates');
   // colour the headline signals so the client reads media-buying performance at a glance
   const _v=paceVerdict(p.vsTtd), _pc=_v.cls==='up'?'ahead':_v.cls==='down'?'behind':'warn';
   el('cs_current').style.color = p.vsTtd==null?'':(_v.cls==='up'?'var(--se-green2)':_v.cls==='down'?'var(--bad-red)':'var(--warn-amber)');
@@ -2609,7 +2671,7 @@ function progPacing(cid, allPlatforms){
   let leads=0; (DATA.cs_by_programme||[]).forEach(r=>{ if(r.campaign===cid && marketOk(r.market)) leads+=r.total||0; });
   const c=(DATA.campaigns||[]).find(x=>x.id===cid)||{};
   const target=c.target||0, committed=c.committed_spend||0;
-  const tp=elapsedFrac(c.flight_start, c.flight_end||new Date(Date.now()).toISOString());
+  const tp=flightFrac(c);          // null on an open-ended flight - see flightFrac
   const ttd=(target && tp!=null)?target*tp:0;
   // reach lane - what an awareness program is measured on
   const paid=progPaid(cid, allPlatforms), impTarget=progImpTarget(c);
@@ -2618,13 +2680,20 @@ function progPacing(cid, allPlatforms){
           vsTtd:ttd?leads/ttd:null, leadsPct:target?leads/target:0, label:c.label||cid,
           imps:paid.imps, clicks:paid.clicks, spend:paid.spend, liLeads:paid.liLeads,
           impTarget, impPct:impTarget?paid.imps/impTarget:0, vsImpTtd:impTtd?paid.imps/impTtd:null,
-          flightStart:c.flight_start||null, flightSource:c.flight_source||null,
+          flightStart:c.flight_start||null, flightEnd:c.flight_end||null, flightSource:c.flight_source||null,
           firstDelivery:c.first_delivery||null, planBudget:c.plan_budget||0};
 }
 // Awareness verdict - a reach play is paced on impressions, and says so plainly when no plan is signed
 // yet (the old code fell through to paceVerdict's null arm and mislabelled it "no flight dates").
+// With a target but NO END DATE it prints the share of the whole target and stops there: that share
+// is a fact, while ahead/behind needs a flight length nobody has agreed. It deliberately withholds a
+// GREEN verdict as well as a red one - Microgrid reads 149% and is not called a win, because with no
+// end date "ahead of plan" is as unsupported as "behind" (and its target was seeded with the plan
+// still pending). Neutral amber, never the up/down colours.
 function reachVerdict(p){
   if(!p.impTarget) return {cls:'neut', txt: p.imps>0 ? 'awareness - targets pending' : 'awareness - no delivery yet'};
+  if(p.vsImpTtd==null && p.flightStart && !p.flightEnd)
+    return {cls:'neut', txt:`${fmtPct(p.impPct,0)} of reach target · no agreed end date`};
   if(p.vsImpTtd==null) return {cls:'neut',txt:'awareness - no flight dates'};
   if(p.vsImpTtd>=1) return {cls:'up',txt:'Ahead of reach plan ✓'};
   if(p.vsImpTtd>=0.7) return {cls:'neut',txt:'Slightly behind reach plan'};
@@ -2724,7 +2793,7 @@ function renderCsByProgram(){
   // So the pace cell branches, exactly as the retired scorecard's cards did.
   el('csByProgTable').querySelector('tbody').innerHTML = rows.map(p=>{
     const isLeadGen=p.target>0, col=campColor(p.id);
-    const v=isLeadGen?paceVerdict(p.vsTtd):reachVerdict(p);
+    const v=isLeadGen?paceVerdict(p.vsTtd,p):reachVerdict(p);
     const vcol=v.cls==='up'?'var(--se-green2)':v.cls==='down'?'var(--bad-red)':'var(--warn-amber)';
     return `<tr>
       <td><span class="pill"><span class="dot" style="background:${col}"></span>${p.label}</span></td>

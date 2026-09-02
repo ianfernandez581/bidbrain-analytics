@@ -346,6 +346,109 @@ agree. It is now defined once and read by all three, so the Search detail can ne
 Google Search row of the platform table above it. Extracting it was verified a **strict no-op** —
 program x platform x imps x clicks x spend identical before and after, on all 14 existing rows.
 
+## Campaign scope is a SET, not one campaign (2026-09-02, client request)
+> "Is it possible to add a filter to this view so you can either view all of the campaigns, only 5 of
+> them, or only 2 of them for example?"
+
+The topbar `<select>` is gone. In its place is a **multi-select tag control** (the antd `mode="tags"`
+pattern, built natively - this dashboard is one vanilla HTML file and the platform proxy's CSP allows
+no new script hosts, so React/antd cannot load here). Selected campaigns are removable tags; the
+popover lists all 9 with a tick, `only` (hover, or alt-click a row) isolates one, `+N` collapses the
+box to one line and names the hidden ones in its tooltip, and typing filters the list.
+
+**Frontend-only** - no sql, job or payload change. It generalises what was already there rather than
+adding a mechanism: every render path went through `inCamp()` / `campaign()`, so `campaign()` now sums
+the SELECTED campaigns instead of all of them and the 12 `inCamp()` call sites were untouched.
+
+Rules it encodes, each of which cost a render to find:
+- **The one predicate became two.** `isWholeBook()` = the scope IS all 9, and is the ONLY state that
+  may be described to a reader (or to the AI deck) as "the portfolio". `isMultiProgram()` = 2+, so
+  every tab DECOMPOSES by program - which is what the old `isAllCampaigns()` actually gated, so it
+  survives as an alias and its call sites did not move. Conflating them is how a 2-campaign subset
+  ends up narrated as the whole book.
+- **Tabs are the UNION of the selected campaigns' own `tabs[]`.** Picking two awareness-only briefs
+  must not draw a Content Syndication tab of zeros - a zero tab reads as a failed campaign, not as one
+  that was never bought that way.
+- **Every caption routes through `scopePhrase()`.** Before subsets, "all programs" was the only
+  multi-campaign state and ~6 captions said so in prose; each of those became a false claim about the
+  whole book. One helper means one place to keep honest.
+- **The noun is CAMPAIGN, not program** (client) - `scopePhrase()` says "all campaigns" with **no
+  count** (the same reason `(9 programs)` came off the selector). The by-program TABLES still say
+  program; renaming that vocabulary was offered and not taken, so it is deliberate, not drift.
+- **Draft + Apply, the date picker's pattern.** Ticking used to commit instantly, so narrowing 9 to 2
+  was SEVEN full re-renders, each rebuilding every Chart.js canvas. The list edits a draft and one
+  Apply renders once; Cancel, Escape and an outside click all revert, so a half-finished selection is
+  never silently committed. Dashed tag borders mark a draft that differs from what is on screen.
+- **The last campaign can never be removed** - an empty scope is a blank dashboard.
+- **Search filters VISIBILITY ONLY and never hides a selected chip.** A scope the reader cannot see is
+  the one real failure mode of filtering a filter.
+- **No keyboard highlight until the keyboard is used** (`hi=-1`). Opening with `hi=0` parked a
+  permanent highlight - and a visible `only` button - on the first row, which reads as stuck.
+- **CSV headers name the selected campaigns**, and the AI deck gets `scope:'program_subset'` plus a
+  `scope_note` that forbids generalising beyond the selection.
+
+Things deliberately NOT built: grouped sections with per-group "select all" (offered, declined - the
+per-row Lead-gen/Awareness badges were then dropped too, on request, so the picker no longer
+distinguishes the two lanes at all); a second `Reset to all` button (it duplicated the `All campaigns`
+row's own behaviour - two controls for one action, the thing the topbar dropdown was removed for).
+
+## Flight Gantt: an open flight is drawn OPEN (2026-09-02)
+> "only 5 campaigns on the left hand axis, but all of the campaigns within the chart. the dates also
+> aren't right, many showing they are ending in september which is not true"
+
+Two independent bugs, both pre-existing:
+
+1. **5 names against 9 bars was a rendering limit, not missing data.** The container was a fixed
+   `height:300px` and the y-axis had no `autoSkip` override. Chart.js caps a tick label's width and
+   WRAPS it, so `EcoStruxure Building Activate` became 2-3 lines, overflowed its ~30px slot, and
+   `autoSkip` (on by default) dropped every other LABEL while still drawing every BAR. Fixed with one
+   row's height per campaign (`rows x 34 + 56`, floor 300) plus `autoSkip:false`.
+2. **The end dates were FABRICATED.** The bar read `c.flight_end || DATA.window.end` - the last day of
+   delivery DATA - so the four campaigns with no agreed end were drawn AND tooltipped as ending
+   2026-09-01, under a caption calling every bar "a plan flight". `job/main.py` is explicit that an
+   end is NEVER synthesized, so this was purely presentational. Open flights now run to a dashed
+   **today** line with a translucent fill and a square (uncapped) right edge, and the tooltip says
+   `-> no agreed end date` + `live N days`. AirSeT (Sep 17) and New Energy Landscape (Sep 10) are
+   genuinely September and did not move.
+
+Also: a campaign with NO start was silently dropped from the chart (`.filter(c=>c.flight_start)`).
+None today, but a 10th program with an unsigned plan would have vanished without trace - the caption
+now names them. The today-line plugin is in the chart's own `plugins:[]` array, never
+`options.plugins` (the repo-wide Chart.js v4 rule: a function there is treated as a scriptable option,
+throws, and silently blanks the whole chart).
+
+## An OPEN-ENDED flight gets no ahead/behind verdict (2026-09-02)
+The Gantt's fabricated end was one instance of a wider idiom: `elapsedFrac(start, flight_end || now)`
+appeared in **four** places, and `elapsedFrac` returns **1** once `now >= end` - so substituting "now"
+for a missing end did not mean "ongoing", it meant **"the flight is 100% over"** and expected-to-date
+became the FULL target. Live effect: two awareness campaigns with no agreed end date were labelled
+**"Behind reach plan"** against a bar no delivery could ever clear (the repo-wide "pace against the
+budget that can actually spend" rule - a denominator nothing can close is an accusation, not a pace),
+and `reachVerdict`'s honest `no flight dates` arm was unreachable because a date had been substituted.
+
+`flightFrac(c)` is now the one helper: it returns `null` without an agreed end, and the by-program
+reach lane, `budgetPace()` and `csPacing()` all use it. The verdict cell prints a fact and judges
+nothing - `83% of reach target · no agreed end date`, neutral amber:
+
+| Campaign | Impressions / target | Was | Now |
+|---|---|---|---|
+| Advancing Energy Technology | 324,086 / 390,625 | Behind reach plan (red) | 83% of reach target · no agreed end date |
+| EcoConsult | 228,076 / 333,333 | Behind reach plan (red) | 68% of reach target · no agreed end date |
+| Microgrid | 105,168 / 70,680 | Ahead of reach plan (green) | 149% of reach target · no agreed end date |
+
+**Microgrid losing its GREEN is the point, not a side effect** - with no end date "ahead" is exactly as
+unsupported as "behind". `impPct` was already computed and never rendered, so the percentage is new
+information. `paceVerdict()` got the same guard for the lead-gen lane: no campaign is in that state
+today (every one carrying a lead target has a plan end), so it is protection for the next one - the
+reach lane only got there first by accident of which plans are signed. And on the CS pacing card,
+**"Days left" printed 0** for an open flight (its `totalDays` is measured to today, so the subtraction
+always landed on zero and read as "this flight has ended") - now `-` with `no agreed end date`.
+
+`totalDays` / `elapsed` still measure to today for an open flight: they are DESCRIPTIVE ("64 days
+live"), not pacing. Advancing Energy Technology is `flight_source:'plan'` with a deliberately open end
+(see `job/main.py`); the other three are the unsigned plans. When a plan is signed with an end date,
+the normal verdicts light up on their own with no code change.
+
 ## Content Syndication tab changes (2026-09-01, client) + the LinkedIn LGF funnel
 Four requests in one round, plus what verifying them turned up.
 
