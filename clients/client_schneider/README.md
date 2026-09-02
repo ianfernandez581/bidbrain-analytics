@@ -240,6 +240,112 @@ Also fixed in passing: **`tableCSV()` leaked `_`-prefixed internal stashes** —
 each row's pre-markup spend on `_rawSpend`, and `pm_delivery` exports were shipping it to the client.
 Underscore keys are now dropped from the header and every row (the repo-wide rule in `md/AGENTS.md`).
 
+## Google Search (SEM) — the 4th platform (added 2026-09-02)
+
+Google Ads data for Schneider has been in the warehouse since **2026-07-06** and reached no surface until
+now. The client asked for it. It is a **PLATFORM, not a tab**: it unions into the existing paid-media
+model, so the Platform chips, the platform-comparison table, the delivery chart, the spend doughnuts, the
+market tables, the by-program table, the CSV exports and the AI deck all picked it up with no per-surface
+work — plus a dedicated **Google Search (SEM)** detail section on the Paid Media tab for the
+brand-vs-non-brand split, which is the part the generic platform model cannot express.
+
+**Source:** `raw_snowflake.google_ads_apac`, `ACCOUNT_NAME = 'AAG region Account'` (ACCOUNT_ID
+`2494240566`). **The account name gives no hint that it is Schneider's** — do not try to filter this
+platform on anything containing "schneider"; no row carries that string. Campaign-level grain, one row per
+campaign per day, `NETWORK` single-valued per campaign.
+
+### Scope: the account is NOT Pacific-only, and that is the whole risk
+17 campaigns sit on this account. Only **11** belong to this dashboard, and they are separated **by
+PROGRAM, never by region** — the dashboard's existing intake-sheet scope rule does the work:
+
+| Campaigns | Brief | Resolves to | In scope? | Why |
+|---|---|---|---|---|
+| `2061_AET - *` (9) | 2061 | `global_rebrand` | **YES** | AU + NZ, brand + 4 category lines, live 2026-07-06. The lines the client is chasing. |
+| `2389_SE_MCSeT EvoPacT {Brand,NonBrand}_ANZ_search_AWR` (2) | 2389 | `mcset` | **YES** | ANZ, live 2026-08-10. Already matched via the existing `2389_` token. |
+| `2306_SE_AI&LiquidCooling_{AU,BR,CL,SA,UAE}_SEM_AWR` (5) | 2306 | `ai_lc` | **NO, by design** | Runs in **Brazil / Chile / Saudi / UAE**. Has its OWN dashboard, [`client_schneiderlqai`](../client_schneiderlqai/), which already reports it in EUR. |
+| `2353_MEA_Healthcare.` (1) | 2353 | `mea_seg` | **NO, by design** | One YouTube row, 2026-04-25, MEA. Noise. |
+
+**Two `match_pattern` tokens were added** to `data/campaign_map.csv`: `2061_` on `global_rebrand` (its
+existing `SE_AET` token matches none of the real `2061_AET - *` names) and **`2306_` on `ai_lc`**. The
+second one changes no number — its purpose is that the 2306 campaigns now resolve to a **named
+out-of-scope program** instead of falling through unmatched. That matters because **every mechanism
+keeping foreign delivery off this dashboard is silent**: an unmatched campaign is dropped by the JOIN, and
+`sql/20`'s market normalisation is an `ELSE 'Australia'`, so a 2306 row that ever *did* get in would be
+reported as Australian rather than rejected. Simulated before committing (the repo rule): the change moved
+**exactly the 14 previously-unmatched campaigns and stole nothing** — zero campaigns changed program.
+
+`sql/24_search_scope_audit` re-checks all of this **every job run** and the export WARNs on `UNMAPPED` or
+`IN_SCOPE_NON_ANZ`. Read its header for what each status means. Today: 11 in scope, 6 out, 0 unmapped,
+0 non-ANZ.
+
+### Brand vs non-brand is the point
+The two lanes are bought for different jobs and are an order of magnitude apart, so **they are never
+averaged into one Search figure** without saying so:
+
+| | Campaigns | Spend | Imps | Clicks | CTR | CPC |
+|---|---|---|---|---|---|---|
+| Brand | 2 | A$592 | 7,782 | 2,061 | **26.5%** | **A$0.29** |
+| Non-brand | 7 | A$2,935 | 13,175 | 721 | 5.5% | A$4.07 |
+
+(global_rebrand, whole flight, as at 2026-08-29.) The parse ladder is **most-specific-first because
+`NonBrand` CONTAINS `Brand`** — the same trap as `CONVERSION` containing `CON` in
+[`client_schneidersecpwr`](../client_schneidersecpwr/). A campaign naming neither is `Non-brand`, the
+honest default (brand terms are always labelled; generic ones often are not).
+
+### NO conversions panel — deliberately, and it is enforced in the SQL
+The account's `CONVERSIONS` / `CONVERSION_RATE` / `COST_PER_CONVERSION` / `CONVERSION_VALUE_TOTAL` columns
+are **unresolved**: either correct or inflated ~100x, and the warehouse cannot settle it. The obvious
+sanity check does not help — the conversion actions are dominated by page-view tags, so >1 conversion per
+click is genuinely plausible (`2061_AET Branded` reports **12,616 conversions on 1,630 clicks**), and the
+`Google Ads - APAC ALL - Conversion` cross-check table disagrees with the campaign table for the same
+account and day.
+
+**Nothing may be displayed, computed or derived from those four columns — CPA and ROAS included — until a
+manual reconciliation against the Google Ads UI lands.** The enforcement is that `sql/03b` **does not
+select them at all**, so no column exists downstream that could be summed by accident. The dashboard
+carries a dashed, badge-led **PENDING** placeholder (`#searchConvNote`) where the panel will go, and
+`report.py` + the deck payload's `search_note` forbid the model from asserting any Search conversion,
+conversion rate, CPA, ROAS or lead. When the reconciliation lands, carry the column through 03b -> 22 ->
+`job/main.py` -> the placeholder.
+
+### Currency
+This account bills in **USD** — the only source on this dashboard whose native currency is never AUD.
+`sql/03b` converts at the **shared** `FX_USD_AUD = 1.50` (the same constant `stg_dv360` / `stg_linkedin` /
+`stg_tradedesk` use), so Search spend is on one basis with the other three and can legitimately be summed
+with them. `cost_usd` is carried alongside `spend_aud` so the source figure stays recoverable, and the
+section footnotes the conversion on screen rather than blending currencies silently. Both fields are
+grossed by `bbApplySpendMult` together (channel key `google`), so the footnote can never contradict the
+number it explains.
+
+### CPM and CTR are not comparable across the four engines
+Search is bought on **intent**, the other three on **reach**. Search will always show a far higher CTR
+*and* a far higher CPM — that is the shape of the buy, not a performance verdict. So: the Search KPI strip
+deliberately **does not show a CPM** (it shows share of paid spend instead), and a `Reading this table`
+note appears under the platform comparison **only when Search is in it**, pointing readers at CPC as the
+one cross-engine number. `report.py` carries the same rule.
+
+### Plan pacing
+`global_rebrand`'s media plan always had a **Search** line (`data/media_plan.csv`, click_target **1,222**,
+"3% CTR target") that was bucketed `other` and rendered as a plan-only Other-Channels line, because the
+note said *"no warehouse source"*. It has one now, so `chan_group()` in `job/main.py` moves **Search ->
+`paid`** and the dashboard paces real clicks against that committed target. `global_rebrand` keeps its
+Other Channels tab regardless (Capital Brief / Energy Magazine / Innovation Aus are still genuinely
+plan-only). **The pace card counts clicks ONLY from programs that seeded a target** — mcset has no media
+plan at all, and letting its clicks into a ratio whose denominator it does not contribute to read 241%
+instead of the true 228% under "All campaigns".
+
+### Files
+`sql/03b_stg_google_search` (staging — read its header before changing anything here) → unioned into
+`sql/04_stg_ad_delivery` → `sql/20_pm_delivery` (unchanged behaviour) and `sql/23_search_campaigns`
+(campaign grain, for the brand split) → `job/main.py` (`search_campaigns` + `search_fx`) →
+`renderSearch()` / `renderSearchPace()` in `dash/dashboard.html`. Plus `sql/24_search_scope_audit`.
+
+**`sql/04b_campaign_program` is new and shared:** the campaign->program first-match-wins ladder used to be
+inlined in `sql/20`, and views 23 and 24 would have made three copies of a precedence rule that must always
+agree. It is now defined once and read by all three, so the Search detail can never disagree with the
+Google Search row of the platform table above it. Extracting it was verified a **strict no-op** —
+program x platform x imps x clicks x spend identical before and after, on all 14 existing rows.
+
 ## Content Syndication tab changes (2026-09-01, client) + the LinkedIn LGF funnel
 Four requests in one round, plus what verifying them turned up.
 
@@ -519,9 +625,10 @@ delivering platform. The same rule is applied on `client_cloudflare`, `client_sc
 - **It's a [`client_mongodb`](../client_mongodb/) clone, not the STT layout** — 3 tabs, a single-select
   Campaign control, Region chips + a date picker, scoped to the 5 lead-gen programs (Schneider skin —
   the mongodb *layout*, Schneider's green/dark theme + logo).
-- **Three ad platforms** (DV360 + TradeDesk + LinkedIn), AUD (USD→AUD @1.50, SGD→AUD @1.15 placeholders;
-  LinkedIn currency inferred from the `_USD`/`_AUD`/`_SGD` account suffix). **No GA4 website tab** in the
-  clone (the `40–46 ga4_*` views still apply but are unused by the job).
+- **Four ad platforms** (DV360 + TradeDesk + LinkedIn + **Google Search**, added 2026-09-02), AUD
+  (USD→AUD @1.50, SGD→AUD @1.15 placeholders; LinkedIn currency inferred from the `_USD`/`_AUD`/`_SGD`
+  account suffix, Google Search always USD). **No GA4 website tab** in the clone (the `40–46 ga4_*` views
+  still apply but are unused by the job).
 - **Salesforce Content Syndication is the focus**: `stg_salesforce` + `cs_by_programme` / `cs_weekly`
   (`sql/17–19`) read SE's 9 SF campaigns via `seed_salesforce_map`; `pm_delivery` (`sql/20`) tags paid
   delivery to its program via the `match_pattern` join (replicating the old client-side `idOf` in SQL,
@@ -667,7 +774,9 @@ Read-only on BigQuery (it only SELECTs views + writes JSON). No `src_*` landing,
 
 | What to change | Edit | Stage |
 |---|---|---|
-| SE filter / FX rate | `sql/01_stg_dv360.sql` · `02_stg_linkedin.sql` · `03_stg_tradedesk.sql` (+ `05_kpi.sql`) | 2 |
+| SE filter / FX rate | `sql/01_stg_dv360.sql` · `02_stg_linkedin.sql` · `03_stg_tradedesk.sql` · `03b_stg_google_search.sql` (+ `05_kpi.sql`) | 2 |
+| Google Search scope / brand-vs-non-brand parse / the USD→AUD hop | `sql/03b_stg_google_search.sql` — read its header first; the account is NOT Pacific-only and its CONVERSIONS columns are quarantined | 2 |
+| Which campaigns a Search brief claims | `data/campaign_map.csv` `match_pattern` → `load_seeds.py` → `sql/04b_campaign_program`. Simulate first, and check `sql/24_search_scope_audit` afterwards | 2 |
 | Media-plan **targets** (media_plan / targets / plan_budget) + **campaign_map** (display names / match_patterns) | `data/*.csv` (version-controlled — tracked via `.gitignore` `!` exceptions) → re-run `load_seeds.py` | 2 |
 | Other seeds (plan_flighting / channel_split / salesforce_map) | `data/*.csv` → `load_seeds.py` (NB: currently BQ-only, no committed CSV) | 2 |
 | CS + paid views (`stg_salesforce` / `cs_by_programme` / `cs_weekly` / `pm_delivery`) | `sql/17–20_*.sql` | 2 |
@@ -740,7 +849,7 @@ gcloud run services update schneider-dash --image $IMG --region australia-southe
 | | |
 |---|---|
 | GCP project / region | `bidbrain-analytics` / `australia-southeast1` |
-| BigQuery dataset | `client_schneider` (28 views + 7 CSV-loaded `seed_*` tables) |
+| BigQuery dataset | `client_schneider` (35 views + 7 CSV-loaded `seed_*` tables) |
 | Data bucket / object | `bidbrain-analytics-schneider-dash` / `schneider.json` |
 | Export job | `schneider-export` (runtime SA `schneider-dash-job@…`, read-only BigQuery + bucket write) |
 | Web service | `schneider-dash` (runtime SA `schneider-dash-web@…`) → see [`dash/LIVE_URL.md`](dash/LIVE_URL.md) |
@@ -786,7 +895,7 @@ reports / CSV emails).
   mismatch). Written for a client review / chatbot Q&A. Start here for "how does this dashboard work".
 - [`data/`](data/) — the human-editable seed CSVs (campaign map / budgets / targets / flighting /
   channel split / media plan / salesforce map), loaded to `seed_*` tables by [`load_seeds.py`](load_seeds.py).
-- [`sql/`](sql/README.md) — the 31 BigQuery views (filter + CS leads + paid delivery + `cs_audience` + `cs_account_titles` + the GA4 Website layer `40-47`, shipped disabled).
+- [`sql/`](sql/README.md) — the 35 BigQuery views (filter + CS leads + paid delivery + `cs_audience` + `cs_account_titles` + the Google Search lane `03b`/`23`/`24` + the shared `04b_campaign_program` tagging + the GA4 Website layer `40-47`, shipped disabled).
 - [`job/`](job/README.md) — the export job (stage 2): views + seed tables → `schneider.json`.
 - [`dash/`](dash/README.md) — the web app (stage 3): password gate + `dashboard.html`.
 - [`INTAKE.md`](INTAKE.md) — the resolved data slice + open items handed to the client.

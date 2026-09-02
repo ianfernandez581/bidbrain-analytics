@@ -11,7 +11,7 @@ global_rebrand,Capital Brief,Awareness,2026-07-01,,,912000,,12000,,,
 global_rebrand,Energy Magazine,Awareness,2026-07-01,,,220248,,374,,,
 global_rebrand,Innovation Aus,Awareness,2026-07-01,,,24880,,1234,,,views/downloads; no warehouse source
 global_rebrand,LinkedIn,Awareness,2026-07-01,,,390625,88542,1393,,,
-global_rebrand,Search,Awareness,2026-07-01,,,,,1222,,,3% CTR target; no warehouse source
+global_rebrand,Search,Awareness,2026-07-01,,,,,1222,,,3% CTR target; Google Ads live from 2026-07-06 (see sql/03b_stg_google_search)
 heavy,Demand AI (HQL),LeadGen-HQL,2026-07-01,2026-10-31,10800.0,,,,48,701RG00001KhQEcYAN,
 heavy,Demand AI (MQL),LeadGen-MQL,2026-06-01,2026-09-30,5100.0,,,,51,701RG00001KhQEcYAN;701RG00001T4zGfYAJ,
 heavy,Finalfunnel (MQL),LeadGen-MQL,,,5690.0,,,,435,701RG00001KhOntYAF;701RG00001KhQL4YAN;701RG00001T4zGfYAJ,
