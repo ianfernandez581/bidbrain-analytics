@@ -157,12 +157,16 @@
   .ms-input::placeholder{color:rgba(255,255,255,.45);font-weight:500}
   .ms-ico{position:absolute;right:11px;top:50%;translate:0 -50%;pointer-events:none;
     color:rgba(255,255,255,.5);font-size:12px}
-  .ms-pop{position:absolute;z-index:60;top:calc(100% + 6px);left:0;right:0;background:#1E1E1E;
-    border:1px solid rgba(255,255,255,.16);border-radius:8px;padding:4px;max-height:340px;
-    overflow:auto;box-shadow:0 18px 44px rgba(0,0,0,.5)}
+  /* At least as wide as the box, but free to grow to its content: a tag may truncate, a list row
+     must not - the popover is where you read the full name. */
+  .ms-pop{position:absolute;z-index:60;top:calc(100% + 6px);left:0;min-width:100%;width:max-content;
+    max-width:min(560px,90vw);background:#1E1E1E;border:1px solid rgba(255,255,255,.16);
+    border-radius:8px;padding:4px;max-height:360px;overflow:auto;box-shadow:0 18px 44px rgba(0,0,0,.5)}
   .ms-hide{display:none}
-  .ms-opt{display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:6px;cursor:pointer;
-    color:#E6ECE8;font-size:13px}
+  /* Compact rows: at 8px padding / 13px the 9-row list ran ~480px and covered the tab bar, the KPI
+     band and the intro copy of the tab being filtered. */
+  .ms-opt{display:flex;align-items:center;gap:8px;padding:5px 10px;border-radius:5px;cursor:pointer;
+    color:#E6ECE8;font-size:12.5px;line-height:1.5}
   .ms-opt:hover,.ms-opt.hi{background:rgba(255,255,255,.08)}
   /* Selection is the TICK, not a fill: with everything selected, nine filled rows made the state
      harder to read, not easier. Hover/keyboard highlight is the only background in the list. */
@@ -171,12 +175,33 @@
   .ms-opt .sub{font-size:11px;color:rgba(255,255,255,.45);font-weight:500}
   .ms-opt .tick{margin-left:auto;color:var(--se-green);opacity:0;font-size:13px}
   .ms-opt.sel .tick{opacity:1}
-  .ms-opt .only{margin-left:auto;font-size:9.5px;font-weight:700;letter-spacing:.4px;
-    text-transform:uppercase;color:rgba(255,255,255,.4);opacity:0}
-  .ms-opt:hover .only,.ms-opt.hi .only{opacity:1}
-  .ms-opt .only:hover{color:var(--se-green)}
-  .ms-opt.sel .only{margin-left:0;margin-right:8px}
-  .ms-sep{height:1px;background:rgba(255,255,255,.1);margin:4px 2px}
+  /* A real button: bordered, right-aligned against the tick, and revealed on hover/keyboard only.
+     As a bare word in the same grey as the Lead-gen label it read as a second badge on the row. */
+  .ms-opt .only{margin-left:auto;font-size:10px;font-weight:700;letter-spacing:.3px;
+    text-transform:uppercase;color:rgba(255,255,255,.62);background:rgba(255,255,255,.06);
+    border:1px solid rgba(255,255,255,.22);border-radius:4px;padding:2px 7px;line-height:1.3;
+    opacity:0;pointer-events:none;transition:opacity .1s}
+  .ms-opt:hover .only,.ms-opt.hi .only{opacity:1;pointer-events:auto}
+  .ms-opt .only:hover{color:#fff;background:var(--se-green);border-color:var(--se-green)}
+  .ms-opt.sel .only{margin-left:auto;margin-right:8px}
+  .ms-opt .lbl-txt{margin-right:2px}
+
+  /* Footer: the count is the guard against a narrowed scope being read as the whole account. */
+  .ms-foot{display:flex;align-items:center;justify-content:space-between;gap:12px;
+    padding:7px 8px 4px;margin-top:3px;border-top:1px solid rgba(255,255,255,.1);
+    font-size:11.5px;color:rgba(255,255,255,.55);position:sticky;bottom:-4px;background:#1E1E1E}
+  .ms-foot b{color:#fff;font-weight:600}
+  .ms-foot .hint{display:block;font-size:10.5px;color:rgba(255,255,255,.35);margin-top:1px}
+  .ms-btns{display:flex;gap:6px;flex:none}
+  .ms-btn{background:none;border:1px solid rgba(255,255,255,.22);border-radius:5px;color:#fff;
+    font:inherit;font-size:11.5px;padding:4px 11px;cursor:pointer}
+  .ms-btn:hover{border-color:var(--se-green);color:var(--se-green)}
+  .ms-btn.pri{background:var(--se-green);border-color:var(--se-green);color:#fff;font-weight:600}
+  .ms-btn.pri:hover{background:var(--se-green2);color:#fff}
+  .ms-btn[disabled]{opacity:.35;cursor:default}
+  .ms-btn[disabled]:hover{border-color:rgba(255,255,255,.22);color:#fff;background:none}
+  .ms-tag.draft{border-style:dashed;border-color:rgba(255,255,255,.35)}
+  .ms-sep{height:1px;background:rgba(255,255,255,.1);margin:3px 2px}
   .ms-empty{padding:11px 10px;color:rgba(255,255,255,.5);font-size:12.5px}
   .dash-select:focus{outline:none;border-color:var(--se-green)}
   .topbar-right{font-size:11.5px;color:rgba(255,255,255,.8);text-align:right;line-height:1.5}
@@ -727,13 +752,15 @@
     <div class="topbar-divider"></div>
     <div class="topbar-camp"><span class="topbar-caplbl">Campaign</span>
       <div class="ms" id="campMS">
-        <div class="ms-box" id="campBox" onclick="MS.boxClick(event)" title="Pick any number of programs - all of them, or just the two you want to compare">
+        <div class="ms-box" id="campBox" role="combobox" aria-haspopup="listbox" aria-expanded="false"
+             aria-controls="campPop" onclick="MS.boxClick(event)" title="Pick any number of campaigns - all of them, or just the two you want to compare">
           <span id="campTags"></span>
-          <input class="ms-input" id="campInput" type="text" placeholder="Select programs" autocomplete="off"
+          <input class="ms-input" id="campInput" type="text" placeholder="Select campaigns" autocomplete="off"
+                 role="searchbox" aria-label="Search campaigns"
                  onfocus="MS.show()" oninput="MS.onType(this.value)" onkeydown="MS.onKey(event)">
           <span class="ms-ico">&#9662;</span>
         </div>
-        <div class="ms-pop ms-hide" id="campPop"></div>
+        <div class="ms-pop ms-hide" id="campPop" role="listbox" aria-multiselectable="true" aria-label="Campaigns in scope"></div>
       </div></div>
   </div>
   <div class="topbar-right">
@@ -1620,8 +1647,8 @@ async function boot(){
     activeTab=validTabs.includes(h)?h:campaignTabs()[0];   // default to the campaign's first tab
     el('loading').style.display='none'; el('content').style.display='block';
     renderMeta(); renderControls(); renderActive();
-    document.addEventListener('click', ev=>{ if(MS.open && !ev.target.closest('#campMS')) MS.close(); });
-    document.addEventListener('keydown', ev=>{ if(ev.key==='Escape' && MS.open) MS.close(); });
+    document.addEventListener('click', ev=>{ if(MS.open && !ev.target.closest('#campMS')) MS.cancel(); });
+    document.addEventListener('keydown', ev=>{ if(ev.key==='Escape' && MS.open) MS.cancel(); });
   }catch(e){ el('loading').style.display='none'; el('error').style.display='block'; el('errDetail').textContent=e.message; }
 }
 
@@ -1661,72 +1688,98 @@ function setCampaign(id){ id===ALL_ID?allPrograms():onlyProgram(id); }   // lega
 //==============================================================================
 const MS_MAX_TAGS=2;   // beyond this the box collapses to "+N", so it can never exceed one line
 const MS={
-  open:false, q:'', hi:0, showAll:false,
+  open:false, q:'', hi:0, showAll:false, draft:null,
+  // DRAFT + APPLY, the date picker's pattern (this dashboard already commits a date range that way).
+  // Ticking used to commit instantly, so narrowing 9 campaigns to 2 meant SEVEN full re-renders, each
+  // rebuilding every Chart.js canvas on the tab. Now the list edits a draft and one Apply renders once.
+  // Cancel, Escape and an outside click all revert - never silently commit what someone was mid-way
+  // through choosing.
+  scope(){ return MS.draft||activeCampaigns; },
+  dirty(){ const a=selIds(), b=progIds().filter(id=>MS.scope().has(id)); return a.join('|')!==b.join('|'); },
   boxClick(ev){ if(ev.target && ev.target.closest('.ms-tag,.ms-more')) return; MS.show(); const i=el('campInput'); if(i) i.focus(); },
-  show(){ if(!MS.open){ MS.open=true; MS.hi=0; MS.render(); } },
-  close(){ MS.open=false; MS.q=''; MS.showAll=false; const i=el('campInput'); if(i) i.value=''; MS.render(); },
-  onType(v){ MS.q=(v||'').trim().toLowerCase(); MS.hi=0; MS.show(); MS.render(); },
-  // The list filters on TYPING only, and never changes the scope: a selected program stays selected
+  show(){ if(!MS.open){ MS.open=true; MS.hi=-1; MS.draft=new Set(activeCampaigns); MS.render(); } },
+  cancel(){ MS.open=false; MS.q=''; MS.showAll=false; MS.draft=null; const i=el('campInput'); if(i) i.value=''; MS.render(); },
+  apply(){ const ids=progIds().filter(id=>MS.scope().has(id)); const changed=MS.dirty();
+    MS.open=false; MS.q=''; MS.showAll=false; MS.draft=null; const i=el('campInput'); if(i) i.value='';
+    if(changed) setScope(ids); else MS.render(); },
+  // Typing DOES arm the first match - a search implies the next Enter should take it.
+  onType(v){ MS.q=(v||'').trim().toLowerCase(); MS.show(); MS.hi=MS.q?0:-1; MS.render(); },
+  // The list filters on TYPING only, and never changes the scope: a selected campaign stays selected
   // (and stays a visible tag) however narrow the term. A scope the reader cannot see is the one real
   // failure mode of filtering a filter.
   list(){ const q=MS.q; return ((DATA&&DATA.campaigns)||[]).filter(c=>!q||c.label.toLowerCase().includes(q)); },
+  // Draft edits. The last campaign can never be removed - an empty scope is a blank dashboard.
+  tog(id){ const d=new Set(MS.scope()); if(d.has(id)){ if(d.size<2) return; d.delete(id); } else d.add(id); MS.draft=d; MS.render(); },
+  only(id){ MS.draft=new Set([id]); MS.render(); },
+  all(){ MS.draft=new Set(progIds()); MS.render(); },
   onKey(ev){
     const L=MS.list();
     if(ev.key==='ArrowDown'){ ev.preventDefault(); MS.show(); MS.hi=Math.min(MS.hi+1,L.length-1); MS.render(); }
-    else if(ev.key==='ArrowUp'){ ev.preventDefault(); MS.hi=Math.max(MS.hi-1,0); MS.render(); }
-    else if(ev.key==='Enter'){ ev.preventDefault(); if(L[MS.hi]) toggleProgram(L[MS.hi].id); }
-    else if(ev.key==='Escape'){ ev.preventDefault(); MS.close(); }
-    else if(ev.key==='Backspace' && !MS.q){ const s=selIds(); if(s.length>1) toggleProgram(s[s.length-1]); }
+    else if(ev.key==='ArrowUp'){ ev.preventDefault(); MS.hi=Math.max(MS.hi-1,-1); MS.render(); }
+    else if(ev.key==='Enter'){ ev.preventDefault(); if(ev.metaKey||ev.ctrlKey||MS.hi<0||!L[MS.hi]) MS.apply(); else MS.tog(L[MS.hi].id); }
+    else if(ev.key==='Escape'){ ev.preventDefault(); MS.cancel(); }
+    else if(ev.key==='Backspace' && !MS.q){ const s=progIds().filter(id=>MS.scope().has(id)); if(s.length>1) MS.tog(s[s.length-1]); }
   },
   render(){
     const box=el('campMS'), tags=el('campTags'), pop=el('campPop'), inp=el('campInput');
     if(!box||!tags||!pop) return;
     box.classList.toggle('on', MS.open);
-    // --- the tags in the box ---
-    const sel=selCampaigns(), locked=sel.length===1;   // the last tag cannot be removed
-    const boxEl=el('campBox'); if(boxEl) boxEl.classList.toggle('wrap', MS.showAll);
-    // The whole book is ONE tag. Listing every program in the default state said nothing - it was
-    // the noisiest thing on the page while carrying no information a single word doesn't.
-    if(isWholeBook()){
-      tags.innerHTML=`<span class="ms-tag" title="Every campaign is in scope"><span class="dot" style="background:var(--se-green)"></span><span class="lb">All campaigns</span></span>`;
-      if(inp) inp.placeholder='';
-      pop.classList.toggle('ms-hide', !MS.open);
-      if(MS.open) MS.paintList(pop);
-      return;
+    const bx=el('campBox'); if(bx){ bx.setAttribute('aria-expanded', MS.open?'true':'false'); bx.classList.toggle('wrap', MS.showAll); }
+    // --- the tags in the box: the DRAFT while open (a preview of Apply), the live scope when closed
+    const sc=MS.scope(), sel=((DATA&&DATA.campaigns)||[]).filter(c=>sc.has(c.id));
+    const whole=sel.length===progIds().length && sel.length>0, drafting=MS.open&&MS.dirty();
+    if(whole){
+      // The whole book is ONE tag. Listing every campaign said nothing a single word doesn't, while
+      // being the noisiest thing on the page.
+      tags.innerHTML=`<span class="ms-tag${drafting?' draft':''}" title="Every campaign is in scope"><span class="dot" style="background:var(--se-green)"></span><span class="lb">All campaigns</span></span>`;
+    } else {
+      const locked=sel.length===1;
+      const shown=MS.showAll?sel:sel.slice(0,MS_MAX_TAGS), hid=sel.slice(shown.length);
+      tags.innerHTML=shown.map(c=>`<span class="ms-tag${locked?' locked':''}${drafting?' draft':''}" title="${esc(c.label)}">`
+          +`<span class="dot" style="background:${campColor(c.id)}"></span>`
+          +`<span class="lb">${esc(c.label)}</span>`
+          +`<span class="x" data-rm="${esc(c.id)}" title="${locked?'The last campaign cannot be removed':'Remove from the scope'}">&times;</span></span>`).join('')
+        +(hid.length?`<button type="button" class="ms-more" data-more="1" title="${esc(hid.map(c=>c.label).join(', '))}">+${hid.length}</button>`:'');
+      tags.querySelectorAll('[data-rm]').forEach(x=>x.onclick=ev=>{ ev.stopPropagation();
+        // Closed = a direct edit, so it commits; open = a draft edit like every other tick.
+        if(MS.open) MS.tog(x.getAttribute('data-rm')); else if(!locked) toggleProgram(x.getAttribute('data-rm')); });
+      const more=tags.querySelector('[data-more]'); if(more) more.onclick=ev=>{ ev.stopPropagation(); MS.showAll=true; MS.render(); };
     }
-    const shown=MS.showAll?sel:sel.slice(0,MS_MAX_TAGS), rest=sel.length-shown.length;
-    tags.innerHTML=shown.map(c=>`<span class="ms-tag${locked?' locked':''}" title="${esc(c.label)}">`
-        +`<span class="dot" style="background:${campColor(c.id)}"></span>`
-        +`<span class="lb">${esc(c.label)}</span>`
-        +`<span class="x" data-rm="${esc(c.id)}" title="${locked?'The last program cannot be removed':'Remove from the scope'}">&times;</span></span>`).join('')
-      +(rest>0?`<button type="button" class="ms-more" data-more="1" title="Show every selected tag">+${rest}</button>`:'');
-    tags.querySelectorAll('[data-rm]').forEach(x=>x.onclick=ev=>{ ev.stopPropagation(); if(!locked) toggleProgram(x.getAttribute('data-rm')); });
-    const more=tags.querySelector('[data-more]'); if(more) more.onclick=ev=>{ ev.stopPropagation(); MS.showAll=true; MS.render(); };
-    if(inp) inp.placeholder = sel.length?'':'Select programs';
+    if(inp) inp.placeholder = sel.length?'':'Select campaigns';
     // --- the popover list ---
     pop.classList.toggle('ms-hide', !MS.open);
-    if(!MS.open) return;
-    MS.paintList(pop);
+    if(MS.open) MS.paintList(pop);
   },
   paintList(pop){
-    const L=MS.list();
-    const head=(!MS.q)?`<div class="ms-opt${isWholeBook()?' sel':''}" data-all="1">`
+    const L=MS.list(), sc=MS.scope();
+    const nSel=progIds().filter(id=>sc.has(id)).length, nAll=progIds().length, whole=nSel===nAll;
+    // "All campaigns" is the ONE select-all control. It used to be duplicated by a "Reset to all"
+    // button in the footer calling the same function - two controls for one behaviour, which is the
+    // thing the topbar dropdown was removed for. The footer is a readout now, not a toolbar.
+    const head=(!MS.q)?`<div class="ms-opt${whole?' sel':''}" data-all="1" role="option" aria-selected="${whole}">`
         +`<span class="dot" style="background:var(--se-green)"></span><b>All campaigns</b>`
-        +`<span class="sub">Select all ${progIds().length}</span><span class="tick">&#10003;</span></div><div class="ms-sep"></div>`:'';
+        +(whole?'':`<span class="sub">Select all ${nAll}</span>`)
+        +`<span class="tick">&#10003;</span></div><div class="ms-sep"></div>`:'';
     pop.innerHTML = head + (L.length?L.map((c,i)=>{
-        const on=activeCampaigns.has(c.id);
-        return `<div class="ms-opt${on?' sel':''}${i===MS.hi?' hi':''}" data-id="${esc(c.id)}">`
-          +`<span class="dot" style="background:${campColor(c.id)}"></span><span>${esc(c.label)}</span>`
+        const on=sc.has(c.id), sole=on&&nSel===1;   // isolating the only selection is a no-op
+        return `<div class="ms-opt${on?' sel':''}${i===MS.hi?' hi':''}" data-id="${esc(c.id)}" role="option" aria-selected="${on}">`
+          +`<span class="dot" style="background:${campColor(c.id)}"></span><span class="lbl-txt">${esc(c.label)}</span>`
           +`<span class="sub">${isLeadGenProg(c)?'Lead-gen':'Awareness'}</span>`
-          +`<span class="only" data-only="${esc(c.id)}" title="Show only this program">only</span>`
+          +(sole?'':`<button type="button" class="only" data-only="${esc(c.id)}" title="Show only this campaign">only</button>`)
           +`<span class="tick">&#10003;</span></div>`;
-      }).join('') : `<div class="ms-empty">No program matches "${esc(MS.q)}"</div>`);
+      }).join('') : `<div class="ms-empty">No campaign matches "${esc(MS.q)}"</div>`)
+      + `<div class="ms-foot"><span><b>${nSel}</b> of ${nAll} campaigns selected`
+      + `<span class="hint">type to search · &#9166; toggle · alt-click a row to isolate</span></span>`
+      + `<span class="ms-btns"><button type="button" class="ms-btn" data-cancel="1">Cancel</button>`
+      + `<button type="button" class="ms-btn pri" data-apply="1"${MS.dirty()?'':' disabled'}>Apply</button></span></div>`;
     pop.querySelectorAll('[data-id]').forEach(o=>o.onclick=ev=>{
       ev.stopPropagation();
       const only=ev.target&&ev.target.getAttribute&&ev.target.getAttribute('data-only');
-      if(only||ev.altKey) onlyProgram(only||o.getAttribute('data-id')); else toggleProgram(o.getAttribute('data-id'));
+      if(only||ev.altKey) MS.only(only||o.getAttribute('data-id')); else MS.tog(o.getAttribute('data-id'));
     });
-    const ha=pop.querySelector('[data-all]'); if(ha) ha.onclick=ev=>{ ev.stopPropagation(); allPrograms(); };
+    const ha=pop.querySelector('[data-all]'); if(ha) ha.onclick=ev=>{ ev.stopPropagation(); MS.all(); };
+    const cb=pop.querySelector('[data-cancel]'); if(cb) cb.onclick=ev=>{ ev.stopPropagation(); MS.cancel(); };
+    const ab=pop.querySelector('[data-apply]'); if(ab) ab.onclick=ev=>{ ev.stopPropagation(); MS.apply(); };
   }
 };
 function setPmGrain(g){ pmGrain=g; renderActive(); }
