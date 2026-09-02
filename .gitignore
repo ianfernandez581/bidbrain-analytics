@@ -87,3 +87,6 @@ grid-core/files/CREATIVE/Consideration - LinkedIn Document ads/
 # ~$pacing_intake_template.xlsx). Never work product; they are locked by Office
 # so they cannot even be deleted before a push, and /push commits ALL local work.
 ~$*
+
+# local dashboard preview scratch (never commit)
+.localpreview/
