@@ -31,6 +31,9 @@ WITH meta_rows AS (
     creative_id, creative_title, creative_body, creative_thumbnail_url, destination_url,
     spend, impressions, reach, clicks, link_clicks, landing_page_views, leads,
     video_3s_views, video_completes, thruplays, leads_website, leads_onfacebook,
+    -- TrueView views are a Google Ads measure. NULL, never 0: Meta does not report them, and a 0
+    -- would claim a video campaign delivered no views.
+    CAST(NULL AS INT64) AS video_views,
     CAST(NULL AS FLOAT64) AS conversions, CAST(NULL AS FLOAT64) AS view_through_conversions
   FROM `bidbrain-analytics.client_geocon.fact`
 ),
@@ -41,6 +44,7 @@ other_src AS (
          objective, effective_status, currency, spend, impressions, reach, clicks, link_clicks,
          landing_page_views, leads, creative_id, creative_title, creative_body,
          creative_thumbnail_url, destination_url, video_3s_views, video_completes, thruplays,
+         CAST(NULL AS INT64) AS video_views,
          CAST(NULL AS FLOAT64) AS conversions, CAST(NULL AS FLOAT64) AS view_through_conversions
   FROM `bidbrain-analytics.client_geocon.stg_linkedin`
   UNION ALL
@@ -48,6 +52,7 @@ other_src AS (
          objective, effective_status, currency, spend, impressions, reach, clicks, link_clicks,
          landing_page_views, leads, creative_id, creative_title, creative_body,
          creative_thumbnail_url, destination_url, video_3s_views, video_completes, thruplays,
+         CAST(NULL AS INT64),
          CAST(NULL AS FLOAT64), CAST(NULL AS FLOAT64)
   FROM `bidbrain-analytics.client_geocon.stg_ttd`
   UNION ALL
@@ -55,6 +60,7 @@ other_src AS (
          objective, effective_status, currency, spend, impressions, reach, clicks, link_clicks,
          landing_page_views, leads, creative_id, creative_title, creative_body,
          creative_thumbnail_url, destination_url, video_3s_views, video_completes, thruplays,
+         video_views,
          conversions, view_through_conversions
   FROM `bidbrain-analytics.client_geocon.stg_google_ads`
 ),
@@ -78,6 +84,7 @@ other_rows AS (
     SUM(landing_page_views) AS landing_page_views, SUM(leads) AS leads,
     SUM(video_3s_views) AS video_3s_views, SUM(video_completes) AS video_completes,
     SUM(thruplays) AS thruplays,
+    SUM(video_views) AS video_views,
     CAST(NULL AS INT64) AS leads_website, CAST(NULL AS INT64) AS leads_onfacebook,
     SUM(conversions) AS conversions, SUM(view_through_conversions) AS view_through_conversions
   FROM other_src
@@ -88,6 +95,7 @@ all_rows AS (
          funnel_stage, currency, objective, effective_status, creative_id, creative_title,
          creative_body, creative_thumbnail_url, destination_url, spend, impressions, reach, clicks,
          link_clicks, landing_page_views, leads, video_3s_views, video_completes, thruplays,
+         video_views,
          leads_website, leads_onfacebook, conversions, view_through_conversions
   FROM meta_rows
   UNION ALL
@@ -95,6 +103,7 @@ all_rows AS (
          funnel_stage, currency, objective, effective_status, creative_id, creative_title,
          creative_body, creative_thumbnail_url, destination_url, spend, impressions, reach, clicks,
          link_clicks, landing_page_views, leads, video_3s_views, video_completes, thruplays,
+         video_views,
          leads_website, leads_onfacebook, conversions, view_through_conversions
   FROM other_rows
 ),

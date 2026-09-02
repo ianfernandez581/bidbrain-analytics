@@ -2,11 +2,33 @@
 -- Added 2026-08-24 for Northbourne Gateway, whose media plan buys LinkedIn (A$6,000 / 75,000 imps
 -- / plan CPM A$80). Gateway Braddon is Meta-only and is unaffected by this view existing.
 --
--- THERE IS NO GEOCON LINKEDIN ACCOUNT IN WINDSOR YET (verified 2026-08-24: the connector carries
--- APJC / STT / Cloudflare / Schneider / PropTrack / HireRight / ResetData and nothing else). This
--- view therefore returns ZERO ROWS today, on purpose -- it is the socket the channel plugs into,
--- and the dashboard's LinkedIn lane switches itself on the first day a row lands. Nothing here
--- needs editing at go-live UNLESS the campaign names miss the scope regex below.
+-- THERE IS NO GEOCON LINKEDIN ACCOUNT IN WINDSOR YET (re-verified 2026-09-01: the connector still
+-- carries only APJC / STT / Cloudflare / Schneider / PropTrack / HireRight / ResetData). This view
+-- therefore returns ZERO ROWS today, on purpose -- it is the socket the channel plugs into, and the
+-- dashboard's LinkedIn lane switches itself on the first day a row lands.
+--
+-- ***THE ACCOUNT EXISTS AND ITS DELIVERY IS NORTHBOURNE GATEWAY'S (client-confirmed 2026-09-01).***
+-- LinkedIn ad account **556629043** ("Geocon Group", Active) holds 3 campaigns / 5 ad sets / 16 ads,
+-- all still PAUSED, and the media plan's only LinkedIn line is Northbourne's (seq 4, A$6,000).
+--
+-- ***THE NAMES WILL NOT RESOLVE ON THEIR OWN - THIS NEEDS A ONE-LINE EDIT AT GO-LIVE.*** The one
+-- campaign visible today is named **"Gateway Braddon Aug2026"** (id 1194493866). It carries NO
+-- Northbourne token, so the property join below returns NULL and every row lands in 'Unmapped' -
+-- excluded from every KPI, and the export ALARMS. The client has confirmed the delivery is
+-- Northbourne Gateway's regardless of that name, so at go-live resolve it by ACCOUNT rather than by
+-- campaign name:
+--
+--     COALESCE(nm.property_key,
+--              IF(CAST(b.account_id AS STRING) = '556629043', 'Northbourne Gateway', 'Unmapped'))
+--
+-- Scope it to that ACCOUNT ID, never to the whole channel: a Gateway Braddon LinkedIn campaign on a
+-- different account must still resolve on its own, and the 'Unmapped' alarm must survive for
+-- anything neither rule claims. Record it as an INSTRUCTION, not an inference - the campaign name
+-- says Braddon and we are deliberately overriding it, which is exactly the kind of override that
+-- looks like a bug to the next reader.
+--
+-- Check the other two campaign names first: if they carry Northbourne tokens the name join handles
+-- them, and only the mis-named one needs the account fallback.
 --
 -- SCOPE IS A POSITIVE MATCH, NEVER A FALLBACK. perf_linkedin is shared across seven clients, so
 -- the filter must be narrow enough that no other client's delivery can be swept in, and the

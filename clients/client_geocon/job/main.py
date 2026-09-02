@@ -388,6 +388,10 @@ def build_env(bq, observed):
             "lpv": num(r["landing_page_views"]), "leads": num(r["leads"]),
             "video_3s_views": num(r.get("video_3s_views")), "video_completes": num(r.get("video_completes")),
             "thruplays": num(r.get("thruplays")),
+            # Google Ads TrueView views. A COUNT, never a rate - view rate and CPV are re-derived in
+            # the dashboard from summed components, so any date sub-range stays exact. NULL on every
+            # other channel: Meta's 3-second view is a different event and must not be folded in.
+            "video_views": num(r.get("video_views")),
             "leads_website": num(r.get("leads_website")), "leads_onfacebook": num(r.get("leads_onfacebook")),
             # Google-reported conversions. Carried and LABELLED, never folded into `leads` — a
             # search conversion and a Meta lead form can be the same human enquiring twice.
