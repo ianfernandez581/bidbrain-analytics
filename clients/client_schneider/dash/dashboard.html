@@ -128,6 +128,50 @@
     background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'><path d='M2 4l4 4 4-4' stroke='%23fff' stroke-width='1.5' fill='none'/></svg>");
     background-repeat:no-repeat;background-position:right 11px center}
   .dash-select:hover{border-color:var(--se-green)}
+  /* ---- Campaign multi-select (antd "tags" pattern, built natively - this dashboard is one vanilla
+     HTML file and the platform proxy's CSP allows no new script hosts, so React/antd is not an
+     option here). Selected programs are removable TAGS in the box; the list below ticks what is in
+     scope. The dark palette is the topbar's, not the card body's. ---- */
+  .ms{position:relative;min-width:320px;max-width:580px}
+  .ms-box{display:flex;align-items:center;gap:6px;flex-wrap:wrap;background:#2A2A2A;
+    border:1px solid rgba(255,255,255,.22);border-radius:8px;padding:5px 30px 5px 7px;
+    cursor:text;min-height:38px}
+  .ms-box:hover{border-color:var(--se-green)}
+  .ms.on .ms-box{border-color:var(--se-green);box-shadow:0 0 0 3px rgba(0,149,48,.22)}
+  .ms-tag{display:inline-flex;align-items:center;gap:6px;background:#3A3A3A;color:#fff;
+    border:1px solid rgba(255,255,255,.16);border-radius:5px;padding:3px 7px;font-size:12.5px;
+    font-weight:600;line-height:1.35;max-width:210px}
+  .ms-tag .dot{width:7px;height:7px;border-radius:50%;flex:none}
+  .ms-tag .lb{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .ms-tag .x{cursor:pointer;color:rgba(255,255,255,.55);font-size:14px;line-height:1;padding:0 1px}
+  .ms-tag .x:hover{color:#fff}
+  .ms-tag.locked .x{opacity:.3;cursor:not-allowed}
+  .ms-more{background:rgba(255,255,255,.1);border:1px dashed rgba(255,255,255,.28);color:#fff;
+    border-radius:5px;padding:3px 8px;font-size:12px;font-weight:600;cursor:pointer}
+  .ms-input{flex:1 1 90px;min-width:70px;background:none;border:none;outline:none;color:#fff;
+    font:inherit;font-size:13px;padding:3px 2px}
+  .ms-input::placeholder{color:rgba(255,255,255,.45);font-weight:500}
+  .ms-ico{position:absolute;right:11px;top:50%;translate:0 -50%;pointer-events:none;
+    color:rgba(255,255,255,.5);font-size:12px}
+  .ms-pop{position:absolute;z-index:60;top:calc(100% + 6px);left:0;right:0;background:#1E1E1E;
+    border:1px solid rgba(255,255,255,.16);border-radius:8px;padding:4px;max-height:340px;
+    overflow:auto;box-shadow:0 18px 44px rgba(0,0,0,.5)}
+  .ms-hide{display:none}
+  .ms-opt{display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:6px;cursor:pointer;
+    color:#E6ECE8;font-size:13px}
+  .ms-opt:hover,.ms-opt.hi{background:rgba(255,255,255,.08)}
+  .ms-opt.sel{background:rgba(0,149,48,.22);color:#fff;font-weight:600}
+  .ms-opt .dot{width:8px;height:8px;border-radius:50%;flex:none}
+  .ms-opt .sub{font-size:11px;color:rgba(255,255,255,.45);font-weight:500}
+  .ms-opt .tick{margin-left:auto;color:var(--se-green);opacity:0;font-size:13px}
+  .ms-opt.sel .tick{opacity:1}
+  .ms-opt .only{margin-left:auto;font-size:9.5px;font-weight:700;letter-spacing:.4px;
+    text-transform:uppercase;color:rgba(255,255,255,.4);opacity:0}
+  .ms-opt:hover .only,.ms-opt.hi .only{opacity:1}
+  .ms-opt .only:hover{color:var(--se-green)}
+  .ms-opt.sel .only{margin-left:0;margin-right:8px}
+  .ms-sep{height:1px;background:rgba(255,255,255,.1);margin:4px 2px}
+  .ms-empty{padding:11px 10px;color:rgba(255,255,255,.5);font-size:12.5px}
   .dash-select:focus{outline:none;border-color:var(--se-green)}
   .topbar-right{font-size:11.5px;color:rgba(255,255,255,.8);text-align:right;line-height:1.5}
   .topbar-right b{color:#fff}
@@ -453,6 +497,7 @@
     /* The dropdown takes its own line rather than being crushed - it is the primary control here. */
     .topbar-camp{flex:1 1 100%}
     .topbar-camp .dash-select{flex:1;min-width:0}
+    .topbar-camp .ms{flex:1;min-width:0;max-width:none}
     /* Two of the four dividers only make sense inside a single unbroken row. */
     .topbar-left .topbar-divider:last-of-type{display:none}
   }
@@ -667,7 +712,15 @@
     <div class="region-tag">Pacific</div>
     <div class="topbar-divider"></div>
     <div class="topbar-camp"><span class="topbar-caplbl">Campaign</span>
-      <select id="campSelect" class="dash-select" onchange="setCampaign(this.value)" title="Choose which programme to view"></select></div>
+      <div class="ms" id="campMS">
+        <div class="ms-box" id="campBox" onclick="MS.boxClick(event)" title="Pick any number of programs - all of them, or just the two you want to compare">
+          <span id="campTags"></span>
+          <input class="ms-input" id="campInput" type="text" placeholder="Select programs" autocomplete="off"
+                 onfocus="MS.show()" oninput="MS.onType(this.value)" onkeydown="MS.onKey(event)">
+          <span class="ms-ico">&#9662;</span>
+        </div>
+        <div class="ms-pop ms-hide" id="campPop"></div>
+      </div></div>
   </div>
   <div class="topbar-right">
     <div><span class="live"></span><b>Live</b> · Content Syndication</div>
@@ -1111,7 +1164,7 @@ window.DateRange = (function(){
 //==============================================================================
 // STATE + HELPERS
 //==============================================================================
-let DATA=null, charts={}, activeTab='cs', activeCampaign=null, activeMarkets=new Set();
+let DATA=null, charts={}, activeTab='cs', activeCampaigns=new Set(), activeMarkets=new Set();
 let activePlatforms=new Set();     // ad-engine filter (resetdata pattern) - see platOk()
 let pmGrain='week', pmScale='rel', compareReady=false;
 let gaGrain='month', gaScale='rel';   // Website (GA4) tab grain + axis toggles
@@ -1166,14 +1219,43 @@ function bbApplySpendMult(){
 // tab also decomposes BY PROGRAM when this option is active (see byProgramRows / renderCsByProgram /
 // renderPaidByProgram), so a portfolio total can always be traced back to the programs inside it.
 const ALL_ID='__all__';
-const isAllCampaigns=()=> activeCampaign===ALL_ID;
-const inCamp=id=> activeCampaign===ALL_ID || id===activeCampaign;
+// SCOPE IS A SET OF PROGRAMS (2026-09-02, client: "view all of the campaigns, only 5 of them, or
+// only 2 of them"). This generalises the old single-select dropdown rather than adding a mechanism:
+// every render path already went through inCamp() / campaign(), so campaign() simply aggregates the
+// SELECTED programs instead of all of them. The one predicate that used to be enough is now two:
+//   isWholeBook()    - the scope IS every program. The ONLY state that may be described to a reader,
+//                      or to the AI deck, as "the portfolio".
+//   isMultiProgram() - 2+ programs, so every tab must DECOMPOSE by program (a total nobody can break
+//                      down is a dead end). This is what the old isAllCampaigns() actually gated, so
+//                      it keeps that name as an alias and every one of its call sites is unchanged.
+const progIds=()=> ((DATA&&DATA.campaigns)||[]).map(c=>c.id);
+const selIds=()=> progIds().filter(id=>activeCampaigns.has(id));      // always in payload order
+const selCampaigns=()=> ((DATA&&DATA.campaigns)||[]).filter(c=>activeCampaigns.has(c.id));
+const isWholeBook=()=> progIds().length>0 && selIds().length===progIds().length;
+const isMultiProgram=()=> selIds().length>1;
+const isAllCampaigns=isMultiProgram;
+const soleId=()=> selIds().length===1?selIds()[0]:null;
+// EVERY caption that names the scope goes through this. Before subsets existed, "all programs" was
+// the only multi-program state and the copy said so in a dozen places; a subset makes each of those
+// a false claim about the whole book.
+const scopePhrase=()=> isWholeBook()?'all campaigns'
+  : (soleId()?'the selected campaign':`the ${selIds().length} selected campaigns`);
+// One program keeps its own colour everywhere; a multi-program scope has no single colour, so the
+// house green stands in - never the first program's colour, which would read as that program's series.
+const scopeColor=()=> soleId()?campColor(soleId()):C.green;
+const inCamp=id=> activeCampaigns.has(id);
+// Lead-gen (runs Content Syndication) vs paid-only awareness, from the job's own tabs[] rather than a
+// hardcoded list, so a 10th program labels itself the day it lands.
+const isLeadGenProg=c=> (c.tabs||[]).includes('cs');
 function campaign(){
-  if(activeCampaign===ALL_ID){
-    const cs=(DATA.campaigns||[]); const sum=k=>cs.reduce((a,c)=>a+(c[k]||0),0);
+  const sel=selCampaigns();
+  if(!sel.length) return {};
+  if(sel.length===1) return sel[0];
+  {
+    const cs=sel; const sum=k=>cs.reduce((a,c)=>a+(c[k]||0),0);
     const fs=cs.map(c=>c.flight_start).filter(Boolean).sort();
     const fe=cs.map(c=>c.flight_end).filter(Boolean).sort();
-    return { id:ALL_ID, label:'All campaigns',
+    return { id:ALL_ID, label:isWholeBook()?'All campaigns':`${cs.length} programs`,
       target_mql:sum('target_mql'), target_hql:sum('target_hql'), target:sum('target'),
       committed_spend:sum('committed_spend'), leads:sum('leads'),
       flight_start:fs[0]||null, flight_end:fe[fe.length-1]||null,
@@ -1181,9 +1263,11 @@ function campaign(){
       // Paid Media + Content Syndication + Other Channels is exactly what the client asked the
       // all-up view to cover; CS Comparison is kept because it compares two REGIONS, which is as
       // meaningful portfolio-wide as it is for one program. Every one of the four aggregates safely.
-      tabs:['paid','cs','compare','other'] };
+      // UNION of the selected programs' own tabs (whole book = the same four as before): picking two
+      // awareness-only briefs must not draw a Content Syndication tab of zeros, which reads as a
+      // failed program rather than one that was never bought that way.
+      tabs:['paid','cs','compare','other'].filter(t=>cs.some(c=>(c.tabs||[]).includes(t))) };
   }
-  return (DATA.campaigns||[]).find(c=>c.id===activeCampaign) || {};
 }
 function campColor(id){ const i=(DATA.campaigns||[]).findIndex(c=>c.id===id); return CAMP_PALETTE[(i<0?0:i)%CAMP_PALETTE.length]; }
 // A program's display label from its id. Needed by the by-program tables, which key on the raw
@@ -1431,7 +1515,7 @@ async function boot(){
     // Default = the all-up view. It is what replaced the Executive Scorecard as the landing screen,
     // and it is the answer to "how is the whole portfolio doing?" that a stakeholder opens this for.
     // To land on a single program instead, set this to cs[0].id.
-    activeCampaign=cs.length?ALL_ID:null;
+    activeCampaigns=new Set(cs.map(c=>c.id));   // default scope = every program (the all-up view)
     activeMarkets=new Set(DATA.all_markets||[]);
     activePlatforms=new Set(platformsInData().map(p=>p.key));   // default = every engine with delivery
     dateMin=(DATA.window&&DATA.window.start)||null; dateMax=(DATA.window&&DATA.window.end)||null;
@@ -1442,6 +1526,8 @@ async function boot(){
     activeTab=validTabs.includes(h)?h:campaignTabs()[0];   // default to the campaign's first tab
     el('loading').style.display='none'; el('content').style.display='block';
     renderMeta(); renderControls(); renderActive();
+    document.addEventListener('click', ev=>{ if(MS.open && !ev.target.closest('#campMS')) MS.close(); });
+    document.addEventListener('keydown', ev=>{ if(ev.key==='Escape' && MS.open) MS.close(); });
   }catch(e){ el('loading').style.display='none'; el('error').style.display='block'; el('errDetail').textContent=e.message; }
 }
 
@@ -1459,9 +1545,83 @@ function renderMeta(){
 function setTab(t){ if(!allTabs().includes(t)) return; activeTab=t; location.hash=t; renderControls(); renderActive(); }
 // Switching scope can invalidate the open tab (a program with no Other Channels lines, say), so fall
 // back to that scope's first tab. `website` is scope-independent, so it survives the switch.
-function setCampaign(id){ activeCampaign=id; compareReady=false; const t=campaignTabs();
+// THE one place the scope changes. Ordered by the payload, never by click order, so the tags, the
+// readout and the by-program tables always list programs in the same order.
+function setScope(ids){
+  const keep=progIds().filter(id=>ids.includes(id));
+  if(!keep.length) return;      // the last program can never be removed - an empty scope is a blank dashboard
+  activeCampaigns=new Set(keep); compareReady=false;
+  const t=campaignTabs();
   if(activeTab!=='website' && !t.includes(activeTab)) activeTab=t[0];
-  renderControls(); renderActive(); }
+  renderControls(); renderActive();
+}
+function toggleProgram(id){ const s=new Set(activeCampaigns); s.has(id)?s.delete(id):s.add(id); setScope([...s]); }
+function onlyProgram(id){ setScope([id]); }
+function allPrograms(){ setScope(progIds()); }
+function setCampaign(id){ id===ALL_ID?allPrograms():onlyProgram(id); }   // legacy entry point
+
+//==============================================================================
+// CAMPAIGN MULTI-SELECT (the antd "tags" pattern, built natively)
+// Selected programs are removable TAGS in the box; the popover ticks what is in scope. Every path
+// funnels into setScope(), which is also what keeps the last program un-removable.
+//==============================================================================
+const MS_MAX_TAGS=4;   // beyond this the box collapses to "+N" - 9 full-length tags wrap the topbar
+const MS={
+  open:false, q:'', hi:0, showAll:false,
+  boxClick(ev){ if(ev.target && ev.target.closest('.ms-tag,.ms-more')) return; MS.show(); const i=el('campInput'); if(i) i.focus(); },
+  show(){ if(!MS.open){ MS.open=true; MS.hi=0; MS.render(); } },
+  close(){ MS.open=false; MS.q=''; MS.showAll=false; const i=el('campInput'); if(i) i.value=''; MS.render(); },
+  onType(v){ MS.q=(v||'').trim().toLowerCase(); MS.hi=0; MS.show(); MS.render(); },
+  // The list filters on TYPING only, and never changes the scope: a selected program stays selected
+  // (and stays a visible tag) however narrow the term. A scope the reader cannot see is the one real
+  // failure mode of filtering a filter.
+  list(){ const q=MS.q; return ((DATA&&DATA.campaigns)||[]).filter(c=>!q||c.label.toLowerCase().includes(q)); },
+  onKey(ev){
+    const L=MS.list();
+    if(ev.key==='ArrowDown'){ ev.preventDefault(); MS.show(); MS.hi=Math.min(MS.hi+1,L.length-1); MS.render(); }
+    else if(ev.key==='ArrowUp'){ ev.preventDefault(); MS.hi=Math.max(MS.hi-1,0); MS.render(); }
+    else if(ev.key==='Enter'){ ev.preventDefault(); if(L[MS.hi]) toggleProgram(L[MS.hi].id); }
+    else if(ev.key==='Escape'){ ev.preventDefault(); MS.close(); }
+    else if(ev.key==='Backspace' && !MS.q){ const s=selIds(); if(s.length>1) toggleProgram(s[s.length-1]); }
+  },
+  render(){
+    const box=el('campMS'), tags=el('campTags'), pop=el('campPop'), inp=el('campInput');
+    if(!box||!tags||!pop) return;
+    box.classList.toggle('on', MS.open);
+    // --- the tags in the box ---
+    const sel=selCampaigns(), locked=sel.length===1;   // the last tag cannot be removed
+    const shown=MS.showAll?sel:sel.slice(0,MS_MAX_TAGS), rest=sel.length-shown.length;
+    tags.innerHTML=shown.map(c=>`<span class="ms-tag${locked?' locked':''}" title="${esc(c.label)}">`
+        +`<span class="dot" style="background:${campColor(c.id)}"></span>`
+        +`<span class="lb">${esc(c.label)}</span>`
+        +`<span class="x" data-rm="${esc(c.id)}" title="${locked?'The last program cannot be removed':'Remove from the scope'}">&times;</span></span>`).join('')
+      +(rest>0?`<button type="button" class="ms-more" data-more="1" title="Show every selected tag">+${rest}</button>`:'');
+    tags.querySelectorAll('[data-rm]').forEach(x=>x.onclick=ev=>{ ev.stopPropagation(); if(!locked) toggleProgram(x.getAttribute('data-rm')); });
+    const more=tags.querySelector('[data-more]'); if(more) more.onclick=ev=>{ ev.stopPropagation(); MS.showAll=true; MS.render(); };
+    if(inp) inp.placeholder = sel.length?'':'Select programs';
+    // --- the popover list ---
+    pop.classList.toggle('ms-hide', !MS.open);
+    if(!MS.open) return;
+    const L=MS.list();
+    const head=(!MS.q)?`<div class="ms-opt${isWholeBook()?' sel':''}" data-all="1">`
+        +`<span class="dot" style="background:var(--se-green)"></span><b>All campaigns</b>`
+        +`<span class="sub">${progIds().length} programs</span><span class="tick">&#10003;</span></div><div class="ms-sep"></div>`:'';
+    pop.innerHTML = head + (L.length?L.map((c,i)=>{
+        const on=activeCampaigns.has(c.id);
+        return `<div class="ms-opt${on?' sel':''}${i===MS.hi?' hi':''}" data-id="${esc(c.id)}">`
+          +`<span class="dot" style="background:${campColor(c.id)}"></span><span>${esc(c.label)}</span>`
+          +`<span class="sub">${isLeadGenProg(c)?'Lead-gen':'Awareness'}</span>`
+          +`<span class="only" data-only="${esc(c.id)}" title="Show only this program">only</span>`
+          +`<span class="tick">&#10003;</span></div>`;
+      }).join('') : `<div class="ms-empty">No program matches "${esc(MS.q)}"</div>`);
+    pop.querySelectorAll('[data-id]').forEach(o=>o.onclick=ev=>{
+      ev.stopPropagation();
+      const only=ev.target&&ev.target.getAttribute&&ev.target.getAttribute('data-only');
+      if(only||ev.altKey) onlyProgram(only||o.getAttribute('data-id')); else toggleProgram(o.getAttribute('data-id'));
+    });
+    const ha=pop.querySelector('[data-all]'); if(ha) ha.onclick=ev=>{ ev.stopPropagation(); allPrograms(); };
+  }
+};
 function setPmGrain(g){ pmGrain=g; renderActive(); }
 function setPmScale(s){ pmScale=s; renderActive(); }
 function setGaGrain(g){ gaGrain=g; renderActive(); }
@@ -1477,12 +1637,14 @@ function renderControls(){
   // tab bar - only the tabs (channels) this campaign actually uses
   const bar=el('tabBar'); bar.innerHTML='';
   allTabs().forEach(t=>{ const b=document.createElement('button'); b.className='tab'+(activeTab===t?' on':''); b.textContent=TAB_LABEL[t]||t; b.onclick=()=>setTab(t); bar.appendChild(b); });
-  const c=campaign(); const isWeb=activeTab==='website'; const isAll=isAllCampaigns();
+  const c=campaign(); const isWeb=activeTab==='website';
   const mkts=activeMarkets.size===(DATA.all_markets||[]).length?'all regions':(activeMarkets.size?activeMarketList().join(' · '):'no regions');
   // the platform filter only means something where the numbers come from paid delivery
   const platScoped=(activeTab==='paid');
   const plats=platScoped?` · ${platformNote()}`:'';
-  const scopeLbl=isAll?`all ${(DATA.campaigns||[]).length} programs`:(c.label||'-');
+  const scopeLbl=isWholeBook()?'all campaigns'
+    : (soleId()?(c.label||'-')
+      : `${selIds().length} of ${progIds().length} campaigns · ${selCampaigns().map(x=>x.label).join(' · ')}`);
   el('ctrlNote').textContent = isWeb ? 'Website analytics · whole property (AU/NZ)' : `Showing ${scopeLbl} · ${mkts}${plats}`;
   // the date range only scopes Paid Media (CS leads are shown for the flight) - hide it elsewhere
   el('dateGrp').style.display = activeTab==='paid' ? 'flex' : 'none';
@@ -1494,11 +1656,7 @@ function renderControls(){
   // Campaign selector (top-nav dropdown, Cloudflare pattern). "All campaigns" leads the list and is
   // the default (client, 2026-08-18) - the all-up view is what the retired Executive Scorecard tab
   // used to provide, so it must be reachable in one click, not assembled by the reader.
-  const sel=el('campSelect'); sel.innerHTML='';
-  const optAll=document.createElement('option'); optAll.value=ALL_ID;
-  optAll.textContent=`All campaigns (${(DATA.campaigns||[]).length} programs)`; sel.appendChild(optAll);
-  (DATA.campaigns||[]).forEach(cp=>{ const o=document.createElement('option'); o.value=cp.id; o.textContent=cp.label; sel.appendChild(o); });
-  sel.value=activeCampaign;
+  MS.render();
   // region chips
   const rw=el('regionChips'); rw.innerHTML='';
   (DATA.all_markets||[]).forEach(m=>{ const b=document.createElement('button'); b.className='chip'+(activeMarkets.has(m)?' on':''); b.innerHTML=`<span class="check">✓</span>${m}`; b.onclick=()=>toggleRegion(m); rw.appendChild(b); });
@@ -1609,7 +1767,7 @@ function pmTotals(rows){ const o={imps:0,clk:0,spend:0,leads:0,opens:0}; rows.fo
 // with a time-to-date (elapsed-flight pro-rata) expectation. Per-campaign so "All campaigns" sums each
 // program's own elapsed fraction. paid+other come from channels[]; cs = committed_spend (lead lines).
 function budgetPace(){
-  const list = activeCampaign===ALL_ID ? (DATA.campaigns||[]) : [campaign()];
+  const list = selCampaigns();
   const o={paid:0, cs:0, other:0, total:0, paidTtd:0, totalTtd:0};
   list.forEach(c=>{
     const ch=c.channels||[], g=grp=>ch.filter(x=>x.group===grp).reduce((a,x)=>a+(x.spend||0),0);
@@ -1644,12 +1802,12 @@ function renderPaid(){
   renderPaidByProgram();   // all-up decomposition (no-op unless "All campaigns" is selected)
   // Client-facing copy must not claim a scope it is not showing.
   if(el('pmIntro')) el('pmIntro').innerHTML = isAllCampaigns()
-    ? `Live DV360 · The Trade Desk · LinkedIn delivery <b>summed across all ${(DATA.campaigns||[]).length} programs</b>: spend, impressions, clicks, CTR. The per-program split is in <b>Paid delivery by program</b> below. Reflects the selected <b>platform(s)</b>, region(s) &amp; date range. Reporting currency AUD.`
+    ? `Live DV360 · The Trade Desk · LinkedIn delivery <b>summed across ${scopePhrase()}</b>: spend, impressions, clicks, CTR. The per-program split is in <b>Paid delivery by program</b> below. Reflects the selected <b>platform(s)</b>, region(s) &amp; date range. Reporting currency AUD.`
     : `Live DV360 · The Trade Desk · LinkedIn delivery for the selected program: spend, impressions, clicks, CTR. Reflects the selected <b>platform(s)</b>, region(s) &amp; date range. Reporting currency AUD.`;
   const rows=pmRows(), t=pmTotals(rows);
   const note=el('pmNote');
   if(!rows.length){ note.style.display='block'; note.innerHTML=isAllCampaigns()
-      ? `<b>No paid delivery</b> across any program in the current filter - widen the region, platform or date filters. Salesforce leads are on the <b>Content Syndication</b> tab.`
+      ? `<b>No paid delivery</b> across ${scopePhrase()} in the current filter - widen the region, platform or date filters. Salesforce leads are on the <b>Content Syndication</b> tab.`
       : `<b>No paid delivery</b> for ${campaign().label} in the current filter - this program is leads-only / pre-launch on the ad platforms. Its Salesforce leads are on the <b>Content Syndication</b> tab.`; }
   else note.style.display='none';
   const cpm=t.imps?t.spend/t.imps*1000:0, cpc=t.clk?t.spend/t.clk:0, ctr=pct(t.clk,t.imps);
@@ -1865,7 +2023,7 @@ function renderGantt(){
   // Under "All campaigns" no single bar is "the selection", so each flight takes its own program
   // colour - matching the pills in the by-program tables - and the caption stops promising a highlight.
   if(el('ganttSub')) el('ganttSub').textContent = isAllCampaigns()
-    ? "Each bar is a program's plan flight, coloured per program. Overlapping flights (cannibalisation risk) are visible here - and they are why portfolio pacing is indicative rather than one plan."
+    ? "Each bar is a program's plan flight. Programs in scope are coloured; the rest stay drawn but greyed, so an overlapping flight outside the selection (cannibalisation risk) is still visible - and overlaps are why blended pacing across programs is indicative rather than one plan."
     : "Each bar is a program's plan flight; the selected program is highlighted. Overlapping flights (cannibalisation risk) are visible here.";
   const winEnd=(DATA.window&&DATA.window.end)||new Date(Date.now()).toISOString().slice(0,10);
   const gr=(DATA.campaigns||[]).filter(c=>c.flight_start).map(c=>({id:c.id,name:c.label,start:c.flight_start,end:c.flight_end||winEnd}))
@@ -1874,7 +2032,7 @@ function renderGantt(){
   const DAY=864e5, starts=gr.map(g=>+new Date(g.start)), ends=gr.map(g=>+new Date(g.end));
   const minT=Math.min(...starts), maxT=Math.max(...ends), pad=Math.max((maxT-minT)*0.04,7*DAY);
   charts.pmGantt=new Chart(el('pmGantt'),{ type:'bar',
-    data:{ labels:gr.map(g=>g.name), datasets:[{ data:gr.map(g=>[+new Date(g.start),+new Date(g.end)]), backgroundColor:gr.map(g=>isAllCampaigns()?campColor(g.id):(g.id===activeCampaign?C.green:C.grey)), borderRadius:4, barThickness:16 }]},
+    data:{ labels:gr.map(g=>g.name), datasets:[{ data:gr.map(g=>[+new Date(g.start),+new Date(g.end)]), backgroundColor:gr.map(g=>inCamp(g.id)?(isMultiProgram()?campColor(g.id):C.green):C.grey), borderRadius:4, barThickness:16 }]},
     options:{ indexAxis:'y', maintainAspectRatio:false, plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>{ const g=gr[c.dataIndex]; return ` ${dateLabel(g.start)} → ${dateLabel(g.end)}`; }}}},
       scales:{ x:gridY({type:'linear',min:minT-pad,max:maxT+pad,ticks:{color:C.mute,font:{size:10},callback:v=>new Date(v).toLocaleDateString('en-US',{month:'short',year:'2-digit'})}}), y:axisX({ticks:{color:C.ink,font:{size:11}}}) } } });
 }
@@ -1887,7 +2045,7 @@ function renderCS(){
   // Under the all-up scope the target is a SUM of per-program targets and the flight is a blend of
   // their windows, so the copy says so rather than implying one agreed plan.
   if(el('csIntro')) el('csIntro').innerHTML = isAllCampaigns()
-    ? `Live Salesforce leads vs the media-plan MQL+HQL target, <b>summed across every lead-gen program</b> - the target and committed spend are totals, and the flight spans the earliest program start to the latest end, so treat portfolio pacing as indicative and read <b>Lead pacing by program</b> below for the real picture. Awareness-only programs carry no lead target and are excluded from it. Reflects the selected region(s). Leads are <b>CRM-raw</b> (status <b>New</b>), so this is total leads vs target, not "MQLs achieved".`
+    ? `Live Salesforce leads vs the media-plan MQL+HQL target, <b>summed across the lead-gen campaigns in scope</b> - the target and committed spend are totals, and the flight spans the earliest program start to the latest end, so treat blended pacing as indicative and read <b>Lead pacing by program</b> below for the real picture. Awareness-only programs carry no lead target and are excluded from it. Reflects the selected region(s). Leads are <b>CRM-raw</b> (status <b>New</b>), so this is total leads vs target, not "MQLs achieved".`
     : `Live Salesforce leads vs the media-plan MQL+HQL target for the selected program. Reflects the selected region(s). Leads are <b>CRM-raw</b> (every lead is status <b>New</b> today, the CRM hasn't graded them to MQL/SQL/HQL yet), so this is total leads vs target, not "MQLs achieved".`;
   renderAudience();      // audience intelligence, scoped by the dropdown (ex-Executive Scorecard)
   const p=csPacing();
@@ -1976,7 +2134,7 @@ function renderCSWeekly(p){
   charts.csWeekly=new Chart(el('csWeekly'),{ type:'bar',
     data:{ labels, datasets:[
       {label:'Target pace', data:weeks.map(()=>tgtPace), backgroundColor:C.grey, borderRadius:3, order:1},
-      {label:'Actual leads', data:weeks.map(wk=>actualByWk[wk]||0), backgroundColor:campColor(activeCampaign), borderRadius:3, order:2}
+      {label:'Actual leads', data:weeks.map(wk=>actualByWk[wk]||0), backgroundColor:scopeColor(), borderRadius:3, order:2}
     ]},
     options:{ maintainAspectRatio:false, plugins:{legend:legendTop(),tooltip:{callbacks:{label:c=>` ${c.dataset.label}: ${fmtN(c.parsed.y)}`}}},
       scales:{ x:axisX({ticks:{font:{size:10}}}), y:gridY({beginAtZero:true,title:{display:true,text:'Leads / week',color:C.mute,font:{size:11}}}) } } });
@@ -2051,7 +2209,7 @@ function renderCSProgramme(){
   if(card) card.style.display='';
   if(sole){ sole.style.display='none'; sole.innerHTML=''; }
   let labels,data;
-  el('csProgTitle').textContent='Leads by programme'; el('csProgHint').textContent=isAllCampaigns()?"Share of leads across every program's Salesforce programmes.":"Share of leads across the program's Salesforce programmes."; labels=pairs.map(x=>x[0]); data=pairs.map(x=>x[1]);
+  el('csProgTitle').textContent='Leads by programme'; el('csProgHint').textContent=isAllCampaigns()?`Share of leads across the Salesforce programmes of ${scopePhrase()}.`:"Share of leads across the program's Salesforce programmes."; labels=pairs.map(x=>x[0]); data=pairs.map(x=>x[1]);
   const tot=data.reduce((s,x)=>s+x,0);
   charts.csProgramme=new Chart(el('csProgramme'),{ type:'doughnut',
     data:{ labels, datasets:[{ data, backgroundColor:labels.map((_,i)=>PROG_PALETTE[i%PROG_PALETTE.length]), borderColor:'#fff', borderWidth:2 }]},
@@ -2163,7 +2321,7 @@ function reachVerdict(p){
 // lead totals above it do.
 function renderAudience(){
   if(!el('scFunc')) return;
-  const scopeTxt = isAllCampaigns() ? 'across all programs' : `for ${campaign().label}`;
+  const scopeTxt = isAllCampaigns() ? `across ${scopePhrase()}` : `for ${campaign().label}`;
   el('audSub').innerHTML=`From the Salesforce lead records ${scopeTxt}: the job functions and seniority of the people who engaged, and the named accounts behind the numbers. This is the lead-quality lens beyond raw volume. Reflects the selected region(s).`;
 
   // Show / hide a canvas against its sibling empty state. NEVER overwrite the parent's innerHTML to
@@ -2335,7 +2493,7 @@ function renderComparePanel(side){
   const weeks=csDisplayWeeks();
   const byWk={}; csWeeklyRows(mp).forEach(r=>{ byWk[r.week_start]=(byWk[r.week_start]||0)+(r.leads||0); });
   if(charts[side+'_weekly']) charts[side+'_weekly'].destroy();
-  charts[side+'_weekly']=new Chart(el(side+'_weekly'),{ type:'bar', data:{ labels:weeks.map(wk=>new Date(csWeekLabel(wk)).toLocaleDateString('en-US',{day:'numeric',month:'short'})), datasets:[{ label:'Leads', data:weeks.map(wk=>byWk[wk]||0), backgroundColor:campColor(activeCampaign), borderRadius:3 }]},
+  charts[side+'_weekly']=new Chart(el(side+'_weekly'),{ type:'bar', data:{ labels:weeks.map(wk=>new Date(csWeekLabel(wk)).toLocaleDateString('en-US',{day:'numeric',month:'short'})), datasets:[{ label:'Leads', data:weeks.map(wk=>byWk[wk]||0), backgroundColor:scopeColor(), borderRadius:3 }]},
     options:{ maintainAspectRatio:false, plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>` ${fmtN(c.parsed.y)} leads`}}}, scales:{ x:axisX({ticks:{font:{size:9}}}), y:gridY({beginAtZero:true}) } } });
 }
 
@@ -2419,7 +2577,7 @@ function otherChannels(){
 function renderOther(){
   const isAll=isAllCampaigns();
   el('otherSub').textContent=isAll
-    ? `Plan-only channels across all ${(DATA.campaigns||[]).length} programs - tracked in the media plan, no measured delivery feed connected.`
+    ? `Plan-only channels across ${scopePhrase()} - tracked in the media plan, no measured delivery feed connected.`
     : `Plan-only channels for ${campaign().label} - tracked in the media plan, no measured delivery feed connected.`;
   renderArticles();
   // The Program column only exists in the all-up view; on a single program every row would repeat the
@@ -2431,7 +2589,7 @@ function renderOther(){
   const ncol=isAll?8:7;
   const tb=el('otherTable').querySelector('tbody'); tb.innerHTML='';
   const chans=otherChannels();
-  if(!chans.length){ tb.innerHTML=`<tr><td colspan="${ncol}" style="text-align:center;color:var(--se-mute);padding:24px">No other channels for ${isAll?'any program':'this campaign'}.</td></tr>`; return; }
+  if(!chans.length){ tb.innerHTML=`<tr><td colspan="${ncol}" style="text-align:center;color:var(--se-mute);padding:24px">No other channels for ${isAll?scopePhrase():'this campaign'}.</td></tr>`; return; }
   const artProgs=new Set(articlePrograms());
   chans.forEach(c=>{
     const isArt=artProgs.has(c._prog) && /trade publication/i.test(c.name||'');
@@ -2446,7 +2604,7 @@ function renderOther(){
 }
 
 function exportThisTab(){
-  let lines=[`# Schneider CS - ${activeTab} - ${campaign().label} - ${activeMarketList().join('/')}`
+  let lines=[`# Schneider CS - ${activeTab} - ${campaign().label}${isMultiProgram()?` (${selCampaigns().map(x=>x.label).join('; ')})`:''} - ${activeMarketList().join('/')}`
     +((activeTab==='paid')?` - ${platformNote()}`:'')];
   if(activeTab==='paid') lines=lines.concat(tableCSV('pm_delivery (filtered)', pmRows()));
   else if(activeTab==='other') lines=lines.concat(tableCSV('other_channels (plan only)', otherChannels()));
@@ -2508,17 +2666,19 @@ function buildReportPayload(){
   return {
     client:'schneider', agency:'Transmission', generated_for:'Schneider Electric Pacific', currency:'AUD',
     context:{
-      campaign:c.label||activeCampaign, campaign_key:activeCampaign,
+      campaign:c.label||'-', campaign_key:soleId()||ALL_ID,
       // SCOPE GUARDRAIL. The Campaign dropdown can now select the all-up portfolio ("All campaigns",
       // 2026-08-18), whose plan.* fields are SUMS and whose flight is the earliest start to the latest
       // end across programs - a blend, not an agreed flight. Without this the deck would narrate a
       // synthetic window as though one campaign had been bought on it.
-      scope: isAllCampaigns() ? 'all_campaigns' : 'single_program',
-      programs_in_scope: isAllCampaigns()
-        ? (DATA.campaigns||[]).map(x=>x.label)
-        : [c.label||activeCampaign],
-      scope_note: isAllCampaigns()
-        ? `PORTFOLIO ROLL-UP of ${(DATA.campaigns||[]).length} SEPARATE programs, each with its own media plan, flight window and objective (some are lead-gen, some awareness-only). Targets, committed spend and budgets are SUMS; flight_start/flight_end are the earliest start and latest end across programs and are NOT an agreed flight for any single campaign - never describe them as one, and never compute a single blended pace as though one plan had been bought. Compare programs against each other and call out which are pulling the portfolio up or down.`
+      // A SUBSET is its own scope and must never be narrated as the portfolio (2026-09-02): the
+      // reader can select any 2 of the 9, and "the portfolio is behind" would then be a claim about
+      // a book the deck was never shown.
+      scope: isWholeBook() ? 'all_campaigns' : (isMultiProgram() ? 'program_subset' : 'single_program'),
+      programs_in_scope: selCampaigns().map(x=>x.label),
+      programs_total: progIds().length,
+      scope_note: isMultiProgram()
+        ? `${isWholeBook()?`PORTFOLIO ROLL-UP of all ${selIds().length}`:`A USER-SELECTED SUBSET of ${selIds().length} of the ${progIds().length}`} SEPARATE programs, each with its own media plan, flight window and objective (some are lead-gen, some awareness-only). Targets, committed spend and budgets are SUMS; flight_start/flight_end are the earliest start and latest end across programs and are NOT an agreed flight for any single campaign - never describe them as one, and never compute a single blended pace as though one plan had been bought. Compare programs against each other and call out which are pulling the ${isWholeBook()?'portfolio':'selection'} up or down.${isWholeBook()?'':' This is NOT the whole book - never describe it as the portfolio, the account or all programs, and never generalise a finding to programs outside the selection.'}`
         : 'A single program with its own media plan and flight window.',
       markets:activeMarketList(), all_markets:DATA.all_markets||[],
       platforms:activePlatformList().map(x=>x.label), all_platforms:platformsInData().map(x=>x.label),
