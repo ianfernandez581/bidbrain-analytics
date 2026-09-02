@@ -1036,7 +1036,7 @@
     <!-- ============================================================ -->
     <div class="panel hidden" id="panel-main">
 
-      <div class="filter-row">
+      <div class="filter-row" id="csFilterRow">
         <span class="lbl">Markets</span>
         <div class="chips" id="marketChips"></div>
         <button class="chip-action" onclick="selectAllMarkets()">Select all</button>
@@ -1088,7 +1088,7 @@
         </div>
       </div>
 
-      <div class="card" style="margin-bottom:14px">
+      <div class="card" style="margin-bottom:14px" id="csPacingCard">
         <div class="card-head"><div><h3>Pacing - target vs actual</h3>
         <div class="hint">Accepted leads vs target per period, across the full quarter.</div></div>
         <div class="ctrls">
@@ -1214,7 +1214,7 @@
              campaign + publisher pickers; clicking a bar selects that week (rej-chart pattern).
              margin-bottom is load-bearing: .card carries no margin of its own, so without it
              this card sits FLUSH against the two-chart grid below (client flag 2026-09-01). -->
-        <div class="card" style="margin-bottom:16px">
+        <div class="card" style="margin-bottom:16px" id="cspdWeeklyCard">
           <div class="card-head"><div><h3 id="cspdWeeklyTitle">Pacing - target vs actual</h3>
           <div class="hint" id="cspdWeeklyHint">Accepted leads vs target per period, across the full quarter.</div></div>
           <div class="ctrls">
@@ -2224,6 +2224,13 @@ function qtrLabel(){
   if (has2) return 'Q2';
   return 'Quarter';
 }
+// Mirror the active grain onto BOTH segs so the two controls never show different states.
+function syncGrainSegs(){
+  document.querySelectorAll('#csWeekly_grain button, #cspdWeekly_grain button').forEach(b => {
+    if (b.dataset.grain) b.classList.toggle('on', b.dataset.grain === csWeeklyGrain);
+  });
+}
+
 function updateQuarterLabels(){
   // periodLabel()/toDateWord() follow the LANE: they return qtrLabel()/'QTD' unchanged on
   // the legacy theatre, so every APJ caption is byte-identical to before.
@@ -2343,11 +2350,11 @@ function initChartToggles(){
     v=>csDailyGrain=v, null, ()=>renderDaily(aggregate()));
   // CS pacing weekly (target vs accepted bars, absolute counts).
   wireToggles('csWeekly_grain', null,
-    v=>csWeeklyGrain=v, null, ()=>renderWeekly(aggregate()));
+    v=>csWeeklyGrain=v, null, ()=>renderPacingChart());
   // Pacing detail's own copy of that control. Re-renders the whole section rather than just
   // the chart: the note under it names the selection, and the week chips drive both.
   wireToggles('cspdWeekly_grain', null,
-    v=>cspdWeeklyGrain=v, null, ()=>renderCsPacingDetail());
+    v=>csWeeklyGrain=v, null, ()=>renderPacingChart());
 }
 
 // Date range (Looker-style picker). ONE shared control over the union of both
@@ -3024,6 +3031,25 @@ function visibleMarkets() {
 function renderChips() {
   const c = document.getElementById('marketChips');
   c.innerHTML = '';
+  // A non-legacy theatre draws ITS OWN markets (EMEA: UKI/DACH/SEUR/NEUR/CEERI/MEA) from the
+  // payload, into the SAME row, with the same chip styling APJ uses. Selection lives in
+  // CSPD.markets and is enforced in cspdRows(), so every panel on the tab moves together.
+  if (topFromPacing()) {
+    const sel = cspdActiveMarkets();
+    cspdAllMarkets().forEach(m => {
+      const el = document.createElement('button');
+      el.className = 'chip' + (sel.has(m) ? ' on' : '');
+      el.textContent = m;
+      el.onclick = () => {
+        if (sel.has(m)) sel.delete(m); else sel.add(m);
+        if (!sel.size) sel.add(m);          // never leave an empty selection, as on APJ
+        renderChips();
+        renderAll();
+      };
+      c.appendChild(el);
+    });
+    return;
+  }
   visibleMarkets().forEach(m => {
     const el = document.createElement('button');
     el.className = 'chip' + (activeMarkets.has(m) ? ' on' : '');
@@ -3040,12 +3066,16 @@ function renderChips() {
 }
 
 function selectAllMarkets() {
+  if (topFromPacing()) { CSPD.markets = new Set(cspdAllMarkets()); renderChips(); renderAll(); return; }
   activeMarkets = new Set(ALL_MARKETS);
   renderChips();
   renderAll();
 }
 
 function selectNoneMarkets() {
+  // Off-theatre the last chip cannot be cleared (cspdRows would return nothing and every
+  // panel would read zero, which looks like a broken feed). Clear = back to one market.
+  if (topFromPacing()) { CSPD.markets = new Set(cspdAllMarkets().slice(0, 1)); renderChips(); renderAll(); return; }
   activeMarkets = new Set();
   renderChips();
   renderAll();
@@ -3073,7 +3103,11 @@ function applyViewMode() {
     b.classList.toggle('on', (b.getAttribute('data-view') === 'admin') === devMode);
   });
   const c = document.getElementById('devCtrls');
-  if (c) c.style.display = devMode ? 'flex' : 'none';       // Source-ID controls: Admin View only
+  // Admin View only AND legacy-theatre only: the Source-ID picker filters on CAMPAIGN_ID,
+  // which the cs_pacing model does not carry, so off-theatre it would render an empty
+  // control that silently filters nothing. The Pacing-detail publisher picker is the
+  // equivalent there.
+  if (c) c.style.display = (devMode && !topFromPacing()) ? 'flex' : 'none';
   const sel = document.getElementById('devCampaign');
   if (sel) sel.style.display = devMode ? '' : 'none';
   const txTab = document.getElementById('txDataTab');
@@ -3317,6 +3351,15 @@ function renderProgress(agg) {
     <div style="font-size:12px;color:var(--cf-mute);margin-top:10px">
       Leads pacing is <b>${(ratio*100).toFixed(0)}% of expected</b>. ${lp > tp ? 'Ahead of plan ✓' : 'Behind plan'}.
     </div>`;
+}
+
+// Month/Week applies to whichever pacing chart the lane actually shows. On APJ that is
+// #weeklyChart (legacy model) plus the Pacing-detail copy; off-theatre it is the single
+// chart drawn into #weeklyChart from cs_pacing. Both segs call this, so they cannot diverge.
+function renderPacingChart(){
+  if (topFromPacing()) { renderCsPacingDetail(); return; }
+  renderWeekly(aggregate());
+  renderCsPacingDetail();
 }
 
 function renderWeekly(agg) {
@@ -3712,6 +3755,11 @@ function renderAll() {
   // Period wording follows the LANE (flight vs quarter), so it has to refresh on a lane
   // change, not only when the quarter/date range moves.
   updateQuarterLabels();
+  // So do the L3 market chips: their SET differs per theatre (APJ's 7 vs EMEA's 6), and
+  // renderChips() was only ever called from boot and the date/quarter sync - so a lane switch
+  // left the previous theatre's chips on screen, filtering nothing.
+  renderChips();
+  syncGrainSegs();
   // A theatre the legacy model does not cover drives its three enabled summary sections
   // from cs_pacing (BB:EMEATOP) and renders nothing else on this tab. renderCsPacingDetail
   // stays LAST because its tail (applyRegionPanelScope) is what hides the rest.
@@ -3770,7 +3818,9 @@ let CSPD_ROWS = [];                                   // cs_pacing.rows
 let CSPD_META = {};                                   // cs_pacing meta (period label, reasons)
 // book: which PLAN is on screen ('Core DG' | 'Regional' | 'Unclassified'), resolved on the
 // first render so an older payload with no `book` key still works. week: ISO date, or 'qtd'.
-const CSPD = { book: null, vendor: 'all', week: null };
+// `markets` is the L3 selection for a non-legacy theatre. NULL means 'not resolved yet' and
+// resolves to every market in the payload - the same all-on default APJ opens with.
+const CSPD = { book: null, vendor: 'all', week: null, markets: null };
 
 // The books, in the order the client thinks about them: the bought plan first, the regional
 // book next, and the safe residual last. Anything else sorts alphabetically in between, so a
@@ -3896,10 +3946,40 @@ function cspdCfg(th){
            period_label: topFromPacing() ? 'Flight' : (CSPD_META.period_label || 'Q3') };
 }
 
+// The L3 markets for this theatre, in the seeded MARKET_SEQ order (the same order the
+// by-market chart and the region cards use). UNMAPPED is never a chip - it is a parse
+// warning, surfaced as a count, exactly as in cspdCfg.
+function cspdAllMarkets(){
+  const th = cspdTheatre();
+  const seq = new Map();
+  for (const r of CSPD_ROWS){
+    if (r.theatre !== th || r.market === 'UNMAPPED') continue;
+    const sv = (r.market_seq === null || r.market_seq === undefined) ? 999 : r.market_seq;
+    if (!seq.has(r.market) || sv < seq.get(r.market)) seq.set(r.market, sv);
+  }
+  return [...seq.keys()].sort((a,b) => (seq.get(a) - seq.get(b)) || a.localeCompare(b));
+}
+// Resolve the selection lazily: the payload decides which markets exist, so this cannot be
+// set at boot. Any market that disappears from the payload drops out of the selection too.
+function cspdActiveMarkets(){
+  const all = cspdAllMarkets();
+  if (!CSPD.markets) CSPD.markets = new Set(all);
+  else {
+    for (const m of [...CSPD.markets]) if (all.indexOf(m) < 0) CSPD.markets.delete(m);
+    if (!CSPD.markets.size) CSPD.markets = new Set(all);
+  }
+  return CSPD.markets;
+}
+
 function cspdRows(){
   const th = cspdTheatre(), v = CSPD.vendor;
+  // L3 market filter. Applied HERE so the KPI band, the pacing chart, the by-market chart and
+  // the Pacing detail figures can never disagree about which markets are in scope - that
+  // single enforcement point is the whole reason the chips are safe to add.
+  const mk = cspdActiveMarkets();
   return CSPD_ROWS.filter(r => r.theatre === th && cspdBookOf(r) === CSPD.book
-                            && (v === 'all' || r.vendor === v));
+                            && (v === 'all' || r.vendor === v)
+                            && (r.market === 'UNMAPPED' || mk.has(r.market)));
 }
 
 const cspdPct = (n, d) => d > 0 ? (100 * n / d).toFixed(1) + '%' : '-';
@@ -4044,7 +4124,15 @@ function renderCsPacingDetail(){
                     : deficit > 0 ? 'accepted leads behind target' : 'target met');
 
   cspdRenderMarketChart(cfg, slice, wkName);
-  cspdRenderWeeklyChart(cfg, rows);
+  // WHERE the chart is drawn is the lane's call (2026-09-01, John: "its lower down").
+  // APJ keeps its own #weeklyChart at the top and this section's copy underneath, scoped to
+  // the book/publisher pickers. A non-legacy theatre hides APJ's chart (it reads the
+  // APAC-only model), so there the pacing chart is drawn INTO that same top card and this
+  // section's copy is hidden - same component, same slot, one chart on the page either way.
+  const emeaTop = topFromPacing();
+  const cspdCard = document.getElementById('cspdWeeklyCard');
+  if (cspdCard) cspdCard.style.display = emeaTop ? 'none' : '';
+  cspdRenderWeeklyChart(cfg, rows, emeaTop ? 'weeklyChart' : 'cspdWeeklyChart');
   cspdRenderRejChart(cfg, rows);
   cspdRenderVendorTable(cfg);
   cspdRenderReasons(cfg, wkName);
@@ -4078,7 +4166,11 @@ const CSPD_LEGACY_THEATRE = 'APAC';
 // tab still reads the APAC-only legacy model and is hidden off-theatre. Adding a block
 // here without repointing its data source at cs_pacing would render an EMPTY panel under
 // an EMEA heading, which is exactly what this list exists to prevent.
-const CSPD_ANY_THEATRE_BLOCKS = new Set(['cspdSection','csKpiStrip','csTargetGrid','csRegionCard']);
+const CSPD_ANY_THEATRE_BLOCKS = new Set(['cspdSection','csKpiStrip','csTargetGrid','csRegionCard',
+  // 2026-09-01 (John): the L3 MARKET row and the pacing chart in APJ's own slot. Both were
+  // hidden off-theatre, which is why EMEA had no market filter and its only pacing chart sat
+  // buried inside Pacing detail rather than at the top where APJ puts it.
+  'csFilterRow','csPacingCard']);
 
 // A lane with no explicit theatre is APAC - so an older lane definition, or a new one added
 // without thinking about theatre, degrades to exactly today's behaviour.
@@ -4245,9 +4337,10 @@ function cspdRenderMarketChart(cfg, slice, wkName){
 // the APJ weekly-pacing chart's read, pointed at this section's book/publisher scope). Same
 // series shape and colours as the APJ #weeklyChart (Target vs Accepted actual); same
 // click-to-select and selected-week emphasis as the rejection chart beside it.
-function cspdRenderWeeklyChart(cfg, rows){
-  destroy('cspdWeeklyChart');
-  const el = document.getElementById('cspdWeeklyChart');
+function cspdRenderWeeklyChart(cfg, rows, canvasId){
+  const cid = canvasId || 'cspdWeeklyChart';
+  destroy(cid);
+  const el = document.getElementById(cid);
   if (!el) return;
   const byWk = {};
   for (const r of rows){
@@ -4261,7 +4354,7 @@ function cspdRenderWeeklyChart(cfg, rows){
   // covers Jul 31 to Aug 6 - is attributed WHOLLY to its start month. That is the only split
   // that keeps sum(months) == sum(weeks) EXACTLY; apportioning by day would need data this
   // model does not carry, and would break the reconciliation to the band above.
-  const monthly = cspdWeeklyGrain === 'month';
+  const monthly = csWeeklyGrain === 'month';
   const keys = monthly ? [...new Set(cfg.weeks.map(w => w.slice(0, 7)))].sort() : cfg.weeks.slice();
   const agg = {};
   for (const k of keys) agg[k] = { target:0, accepted:0, unprocessed:0 };
@@ -4294,7 +4387,7 @@ function cspdRenderWeeklyChart(cfg, rows){
     { label: 'Unprocessed', data: unp, borderRadius: 3, maxBarThickness: 22,
       backgroundColor: keys.map(k => dimIf(UNPROC, k)) });
   const swatch = [TARGET, CF, UNPROC];
-  charts['cspdWeeklyChart'] = new Chart(el, {
+  charts[cid] = new Chart(el, {
     type: 'bar',
     data: { labels: monthly ? keys.slice() : keys.map(cspdWkLabel), datasets },
     options: { responsive: true, maintainAspectRatio: false,
