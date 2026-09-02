@@ -19,6 +19,33 @@ people views this dashboard:
   ("live since <first delivery day>"), never presented as a booked window.
 - **Currency:** AUD (both channels native AUD; USD@1.50 / SGD@1.15 arms kept for robustness).
 
+## Campaign scope is a SET of briefs (2026-09-02, ported from client_schneider)
+The topbar `<select>` is now the same **multi-select tag control** as `client_schneider` (antd
+`mode="tags"` pattern, built natively). The CSS block and the component were lifted from that
+dashboard programmatically rather than retyped, so the two cannot drift - port a fix to both.
+
+Same rules: tags with `x`, an `All campaigns` row, `only` on hover (or alt-click) to isolate, `+N`
+collapse with the hidden briefs in its tooltip, draft + **Apply** (Cancel / Escape / outside click all
+revert), the last brief un-removable, search that filters visibility only and never hides a selected
+tag, and no keyboard highlight until the keyboard is used. `allCampaignsView()` keeps its name (it now
+means "all three are selected"), so its four call sites did not move.
+
+Three things differ because THIS dashboard is different:
+- **Rows show the brief number** (1958 / 2463 / 2305) and **search matches it** - that is how these
+  three get referred to in briefs and media plans.
+- **The market and line-item rosters became UNIONS over the selection.** The three briefs run in
+  different markets (ent_it is India/MEA/South America/Pacific, the other two AU/NZ) and buy different
+  line items - and **ent_it has NO line items at all** (it names ad sets by vertical), so an
+  INTERSECTION would empty the roster the moment ent_it joined a selection. Markets are unioned in the
+  payload's own order so the chips keep their sequence.
+- **Apply matters more here than the tick count suggests**: changing the scope also rebuilds both of
+  those rosters, so an instant-commit control re-derived them on every click.
+
+**The Reports tab's workbook title had to follow the scope.** `repScopeBrief()` feeds the `.xlsx`
+filename AND its header, and for a two-brief selection it would have produced a file called
+"Secure Power - all campaigns" containing two of the three - the kind of thing that gets forwarded to
+a client. It now names the briefs it actually contains.
+
 ## Relationship to the other two Schneider dashboards
 | | Scope |
 |---|---|
