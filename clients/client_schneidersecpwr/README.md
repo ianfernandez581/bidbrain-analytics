@@ -9,7 +9,7 @@ people views this dashboard:
 |---|---|---|---|
 | **Enterprise IT Expansion** (`ent_it`) | 1958 | LinkedIn + Trade Desk | India · MEA · South America · Pacific |
 | **Industrial Edge / Prefab** (`ind_edge`) | 2463 | LinkedIn + Trade Desk | Australia · New Zealand |
-| **Software First EcoStruxure** (`software_first`) | 2305 | LinkedIn + Trade Desk | Australia · New Zealand |
+| **Software First EcoStruxure** (`software_first`) | 2305 | LinkedIn + Trade Desk | Australia · New Zealand · ANZ |
 
 - **Paid media only.** No Salesforce / content syndication, no GA4, no conversions. The story is
   reach (impressions), clicks, CTR and cost efficiency (CPM / CPC) per brief, per **media-plan line
@@ -186,9 +186,65 @@ verified against every Schneider campaign before the views were written.
 | `ind_edge` | `SE_Industrial Edge_`, `Industrial Edge Wave3`, `Industrial Edge W3`, `2463_` | **WAVE 3 ONLY.** The bare `Industrial Edge` token also sweeps in the 2025 `1839_Schneider_Electric_Pacific_*` wave (~A$8.7k) — a different brief. Widen only on an explicit instruction. |
 | `software_first` | `Software First`, `EcoStruxureIT`, `2305_` | **`2305_` alone is NOT enough** — the Trade Desk line ran as `SE_EcoStruxureIT_AWR_2026` from 2026-06-17 and only gained the prefix on 07-06, so a prefix-only token silently drops ~A$2.3k. |
 
-**Match on CAMPAIGN_NAME, never CAMPAIGN_GROUP_NAME.** LinkedIn's group names are mislabelled here: a
-group named `2305_SE_ANZ Industrial Edge W3 Prefab` holds campaigns named
-`2463_SE_Industrial Edge Wave3_*`. Keying on the group would cross-tag two different briefs.
+### CAMPAIGN_NAME wins; CAMPAIGN_GROUP_NAME is a FALLBACK (2026-09-02)
+LinkedIn's group names are mislabelled here in **both** directions: a group named
+`2305_SE_ANZ Industrial Edge W3 Prefab` holds campaigns named `2463_SE_Industrial Edge Wave3_*`,
+and a group named `2463_SE_Software First EcoStruxure_AWR_ANZ_static` holds campaigns named
+`2305_SE Software First EcoStruxure - AWR AU`. **The group may never overrule a name that already
+carries a brief token** - that is what would cross-tag two briefs.
+
+But the name ALONE silently dropped a live 2305 line. Transmission's A/B test
+`2305_Software First_A/B test (Expert Webpage vs Interactive Demo Page) Test` (LinkedIn campaign
+group **1191212126**, live **2026-08-20**) names its two ad sets `ANZ Ad Set A - Expert Page` and
+`ANZ Ad Set B - Interactive Demo`. Those carry no brief number, no `Software First` and no
+`EcoStruxureIT` - **the brief is stated only on the group** - so **1,333 imps / 5 clicks /
+A$1,633.56** reached no KPI, table, chart, CSV or deck. Silent, because a row rejected at the
+scope gate never reaches the market or tactic parsers either, so no `Unmapped` chip could flag it.
+No name token could have caught these without being recklessly generic (`ANZ Ad Set` would claim
+any future brief that happens to name an ad set that way).
+
+So `01_stg_linkedin` resolves the brief in **two tiers, in this order and no other** (a `COALESCE`
+of two CASE ladders over the same token sets):
+
+| Tier | Read from | When |
+|---|---|---|
+| 1 | `CAMPAIGN_NAME` | always - authoritative, identical to the original predicate |
+| 2 | `CAMPAIGN_GROUP_NAME` | **only** when tier 1 resolves to NULL |
+
+A campaign that names its own brief is therefore never re-tagged by its group (both mislabelled
+groups above still resolve by name), and a campaign silent about its brief is read from the only
+place that states it.
+
+**Verified by what it ADMITS, not by a before/after total.** `md/AGENTS.md`: *a scope fix meant to
+admit rows must be verified by what it admits* - a no-op check is the wrong test for a widening,
+and signing one off is exactly how geocon shipped a Meta gate that still dropped 100% of the
+delivery it was written to rescue. The old-vs-new transition matrix across every
+`SchneiderElectric_TransmissionSG%` row:
+
+| was | now | imps | clicks |
+|---|---|---|---|
+| dropped | **`software_first`** | **1,333** | **5** |
+| dropped | dropped | 7,711,677 | 21,338 |
+| `ent_it` | `ent_it` | 1,292,637 | 3,265 |
+| `ind_edge` | `ind_edge` | 223,359 | 438 |
+| `software_first` | `software_first` | 75,259 | 221 |
+
+Exactly the two A/B ad sets admitted; **no row changed brief**; the 7.7M imps of Pacific-book and
+LQAIDC delivery in the same account still correctly excluded. Re-run that matrix before widening
+a token again.
+
+Two knock-on facts, both **true of the buy, not parse failures**: the A/B ad sets read market
+**`ANZ`** (a genuine combined-ANZ line, never named per-country - see the rename-artefact section
+below for why that is *not* the phantom ANZ) and tactic **`Unspecified`** (their names carry no
+funnel-stage token). `software_first` consequently shows a third market chip and a fourth line-item
+chip.
+
+**The status-dashboard accuracy check mirrors this predicate and had to move in the same change.**
+`_SECPWR_SCOPE_LI` in `status_dashboard/job/main.py` applies the same token set to
+`CAMPAIGN_GROUP_NAME` as well; without it the two LinkedIn checks go red, because the dashboard
+carries 1,333 imps the check's own predicate refuses to count. Trade Desk keeps the name-only
+`_SECPWR_SCOPE` (`TradeDesk_APAC ALL` has no campaign-group column, and 2305's Trade Desk line
+already matches by name).
 
 ## Markets — NOT folded to AU/NZ
 `client_schneider`'s `pm_delivery` folds everything to Australia / New Zealand. **This dashboard must
@@ -203,6 +259,10 @@ their country only in the ad-group name); campaign name on LinkedIn. Country tok
 region tokens, ANZ beats Pacific, first match wins — the same proven parser `client_schneider` uses.
 
 ### ...but a rename artefact is not a third market (2026-08-18, client)
+> Scope note: this is about `ind_edge`'s **phantom** ANZ. `software_first`'s ANZ chip (the 2305 A/B
+> test, from 2026-09-02) is a **real** combined-ANZ line and is correctly left alone by the
+> reconciliation below, because those ad sets have never been named per-country.
+
 Industrial Edge displayed **Australia, New Zealand *and* ANZ**, and the client rightly asked why a
 two-market campaign had three market lines. It never ran a combined-ANZ line. Transmission renamed
 five LinkedIn ad sets from `SE_Industrial Edge_<Phase>_{AU,NZ}` to `2463_..._<PH>_ANZ_<fmt>` on
@@ -260,7 +320,8 @@ entirely when a single stage is in play rather than drawing a one-row "breakdown
 it. The AI-deck payload carries the same warning in `paid.line_item_note`.
 
 What each brief runs today: **ind_edge** Awareness (LinkedIn + Trade Desk) · Consideration · Conversion;
-**software_first** Awareness (both) · Consideration · Retargeting; **ent_it** Unspecified only.
+**software_first** Awareness (both) · Consideration · Retargeting · Unspecified (the 2305 A/B test,
+whose ad-set names carry no stage token); **ent_it** Unspecified only.
 
 **Lead-form leads** appear as a column on the campaign × line-item table only when a line shows lead
 form ACTIVITY (`leads > 0 OR lead_form_opens > 0`), never merely a non-null count: LinkedIn reports

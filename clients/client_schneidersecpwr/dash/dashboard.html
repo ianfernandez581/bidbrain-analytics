@@ -693,7 +693,7 @@
       </div></div>
       <div class="card card-tall" id="campTacticChartCard" style="margin-top:16px"><h3>Impressions by campaign &amp; line item</h3><div class="hint">Stacked by funnel stage (AUD spend in the tooltip).</div><div class="chart-wrap"><canvas id="campTactic"></canvas></div></div>
 
-      <div class="section"><h2 style="font-size:15px">Campaign x market</h2><span class="sub">Where each brief ran. Enterprise IT is a multi-region brief (India / MEA / South America / Pacific); Industrial Edge and Software First are Australia / New Zealand.</span></div>
+      <div class="section"><h2 style="font-size:15px">Campaign x market</h2><span class="sub">Where each brief ran. Enterprise IT is a multi-region brief (India / MEA / South America / Pacific); Industrial Edge is Australia / New Zealand; Software First is Australia / New Zealand plus one combined-ANZ line (its A/B test, which was never split by country).</span></div>
       <div class="grid">
         <div class="card card-tall"><h3>Spend by campaign</h3><div class="hint">Share of media spend (AUD).</div><div class="chart-wrap"><canvas id="campSpend"></canvas></div></div>
         <div class="card card-tall"><h3>Impressions by campaign &amp; region</h3><div class="hint">Stacked by reporting region.</div><div class="chart-wrap"><canvas id="campRegion"></canvas></div></div>
@@ -1908,7 +1908,7 @@ function buildReportPayload(){
       generated_at:new Date().toISOString() },
     paid:{ totals:{ spend:_r2(pt.spend), imps:pt.imps, clicks:pt.clk, cpm:_r2(pt.imps?pt.spend/pt.imps*1000:0), cpc:_r2(pt.clk?pt.spend/pt.clk:0), ctr:_r6(pt.imps?pt.clk/pt.imps:0) },
       by_channel, by_market, by_campaign, by_line_item,
-      note:'LinkedIn + The Trade Desk delivery for three SEPARATE Schneider Secure Power briefs: Enterprise IT Expansion (1958, multi-region India/MEA/South America/Pacific), Industrial Edge / Prefab (2463, AU/NZ) and Software First EcoStruxure (2305, AU/NZ). Reach + clicks + CTR + cost efficiency only.',
+      note:'LinkedIn + The Trade Desk delivery for three SEPARATE Schneider Secure Power briefs: Enterprise IT Expansion (1958, multi-region India/MEA/South America/Pacific), Industrial Edge / Prefab (2463, AU/NZ) and Software First EcoStruxure (2305, AU/NZ plus one combined-ANZ line). Reach + clicks + CTR + cost efficiency only.',
       line_item_note:"`by_line_item` is the MEDIA-PLAN LINE ITEM (funnel stage) each ad set was bought against, split by the engine that carried it - the same Awareness / Consideration / Retargeting / Conversion lines the plan books. Enterprise IT names its ad sets by VERTICAL rather than funnel stage, so all of its delivery sits under 'Unspecified': that is how that brief is built and must NOT be described as missing, untagged or unclassified data. `lead_form_leads` is the LinkedIn on-platform lead-form count on the Conversion line - a PAID platform metric, never a qualified or Salesforce lead - and is null on any line whose channel has no lead-form concept." },
     // DELIVERY-ONLY: no signed media plan exists for any of the three briefs, so there are no
     // targets, no budget and no pacing. Do not synthesise them in the deck narrative.

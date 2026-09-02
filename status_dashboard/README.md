@@ -274,6 +274,20 @@ tick for free. The accuracy `COUNT`/`SUM` queries **do** resume the warehouse, s
 client's numbers are only recomputed when that client's Snowflake source advanced since the last
 `status.json` (otherwise the previous numbers are carried forward). Set `FORCE_REBUILD=1` to recompute all.
 
+### The carry-forward makes a SCOPE CHANGE look like a broken check (2026-09-02)
+`snowflake_value` is carried forward **keyed by the check's `label`**, but `snowflake_query` is
+re-rendered from the CURRENT code every tick. So the moment you widen or narrow a scope predicate and
+redeploy, the tab shows the **new SQL beside the old number** and the check reads red - by exactly the
+delivery your change just admitted. Nothing is wrong; it self-heals on the next tick where that
+client's source advances, or immediately with `FORCE_REBUILD=1`.
+Worked example: widening `_SECPWR_SCOPE_LI` to admit brief 2305's A/B test (1,333 imps) left both
+Secure Power LinkedIn checks reading 1,591,255 vs a dashboard on 1,592,588, with the group-name arms
+plainly visible in the displayed query. Running that same displayed SQL straight against Snowflake
+returned 1,592,588 - i.e. the predicate was already correct.
+**So: before believing a red check after a scope edit, run the query the tab is showing you.** If it
+matches the dashboard, you are looking at a stale value, not a mismatch. Changing a check's `label`
+also busts its carry-forward, which is the other way to force a recompute for one check.
+
 ## Files
 
 ```

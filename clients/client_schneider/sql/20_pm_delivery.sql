@@ -1,31 +1,20 @@
 -- Schneider Electric — PAID-MEDIA delivery TAGGED to internal program, SCOPED to the 8 dashboard
 -- programs (the 5 CS programs + NEL + Microgrid + EcoConsult, paid-only programs with delivery but
 -- no Salesforce CS leads).
--- Replicates the dashboard's first-match-wins idOf() join in SQL so the Paid Media tab can filter by
--- program AND market AND day together (the existing ad_campaign_* arrays split market vs day):
---   * map      = seed_campaign_map (ALL 28 rows, with seq = match precedence).
---   * camp_rank = each delivering platform campaign × every map row whose any '|'-token is a substring
---                 of the (lowercased) campaign name, ranked by seq (CROSS JOIN + correlated EXISTS).
---   * camp_map = first match per campaign (rn=1) — exactly idOf()'s "first row in array order wins".
--- Then keep only delivery whose program is one of the 8 dashboard programs. Reads stg_ad_delivery (view 04,
--- the unified platform·campaign·day·market·imps·clicks·spend_aud base) + the seed_campaign_map table.
+-- The campaign -> program tagging (the dashboard's original first-match-wins idOf(), replicated in
+-- SQL) now lives in ONE place, 04b_campaign_program — this view, 23_search_campaigns and
+-- 24_search_scope_audit all read it, so the Search detail can never disagree with the platform
+-- totals here. Extracting it was a strict no-op: verified program x platform x imps x clicks x spend
+-- identical before and after (2026-09-02). Reads stg_ad_delivery (view 04, the unified
+-- platform·campaign·day·market·imps·clicks·spend_aud base) + campaign_program, then keeps only
+-- delivery whose program is one of the dashboard programs.
+--
+-- PLATFORMS: dv360 / tradedesk / linkedin / google_search (Search added 2026-09-02). Nothing in this
+-- view is platform-aware — a new platform arrives simply by being unioned into stg_ad_delivery.
 CREATE OR REPLACE VIEW `bidbrain-analytics.client_schneider.pm_delivery` AS
-WITH map AS (
-  SELECT internal_campaign_id, seq, LOWER(match_pattern) AS pat
-  FROM `bidbrain-analytics.client_schneider.seed_campaign_map`
-),
-camps AS (
-  SELECT DISTINCT campaign FROM `bidbrain-analytics.client_schneider.stg_ad_delivery`
-),
-camp_rank AS (
-  SELECT c.campaign, m.internal_campaign_id AS program,
-         ROW_NUMBER() OVER (PARTITION BY c.campaign ORDER BY m.seq) AS rn
-  FROM camps c, map m
-  WHERE EXISTS (
-    SELECT 1 FROM UNNEST(SPLIT(m.pat, '|')) tok
-    WHERE TRIM(tok) != '' AND STRPOS(LOWER(c.campaign), TRIM(tok)) > 0)
-),
-camp_map AS (SELECT campaign, program FROM camp_rank WHERE rn = 1)
+WITH camp_map AS (
+  SELECT campaign, program FROM `bidbrain-analytics.client_schneider.campaign_program`
+)
 SELECT cm.program, d.platform, d.metric_date,
        -- MARKET: normalized to the two markets the CS leads use (Australia / New Zealand) so the
        -- Region chips stay strictly AU vs NZ across the Paid Media + CS tabs. After stg_tradedesk
@@ -45,6 +34,16 @@ SELECT cm.program, d.platform, d.metric_date,
        -- removed with the program the same day. RESTORE THAT ARM before adding any non-AU/NZ program -
        -- the dashboard already builds its Region chips per campaign (campaigns[].markets), so it will
        -- render the real regions as soon as this view emits them.
+       --
+       -- GOOGLE SEARCH (2026-09-02) is the platform this fold is now most exposed to: its account
+       -- ('AAG region Account') carries the brief-2306 campaigns running in Brazil, Chile, Saudi
+       -- Arabia and the UAE. They stay out because brief 2306 maps to `ai_lc`, which is NOT in the
+       -- program list below - the region never enters into it. That exclusion is DESIGNED, not
+       -- luck: `2306_` was added to ai_lc's match_pattern precisely so those campaigns resolve to a
+       -- named out-of-scope program instead of falling through unmatched, and 24_search_scope_audit
+       -- asserts every Search campaign still resolves and that nothing in scope is non-Pacific.
+       -- In-scope Search today is 2061_* (AU/NZ, -> global_rebrand) and 2389_* (_ANZ_, -> mcset);
+       -- the 2389 lines fold to Australia here, the same treatment mcset's ANZ-wide TTD line gets.
        CASE
          WHEN d.market = 'New Zealand' THEN 'New Zealand'
          ELSE 'Australia'

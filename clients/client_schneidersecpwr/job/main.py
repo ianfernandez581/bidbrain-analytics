@@ -10,7 +10,7 @@ they have separate stakeholders:
 
     ent_it          Enterprise IT Expansion      brief 1958   LinkedIn + Trade Desk, multi-region
     ind_edge        Industrial Edge / Prefab     brief 2463   LinkedIn + Trade Desk, AU/NZ (Wave 3)
-    software_first  Software First EcoStruxure   brief 2305   LinkedIn + Trade Desk, AU/NZ
+    software_first  Software First EcoStruxure   brief 2305   LinkedIn + Trade Desk, AU/NZ + ANZ
 
 DELIVERY-ONLY: no media plan has been supplied for any of the three, so there are no impression /
 click / lead targets and therefore NO pacing card - the dashboard reports delivered reach, clicks,

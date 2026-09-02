@@ -23,9 +23,43 @@
 --     `SE_EcoStruxureIT_AWR_2026` from 2026-06-17 and only gained the `2305_` prefix on 07-06, so a
 --     prefix-only token silently drops ~A$2.3k. Hence the `EcoStruxureIT` token.
 --
--- MATCH ON CAMPAIGN_NAME, NOT CAMPAIGN_GROUP_NAME. LinkedIn's group names are mislabelled here: a
--- group named `2305_SE_ANZ Industrial Edge W3 Prefab` holds campaigns named
--- `2463_SE_Industrial Edge Wave3_*`. Keying on the group would cross-tag two different briefs.
+-- CAMPAIGN NAME WINS; THE CAMPAIGN GROUP IS A FALLBACK, NOT A CO-EQUAL (2026-09-02).
+-- LinkedIn's group names are mislabelled here in BOTH directions: a group named
+-- `2305_SE_ANZ Industrial Edge W3 Prefab` holds campaigns named `2463_SE_Industrial Edge Wave3_*`,
+-- and a group named `2463_SE_Software First EcoStruxure_AWR_ANZ_static` holds campaigns named
+-- `2305_SE Software First EcoStruxure - AWR AU`. So the group may NEVER overrule a name that
+-- already carries a brief token - doing that is what would cross-tag two briefs.
+--
+-- But matching on the name ALONE silently dropped a live brief-2305 line. Transmission's A/B test
+-- `2305_Software First_A/B test (Expert Webpage vs Interactive Demo Page) Test` (LinkedIn campaign
+-- group 1191212126, live 2026-08-20) names its two ad sets `ANZ Ad Set A - Expert Page` and
+-- `ANZ Ad Set B - Interactive Demo`. Those carry NO brief number, NO `Software First` and NO
+-- `EcoStruxureIT` - the brief is stated ONLY on the group - so 1,333 imps / 5 clicks / A$1,633.56 of
+-- real delivery reached no KPI, table, chart, CSV or deck. Silent, because a row rejected here never
+-- reaches the market or tactic parsers either, so no 'Unmapped' chip could flag it.
+-- No name token could have caught these without being recklessly generic (`ANZ Ad Set` would claim
+-- any future brief that happens to name an ad set that way).
+--
+-- Hence the two tiers below, in this order and no other:
+--   TIER 1  the campaign's OWN name. Authoritative, and unchanged from the original predicate.
+--   TIER 2  the campaign GROUP's name, consulted ONLY when tier 1 resolves to NULL.
+-- A row that already names a brief is therefore never re-tagged by its group (the two mislabelled
+-- groups above still resolve by name), and a row whose name is silent about the brief is read from
+-- the only place that states it. Repo rule (md/AGENTS.md): "prefer the predicate that lets a
+-- stranger in over the one that quietly drops a client" - under-inclusion is silent here, whereas an
+-- over-inclusion lands in a NAMED brief and shows up as delivery someone can see and query.
+--
+-- VERIFIED BY WHAT IT ADMITS, not by a before/after total (md/AGENTS.md: "a scope fix meant to admit
+-- rows must be verified by what it admits" - a no-op check is the WRONG test for a widening). Across
+-- every `SchneiderElectric_TransmissionSG%` row, the group fallback admits EXACTLY the two A/B ad
+-- sets above and nothing else: every other campaign in the account either already resolves by name,
+-- or has a group name that matches no token either. Re-run that enumeration before widening a token
+-- again.
+--
+-- Note the A/B ad sets legitimately read market 'ANZ' and tactic 'Unspecified'. They are a genuine
+-- combined-ANZ line - never named per-country, so the coarse-token reconciliation below correctly
+-- leaves them alone, and they are NOT the phantom ANZ a rename artefact created on ind_edge - and
+-- their names carry no funnel-stage token. Both are true of the buy, not parse failures.
 --
 -- MARKET is parsed from CAMPAIGN_NAME (LinkedIn carries no geo column) with the SAME parser
 -- client_schneider uses — country tokens win over coarse region tokens, ANZ wins over Pacific, first
@@ -71,17 +105,35 @@ CREATE OR REPLACE VIEW `bidbrain-analytics.client_schneidersecpwr.stg_linkedin` 
 WITH scoped AS (
   SELECT
     *,
-    CASE
-      WHEN CONTAINS_SUBSTR(CAMPAIGN_NAME, 'EntIT') THEN 'ent_it'
-      WHEN CONTAINS_SUBSTR(CAMPAIGN_NAME, 'SE_Industrial Edge_')
-        OR CONTAINS_SUBSTR(CAMPAIGN_NAME, 'Industrial Edge Wave3')
-        OR CONTAINS_SUBSTR(CAMPAIGN_NAME, 'Industrial Edge W3')
-        OR STARTS_WITH(TRIM(CAMPAIGN_NAME), '2463_') THEN 'ind_edge'
-      WHEN CONTAINS_SUBSTR(CAMPAIGN_NAME, 'Software First')
-        OR CONTAINS_SUBSTR(CAMPAIGN_NAME, 'EcoStruxureIT')
-        OR STARTS_WITH(TRIM(CAMPAIGN_NAME), '2305_') THEN 'software_first'
-      ELSE NULL
-    END AS campaign
+    COALESCE(
+      -- TIER 1 - the campaign's OWN name. Authoritative: it wins wherever it resolves, so a
+      -- mislabelled campaign GROUP can never re-tag a campaign that states its own brief.
+      CASE
+        WHEN CONTAINS_SUBSTR(CAMPAIGN_NAME, 'EntIT') THEN 'ent_it'
+        WHEN CONTAINS_SUBSTR(CAMPAIGN_NAME, 'SE_Industrial Edge_')
+          OR CONTAINS_SUBSTR(CAMPAIGN_NAME, 'Industrial Edge Wave3')
+          OR CONTAINS_SUBSTR(CAMPAIGN_NAME, 'Industrial Edge W3')
+          OR STARTS_WITH(TRIM(CAMPAIGN_NAME), '2463_') THEN 'ind_edge'
+        WHEN CONTAINS_SUBSTR(CAMPAIGN_NAME, 'Software First')
+          OR CONTAINS_SUBSTR(CAMPAIGN_NAME, 'EcoStruxureIT')
+          OR STARTS_WITH(TRIM(CAMPAIGN_NAME), '2305_') THEN 'software_first'
+        ELSE NULL
+      END,
+      -- TIER 2 - the campaign GROUP's name, reached ONLY when tier 1 is silent. Same token sets,
+      -- deliberately: a brief is a brief wherever it is written. This is what admits the 2305 A/B
+      -- test, whose ad-set names carry no brief token at all.
+      CASE
+        WHEN CONTAINS_SUBSTR(CAMPAIGN_GROUP_NAME, 'EntIT') THEN 'ent_it'
+        WHEN CONTAINS_SUBSTR(CAMPAIGN_GROUP_NAME, 'SE_Industrial Edge_')
+          OR CONTAINS_SUBSTR(CAMPAIGN_GROUP_NAME, 'Industrial Edge Wave3')
+          OR CONTAINS_SUBSTR(CAMPAIGN_GROUP_NAME, 'Industrial Edge W3')
+          OR STARTS_WITH(TRIM(CAMPAIGN_GROUP_NAME), '2463_') THEN 'ind_edge'
+        WHEN CONTAINS_SUBSTR(CAMPAIGN_GROUP_NAME, 'Software First')
+          OR CONTAINS_SUBSTR(CAMPAIGN_GROUP_NAME, 'EcoStruxureIT')
+          OR STARTS_WITH(TRIM(CAMPAIGN_GROUP_NAME), '2305_') THEN 'software_first'
+        ELSE NULL
+      END
+    ) AS campaign
   FROM `bidbrain-analytics.raw_snowflake.linkedin_ads_apac`
   WHERE ACCOUNT_NAME LIKE 'SchneiderElectric_TransmissionSG%'
 ),

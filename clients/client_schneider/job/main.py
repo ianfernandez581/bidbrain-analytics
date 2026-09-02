@@ -8,9 +8,15 @@ This dashboard is a **client_mongodb-style clone** scoped to 8 programs: the 5 S
 programs (water_env / eba / heavy / global_rebrand / airset) behind 11 SF campaign IDs, plus NEL
 (New Energy Landscape), Microgrid and EcoConsult — paid-only programs with delivery but no CS leads.
 Three tabs:
-  * Paid Media          — DV360 / TradeDesk / LinkedIn delivery for the selected program (pm_delivery,
-                          the match_pattern-tagged delivery at program × day × market × platform grain),
-                          incl. LinkedIn's on-platform lead-form leads (`leads`/`lead_form_opens`).
+  * Paid Media          — DV360 / TradeDesk / LinkedIn / Google Search delivery for the selected
+                          program (pm_delivery, the match_pattern-tagged delivery at program × day ×
+                          market × platform grain), incl. LinkedIn's on-platform lead-form leads
+                          (`leads`/`lead_form_opens`) and, for Google Search, a campaign-grain
+                          brand-vs-non-brand detail block (`search_campaigns`, from sql/23).
+                          Google Search carries NO conversion metric on purpose — the account's
+                          CONVERSIONS column is unresolved (possibly inflated ~100x) and nothing may
+                          be displayed or derived from it, CPA and ROAS included, until a manual
+                          reconciliation against the Google Ads UI lands. See sql/03b's header.
   * Content Syndication — Salesforce leads vs the media-plan MQL+HQL target (cs_by_programme /
                           cs_weekly), plus audience intelligence (cs_audience) and the top job
                           titles behind each named account (cs_account_titles).
@@ -36,6 +42,7 @@ GATING_TABLES = [
     "raw_snowflake.dv360_apac",
     "raw_snowflake.linkedin_ads_apac",
     "raw_snowflake.tradedesk_apac_all",
+    "raw_snowflake.google_ads_apac",          # Google Search (SEM), added 2026-09-02
     "raw_snowflake.salesforce_cs_apac_all",   # the CS leads lane
 ]
 WATERMARK_OBJECT = "_freshness.json"
@@ -109,6 +116,7 @@ def main():
     cs = rows(bq, "cs_by_programme")
     csw = rows(bq, "cs_weekly")
     pm = rows(bq, "pm_delivery")
+    sc = rows(bq, "search_campaigns")   # Paid Media tab: Google Search at campaign x brand grain
     aud = rows(bq, "cs_audience")   # Content Syndication tab: account / function / seniority mix
     # Top job titles per account (client, 2026-09-01). Companion to cs_audience, deliberately a
     # SEPARATE array: a title belongs to a company, which the LONG dim/value shape cannot key.
@@ -118,6 +126,30 @@ def main():
     display = {m["internal_campaign_id"]: m["display_name"]
                for m in rows(bq, "seed_campaign_map", order_by="seq")}
     fx = rows(bq, "kpi")[0]   # FX constants + (unused here) headline
+
+    # --- Google Search scope audit -------------------------------------------
+    # Search is the first platform here whose ad ACCOUNT is not Pacific-only: 'AAG region Account'
+    # also carries the brief-2306 campaigns running in Brazil / Chile / Saudi / UAE. Those are kept
+    # out by PROGRAM (2306 is ai_lc, which has its own dashboard) and never by region - but both
+    # failure modes are silent, so print the resolution every run and WARN on anything unexpected.
+    # An UNMAPPED campaign is invisible on every surface; an IN_SCOPE_NON_ANZ one is being reported
+    # AS AUSTRALIA by pm_delivery's market fold. See sql/24_search_scope_audit.sql.
+    try:
+        audit = rows(bq, "search_scope_audit")
+        n_in = sum(1 for r in audit if r["status"] == "IN_SCOPE")
+        print(f"search scope audit: {len(audit)} campaign(s) on the Google Ads account, "
+              f"{n_in} in scope")
+        for r in audit:
+            line = (f"  [{r['status']}] {r['campaign_name']} -> {r['program'] or '(unmapped)'} | "
+                    f"{r['markets']} | {r['networks']} | {r['imps']} imps, {r['clicks']} clicks, "
+                    f"A${float(r['spend_aud'] or 0):,.2f}")
+            if r["status"] in ("UNMAPPED", "IN_SCOPE_NON_ANZ"):
+                print("WARNING: Google Search scope needs attention:")
+                print(line)
+            else:
+                print(line)
+    except Exception as e:                       # never let the audit break the export
+        print(f"WARNING: search scope audit unavailable: {e}")
 
     # --- Per-campaign aggregates: target (MQL+HQL), plan-CPL tiers, committed spend, flight ----
     leads_by_camp = {}
@@ -145,12 +177,22 @@ def main():
     def chan_group(line_type, channel):
         """Bucket a media-plan line into the reporting channel it feeds:
           cs    — lead-gen (LeadGen-MQL/HQL) → Salesforce Content Syndication,
-          paid  — Programmatic / LinkedIn    → DV360/TTD/LinkedIn delivery (pm_delivery),
-          other — Search / publisher sponsorships / Trade / Email → NO warehouse feed (plan only)."""
+          paid  — Programmatic / LinkedIn / Search → DV360/TTD/LinkedIn/Google Search delivery
+                  (pm_delivery),
+          other — publisher sponsorships / Trade / Email → NO warehouse feed (plan only).
+
+        SEARCH MOVED other -> paid on 2026-09-02. It was bucketed `other`
+        ("no warehouse source", as the media-plan note still said) and rendered on the Other
+        Channels tab as a plan-only line. Google Ads has in fact been delivering against it since
+        2026-07-06 and now reaches the dashboard through stg_google_search -> pm_delivery, so its
+        plan line belongs with the measured channels — that is what puts its committed click target
+        (global_rebrand: 1,222 clicks at a 3% CTR) next to real clicks instead of next to nothing.
+        global_rebrand keeps its Other Channels tab regardless: Capital Brief / Energy Magazine /
+        Innovation Aus are still genuinely plan-only."""
         if line_type in ("LeadGen-MQL", "LeadGen-HQL"):
             return "cs"
         c = (channel or "").lower()
-        if "linkedin" in c or "programmatic" in c:
+        if "linkedin" in c or "programmatic" in c or "search" in c:
             return "paid"
         return "other"
 
@@ -314,6 +356,25 @@ def main():
             # never fold into cs_by_programme.
             "leads": num(r["leads"]), "lead_form_opens": num(r["lead_form_opens"]),
         } for r in pm],
+        # GOOGLE SEARCH detail, campaign x brand/non-brand x market x day (sql/22). Scoped and
+        # market-folded EXACTLY as pm_delivery is, from the same campaign_program view, so the
+        # Search section always ties to the Google Search row of the platform table.
+        # NO conversion field of any kind - the account's CONVERSIONS column is unresolved
+        # (possibly inflated ~100x) and nothing may be displayed or derived from it, CPA and ROAS
+        # included, until a manual reconciliation against the Google Ads UI lands. cost_usd is the
+        # pre-FX source figure, carried so the dashboard can footnote the USD->AUD conversion.
+        "search_campaigns": [{
+            "program": r["program"], "date": ymd(r["metric_date"]),
+            "campaign": r["campaign_name"], "campaign_id": r["campaign_id"],
+            "brief": r["brief"], "match_type": r["match_type"],
+            "market": r["market"], "market_parsed": r["market_parsed"],
+            "network": r["network"],
+            "imps": num(r["imps"]), "clicks": num(r["clicks"]),
+            "spend_aud": num(r["spend_aud"]), "cost_usd": num(r["cost_usd"]),
+        } for r in sc],
+        # The Search lane's source currency + the rate stg_google_search converted it at, so the
+        # dashboard can state the conversion instead of quietly blending USD into an AUD total.
+        "search_fx": {"source_currency": "USD", "rate_to_aud": 1.50},
         "cs_audience": [{
             "campaign": r["campaign"], "market": r["market"], "dim": r["dim"],
             "value": r["value"], "leads": num(r["leads"]),
