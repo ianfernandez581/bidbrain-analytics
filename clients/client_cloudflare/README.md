@@ -312,6 +312,94 @@ pickers sit further down the page, the strip carries a caption (`#csTopScope`) n
 the flight window and the days elapsed. A figure that moves with an off-screen control is worse
 than no figure.
 
+## CS Comparison on Core DG EMEA (2026-09-02, client request)
+
+The **CS Comparison** tab now renders on the EMEA lane. It compares **market vs market inside one
+period** - it is not a period comparison and it reads nothing from paid media. That matters,
+because it had been gated on `emeaHasPaid() && emeaHasPriorQuarter()`: **two conditions the tab
+never uses**. EMEA has neither, so a tab that could have been filled since 06 Aug stayed dark. The
+gate is now `emeaHasCompare()` - does the payload carry Comparison rows for this theatre.
+
+Code lives in the **`BB:EMEACOMPARE`** block in `dash/dashboard.html`, and it follows `BB:EMEATOP`
+exactly: `cscAgg()` builds an **agg-shaped object** off the new `cs_compare` branch and hands it to
+`renderComparePanel()`, which stays the **single** implementation for both theatres. A basis cannot
+drift between theatres if there is one renderer. The legacy `salesforce_leads_live` model is
+**untouched** - it is APJ-only by construction (campaign-ID allowlist, zero EMEA rows), and widening
+it would move live APJ numbers and desync the status-dash accuracy checks.
+
+### What was already there, and what actually had to be built
+
+The market split needed **no work at all**, contrary to how this looks from Snowflake: every EMEA
+campaign is named `EMEA-<region>` and `sql/16_stg_cs_leads_v2` has mapped six of them
+(UKI / DACH / SEUR / NEUR / CEERI / MEA) since 2026-08-24. **Do not write a `COUNTRY_NAME` -> market
+CASE for EMEA** - the campaign name already carries it, and a country-derived mapping would be a
+second, disagreeing definition of the same dimension.
+
+What was missing was **grain**. `17_cs_pacing_v2` aggregates to week x market x vendor, and the
+panels need three things it throws away: **COUNTRY** (the drill-down; EMEA spans 33 countries, UKI
+alone 13), **ASSET** (the "Best performing assets" list) and **DAY** (the tab is date-range driven,
+and a range that cuts mid-week cannot be honoured from week buckets). So:
+
+| | |
+|---|---|
+| Lead grain | `sql/16_stg_cs_leads_v2.sql` - **+`ASSET_1`, `ASSET_2`, `SERVICE`** |
+| Comparison grain | `sql/18_cs_compare_v2.sql` -> `cs_compare_v2` (day x market x country x asset) |
+| Payload branch | `job/main.py` -> `cs_compare` (~314 KB, 1,017 rows both theatres) |
+| Frontend | `BB:EMEACOMPARE` + a theatre branch in `renderComparePanel` / `populateRegionSelects` |
+
+`cs_compare_v2` carries **no targets**: those already ship on `cs_pacing` at their own grain, and a
+second copy of a number that must agree is how two panels end up disagreeing. It covers **both
+theatres** on purpose - only EMEA reads it today, but a view that silently held one theatre would be
+its own trap the day APJ is migrated onto it.
+
+### Four things to keep right
+
+1. **Targets are MARKET grain, so they are not paced against under a country drill-down** (or a
+   single publisher - the same rule `cspdResolveScope()` already applies). The plan has no country
+   dimension, so a country's share of a market target is an allocation we invented. `hasTargets`
+   goes false, the KPI prints `-` and **the target series is dropped from both charts** rather than
+   drawn as a zero bar - a zero-high "target" beside real delivery reads as a plan that was missed.
+2. **The weekly target is prorated** (`weekDueFraction`, shared with the Pacing detail band), or the
+   figure lurches a full week's worth the moment a week opens. **Test mid-week**: on the last day of
+   a week, prorated and whole-completed-weeks give the same answer by coincidence. EMEA's plan is
+   heavily back-loaded (65/week for three weeks, then ~1,260/week from 28 Aug), so at 34 days
+   elapsed only 1,805 of 12,058 is due - that is correct, not a proration bug.
+3. **`resolveAssetSolutions` moved to module scope** when this became its second caller. It is one
+   definition on purpose: the solution COLOUR MAP keys on those exact strings, so two copies would
+   eventually give one asset two colours on two tabs.
+4. **`SERVICE`'s CASE is a second copy of the one in `sql/13_pacing_model.sql`** and the two must
+   move together. Not shared yet because `sql/13` sits on the live APJ path and factoring it out
+   would put every headline APJ number through a new join for a cosmetic label. **Follow-up**: hoist
+   both onto a shared campaign -> solution view, the way `04b_campaign_program` was done on
+   schneider.
+
+### Verified 2026-09-02
+
+`cs_compare` reconciles **exactly** to `cs_pacing` - the same lead universe, independently
+aggregated - on both theatres and on every market:
+
+| | UKI | DACH | SEUR | NEUR | CEERI | MEA |
+|---|---|---|---|---|---|---|
+| Accepted | 240 | 169 | 181 | 170 | 126 | 192 |
+| Rejected | 51 | 32 | 24 | 24 | 12 | 26 |
+| Acceptance | 82.5% | 84.1% | 88.3% | 87.6% | 91.3% | 88.1% |
+| Countries | 13 | 5 | 6 | 7 | 11 | 7 |
+
+Theatre totals: EMEA 1,078 accepted / 169 rejected, APAC 1,724 / 313 - **zero delta against
+`cs_pacing` on both**.
+
+**EMEA assets are almost entirely the file-slug naming convention** (`26Q3_EBOOK_accelerating-ai-
+adoption-with-sase`), with one short code (`A-MSM-11`) leading. They render through
+`prettyAssetName()`'s fallback, which is the point of that fallback - an unmapped variant looks
+unfamiliar rather than looking broken. Fold a new one into `ASSET_ALIASES` when it earns a name.
+
+### The date control is now PER TAB on this lane
+
+`PROGRAMS.core_emea.dateControl` was `false` because nothing EMEA rendered responded to the range.
+The Comparison tab does, so it is now `['compare']` and `applyDateControl()` resolves it per tab -
+the picker appears on Comparison and nowhere else on the lane. Add a tab key there the day another
+EMEA tab gains range-driven content; `true` shows it everywhere.
+
 ## Pacing detail + Core DG EMEA (2026-08-24)
 
 A **Pacing detail** section on the Content Syndication tab, directly under "Pacing - target vs
@@ -1551,6 +1639,16 @@ opening the form is a targeting problem, opening and abandoning is a form proble
   "pacing": {
     "row_count": 0,
     "rows": [ /* every column of V_PACING_FINAL_MODEL, dates as ISO strings */ ]
+  },
+  // cs_compare (2026-09-02): the CS Comparison panels for a non-legacy theatre. Same lead
+  // universe as cs_pacing, one grain finer (it keeps country / asset / day, which the panels
+  // need and the week-grain pacing view aggregates away). Carries NO targets - those live on
+  // cs_pacing and must not exist twice. Absent on an older JSON -> the tab simply does not
+  // appear on that lane. See sql/18_cs_compare_v2.sql + the BB:EMEACOMPARE block.
+  "cs_compare": {
+    "row_count": 0,
+    "rows": [ { "theatre","book","vendor","market","country","day","week_start",
+                "service","asset","leads","delivered","accepted","rejected","unprocessed" } ]
   },
   "cs_pacing": {
     "row_count": 0,

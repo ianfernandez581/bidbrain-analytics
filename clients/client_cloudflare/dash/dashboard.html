@@ -1349,6 +1349,9 @@
       <div class="compare-header">
         <h2>Side-by-side comparison</h2>
         <p>Pick a region (and optionally a country) in each panel to compare them directly.</p>
+        <!-- Names the theatre / book / publisher these panels are scoped to. Hidden on APJ,
+             which has no scope control outside this tab. See renderCompareScopeNote. -->
+        <div class="hint" id="cmpScopeNote" style="display:none"></div>
       </div>
 
       <div class="compare-grid">
@@ -2620,6 +2623,10 @@ async function boot() {
     // Absent on an older JSON, in which case the whole section hides itself.
     CSPD_ROWS = (COMBINED.cs_pacing && COMBINED.cs_pacing.rows) || [];
     CSPD_META = COMBINED.cs_pacing || {};
+    // "CS Comparison" panels for a theatre the legacy model does not cover: the same lead
+    // universe one grain finer (day x market x country x asset). Absent on an older JSON, in
+    // which case the Comparison tab simply does not appear on that lane (see emeaHasCompare).
+    CSC_ROWS = (COMBINED.cs_compare && COMBINED.cs_compare.rows) || [];
 
     // Date-range picker bounds = the UNION of both core windows:
     // CS lead dates (rawRows non-dummy DAY) ∪ paid-delivery window (paid_media.window).
@@ -2627,6 +2634,14 @@ async function boot() {
     for (const r of rawRows) {
       if (isDummy(r) || r.LEAD_STATUS == null || !r.DAY) continue;
       const d = String(r.DAY).slice(0,10);
+      if (!csMin || d < csMin) csMin = d;
+      if (!csMax || d > csMax) csMax = d;
+    }
+    // EMEA lead dates live ONLY on cs_compare (rawRows is APAC-only), so union them in or the
+    // picker's bounds could not reach the EMEA flight on a lane that is now range-driven.
+    for (const r of CSC_ROWS) {
+      const d = r.day ? String(r.day).slice(0,10) : null;
+      if (!d) continue;
       if (!csMin || d < csMin) csMin = d;
       if (!csMax || d > csMax) csMax = d;
     }
@@ -2736,6 +2751,18 @@ function renderQoQ(){
   const s2=q2.by_status||{}, s3=q3.by_status||{};
   document.getElementById('qoqStatusBars').innerHTML = heatGrid(['Accepted','Rejected'], s2, s3);
 }
+// Show the shared date control only on tabs where it actually bites. `dateControl` is
+// true/undefined (every tab), false (none), or a list of tab keys - see PROGRAMS.core_emea.
+// A control that changes nothing on screen is worse than no control, and one that is missing
+// from a tab it DOES drive is worse still, so this is derived rather than set by hand.
+function applyDateControl(){
+  const dpEl = document.getElementById('dateRange');
+  if (!dpEl) return;
+  const dc = laneCfg().dateControl;
+  const show = Array.isArray(dc) ? dc.indexOf(activeTab) >= 0 : dc !== false;
+  dpEl.style.display = show ? '' : 'none';
+}
+
 function switchTab(tab) {
   activeTab = tab;
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
@@ -2754,6 +2781,7 @@ function switchTab(tab) {
     if (!paidMediaLoaded) loadPaidMedia();
     else renderPaidMediaAll();
   }
+  applyDateControl();
   renderDateScope();
 }
 
@@ -2789,8 +2817,14 @@ function renderDateScope(){
     scope = 'Spend / impressions / clicks / leads KPIs, all daily charts, the LinkedIn funnel and the market/creative actuals reflect this range. '
       + 'The <b>media-plan benchmarks</b> ("vs plan" columns), the <b>weekly LinkedIn target</b> lines and the <b>creatives</b> table have no date dimension and stay <b>full period</b>.';
   } else if (activeTab === 'compare') {
+    // On a non-legacy theatre the plan is a FLIGHT, not a quarter (EMEA's runs 31 Jul -> Nov
+    // and 37% of it lands in Q4), and the target tile is the seeded weekly plan prorated to
+    // today. Saying "full-quarter plan" there would describe a number that is not on screen.
     scope = 'Both comparison panels (KPIs, targets, weekly, top assets) reflect this range. '
-      + 'The <b>' + qtrLabel() + ' Target</b> figure is the full-quarter plan and is not pro-rated.';
+      + (topFromPacing()
+          ? 'The <b>Target</b> figure is the seeded weekly plan for the whole flight and is '
+            + 'not pro-rated to this range.'
+          : 'The <b>' + qtrLabel() + ' Target</b> figure is the full-quarter plan and is not pro-rated.');
   } else {
     scope = 'KPIs, donuts, weekly/daily charts and the by-region summary reflect this range. '
       + 'The <b>' + qtrLabel() + ' Target</b> and the <b>Time %</b> bar are quarter-anchored (full ' + qtrLabel() + ') and are not pro-rated to the selected range. '
@@ -2833,6 +2867,39 @@ function destroy(id) {
 // ==========================================================================
 // AGGREGATION (shared between Overview and Comparison)
 // ==========================================================================
+// ==========================================================================
+// ASSET -> SOLUTION COLLAPSE RULE  (module scope since 2026-09-02)
+// ==========================================================================
+// Lifted verbatim out of aggregate() when the EMEA Comparison panels became a
+// SECOND caller (cscAgg, BB:EMEACOMPARE). Both models must collapse an asset's
+// solutions the same way or the same asset would carry different colours on two
+// tabs, so there is one definition rather than a copy per model. Behaviour is
+// unchanged - this moved, it was not edited.
+// 11 assets legitimately span solutions (e.g. A-MAT-2) and the client has not yet chosen
+// the collapse rule, so the mechanism ships with the DEFAULT preserving today's behaviour:
+//   'stacked'  - current: each asset's leads stack by the solution of the campaign each
+//                lead arrived on (the per-solution split renders inside the bar).
+//   'dominant' - collapse each asset to its single highest-lead solution (whole bar takes
+//                that colour; the asset's total is unchanged).
+//   'override' - the client's master mapping first (ASSET_SOLUTION_OVERRIDES, asset id ->
+//                solution label), falling back to 'dominant' for unmapped assets.
+// Flipping the rule is a one-word edit here + a dash redeploy; totals never move, only
+// which colour(s) an asset's bar carries.
+//
+// DELIBERATELY 'stacked' - DO NOT FLIP THIS AS CLEANUP. The client (Jade) has not yet
+// chosen the collapse rule (highest volume vs original solution vs a master mapping list);
+// this stays 'stacked' until that decision lands, however finished the other modes look.
+const ASSET_SOLUTION_MODE = 'stacked';
+const ASSET_SOLUTION_OVERRIDES = {};   // e.g. {'A-MAT-2': 'Modernize Applications'}
+function resolveAssetSolutions(svcMap, id) {
+  if (ASSET_SOLUTION_MODE === 'stacked' || svcMap.size < 2) return svcMap;
+  const entries = [...svcMap.entries()].sort((x, y) => y[1] - x[1]);
+  const total = entries.reduce((s, e) => s + e[1], 0);
+  const win = (ASSET_SOLUTION_MODE === 'override' && ASSET_SOLUTION_OVERRIDES[id])
+    ? ASSET_SOLUTION_OVERRIDES[id] : entries[0][0];
+  return new Map([[win, total]]);
+}
+
 function aggregate(filterFn) {
   // Default market filter respects BOTH the active chips AND quarter visibility (RIG is
   // excluded under Q3 even if it lingers in activeMarkets from a prior Q2 view).
@@ -2952,30 +3019,6 @@ function aggregate(filterFn) {
   // names onto their short code - see ASSET_ALIASES.
   //
   // >>> ONE-SOLUTION-PER-ASSET RESOLVER (2026-08-31, plumbing only - NOT switched on) >>>
-  // 11 assets legitimately span solutions (e.g. A-MAT-2) and the client has not yet chosen
-  // the collapse rule, so the mechanism ships with the DEFAULT preserving today's behaviour:
-  //   'stacked'  - current: each asset's leads stack by the solution of the campaign each
-  //                lead arrived on (the per-solution split renders inside the bar).
-  //   'dominant' - collapse each asset to its single highest-lead solution (whole bar takes
-  //                that colour; the asset's total is unchanged).
-  //   'override' - the client's master mapping first (ASSET_SOLUTION_OVERRIDES, asset id ->
-  //                solution label), falling back to 'dominant' for unmapped assets.
-  // Flipping the rule is a one-word edit here + a dash redeploy; totals never move, only
-  // which colour(s) an asset's bar carries.
-  //
-  // DELIBERATELY 'stacked' - DO NOT FLIP THIS AS CLEANUP. The client (Jade) has not yet
-  // chosen the collapse rule (highest volume vs original solution vs a master mapping list);
-  // this stays 'stacked' until that decision lands, however finished the other modes look.
-  const ASSET_SOLUTION_MODE = 'stacked';
-  const ASSET_SOLUTION_OVERRIDES = {};   // e.g. {'A-MAT-2': 'Modernize Applications'}
-  function resolveAssetSolutions(svcMap, id) {
-    if (ASSET_SOLUTION_MODE === 'stacked' || svcMap.size < 2) return svcMap;
-    const entries = [...svcMap.entries()].sort((x, y) => y[1] - x[1]);
-    const total = entries.reduce((s, e) => s + e[1], 0);
-    const win = (ASSET_SOLUTION_MODE === 'override' && ASSET_SOLUTION_OVERRIDES[id])
-      ? ASSET_SOLUTION_OVERRIDES[id] : entries[0][0];
-    return new Map([[win, total]]);
-  }
   const assetAgg = new Map();
   for (const r of breakdownLeads) {
     const id = assetId(r.ASSET_1);
@@ -3073,9 +3116,9 @@ function selectAllMarkets() {
 }
 
 function selectNoneMarkets() {
-  // Off-theatre the last chip cannot be cleared (cspdRows would return nothing and every
-  // panel would read zero, which looks like a broken feed). Clear = back to one market.
-  if (topFromPacing()) { CSPD.markets = new Set(cspdAllMarkets().slice(0, 1)); renderChips(); renderAll(); return; }
+  // Clear = NO market selected, on both theatres (client, 2026-09-02). Off-theatre this used
+  // to leave the first chip on; the two controls looked identical and behaved differently.
+  if (topFromPacing()) { CSPD.markets = new Set(); renderChips(); renderAll(); return; }
   activeMarkets = new Set();
   renderChips();
   renderAll();
@@ -3815,6 +3858,7 @@ function renderAll() {
 // today.
 // --------------------------------------------------------------------------
 let CSPD_ROWS = [];                                   // cs_pacing.rows
+let CSC_ROWS  = [];                                   // cs_compare.rows (Comparison panels)
 let CSPD_META = {};                                   // cs_pacing meta (period label, reasons)
 // book: which PLAN is on screen ('Core DG' | 'Regional' | 'Unclassified'), resolved on the
 // first render so an older payload with no `book` key still works. week: ISO date, or 'qtd'.
@@ -3961,10 +4005,16 @@ function cspdAllMarkets(){
 }
 // Resolve the selection lazily: the payload decides which markets exist, so this cannot be
 // set at boot. Any market that disappears from the payload drops out of the selection too.
+// An EMPTY set is a REAL state here - "Clear" leaves no market selected and every panel reads
+// zero, exactly as it does on APJ. So null (never touched) is the only thing that defaults to
+// all: resetting an empty set to all would silently undo the user's Clear. A theatre change
+// nulls the selection in switchDashboard(), which is why pruning can never empty it by
+// accident; if a payload change ever prunes the last one, fall back to all rather than
+// leaving a selection nobody cleared.
 function cspdActiveMarkets(){
   const all = cspdAllMarkets();
   if (!CSPD.markets) CSPD.markets = new Set(all);
-  else {
+  else if (CSPD.markets.size) {
     for (const m of [...CSPD.markets]) if (all.indexOf(m) < 0) CSPD.markets.delete(m);
     if (!CSPD.markets.size) CSPD.markets = new Set(all);
   }
@@ -4911,18 +4961,40 @@ function renderTxData() {
 // (Was 'AU' before the 2026-07-07 rollback to 7 market GROUPS; 'AU' is no longer a valid
 //  option in ALL_MARKETS, so panel A was defaulting blank - 'ANZ' is its group.)
 const COMPARE_DEFAULTS = { A: 'ANZ', B: 'SAARC' };
+// The market roster for the panels. APJ keeps its hardcoded ALL_MARKETS; any other theatre
+// takes the seeded MARKET_SEQ order from the payload, so a new EMEA market is CSV rows and
+// no code change (the same rule the Pacing detail chart already follows).
+function compareMarkets(){
+  return topFromPacing() ? cscMarkets() : ALL_MARKETS;
+}
+// Which two markets a panel opens on. APJ's pair is a client preference (ANZ = flagship vs
+// SAARC = #2). For a data-driven theatre there is no such standing choice, so it opens on the
+// first two in the PLAN's own order - deterministic, and it follows the CSV rather than
+// pinning a market name in code that a re-order would silently make wrong.
+function compareDefault(side, markets){
+  if (!topFromPacing()) return COMPARE_DEFAULTS[side];
+  return markets[side === 'A' ? 0 : 1] || markets[0];
+}
+// Rebuilt on every lane change, not just at boot: the two theatres have disjoint market
+// lists, so a stale roster would leave EMEA offering ANZ/SAARC (and rendering nothing).
 function populateRegionSelects() {
+  const markets = compareMarkets();
   ['A', 'B'].forEach(side => {
     const sel = document.getElementById('region' + side);
-    ALL_MARKETS.forEach(m => {
+    if (!sel) return;
+    sel.innerHTML = '<option value="">Select Region</option>';
+    markets.forEach(m => {
       const opt = document.createElement('option');
       opt.value = m; opt.textContent = mktLabel(m);
       sel.appendChild(opt);
     });
-    const def = COMPARE_DEFAULTS[side];
-    if (def && ALL_MARKETS.includes(def)) {
+    const def = compareDefault(side, markets);
+    if (def && markets.includes(def)) {
       sel.value = def;
       populateCountryOptions(side);   // ready the (optional) country drill-down for the default region
+    } else {
+      const cs = document.getElementById('country' + side);
+      if (cs) cs.innerHTML = '<option value="">All Countries</option>';
     }
   });
 }
@@ -4932,7 +5004,9 @@ function populateCountryOptions(side) {
   const sel = document.getElementById('country' + side);
   sel.innerHTML = '<option value="">All Countries</option>';
   if (!region) return;
-  const countries = [...new Set(
+  // Non-legacy theatre: countries come off cs_compare, which is the only model that carries
+  // EMEA at all. rawRows would return an empty list here and the drill-down would look broken.
+  const countries = topFromPacing() ? cscCountries(region) : [...new Set(
     rawRows
       .filter(r => !isDummy(r) && r.MARKET_REGION === region && r.COUNTRY_NAME)
       .map(r => r.COUNTRY_NAME)
@@ -4997,8 +5071,11 @@ function renderComparePanel(side) {
     return;
   }
 
+  // ONE renderer, two models. APJ aggregates the legacy lead rows; any other theatre gets an
+  // agg-SHAPED object off cs_compare (BB:EMEACOMPARE). Everything below this line is shared,
+  // which is what stops the two theatres drifting onto different bases.
   const filterFn = r => r.MARKET_REGION === region && (!country || r.COUNTRY_NAME === country);
-  const agg = aggregate(filterFn);
+  const agg = topFromPacing() ? cscAgg(region, country) : aggregate(filterFn);
 
   document.getElementById('empty' + side).style.display = 'none';
   document.getElementById('content' + side).style.display = 'block';
@@ -5015,13 +5092,18 @@ function renderComparePanel(side) {
   document.getElementById(side + '_rej_cnt').textContent = fmtN(agg.rejected) + ' leads';
   document.getElementById(side + '_acc_cnt').textContent = fmtN(agg.accepted) + ' leads';
 
+  // A target that does not apply at the grain on screen is shown as ABSENT, not as zero: a
+  // zero-high "target" bar beside real delivery reads as a plan that was missed. `hasTargets`
+  // is only ever false on a non-legacy theatre under a country drill-down or a single
+  // publisher, where the market-grain plan genuinely has nothing to say (see cscAgg).
+  const cmpHasT = agg.hasTargets !== false;
   destroy(side + '_chartTargets');
   charts[side + '_chartTargets'] = new Chart(document.getElementById(side + '_chartTargets'), {
     type:'bar',
-    data:{ labels:['QTD Target','Leads'],
+    data:{ labels: cmpHasT ? ['QTD Target','Leads'] : ['Leads'],
       datasets:[{
-        data:[agg.ttdTarget, agg.accepted],
-        backgroundColor:[TARGET, CF], borderRadius:3
+        data: cmpHasT ? [agg.ttdTarget, agg.accepted] : [agg.accepted],
+        backgroundColor: cmpHasT ? [TARGET, CF] : [CF], borderRadius:3
       }]},
     options:{ responsive:true, maintainAspectRatio:false,
       plugins:{ legend:{display:false}, tooltip:{ callbacks:{ label: c => c.parsed.y.toLocaleString() } } },
@@ -5032,17 +5114,196 @@ function renderComparePanel(side) {
   charts[side + '_chartWeekly'] = new Chart(document.getElementById(side + '_chartWeekly'), {
     type:'bar',
     data:{ labels: agg.weekly.map(w => w.week.slice(5)),
-      datasets:[
-        {label:'Target', data: agg.weekly.map(w => w.target), backgroundColor:TARGET, borderRadius:2},
+      datasets: (cmpHasT ? [{label:'Target', data: agg.weekly.map(w => w.target),
+                             backgroundColor:TARGET, borderRadius:2}] : []).concat([
         {label:'Leads', data: agg.weekly.map(w => w.actual), backgroundColor:CF, borderRadius:2}
-      ]},
+      ])},
     options:{ responsive:true, maintainAspectRatio:false,
       plugins:{ legend:{position:'bottom', labels:{boxWidth:10, boxHeight:8, font:{size:10}, padding:6}} },
       scales:{ x:{grid:{display:false}, ticks:{font:{size:10}}}, y:{beginAtZero:true, grid:{color:LINE}, ticks:{font:{size:10}}} } }
   });
 
   renderCompareAssets(side, agg);
+  renderCompareScopeNote();
 }
+
+// The panels are scoped by theatre + book + publisher, and two of those three controls live
+// on the Content Syndication tab. cspdTopAgg carries a caption for exactly this reason: a
+// figure that moves with a control the reader cannot see is worse than no figure. APJ has no
+// such hidden control, so it gets no note.
+function renderCompareScopeNote(){
+  const el = document.getElementById('cmpScopeNote');
+  if (!el) return;
+  if (!topFromPacing()){ el.style.display = 'none'; el.innerHTML = ''; return; }
+  const bits = ['Core DG <b>' + esc(cspdTheatre()) + '</b>'];
+  if (CSPD.book && CSPD.book !== 'Core DG') bits.push('book <b>' + esc(CSPD.book) + '</b>');
+  bits.push(CSPD.vendor === 'all' ? 'all publishers'
+                                  : 'publisher <b>' + esc(CSPD.vendor) + '</b>');
+  el.innerHTML = 'Scope: ' + bits.join(' &middot; ')
+    + '. Targets are the seeded weekly plan, prorated to today and <b>not</b> pro-rated to the '
+    + 'date range. The book and publisher are set on the <b>Content Syndication</b> tab.';
+  el.style.display = 'block';
+}
+
+// >>> BB:EMEACOMPARE (side-by-side panels for a theatre the legacy model does not cover) >>>
+// ==========================================================================
+// CS COMPARISON FOR A NON-LEGACY THEATRE  (Core DG EMEA, 2026-09-02)
+// ==========================================================================
+// The Comparison tab compares MARKET vs MARKET within one period - it is not a period
+// comparison, and it renders nothing from paid media. It was hidden on EMEA because its
+// gate tested `emeaHasPaid() && emeaHasPriorQuarter()`, two things this tab never reads;
+// EMEA has neither, so a tab it could always have filled stayed dark. The gate now tests
+// the data the panels actually consume.
+//
+// Same split as BB:EMEATOP, for the same reason: the legacy `aggregate()` runs over
+// rawRows (salesforce_leads_live), which is scoped by a campaign-ID allowlist holding no
+// EMEA campaign. Backfilling that model would move live APJ numbers and desync the
+// status-dash accuracy checks, so this reads `cs_compare` instead and hands
+// renderComparePanel an agg-SHAPED object. renderComparePanel keeps ONE implementation
+// for both theatres - a basis cannot drift between them if there is only one renderer.
+//
+// SCOPE = theatre + book + publisher, i.e. the same scope cspdRows() resolves for the
+// Content Syndication tab. Deliberate: this whole family of sections exists because two
+// panels on one screen disagreed, and scoping the Comparison tab differently from the CS
+// tab would recreate that. The publisher picker lives on the OTHER tab, so the panels
+// carry a caption naming the scope rather than leaving a figure to move invisibly.
+
+// Does the payload carry Comparison rows for the current lane's theatre? Absence of DATA,
+// not a flag, exactly like BB:EMEATABS - the tab appears on its own for any theatre that
+// lands rows, and an older JSON (no cs_compare block) simply does not show it.
+function emeaHasCompare(){
+  try {
+    const th = laneTheatre();
+    return CSC_ROWS.some(r => r.theatre === th);
+  } catch(_){ return false; }
+}
+
+// Comparison rows for the current scope. Mirrors cspdRows(): theatre + book + publisher.
+// cspdResolveScope() MUST be called first - it is what resolves CSPD.book on a first paint
+// (see its own note); without it every row filters away and the panels render zeros.
+function cscRows(){
+  const th = cspdTheatre();
+  cspdResolveScope(th);
+  const v = CSPD.vendor;
+  return CSC_ROWS.filter(r => r.theatre === th
+                           && cspdBookOf(r) === CSPD.book
+                           && (v === 'all' || r.vendor === v));
+}
+
+// Markets for the panel dropdowns, in the seeded MARKET_SEQ order that the rest of the
+// theatre's surfaces use. Taken from cspdAllMarkets() rather than from the Comparison rows
+// so a market that is BOUGHT but has not delivered yet is still selectable - the panel then
+// says "no leads", which is a fact, instead of the market being missing, which looks broken.
+function cscMarkets(){
+  const seq = cspdAllMarkets();
+  const delivered = new Set(cscRows().map(r => r.market));
+  // Anything delivering that the target seed never named still has to appear, or delivery
+  // would vanish from the tab entirely. Appended after the seeded order, never dropped.
+  const extra = [...delivered].filter(m => m && m !== 'UNMAPPED' && seq.indexOf(m) < 0).sort();
+  return seq.concat(extra);
+}
+
+// The countries inside one market, for the optional drill-down. A row with no country is
+// offered as an explicit "not stated" option rather than being folded into a real country
+// or silently dropped - EMEA states a country on almost every lead, so a blank is worth
+// being able to look at.
+const CSC_NO_COUNTRY = '(not stated)';
+function cscCountries(market){
+  const rows = cscRows().filter(r => r.market === market && dateOk(r.day));
+  const named = [...new Set(rows.filter(r => r.country).map(r => r.country))].sort();
+  return rows.some(r => !r.country) ? named.concat([CSC_NO_COUNTRY]) : named;
+}
+
+// ---- the agg builder ----------------------------------------------------
+// Returns the subset of aggregate()'s shape that renderComparePanel + renderCompareAssets
+// read: accepted / rejected / q2Target / ttdTarget / weekly / assets. Nothing else is
+// filled in, because nothing else on this tab reads it.
+//
+// TARGETS ARE MARKET-GRAIN, so they are NOT paced against under a country drill-down. Same
+// rule cspdResolveScope() applies to a publisher-filtered target: the plan has no country
+// dimension, so a country's share of a market target is an allocation we invented, and
+// showing one would grade a country against a number nobody bought. The KPI then prints
+// "-" and the chart drops its target series, which is the honest empty state.
+function cscAgg(market, country){
+  const { targetsApply } = cspdResolveScope(cspdTheatre());
+  const wantNoCountry = country === CSC_NO_COUNTRY;
+  const inScope = r => r.market === market
+    && (!country || (wantNoCountry ? !r.country : r.country === country));
+
+  const rows = cscRows().filter(r => inScope(r) && dateOk(r.day));
+  const accepted = rows.reduce((s, r) => s + (r.accepted || 0), 0);
+  const rejected = rows.reduce((s, r) => s + (r.rejected || 0), 0);
+
+  // Targets come from cs_pacing (week x market), NOT from cs_compare - one number, one home.
+  // They are flight-anchored, never date-range-clamped: the same reasoning as the legacy
+  // model's quarter anchor, which the tab's own banner already promises.
+  const useTargets = targetsApply && !country;
+  const tRows = useTargets
+    ? CSPD_ROWS.filter(r => r.theatre === cspdTheatre() && cspdBookOf(r) === CSPD.book
+                         && r.market === market
+                         && (CSPD.vendor === 'all' || r.vendor === CSPD.vendor))
+    : [];
+
+  // Prorate the in-progress week. Targets are seeded WEEKLY and elapsed time is continuous,
+  // so counting a whole week the moment it opens makes the figure lurch with no change on
+  // the ground (md/AGENTS.md). Reuses the Pacing detail helpers so the two agree exactly.
+  const flight  = cspdFlight(tRows.length ? tRows : cscTargetUniverse());
+  const elapsed = flightDaysElapsed(flight, new Date());
+  let q2Target = 0, ttdTarget = 0;
+  const tByWeek = new Map();
+  for (const r of tRows){
+    const t = r.target || 0;
+    if (!t) continue;
+    q2Target  += t;
+    ttdTarget += t * weekDueFraction(flight, elapsed, r.week_start);
+    tByWeek.set(r.week_start, (tByWeek.get(r.week_start) || 0) + t);
+  }
+
+  // Weekly axis = the PLAN's weeks UNION the weeks that actually hold leads. A plan week with
+  // no delivery must still draw (that is the pacing story), and a lead outside the plan window
+  // must not be dropped from a chart whose totals are read against the KPIs above it.
+  const aByWeek = new Map();
+  for (const r of rows){
+    if (!r.week_start) continue;
+    aByWeek.set(r.week_start, (aByWeek.get(r.week_start) || 0) + (r.accepted || 0));
+  }
+  const weeks = [...new Set([...tByWeek.keys(), ...aByWeek.keys()])].sort();
+  const weekly = weeks.map(w => ({ week: w, target: tByWeek.get(w) || 0,
+                                   actual: aByWeek.get(w) || 0, unprocessed: 0 }));
+
+  // Assets: fold the raw Salesforce strings through the SAME alias map the APJ chart uses.
+  // EMEA is almost entirely the file-slug naming convention, so most of these render through
+  // prettyAssetName()'s fallback - unfamiliar-looking rather than broken-looking, which is
+  // the point of that fallback (md/AGENTS.md, asset names are not stable keys).
+  const assetAgg = new Map();
+  for (const r of rows){
+    const n = r.accepted || 0;
+    if (!n) continue;                       // the APJ list ranks ACCEPTED leads - match it
+    const id = assetId(r.asset);
+    if (!id) continue;
+    let a = assetAgg.get(id);
+    if (!a) { a = {id, total: 0, svc: new Map()}; assetAgg.set(id, a); }
+    a.total += n;
+    const svc = r.service || 'Other';
+    a.svc.set(svc, (a.svc.get(svc) || 0) + n);
+  }
+  const assets = [...assetAgg.values()]
+    .sort((a,b) => b.total - a.total)
+    .slice(0, 12)
+    .map(a => ({ id: a.id, name: assetName(a.id), total: a.total,
+                 services: [...resolveAssetSolutions(a.svc, a.id).entries()].sort((x,y) => y[1] - x[1]) }));
+
+  return { accepted, rejected, unprocessed: 0, total: accepted + rejected,
+           q2Target, ttdTarget, hasTargets: useTargets, weekly, assets };
+}
+
+// Every target row in the current theatre/book, used ONLY to derive the flight window when
+// the selected market has no targets of its own - so an unseeded market still prorates
+// against the same flight as its neighbours instead of against nothing.
+function cscTargetUniverse(){
+  return CSPD_ROWS.filter(r => r.theatre === cspdTheatre() && cspdBookOf(r) === CSPD.book);
+}
+// <<< BB:EMEACOMPARE <<<
 
 // ==========================================================================
 // PAID MEDIA TAB
@@ -5105,22 +5366,28 @@ const PROGRAMS = {
     tabsWhenData: {
       paid:    () => emeaHasPaid(),
       qoq:     () => emeaHasPriorQuarter(),
-      compare: () => emeaHasPaid() && emeaHasPriorQuarter(),
+      // CS Comparison was gated on `emeaHasPaid() && emeaHasPriorQuarter()` until 2026-09-02.
+      // Both were the WRONG test: the tab compares MARKET vs MARKET inside one period, reads
+      // no paid delivery and has no time axis, so neither condition it waited on is anything
+      // it uses - and EMEA has had six markets with accept/reject status since 06 Aug. It now
+      // gates on the data the panels actually consume (BB:EMEACOMPARE).
+      compare: () => emeaHasCompare(),
     },
     plans: false,
-    // NO shared date control on this lane: everything range-driven on the CS tab is APAC-scoped
-    // and therefore hidden here (see applyRegionPanelScope), and the one section that DOES
-    // render is driven by its own week selector. A visible picker that changes nothing on
-    // screen is worse than no picker. Flip this to true the day EMEA gains range-driven
-    // content (paid media, or a widened salesforce_leads_live).
-    dateControl: false,
-    note: '<b>Core DG EMEA</b> - Content Syndication only, live since <b>7 Aug 2026</b>. '
-        + 'Paid Media, CS Comparison and Quarter on Quarter are not shown: no EMEA ad accounts '
-        + 'are connected, and EMEA launched part-way through the quarter so there is no prior '
-        + 'quarter to compare. The Content-Syndication KPIs, donuts and trends that normally '
-        + 'sit above <b>Pacing detail</b> are scoped to APAC and are hidden here too, rather '
-        + 'than shown under an EMEA heading - so this lane is the Pacing detail section, which '
-        + 'is driven by its own week selector.'
+    // The date control is PER TAB on this lane, because the answer differs by tab. On Content
+    // Syndication everything range-driven is APAC-scoped and hidden here (see
+    // applyRegionPanelScope) and the one section that renders has its own week selector - a
+    // visible picker that changes nothing on screen is worse than no picker. The Comparison
+    // tab IS range-driven (2026-09-02), so the picker appears there and only there. Add a tab
+    // key here the day it gains range-driven content; `true` shows it everywhere.
+    dateControl: ['compare'],
+    note: '<b>Core DG EMEA</b> - Content Syndication and CS Comparison, live since '
+        + '<b>7 Aug 2026</b>. Paid Media and Quarter on Quarter are not shown: no EMEA ad '
+        + 'accounts are connected, and EMEA launched part-way through the quarter so there is '
+        + 'no prior quarter to compare. The Content-Syndication KPIs, donuts and trends that '
+        + 'normally sit above <b>Pacing detail</b> are scoped to APAC and are hidden here too, '
+        + 'rather than shown under an EMEA heading - so on that tab this lane is the Pacing '
+        + 'detail section, which is driven by its own week selector.'
   },
   surround_abm: {
     prog: 'SURROUND_ABM', label: 'Surround ABM', theatre: 'APAC',
@@ -6754,8 +7021,11 @@ function switchDashboard(val){
   // precomputed whole-window totals, so hide the control there. A PROGRAM lane can also opt
   // out (`dateControl:false` - Core DG EMEA), for the same reason: nothing it renders responds
   // to the range, and a control that changes nothing on screen is worse than no control.
+  // A single-campaign view uses precomputed whole-window totals, so the shared control is
+  // always hidden there. For a PROGRAM lane the answer is per tab, so it is resolved by
+  // applyDateControl() from switchTab() once activeTab is settled.
   const dpEl = document.getElementById('dateRange');
-  if (dpEl) dpEl.style.display = (isProgram && lane.dateControl !== false) ? '' : 'none';
+  if (dpEl && !isProgram) dpEl.style.display = 'none';
   const note = document.getElementById('dateScopeNote');
   if (note && !isProgram) note.style.display = 'none';
   if (!isProgram) { renderLaneNote(false); renderCampaign(val); return; }
@@ -6775,8 +7045,14 @@ function switchDashboard(val){
   // repaint is what runs applyRegionPanelScope, and skipping it while sitting on another tab
   // would leave panel-main stashed in the WRONG theatre's hide/show state for later.
   if (laneTheatre() !== prevTheatre){
-    CSPD.vendor = 'all';     // a vendor / week valid in one theatre need not exist in the other
-    CSPD.week   = null;
+    CSPD.vendor  = 'all';    // a vendor / week valid in one theatre need not exist in the other
+    CSPD.week    = null;
+    CSPD.markets = null;     // disjoint market lists; null re-defaults to the new theatre's all
+    // The two theatres have DISJOINT market lists, so the Comparison dropdowns have to be
+    // rebuilt or EMEA would still be offering ANZ / SAARC and both panels would render empty.
+    // Done before renderAll() so a repaint that lands on 'compare' already has a valid pair.
+    populateRegionSelects();
+    if (activeTab === 'compare'){ renderComparePanel('A'); renderComparePanel('B'); }
     renderAll();
   }
 }

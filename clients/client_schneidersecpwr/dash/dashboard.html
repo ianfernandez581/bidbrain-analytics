@@ -132,6 +132,131 @@
     background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'><path d='M2 4l4 4 4-4' stroke='%23fff' stroke-width='1.5' fill='none'/></svg>");
     background-repeat:no-repeat;background-position:right 11px center}
   .dash-select:hover{border-color:var(--se-green)}
+  /* ---- Campaign multi-select (antd "tags" pattern, built natively - this dashboard is one vanilla
+     HTML file and the platform proxy's CSP allows no new script hosts, so React/antd is not an
+     option here). Selected programs are removable TAGS in the box; the list below ticks what is in
+     scope. The dark palette is the topbar's, not the card body's. ---- */
+  .ms{position:relative;min-width:320px;max-width:580px}
+  /* ONE LINE. A wrapping box let the input claim a full-width row of its own, which read as a text
+     field to fill in rather than a list to pick from - and the extra rows shoved the topbar around.
+     It wraps only while the "+N" tags are expanded. */
+  .ms-box{display:flex;align-items:center;gap:6px;flex-wrap:nowrap;overflow:hidden;background:#2A2A2A;
+    border:1px solid rgba(255,255,255,.22);border-radius:8px;padding:5px 30px 5px 7px;
+    cursor:text;height:38px}
+  .ms-box.wrap{flex-wrap:wrap;height:auto;min-height:38px;overflow:visible}
+  .ms-box:hover{border-color:var(--se-green)}
+  .ms.on .ms-box{border-color:var(--se-green);box-shadow:0 0 0 3px rgba(0,149,48,.22)}
+  .ms-tag{display:inline-flex;align-items:center;gap:6px;background:#3A3A3A;color:#fff;flex:none;
+    border:1px solid rgba(255,255,255,.16);border-radius:5px;padding:3px 7px;font-size:12.5px;
+    font-weight:600;line-height:1.35;max-width:180px}
+  .ms-tag .dot{width:7px;height:7px;border-radius:50%;flex:none}
+  .ms-tag .lb{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .ms-tag .x{cursor:pointer;color:rgba(255,255,255,.55);font-size:14px;line-height:1;padding:0 1px}
+  .ms-tag .x:hover{color:#fff}
+  .ms-tag.locked .x{opacity:.3;cursor:not-allowed}
+  .ms-more{background:rgba(255,255,255,.1);border:1px dashed rgba(255,255,255,.28);color:#fff;flex:none;
+    border-radius:5px;padding:3px 8px;font-size:12px;font-weight:600;cursor:pointer}
+  .ms-input{flex:1 1 40px;min-width:30px;width:40px;background:none;border:none;outline:none;
+    color:#fff;font:inherit;font-size:13px;padding:3px 2px}
+  .ms-input::placeholder{color:rgba(255,255,255,.45);font-weight:500}
+  .ms-ico{position:absolute;right:11px;top:50%;translate:0 -50%;pointer-events:none;
+    color:rgba(255,255,255,.5);font-size:12px}
+  /* At least as wide as the box, but free to grow to its content: a tag may truncate, a list row
+     must not - the popover is where you read the full name. */
+  .ms-pop{position:absolute;z-index:60;top:calc(100% + 6px);left:0;min-width:100%;width:max-content;
+    max-width:min(560px,90vw);background:#1E1E1E;border:1px solid rgba(255,255,255,.16);
+    border-radius:8px;padding:4px;max-height:360px;overflow:auto;box-shadow:0 18px 44px rgba(0,0,0,.5)}
+  .ms-hide{display:none}
+  /* Compact rows: at 8px padding / 13px the 9-row list ran ~480px and covered the tab bar, the KPI
+     band and the intro copy of the tab being filtered. */
+  .ms-opt{display:flex;align-items:center;gap:8px;padding:5px 10px;border-radius:5px;cursor:pointer;
+    color:#E6ECE8;font-size:12.5px;line-height:1.5}
+  .ms-opt:hover,.ms-opt.hi{background:rgba(255,255,255,.08)}
+  /* Selection is the TICK, not a fill: with everything selected, nine filled rows made the state
+     harder to read, not easier. Hover/keyboard highlight is the only background in the list. */
+  .ms-opt.sel{color:#fff;font-weight:600}
+  .ms-opt .dot{width:8px;height:8px;border-radius:50%;flex:none}
+  .ms-opt .sub{font-size:11px;color:rgba(255,255,255,.45);font-weight:500}
+  .ms-opt .tick{margin-left:auto;color:var(--se-green);opacity:0;font-size:13px}
+  .ms-opt.sel .tick{opacity:1}
+  /* A real button: bordered, right-aligned against the tick, and revealed on hover/keyboard only.
+     As a bare grey word on the row it read as a badge rather than an action. */
+  .ms-opt .only{margin-left:auto;font-size:10px;font-weight:700;letter-spacing:.3px;
+    text-transform:uppercase;color:rgba(255,255,255,.62);background:rgba(255,255,255,.06);
+    border:1px solid rgba(255,255,255,.22);border-radius:4px;padding:2px 7px;line-height:1.3;
+    opacity:0;pointer-events:none;transition:opacity .1s}
+  .ms-opt:hover .only,.ms-opt.hi .only{opacity:1;pointer-events:auto}
+  .ms-opt .only:hover{color:#fff;background:var(--se-green);border-color:var(--se-green)}
+  .ms-opt.sel .only{margin-left:auto;margin-right:8px}
+  .ms-opt .lbl-txt{margin-right:2px}
+
+  /* Footer: the count is the guard against a narrowed scope being read as the whole account. */
+  .ms-foot{display:flex;align-items:center;justify-content:space-between;gap:12px;
+    padding:7px 8px 4px;margin-top:3px;border-top:1px solid rgba(255,255,255,.1);
+    font-size:11.5px;color:rgba(255,255,255,.55);position:sticky;bottom:-4px;background:#1E1E1E}
+  .ms-foot b{color:#fff;font-weight:600}
+  .ms-foot .hint{display:block;font-size:10.5px;color:rgba(255,255,255,.35);margin-top:1px}
+  .ms-btns{display:flex;gap:6px;flex:none}
+  .ms-btn{background:none;border:1px solid rgba(255,255,255,.22);border-radius:5px;color:#fff;
+    font:inherit;font-size:11.5px;padding:4px 11px;cursor:pointer}
+  .ms-btn:hover{border-color:var(--se-green);color:var(--se-green)}
+  .ms-btn.pri{background:var(--se-green);border-color:var(--se-green);color:#fff;font-weight:600}
+  .ms-btn.pri:hover{background:var(--se-green2);color:#fff}
+  .ms-btn[disabled]{opacity:.35;cursor:default}
+  .ms-btn[disabled]:hover{border-color:rgba(255,255,255,.22);color:#fff;background:none}
+  .ms-tag.draft{border-style:dashed;border-color:rgba(255,255,255,.35)}
+  .ms-sep{height:1px;background:rgba(255,255,255,.1);margin:3px 2px}
+  .ms-empty{padding:11px 10px;color:rgba(255,255,255,.5);font-size:12.5px}
+  .dash-select:focus{outline:none;border-color:var(--se-green)}
+  .topbar-right{font-size:11.5px;color:rgba(255,255,255,.8);text-align:right;line-height:1.5}
+  .topbar-right b{color:#fff}
+  .live{display:inline-block;width:7px;height:7px;background:var(--se-green);border-radius:50%;margin-right:6px;
+    box-shadow:0 0 0 0 rgba(0,149,48,.5);animation:pulse 2.2s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(0,149,48,.6)}70%{box-shadow:0 0 0 8px rgba(0,149,48,0)}100%{box-shadow:0 0 0 0 rgba(0,149,48,0)}}
+
+  .container{max-width:1320px;margin:0 auto;padding:22px 28px 60px}
+
+  .control-bar{background:var(--se-card);border:1px solid var(--se-line);border-radius:10px;
+    box-shadow:var(--shadow-card);padding:4px 14px 0;margin-bottom:20px;position:sticky;top:0;z-index:30}
+  .control-tabs{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;border-bottom:1px solid var(--se-line)}
+  .tabs{display:flex;gap:2px}
+  .tab{padding:11px 18px;font-size:14px;font-weight:600;cursor:pointer;border:none;background:none;color:var(--se-mute);border-bottom:2.5px solid transparent;margin-bottom:-1px}
+  .tab:hover{color:var(--se-ink)}
+  .tab.on{color:var(--se-dark);border-bottom-color:var(--se-green)}
+  .tabs-right{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:6px 0}
+  .ctrl-note{font-size:11.5px;color:var(--se-mute);padding-right:2px}
+  .exports{display:flex;gap:8px;align-items:center}
+  .export-btn{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;cursor:pointer;
+    padding:7px 12px;border-radius:7px;border:1px solid var(--se-line);background:#fff;color:var(--se-ink)}
+  .export-btn:hover{border-color:var(--se-green);color:var(--se-green)}
+  .export-btn svg{width:14px;height:14px;flex:none}
+  .control-filters{display:flex;align-items:center;gap:22px;flex-wrap:wrap;padding:12px 0 14px}
+  .filter-grp{display:flex;align-items:center;gap:9px}
+  .lbl{font-size:11px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:var(--se-mute)}
+
+  .seg{display:inline-flex;border:1px solid var(--se-line);border-radius:999px;overflow:hidden;background:#fff;flex-wrap:wrap}
+  .seg-btn{padding:7px 14px;font-size:12.5px;cursor:pointer;border:none;background:#fff;color:var(--se-ink);
+    display:inline-flex;align-items:center;gap:7px;border-right:1px solid var(--se-line)}
+  .seg-btn:last-child{border-right:none}
+  .seg-btn:hover{background:#F2F5F4}
+  .seg-btn.on{background:var(--se-dark);color:#fff}
+  .seg-btn .dot{width:9px;height:9px;border-radius:50%;display:inline-block}
+  .seg.seg-sm .seg-btn{padding:5px 11px;font-size:11.5px}
+  .seg .cap{padding:0 9px;font-size:9px;font-weight:800;letter-spacing:.8px;color:var(--se-mute);display:inline-flex;align-items:center;background:#F7F9F8;border-right:1px solid var(--se-line)}
+
+  .chips{display:flex;gap:6px;flex-wrap:wrap}
+  .chip{background:#fff;border:1px solid var(--se-line);border-radius:999px;padding:6px 12px;font-size:12.5px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;color:var(--se-ink)}
+  .chip:hover{border-color:var(--se-green)}
+  .chip.on{background:var(--se-dark);color:#fff;border-color:var(--se-dark)}
+  .chip .check{opacity:0;font-size:10px;color:var(--se-green)}
+  .chip.on .check{opacity:1}
+  .chip-action{background:none;border:1px dashed var(--se-line);border-radius:999px;padding:6px 11px;font-size:11.5px;cursor:pointer;color:var(--se-mute)}
+  .chip-action:hover{color:var(--se-ink);border-color:var(--se-mute)}
+  /* Platform chips carry the platform's own brand dot instead of the region tick, so the engine is
+     readable at a glance while the pill itself stays on the Schneider chip styling above. */
+  .chip .pdot{width:8px;height:8px;border-radius:50%;display:inline-block;flex:none;box-shadow:0 0 0 1px rgba(0,0,0,.06)}
+  .chip.on .pdot{box-shadow:0 0 0 1px rgba(255,255,255,.35)}
+  .chip.dim{opacity:.45}   /* platform has no delivery for the selected program */
   .dash-select:focus{outline:none;border-color:var(--se-green)}
   .topbar-right{font-size:11.5px;color:rgba(255,255,255,.8);text-align:right;line-height:1.5}
   .topbar-right b{color:#fff}
@@ -545,7 +670,17 @@
     <div class="phase-pill">3 briefs &middot; Paid media</div>
     <div class="topbar-divider"></div>
     <div class="topbar-camp"><span class="topbar-caplbl">Campaign</span>
-      <select id="campSelect" class="dash-select" onchange="setCampaign(this.value)" title="Choose which campaign's results to view"></select></div>
+      <div class="ms" id="campMS">
+        <div class="ms-box" id="campBox" role="combobox" aria-haspopup="listbox" aria-expanded="false"
+             aria-controls="campPop" onclick="MS.boxClick(event)" title="Pick any number of the three briefs - all of them, or just the two you want to compare">
+          <span id="campTags"></span>
+          <input class="ms-input" id="campInput" type="text" placeholder="Select campaigns" autocomplete="off"
+                 role="searchbox" aria-label="Search campaigns"
+                 onfocus="MS.show()" oninput="MS.onType(this.value)" onkeydown="MS.onKey(event)">
+          <span class="ms-ico">&#9662;</span>
+        </div>
+        <div class="ms-pop ms-hide" id="campPop" role="listbox" aria-multiselectable="true" aria-label="Campaigns in scope"></div>
+      </div></div>
   </div>
   <div class="topbar-right">
     <div><span class="live"></span><b>Live</b> · LinkedIn &amp; The Trade Desk</div>
@@ -825,11 +960,14 @@ window.DateRange = (function(){
 //==============================================================================
 // STATE + HELPERS
 //==============================================================================
-// activeCampaign is the top-nav dropdown's value: either the sentinel ALL_CAMPAIGNS (the combined
-// three-brief view) or one campaign key. Single-select, matching client_schneider's Campaign
-// dropdown - one control, one answer to "whose results am I looking at".
+// SCOPE IS A SET OF CAMPAIGN KEYS (2026-09-02, ported from client_schneider): the three briefs have
+// separate stakeholders, so "all three" and "one" were never the only useful scopes - two of them
+// compared against each other is the everyday question. Every delivery/creative figure already went
+// through campOk(), so a subset needed no new aggregation.
+//   allCampaignsView() - the scope IS all three (the combined view this dashboard was built around)
+// Kept under its old name so its four call sites are unchanged.
 const ALL_CAMPAIGNS='__all__';
-let DATA=null, charts={}, activeTab='overview', activeMarkets=new Set(), activeCampaign=ALL_CAMPAIGNS;
+let DATA=null, charts={}, activeTab='overview', activeMarkets=new Set(), activeCampaigns=new Set();
 // Line-item (funnel stage) filter. Same shape as the market filter - an explicit set of what is ON,
 // rebuilt from the campaign's own roster whenever the campaign changes.
 let activeTactics=new Set();
@@ -867,8 +1005,17 @@ function bbApplySpendMult(){
 const marketOk=c=> activeMarkets.has(c);
 // This dashboard carries THREE separate briefs with separate stakeholders, so the campaign filter is
 // a first-class dimension alongside market - every delivery and creative figure honors it.
-const campOk=k=> activeCampaign===ALL_CAMPAIGNS || k===activeCampaign;
-const allCampaignsView=()=> activeCampaign===ALL_CAMPAIGNS;
+const campKeys=()=> ((DATA&&DATA.campaigns)||[]).map(c=>c.key);
+const selCampKeys=()=> campKeys().filter(k=>activeCampaigns.has(k));   // always in payload order
+const campOk=k=> activeCampaigns.has(k);
+const allCampaignsView=()=> campKeys().length>0 && selCampKeys().length===campKeys().length;
+const soleCamp=()=> selCampKeys().length===1?selCampKeys()[0]:null;
+// The dot colour a campaign carries on the Campaigns tab (PROG_PALETTE by payload order), so the
+// picker, the tables and the charts all agree on which colour means which brief.
+const campColorK=k=>{ const i=campKeys().indexOf(k); return PROG_PALETTE[(i<0?0:i)%PROG_PALETTE.length]; };
+// One phrase for the scope, so no caption can claim "all 3 campaigns" for a subset.
+const campScopePhrase=()=> allCampaignsView()?`all ${campKeys().length} campaigns`
+  : (soleCamp()?campLabel(soleCamp()):`${selCampKeys().length} of ${campKeys().length} campaigns`);
 // Channel filter (LinkedIn / The Trade Desk). Empty set == all channels, so a channel added later
 // can never leave the page blank; the last remaining channel cannot be unticked.
 let activeChannels=new Set();
@@ -899,8 +1046,10 @@ function crRows(){ return (DATA.creative||[]).filter(r=>campOk(r.campaign) && pl
 function tacticRoster(){
   const all=(DATA.tactics||[]).slice().sort((a,b)=>tacticRank(a)-tacticRank(b));
   if(allCampaignsView()) return all;
-  const c=campaignList().find(x=>x.key===activeCampaign);
-  return (c && c.tactics && c.tactics.length) ? c.tactics.slice().sort((a,b)=>tacticRank(a)-tacticRank(b)) : all;
+  // UNION over the selected briefs. ent_it names its ad sets by vertical and so has NO line items;
+  // an intersection would empty the roster the moment it joined a selection.
+  const u=new Set(); activeCampaignList().forEach(c=>(c.tactics||[]).forEach(t=>u.add(t)));
+  return u.size ? [...u].sort((a,b)=>tacticRank(a)-tacticRank(b)) : all;
 }
 function activeTacticList(){ return tacticRoster().filter(t=>activeTactics.has(t)); }
 function elapsedFrac(start,end){ if(!start||!end) return null; const s=+new Date(start), e=+new Date(end), now=Date.now(); if(now<=s) return 0; if(e<=s||now>=e) return 1; return (now-s)/(e-s); }
@@ -1047,8 +1196,8 @@ async function boot(){
     if(!res.ok) throw new Error('HTTP '+res.status+' fetching data.json');
     DATA=await res.json();
     bbApplySpendMult();
-    activeCampaign=ALL_CAMPAIGNS;                            // default: the combined 3-brief view
-    activeMarkets=new Set(marketRoster());                   // AFTER activeCampaign - roster depends on it
+    activeCampaigns=new Set(campKeys());                     // default: the combined 3-brief view
+    activeMarkets=new Set(marketRoster());                   // AFTER the scope - the roster depends on it
     activeTactics=new Set(tacticRoster());                   // ditto - line items follow the campaign
     dateMin=(DATA.window&&DATA.window.start)||null; dateMax=(DATA.window&&DATA.window.end)||null;
     rangeStart=dateMin; rangeEnd=dateMax;
@@ -1057,6 +1206,9 @@ async function boot(){
     activeTab=(TAB_LABEL[h] && tabAllowed(h))?h:'overview';
     el('loading').style.display='none'; el('content').style.display='block';
     renderMeta(); renderControls(); renderActive();
+    // An outside click or Escape CANCELS a draft selection - never silently commits one.
+    document.addEventListener('click', ev=>{ if(MS.open && !ev.target.closest('#campMS')) MS.cancel(); });
+    document.addEventListener('keydown', ev=>{ if(ev.key==='Escape' && MS.open) MS.cancel(); });
   }catch(e){ el('loading').style.display='none'; el('error').style.display='block'; el('errDetail').textContent=e.message; }
 }
 
@@ -1091,6 +1243,105 @@ const isStaff=()=>!!window.BB_INTERNAL;
 const tabAllowed=t=>!STAFF_TABS[t] || isStaff();
 const visibleTabs=()=>TAB_ORDER.filter(tabAllowed);
 function setTab(t){ if(!TAB_LABEL[t] || !tabAllowed(t)) return; activeTab=t; location.hash=t; renderControls(); renderActive(); }
+const MS_MAX_TAGS=2;   // beyond this the box collapses to "+N", so it can never exceed one line
+const MS={
+  open:false, q:'', hi:-1, showAll:false, draft:null,
+  // DRAFT + APPLY, the date picker's pattern (this dashboard already commits a date range that way).
+  // A tick edits the draft; one Apply renders once. It matters more here than the tick count suggests:
+  // changing the scope also rebuilds the market and line-item rosters, so an instant-commit control
+  // re-derived both on every click. Cancel, Escape and an outside click all revert - never silently
+  // commit what someone was mid-way through choosing.
+  scope(){ return MS.draft||activeCampaigns; },
+  dirty(){ const a=selCampKeys(), b=campKeys().filter(id=>MS.scope().has(id)); return a.join('|')!==b.join('|'); },
+  boxClick(ev){ if(ev.target && ev.target.closest('.ms-tag,.ms-more')) return; MS.show(); const i=el('campInput'); if(i) i.focus(); },
+  show(){ if(!MS.open){ MS.open=true; MS.hi=-1; MS.draft=new Set(activeCampaigns); MS.render(); } },
+  cancel(){ MS.open=false; MS.q=''; MS.showAll=false; MS.draft=null; const i=el('campInput'); if(i) i.value=''; MS.render(); },
+  apply(){ const ids=campKeys().filter(id=>MS.scope().has(id)); const changed=MS.dirty();
+    MS.open=false; MS.q=''; MS.showAll=false; MS.draft=null; const i=el('campInput'); if(i) i.value='';
+    if(changed) setScope(ids); else MS.render(); },
+  // Typing DOES arm the first match - a search implies the next Enter should take it.
+  onType(v){ MS.q=(v||'').trim().toLowerCase(); MS.show(); MS.hi=MS.q?0:-1; MS.render(); },
+  // The list filters on TYPING only, and never changes the scope: a selected campaign stays selected
+  // (and stays a visible tag) however narrow the term. A scope the reader cannot see is the one real
+  // failure mode of filtering a filter.
+  // Matches the brief NUMBER as well as the label - it is printed on every row, and "2463" is how
+  // these three get referred to in briefs and media plans.
+  list(){ const q=MS.q; return ((DATA&&DATA.campaigns)||[]).filter(c=>!q
+    || c.label.toLowerCase().includes(q) || String(c.brief||'').toLowerCase().includes(q)); },
+  // Draft edits. The last campaign can never be removed - an empty scope is a blank dashboard.
+  tog(id){ const d=new Set(MS.scope()); if(d.has(id)){ if(d.size<2) return; d.delete(id); } else d.add(id); MS.draft=d; MS.render(); },
+  only(id){ MS.draft=new Set([id]); MS.render(); },
+  all(){ MS.draft=new Set(campKeys()); MS.render(); },
+  onKey(ev){
+    const L=MS.list();
+    if(ev.key==='ArrowDown'){ ev.preventDefault(); MS.show(); MS.hi=Math.min(MS.hi+1,L.length-1); MS.render(); }
+    else if(ev.key==='ArrowUp'){ ev.preventDefault(); MS.hi=Math.max(MS.hi-1,-1); MS.render(); }
+    else if(ev.key==='Enter'){ ev.preventDefault(); if(ev.metaKey||ev.ctrlKey||MS.hi<0||!L[MS.hi]) MS.apply(); else MS.tog(L[MS.hi].id); }
+    else if(ev.key==='Escape'){ ev.preventDefault(); MS.cancel(); }
+    else if(ev.key==='Backspace' && !MS.q){ const s=campKeys().filter(id=>MS.scope().has(id)); if(s.length>1) MS.tog(s[s.length-1]); }
+  },
+  render(){
+    const box=el('campMS'), tags=el('campTags'), pop=el('campPop'), inp=el('campInput');
+    if(!box||!tags||!pop) return;
+    box.classList.toggle('on', MS.open);
+    const bx=el('campBox'); if(bx){ bx.setAttribute('aria-expanded', MS.open?'true':'false'); bx.classList.toggle('wrap', MS.showAll); }
+    // --- the tags in the box: the DRAFT while open (a preview of Apply), the live scope when closed
+    const sc=MS.scope(), sel=((DATA&&DATA.campaigns)||[]).filter(c=>sc.has(c.key));
+    const whole=sel.length===campKeys().length && sel.length>0, drafting=MS.open&&MS.dirty();
+    if(whole){
+      // The whole book is ONE tag. Listing every campaign said nothing a single word doesn't, while
+      // being the noisiest thing on the page.
+      tags.innerHTML=`<span class="ms-tag${drafting?' draft':''}" title="Every campaign is in scope"><span class="dot" style="background:var(--se-green)"></span><span class="lb">All campaigns</span></span>`;
+    } else {
+      const locked=sel.length===1;
+      const shown=MS.showAll?sel:sel.slice(0,MS_MAX_TAGS), hid=sel.slice(shown.length);
+      tags.innerHTML=shown.map(c=>`<span class="ms-tag${locked?' locked':''}${drafting?' draft':''}" title="${esc(c.label)}">`
+          +`<span class="dot" style="background:${campColorK(c.key)}"></span>`
+          +`<span class="lb">${esc(c.label)}</span>`
+          +`<span class="x" data-rm="${esc(c.key)}" title="${locked?'The last campaign cannot be removed':'Remove from the scope'}">&times;</span></span>`).join('')
+        +(hid.length?`<button type="button" class="ms-more" data-more="1" title="${esc(hid.map(c=>c.label).join(', '))}">+${hid.length}</button>`:'');
+      tags.querySelectorAll('[data-rm]').forEach(x=>x.onclick=ev=>{ ev.stopPropagation();
+        // Closed = a direct edit, so it commits; open = a draft edit like every other tick.
+        if(MS.open) MS.tog(x.getAttribute('data-rm')); else if(!locked) toggleProgram(x.getAttribute('data-rm')); });
+      const more=tags.querySelector('[data-more]'); if(more) more.onclick=ev=>{ ev.stopPropagation(); MS.showAll=true; MS.render(); };
+    }
+    if(inp) inp.placeholder = sel.length?'':'Select campaigns';
+    // --- the popover list ---
+    pop.classList.toggle('ms-hide', !MS.open);
+    if(MS.open) MS.paintList(pop);
+  },
+  paintList(pop){
+    const L=MS.list(), sc=MS.scope();
+    const nSel=campKeys().filter(id=>sc.has(id)).length, nAll=campKeys().length, whole=nSel===nAll;
+    // "All campaigns" is the ONE select-all control. It used to be duplicated by a "Reset to all"
+    // button in the footer calling the same function - two controls for one behaviour, which is the
+    // thing the topbar dropdown was removed for. The footer is a readout now, not a toolbar.
+    const head=(!MS.q)?`<div class="ms-opt${whole?' sel':''}" data-all="1" role="option" aria-selected="${whole}">`
+        +`<span class="dot" style="background:var(--se-green)"></span><b>All campaigns</b>`
+        +(whole?'':`<span class="sub">Select all ${nAll}</span>`)
+        +`<span class="tick">&#10003;</span></div><div class="ms-sep"></div>`:'';
+    pop.innerHTML = head + (L.length?L.map((c,i)=>{
+        const on=sc.has(c.key), sole=on&&nSel===1;   // isolating the only selection is a no-op
+        return `<div class="ms-opt${on?' sel':''}${i===MS.hi?' hi':''}" data-id="${esc(c.key)}" role="option" aria-selected="${on}">`
+          +`<span class="dot" style="background:${campColorK(c.key)}"></span><span class="lbl-txt">${esc(c.label)}</span>`
+          +`<span class="sub">${esc(c.brief||'')}</span>`
+          +(sole?'':`<button type="button" class="only" data-only="${esc(c.key)}" title="Show only this campaign">only</button>`)
+          +`<span class="tick">&#10003;</span></div>`;
+      }).join('') : `<div class="ms-empty">No campaign matches "${esc(MS.q)}"</div>`)
+      + `<div class="ms-foot"><span><b>${nSel}</b> of ${nAll} campaigns selected`
+      + `<span class="hint">type to search · &#9166; toggle · alt-click a row to isolate</span></span>`
+      + `<span class="ms-btns"><button type="button" class="ms-btn" data-cancel="1">Cancel</button>`
+      + `<button type="button" class="ms-btn pri" data-apply="1"${MS.dirty()?'':' disabled'}>Apply</button></span></div>`;
+    pop.querySelectorAll('[data-id]').forEach(o=>o.onclick=ev=>{
+      ev.stopPropagation();
+      const only=ev.target&&ev.target.getAttribute&&ev.target.getAttribute('data-only');
+      if(only||ev.altKey) MS.only(only||o.getAttribute('data-id')); else MS.tog(o.getAttribute('data-id'));
+    });
+    const ha=pop.querySelector('[data-all]'); if(ha) ha.onclick=ev=>{ ev.stopPropagation(); MS.all(); };
+    const cb=pop.querySelector('[data-cancel]'); if(cb) cb.onclick=ev=>{ ev.stopPropagation(); MS.cancel(); };
+    const ab=pop.querySelector('[data-apply]'); if(ab) ab.onclick=ev=>{ ev.stopPropagation(); MS.apply(); };
+  }
+};
 function setPmGrain(g){ pmGrain=g; renderActive(); }
 function setPmScale(s){ pmScale=s; renderActive(); }
 function allMarkets(){ activeMarkets=new Set(DATA.markets||[]); renderControls(); renderActive(); }
@@ -1099,22 +1350,27 @@ function toggleMarket(c){ activeMarkets.has(c)?activeMarkets.delete(c):activeMar
 function allTactics(){ activeTactics=new Set(tacticRoster()); renderControls(); renderActive(); }
 function clearTactics(){ activeTactics=new Set(); renderControls(); renderActive(); }
 function toggleTactic(t){ activeTactics.has(t)?activeTactics.delete(t):activeTactics.add(t); renderControls(); renderActive(); }
-// Top-nav Campaign dropdown. Switching campaign also re-opens every market and line-item chip: the
+// THE one place the scope changes. Changing it also re-opens every market and line-item chip: the
 // three briefs run in DIFFERENT markets (ent_it is India/MEA/South America/Pacific, the other two are
 // AU/NZ) and buy DIFFERENT line items (ent_it names its ad sets by vertical, so it has none), so
-// carrying either selection across would silently zero the new campaign's numbers.
-function setCampaign(v){
-  activeCampaign = v || ALL_CAMPAIGNS;
+// carrying either selection across would silently zero the new selection's numbers.
+function setScope(keys){
+  const keep=campKeys().filter(k=>keys.includes(k));
+  if(!keep.length) return;      // the last campaign can never be removed - an empty scope is a blank dashboard
+  activeCampaigns=new Set(keep);
   activeMarkets = new Set(marketRoster());
   activeTactics = new Set(tacticRoster());
   renderControls(); renderActive();
 }
+function setCampaign(v){ (!v||v===ALL_CAMPAIGNS)?setScope(campKeys()):setScope([v]); }   // legacy entry point
 // The markets worth showing for the current selection: the campaign's own when one is picked,
 // otherwise the full vocabulary.
 function marketRoster(){
   if(allCampaignsView()) return DATA.markets||[];
-  const c=campaignList().find(x=>x.key===activeCampaign);
-  return (c && c.markets && c.markets.length) ? c.markets : (DATA.markets||[]);
+  // UNION, and in the payload's own market order - ent_it runs India/MEA/South America/Pacific while
+  // the other two are AU/NZ, so a mixed selection legitimately spans both rosters.
+  const u=new Set(); activeCampaignList().forEach(c=>(c.markets||[]).forEach(mk=>u.add(mk)));
+  return u.size ? (DATA.markets||[]).filter(mk=>u.has(mk)) : (DATA.markets||[]);
 }
 
 function renderControls(){
@@ -1122,7 +1378,9 @@ function renderControls(){
   visibleTabs().forEach(t=>{ const b=document.createElement('button'); b.className='tab'+(activeTab===t?' on':''); b.textContent=TAB_LABEL[t]; b.onclick=()=>setTab(t); bar.appendChild(b); });
   const roster=marketRoster();
   const mkts=activeMarkets.size===roster.length?'all markets':(activeMarkets.size?activeMarketList().join(' · '):'no markets');
-  const camps=allCampaignsView()?'all 3 campaigns':(campaignList().find(c=>c.key===activeCampaign)||{}).label||'-';
+  const camps=allCampaignsView()?`all ${campKeys().length} campaigns`
+    : (soleCamp()?campLabel(soleCamp())
+      : `${selCampKeys().length} of ${campKeys().length} campaigns · ${activeCampaignList().map(c=>c.label).join(' · ')}`);
   const chans=activeChannels.size===0?'all channels':PLATFORMS.filter(p=>activeChannels.has(p.key)).map(p=>p.label).join(' · ');
   const troster=tacticRoster();
   const lines=activeTactics.size===troster.length?'all line items':(activeTactics.size?activeTacticList().join(' · '):'no line items');
@@ -1138,12 +1396,9 @@ function renderControls(){
   document.querySelector('.control-filters').style.display = isReports ? 'none' : 'flex';
   document.querySelector('.exports').style.display = isReports ? 'none' : 'flex';
 
-  // Campaign selector (top-nav dropdown, the client_schneider pattern). "All campaigns" stays as the
-  // first option here - unlike client_schneider, the combined view is the point of this dashboard.
-  const sel=el('campSelect'); sel.innerHTML='';
-  const optAll=document.createElement('option'); optAll.value=ALL_CAMPAIGNS; optAll.textContent='All campaigns'; sel.appendChild(optAll);
-  campaignList().forEach(c=>{ const o=document.createElement('option'); o.value=c.key; o.textContent=`${c.label} (${c.brief})`; sel.appendChild(o); });
-  sel.value=activeCampaign;
+  // Campaign selector (the client_schneider multi-select). "All campaigns" leads the list here -
+  // unlike client_schneider, the combined view is the point of this dashboard.
+  MS.render();
 
   // Channel chips - coloured with each engine's own colour when ON, matching the charts.
   // ONLY engines the SELECTED campaign actually ran (client, 2026-08-15). Never advertise a channel
@@ -1576,10 +1831,14 @@ async function ensureInternal(){
 }
 // Ad sets for the selected campaign. Whole-flight by design - a targeting setup is not a dated fact.
 function repAdsets(){ return ((internalData&&internalData.adsets)||[]).filter(a=>campOk(a.campaign)); }
-function repScopeLabel(){ return allCampaignsView() ? 'All campaigns' : campLabel(activeCampaign); }
+function repScopeLabel(){ return allCampaignsView() ? 'All campaigns' : campScopePhrase(); }
+// The workbook's own title, so a SUBSET must name its briefs - a file called "all campaigns" holding
+// two of the three is the kind of thing that gets forwarded to a client.
 function repScopeBrief(){
-  const c=campaignList().find(x=>x.key===activeCampaign);
-  return c ? `${c.brief} ${c.label}` : 'Secure Power - all campaigns';
+  if(allCampaignsView()) return 'Secure Power - all campaigns';
+  const sel=activeCampaignList();
+  return sel.length===1 ? `${sel[0].brief} ${sel[0].label}`
+    : `Secure Power - ${sel.map(c=>c.label).join(', ')}`;
 }
 function repFileSlug(){
   return (repScopeBrief().replace(/[^A-Za-z0-9]+/g,'_').replace(/^_|_$/g,'')) || 'Secure_Power';

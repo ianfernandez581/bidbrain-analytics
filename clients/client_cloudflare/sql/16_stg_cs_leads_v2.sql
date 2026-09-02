@@ -51,6 +51,11 @@ WITH base AS (
     CAMPAIGN,
     CAMPAIGN_ID,
     COUNTRY_NAME,
+    -- Asset columns, added 2026-09-02 for the EMEA CS Comparison panel's "Best performing
+    -- assets" list (18_cs_compare_v2). 100% populated on both theatres in the Q3 mirror
+    -- (3,387 rows, 39 distinct APAC / 26 EMEA), so there is no NULL arm to design for.
+    ASSET_1,
+    ASSET_2,
     SPLIT(CAMPAIGN, '_')[SAFE_OFFSET(2)] AS SEG_REGION,
     SPLIT(CAMPAIGN, '_')[SAFE_OFFSET(3)] AS SEG_VENDOR,
     SPLIT(CAMPAIGN, '_')[SAFE_OFFSET(4)] AS SEG_PROGRAM
@@ -79,7 +84,7 @@ WITH base AS (
 ),
 typed AS (
   SELECT
-    DAY, LEAD_STATUS, CAMPAIGN, CAMPAIGN_ID, COUNTRY_NAME, SEG_PROGRAM,
+    DAY, LEAD_STATUS, CAMPAIGN, CAMPAIGN_ID, COUNTRY_NAME, SEG_PROGRAM, ASSET_1, ASSET_2,
     IF(UPPER(SEG_REGION) LIKE 'EMEA%', 'EMEA', 'APAC') AS THEATRE,
     -- VENDOR (= the publisher) display names. Salesforce carries the same publisher in
     -- several casings - SHOUTY for the ones onboarded most recently (DEMANDAI, INTERLINK,
@@ -221,6 +226,30 @@ SELECT
   IF(MARKET = 'UNMAPPED', 1, 0)                          AS NEEDS_REVIEW,
   CAMPAIGN,
   CAMPAIGN_ID,
-  COUNTRY_NAME
+  COUNTRY_NAME,
+  ASSET_1,
+  ASSET_2,
+  -- SERVICE = the Cloudflare SOLUTION the lead's campaign was bought under. Parsed from the
+  -- campaign name, which is where it lives; there is no solution column in the mirror.
+  --
+  -- !! THIS CASE IS A SECOND COPY. The twin is sql/13_pacing_model.sql (~line 76), which is
+  -- what the legacy APJ model feeds the assets chart from. The two MUST agree: the dashboard's
+  -- solution COLOUR MAP keys on these exact strings, so a token that resolves differently here
+  -- than there would give the same asset two colours on two tabs. They are not shared yet
+  -- because sql/13 sits on the live APJ path and factoring it out would put every headline APJ
+  -- number through a new join for a cosmetic label - see the client README follow-up. If you
+  -- edit either CASE, edit BOTH in the same change.
+  --
+  -- Verified against the Q3 mirror 2026-09-02: ZERO rows fall to 'Unknown' on either theatre
+  -- (EMEA is Modernize Security 1,188 / Connectivity Cloud 105). 'Unknown' is kept as the ELSE
+  -- rather than defaulting to a real solution, because a real-value ELSE on a parsed token
+  -- turns a naming change into silent misattribution (md/AGENTS.md).
+  CASE
+    WHEN LOWER(CAMPAIGN) LIKE '%connectivity%cloud%'  THEN 'Connectivity Cloud'
+    WHEN LOWER(CAMPAIGN) LIKE '%modernize%network%'   THEN 'Modernize Network'
+    WHEN LOWER(CAMPAIGN) LIKE '%modernize%security%'  THEN 'Modernize Security'
+    WHEN LOWER(CAMPAIGN) LIKE '%modernize%app%'       THEN 'Modernize Applications'
+    ELSE 'Unknown'
+  END AS SERVICE
 FROM scoped
 ;
