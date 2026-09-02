@@ -32,18 +32,31 @@ CONFIG = {
     "business_model": (
         "Schneider Electric's Pacific (ANZ) B2B demand-generation account, run by Transmission, scoped one "
         "lead-gen PROGRAM at a time (the brief tells you which). TWO DISTINCT ENGINES — keep them separate:\n"
-        "  1) PAID MEDIA = delivery across THREE platforms — DV360, The Trade Desk (both programmatic DISPLAY) "
-        "and LinkedIn. Measured on spend, impressions, clicks (and derived CTR/CPM/CPC). There is NO per-strategy "
-        "split and NO CTR/CPM/CPC benchmark seeded — so judge paid on DELIVERY and reach and its cost per lead, "
-        "NOT against a benchmark. Display + paid social are UPPER/MID-FUNNEL brand-and-reach activity; clicks are a "
-        "weak proxy for intent and are NOT the goal. Never treat a display click as a lead.\n"
+        "  1) PAID MEDIA = delivery across FOUR platforms — DV360 and The Trade Desk (both programmatic "
+        "DISPLAY), LinkedIn (paid social) and GOOGLE SEARCH (SEM). Measured on spend, impressions, clicks (and "
+        "derived CTR/CPM/CPC). There is NO per-strategy split and NO CTR/CPM/CPC benchmark seeded — so judge paid "
+        "on DELIVERY and reach and its cost per lead, NOT against a benchmark. Display + paid social are "
+        "UPPER/MID-FUNNEL brand-and-reach activity; clicks are a weak proxy for intent and are NOT the goal. "
+        "Never treat a display click as a lead.\n"
+        "     GOOGLE SEARCH IS DIFFERENT AND MUST NOT BE RANKED AGAINST THE OTHER THREE ON CTR OR CPM. It is "
+        "bought on intent, so its CTR runs an order of magnitude higher and its CPM an order of magnitude higher "
+        "too — that is the shape of the buy, not a performance verdict. Use CPC if you need one number across "
+        "engines. Within Search, BRAND and NON-BRAND are separate lanes bought for different jobs (brand defends "
+        "existing demand cheaply at very high CTR; non-brand buys new demand at roughly 10x the CPC); if you quote "
+        "a single blended Search CTR or CPC, say it is a blend. SEARCH HAS NO CONVERSION METRIC HERE — the "
+        "account's conversion figure is unreconciled and possibly inflated ~100x, so it is deliberately withheld "
+        "from your data. You must not state, estimate or imply Search conversions, conversion rate, cost per "
+        "acquisition, ROAS or leads. Search spend bills in USD and is converted to AUD at the dashboard rate.\n"
         "  2) CONTENT SYNDICATION (CS) = the actual LEAD ENGINE: Salesforce leads from gated content, measured "
         "against a total MQL/HQL lead target and a time-to-date (TTD) pro-rata target (are leads pacing ahead of, "
         "or behind, where elapsed time says they should be?), with a plan cost-per-lead by media-plan line. Leads "
         "are CLAMPED to each program's flight window (pre-flight spillover is excluded). Anchor the 'are we "
         "winning?' judgement HERE, on CS pacing-vs-target and lead volume — not on display clicks.\n"
-        "  MARKETS: Australia / New Zealand / ANZ / Other. Some programs (heavy, global_rebrand) are leads-only "
-        "with NO paid delivery.\n"
+        "  MARKETS: Australia / New Zealand / ANZ / Other. Programs differ in shape: some are lead-gen with a CS "
+        "target, others are awareness-only with paid delivery and NO Salesforce leads at all. Read paid.platforms "
+        "and cs.target to see which you have rather than assuming — global_rebrand, for one, was leads-only when "
+        "this brief was first written and now runs LinkedIn plus Google Search. If a program has no paid delivery, "
+        "say so rather than inventing a paid story; if it has no CS target, do not score it on leads.\n"
         "  'TTD' is overloaded: in CS it means the time-to-date pro-rata target; 'The Trade Desk' is a paid platform. "
         "Use full words to disambiguate."
     ),
@@ -64,7 +77,7 @@ CONFIG = {
         "(estimated, per-lead) spend into a single 'spent' figure without flagging that half is an estimate."
     ),
     # Short lowercase tokens for the on-slide category chip (bb_deck.js maps known ones to labels).
-    "category_tokens": "content_syndication (the CS lead engine), paid_media (DV360/TTD/LinkedIn delivery), budget, overall",
+    "category_tokens": "content_syndication (the CS lead engine), paid_media (DV360/TTD/LinkedIn/Google Search delivery), budget, overall",
 }
 
 CLIENT = CONFIG["client"]

@@ -298,6 +298,14 @@
   .info-note b{color:#10240F}
   .info-note.warn{background:#FBF4E6;border-color:#EAD9AE;border-left-color:var(--amber);color:#5A4214}
   .info-note.warn b{color:#3F2E08}
+  /* PENDING placeholder - deliberately inert and unmistakably not a number. Dashed, greyscale and
+     badge-led so it can never be mistaken for a measured panel that happens to be empty. */
+  .info-note.pending{background:#F6F7F8;border:1px dashed #C3C9CF;border-left:4px dashed #9AA3AC;color:#4A545E}
+  .info-note.pending b{color:#2B333B}
+  .pending-badge{display:inline-block;background:#5A6B78;color:#fff;font-size:9.5px;font-weight:700;
+    letter-spacing:.08em;text-transform:uppercase;padding:2px 7px;border-radius:4px;margin-right:8px;
+    vertical-align:1px}
+  .fx-foot{font-size:11px;color:var(--se-mute);margin-top:10px;line-height:1.55}
 
   /* labelled target-progress rows */
   .progress-row{display:grid;grid-template-columns:108px 1fr 58px;align-items:center;gap:10px;margin:9px 0;font-size:12px}
@@ -674,10 +682,60 @@
         <div class="budget-body" style="margin-top:10px"></div>
       </div>
 
-      <div class="section"><h2 style="font-size:15px">Platform comparison</h2><span class="sub">DV360 vs The Trade Desk vs LinkedIn - efficiency side by side (CTR / CPM / CPC in AUD).</span></div>
+      <div class="section"><h2 style="font-size:15px">Platform comparison</h2><span class="sub" id="pmPlatSub">Efficiency side by side (CTR / CPM / CPC in AUD).</span></div>
       <div class="card" style="margin-top:14px"><div style="overflow:auto">
         <table id="pmPlatTable"><thead><tr><th>Platform</th><th class="num">Spend</th><th class="num">Imps</th><th class="num">Clicks</th><th class="num">CTR</th><th class="num">CPM</th><th class="num">CPC</th><th class="num" id="pmPlatLeadsHead" style="display:none" title="LinkedIn on-platform lead-form submissions">Lead-form leads</th></tr></thead><tbody></tbody></table>
-      </div></div>
+      </div>
+      <div class="hint" id="pmPlatNote" style="display:none;margin:12px 0 0 0"></div></div>
+
+      <!-- ============ GOOGLE SEARCH (SEM) ============
+           Hidden entirely unless the current selection actually has Search delivery, so the ten
+           programs that never bought Search see no trace of it. Brand and non-brand lead because
+           they are not comparable to each other - a blended Search CTR describes neither. -->
+      <div id="pmSearchSec" style="display:none">
+        <div class="section"><h2 style="font-size:15px">Google Search (SEM)</h2><span class="sub" id="searchIntro">Paid search delivery. <b>Brand</b> and <b>non-brand</b> are reported separately - they are bought for different jobs and a blended figure describes neither. Honours the selected region(s) and date range.</span></div>
+
+        <div class="kpis" id="searchKpis" style="margin-top:14px"></div>
+
+        <div class="grid">
+          <div class="card"><h3>Brand vs non-brand</h3>
+            <div class="hint">Branded terms defend an existing intent; non-brand buys new demand. Their CTR and CPC are an order of magnitude apart, so they are never averaged together here.</div>
+            <div style="overflow:auto"><table id="searchTypeTable"><thead><tr><th>Query type</th><th class="num">Spend</th><th class="num">Imps</th><th class="num">Clicks</th><th class="num">Share of clicks</th><th class="num">CTR</th><th class="num">CPC</th></tr></thead><tbody></tbody><tfoot></tfoot></table></div>
+          </div>
+          <div class="card"><h3>By market</h3>
+            <div class="hint">Search delivery across the selected regions, split the same way.</div>
+            <div style="overflow:auto"><table id="searchMarketTable"><thead><tr><th>Market</th><th>Query type</th><th class="num">Spend</th><th class="num">Imps</th><th class="num">Clicks</th><th class="num">CTR</th><th class="num">CPC</th></tr></thead><tbody></tbody></table></div>
+          </div>
+        </div>
+
+        <div class="card" id="searchPaceCard" style="margin-top:16px;display:none">
+          <h3>Clicks vs the media-plan target</h3>
+          <div class="hint" id="searchPaceHint"></div>
+          <div class="budget-body" id="searchPaceBody" style="margin-top:10px"></div>
+        </div>
+
+        <div class="card" style="margin-top:16px"><h3>Search campaigns</h3>
+          <div class="hint">Every in-scope Search campaign, at the grain the account reports (one row per campaign per day, rolled up over the selected range). Sorted by clicks.</div>
+          <div style="overflow:auto"><table id="searchCampTable"><thead><tr><th>Campaign</th><th>Brief</th><th>Market</th><th>Query type</th><th class="num">Spend</th><th class="num">Imps</th><th class="num">Clicks</th><th class="num">CTR</th><th class="num">CPC</th></tr></thead><tbody></tbody><tfoot></tfoot></table></div>
+          <div class="fx-foot" id="searchFxFoot"></div>
+        </div>
+
+        <!-- CONVERSIONS: deliberately not built. See sql/03b_stg_google_search.sql - the account's
+             CONVERSIONS / CONVERSION_RATE / COST_PER_CONVERSION / CONVERSION_VALUE_TOTAL columns are
+             unresolved and are not carried past the staging view, so there is nothing on this page
+             that could accidentally be summed into a conversion, a CPA or a ROAS. This placeholder
+             is static copy on purpose: it must state that the panel is pending, not render a zero. -->
+        <div class="info-note pending" id="searchConvNote" style="margin-top:16px">
+          <span class="pending-badge">Pending</span> <b>Search conversions are not reported yet.</b>
+          This account records conversions, but the figure has not been reconciled against the Google Ads
+          interface and cannot be trusted from the warehouse alone - its conversion actions are dominated
+          by page-view tags, so it may be counting page views rather than enquiries. Rather than publish a
+          number that could be wrong by two orders of magnitude, no conversion metric is shown: no
+          conversions, no conversion rate, no cost per acquisition and no ROAS. Impressions, clicks, spend,
+          CTR and CPC above are verified and reconcile to the source. This panel goes live once the manual
+          reconciliation is done.
+        </div>
+      </div>
 
       <div class="section"><h2 style="font-size:15px">Spend &amp; market breakdown</h2><span class="sub">Where the media budget went - by platform and by market (AUD).</span></div>
       <div class="grid">
@@ -879,14 +937,31 @@ const JSON_URL = '/data.json';
 const C = {
   green:'#009530', green2:'#007E2A', deep:'#005F20', dark:'#1A1A1A', ink:'#1F2933',
   mute:'#6B7480', line:'#E6E9ED', dv:'#009530', td:'#F2A900', li:'#2867B2',
-  slate:'#5A6B78', amber:'#B97400', violet:'#8E44AD', grey:'#C9CED4', target:'#9AA3AC'
+  slate:'#5A6B78', amber:'#B97400', violet:'#8E44AD', grey:'#C9CED4', target:'#9AA3AC',
+  gs:'#0E7C86'
 };
+// The ONE platform roster. Chips, the platform table, the spend doughnut and the CSV all derive
+// from it, and platformsInData()/platformsInCampaign() hide any engine a program did not buy - so
+// Google Search (added 2026-09-02) shows only on global_rebrand and mcset, and nowhere else.
 const PLATFORMS = [
-  {key:'dv360',     label:'DV360',     color:C.dv},
-  {key:'tradedesk', label:'TradeDesk', color:C.td},
-  {key:'linkedin',  label:'LinkedIn',  color:C.li},
+  {key:'dv360',         label:'DV360',         color:C.dv},
+  {key:'tradedesk',     label:'TradeDesk',     color:C.td},
+  {key:'linkedin',      label:'LinkedIn',      color:C.li},
+  {key:'google_search', label:'Google Search', color:C.gs},
 ];
 const PLAT_LABEL = Object.fromEntries(PLATFORMS.map(p=>[p.key,p.label]));
+// Prose forms of the platform names, for sentences rather than table cells ('TradeDesk' reads wrong
+// in a sentence). platNames() names the engines that ACTUALLY delivered in the current selection, so
+// the client-facing copy can never claim a channel this program did not buy - which is exactly what
+// the old hardcoded "DV360 / The Trade Desk / LinkedIn" copy did the moment Search arrived.
+const PLAT_PROSE = {dv360:'DV360', tradedesk:'The Trade Desk', linkedin:'LinkedIn', google_search:'Google Search'};
+function platNames(rows){
+  const seen = new Set((rows||[]).map(r=>r.platform));
+  const names = PLATFORMS.filter(p=>seen.has(p.key)).map(p=>PLAT_PROSE[p.key]||p.label);
+  if(!names.length) return 'Paid';
+  if(names.length===1) return names[0];
+  return names.slice(0,-1).join(' · ') + ' · ' + names[names.length-1];
+}
 const CAMP_PALETTE = ['#007E2A','#2867B2','#F2A900','#8E44AD','#0E7C86'];
 const PROG_PALETTE = ['#007E2A','#2867B2','#F2A900','#8E44AD','#0E7C86','#B97400','#5A6B78','#009530','#9AD4B5'];
 
@@ -978,7 +1053,9 @@ const FONT={family:'-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,s
 // Grosses RAW media spend up to what the client was BILLED, per channel. Counts (imps/clicks/leads),
 // CTR and CS lead economics stay real; cost-per-X (CPM/CPC/CPL) follow automatically because they
 // derive from summed spend downstream. Idempotent (stashes raws first); empty/unset map => every
-// factor defaults to 1 => total no-op. schneider = DV360 · The Trade Desk · LinkedIn (multi-channel).
+// factor defaults to 1 => total no-op. schneider = DV360 · The Trade Desk · LinkedIn · Google Search
+// (multi-channel). Search rows resolve to the 'google' key via bbChannelKey, on BOTH money surfaces
+// (pm_delivery and search_campaigns) - see the search_campaigns pass inside bbApplySpendMult.
 function bbMultFor(channel){ const m=window.BB_SPEND_MULT||{}; const v=Number(m[channel]); return (Number.isFinite(v)&&v>0)?v:1; }
 function bbChannelKey(p){ var s=String(p||'').toLowerCase();
   if(s.includes('google'))return 'google';
@@ -1002,6 +1079,17 @@ function bbApplySpendMult(){
   (DATA.campaigns||[]).forEach(c=>{ (c.channels||[]).forEach(x=>{ if(x.group!=='paid') return;
     if(x._rawSpend==null) x._rawSpend=Number(x.spend)||0;
     x.spend=x._rawSpend*bbMultFor(bbChannelKey(x.name)); }); });
+  // Google Search campaign detail (sql/22). A SEPARATE money surface from pm_delivery, so it needs
+  // grossing here too, or the Search section would print RAW spend directly under a BILLED Google
+  // Search row in the platform table - the repo-wide "every money surface must reach the shim" rule.
+  // cost_usd is grossed by the SAME factor: it is only ever shown as the USD equivalent of the AUD
+  // figure beside it, and leaving it raw would make the FX footnote contradict the number it
+  // explains. bbChannelKey('google_search') -> 'google', the same key pm_delivery's Search rows
+  // resolve to, so both surfaces move together by construction rather than by coincidence.
+  (DATA.search_campaigns||[]).forEach(r=>{ const f=bbMultFor(bbChannelKey('google_search'));
+    if(r._rawSpend==null) r._rawSpend=Number(r.spend_aud)||0;
+    if(r._rawUsd==null)   r._rawUsd=Number(r.cost_usd)||0;
+    r.spend_aud=r._rawSpend*f; r.cost_usd=r._rawUsd*f; });
 }
 // ----------------------------------------------------------------------------------------------
 
@@ -1297,7 +1385,7 @@ function renderMeta(){
   const w=DATA.window||{};
   el('topPeriod').textContent=`${dateLabel(w.start)} – ${dateLabel(w.end)}`;
   const lu=DATA.last_updated?new Date(DATA.last_updated):null;
-  el('footMeta').innerHTML=`Schneider Electric Pacific · Content Syndication (via Transmission) · data from BigQuery (DV360 · TradeDesk · LinkedIn · Salesforce) · `
+  el('footMeta').innerHTML=`Schneider Electric Pacific · Content Syndication (via Transmission) · data from BigQuery (DV360 · TradeDesk · LinkedIn · Google Search · Salesforce) · `
     +`FX US$1=A$${DATA.fx_usd_aud} · S$1=A$${DATA.fx_sgd_aud} · Updated <b>${lu&&!isNaN(lu)?lu.toLocaleString('en-AU',{timeZone:'Australia/Brisbane',day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:false})+' AEST':'unknown'}</b>`;
 }
 
@@ -1488,13 +1576,159 @@ function renderPmBudget(){
     <div class="progress-row"><div>Spent to date</div><div class="pbar"><div class="fill" style="width:${w(spent)}%"></div></div><div>${money(spent)}</div></div>
     <div class="prog-note">Spent <b>${money(spent)}</b> of the <b>${money(budget)}</b> planned paid-media budget (<b>${fmtPct(usedPct,0)}</b> used)${paceTxt?`, ${paceTxt}`:''}. Budget is the media plan (ex-fees); spend is measured DV360 / Trade Desk / LinkedIn delivery. Content-syndication budget is on the Content Syndication tab (it bills per lead).</div>`;
 }
+//==============================================================================
+// GOOGLE SEARCH (SEM)  - campaign x brand/non-brand detail on the Paid Media tab
+//==============================================================================
+// Campaign names carry '&' (2061_AET - Electrification & Automation - AU), so anything injected as
+// innerHTML must be escaped. There was no escape helper in this file before Search arrived.
+function escH(v){ return String(v==null?'':v).replace(/[&<>"']/g, function(c){
+  return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+
+// Same predicates as pmRows() - including platOk, so unticking the Google Search chip takes the
+// whole section with it rather than leaving an orphan panel contradicting the KPIs above it.
+function searchRows(){ return (DATA.search_campaigns||[])
+  .filter(r=>inCamp(r.program) && platOk('google_search') && marketOk(r.market) && inRangeDate(r.date)); }
+// UNFILTERED in-scope Search, for the plan-pacing card ONLY: the media plan's click target is
+// whole-flight and all-markets, so pacing it against a date/region-filtered actual compares two
+// different things. Same convention the Spend-vs-budget card uses.
+function searchRowsFull(){ return (DATA.search_campaigns||[]).filter(r=>inCamp(r.program)); }
+function searchAgg(rows, keyFn){
+  const m={};
+  rows.forEach(r=>{ const k=keyFn(r); const e=m[k]||(m[k]={key:k,imps:0,clk:0,spend:0,usd:0,camps:new Set()});
+    e.imps+=r.imps||0; e.clk+=r.clicks||0; e.spend+=r.spend_aud||0; e.usd+=r.cost_usd||0; e.camps.add(r.campaign); });
+  return Object.values(m);
+}
+// Brand first: it is the cheaper, higher-CTR lane, and reading it first stops the non-brand CPC
+// looking like a failure rather than like the cost of buying new demand.
+const SEARCH_TYPE_ORDER={'Brand':0,'Non-brand':1};
+function searchTypeRank(k){ const v=SEARCH_TYPE_ORDER[k]; return v==null?9:v; }
+
+function renderSearch(){
+  const host=el('pmSearchSec'); if(!host) return;
+  const rows=searchRows();
+  // Nothing to say for the programs that never bought Search - hide the whole section rather than
+  // draw empty tables, the same rule the platform chips already follow.
+  if(!rows.length){ host.style.display='none'; return; }
+  host.style.display='';
+
+  const tot=rows.reduce(function(a,r){ return {imps:a.imps+(r.imps||0),clk:a.clk+(r.clicks||0),
+    spend:a.spend+(r.spend_aud||0),usd:a.usd+(r.cost_usd||0)}; },{imps:0,clk:0,spend:0,usd:0});
+  // NB: no CPM here on purpose. Search impressions are a by-product of intent, not the thing
+  // being bought, so a search CPM invites a comparison with programmatic that is meaningless.
+  const ctr=pct(tot.clk,tot.imps), cpc=tot.clk?tot.spend/tot.clk:0;
+
+  el('searchIntro').innerHTML='Paid search delivery for '+(isAllCampaigns()?'<b>all programs in scope</b>':escH(campaign().label))
+    +'. <b>Brand</b> and <b>non-brand</b> are reported separately - they are bought for different jobs and a blended figure describes neither. Honours the selected region(s) and date range.';
+
+  const paidTot=pmTotals(pmRows());
+  const shareTxt=paidTot.spend>0?fmtPct(pct(tot.spend,paidTot.spend),1)+' of paid spend shown':'';
+  el('searchKpis').innerHTML=[
+    ['Search spend', money(tot.spend), shareTxt],
+    ['Impressions', fmtM(tot.imps), 'search results served'],
+    ['Clicks', fmtN(tot.clk), fmtPct(ctr,2)+' CTR blended'],
+    ['Cost per click', money(cpc,2), 'blended, AUD'],
+  ].map(function(x){ return '<div class="kpi"><span class="stripe"></span><div class="label">'+x[0]
+    +'</div><div class="value">'+x[1]+'</div><div class="delta">'+x[2]+'</div></div>'; }).join('');
+
+  // --- brand vs non-brand ----------------------------------------------------
+  const byType=searchAgg(rows,function(r){ return r.match_type||'Non-brand'; })
+    .sort(function(a,b){ return searchTypeRank(a.key)-searchTypeRank(b.key); });
+  el('searchTypeTable').querySelector('tbody').innerHTML=byType.map(function(x){
+    return '<tr><td><span class="pill"><span class="dot" style="background:'+(x.key==='Brand'?C.gs:C.amber)+'"></span>'+escH(x.key)+'</span>'
+      +' <span style="color:var(--se-mute);font-size:11px;white-space:nowrap">'+x.camps.size+' campaign'+(x.camps.size===1?'':'s')+'</span></td>'
+      +'<td class="num">'+money(x.spend)+'</td><td class="num">'+fmtN(x.imps)+'</td><td class="num">'+fmtN(x.clk)+'</td>'
+      +'<td class="num">'+fmtPct(pct(x.clk,tot.clk),0)+'</td><td class="num">'+fmtPct(pct(x.clk,x.imps),2)+'</td>'
+      +'<td class="num">'+money(x.clk?x.spend/x.clk:0,2)+'</td></tr>'; }).join('');
+  el('searchTypeTable').querySelector('tfoot').innerHTML=
+    '<tr class="total"><td>All search</td><td class="num">'+money(tot.spend)+'</td><td class="num">'+fmtN(tot.imps)
+    +'</td><td class="num">'+fmtN(tot.clk)+'</td><td class="num">100%</td><td class="num">'+fmtPct(ctr,2)
+    +'</td><td class="num">'+money(cpc,2)+'</td></tr>';
+
+  // --- market x query type ---------------------------------------------------
+  const byMk=searchAgg(rows,function(r){ return r.market+'||'+(r.match_type||'Non-brand'); })
+    .map(function(x){ const parts=x.key.split('||'); x.mk=parts[0]; x.ty=parts[1]; return x; })
+    .sort(function(a,b){ return a.mk===b.mk?(searchTypeRank(a.ty)-searchTypeRank(b.ty)):(a.mk<b.mk?-1:1); });
+  el('searchMarketTable').querySelector('tbody').innerHTML=byMk.map(function(x){
+    return '<tr><td>'+escH(x.mk)+'</td><td>'+escH(x.ty)+'</td><td class="num">'+money(x.spend)+'</td>'
+      +'<td class="num">'+fmtN(x.imps)+'</td><td class="num">'+fmtN(x.clk)+'</td>'
+      +'<td class="num">'+fmtPct(pct(x.clk,x.imps),2)+'</td>'
+      +'<td class="num">'+money(x.clk?x.spend/x.clk:0,2)+'</td></tr>'; }).join('');
+
+  // --- campaign detail -------------------------------------------------------
+  const byCamp=searchAgg(rows,function(r){ return r.campaign; }).map(function(x){
+    const src=rows.filter(function(r){ return r.campaign===x.key; })[0]||{};
+    x.brief=src.brief; x.ty=src.match_type; x.mk=src.market; return x;
+  }).sort(function(a,b){ return b.clk-a.clk; });
+  el('searchCampTable').querySelector('tbody').innerHTML=byCamp.map(function(x){
+    return '<tr><td>'+escH(x.key)+'</td><td>'+escH(x.brief||'-')+'</td><td>'+escH(x.mk||'-')+'</td>'
+      +'<td>'+escH(x.ty||'-')+'</td><td class="num">'+money(x.spend)+'</td><td class="num">'+fmtN(x.imps)+'</td>'
+      +'<td class="num">'+fmtN(x.clk)+'</td><td class="num">'+fmtPct(pct(x.clk,x.imps),2)+'</td>'
+      +'<td class="num">'+money(x.clk?x.spend/x.clk:0,2)+'</td></tr>'; }).join('');
+  el('searchCampTable').querySelector('tfoot').innerHTML=
+    '<tr class="total"><td colspan="4">'+byCamp.length+' campaign'+(byCamp.length===1?'':'s')+'</td>'
+    +'<td class="num">'+money(tot.spend)+'</td><td class="num">'+fmtN(tot.imps)+'</td>'
+    +'<td class="num">'+fmtN(tot.clk)+'</td><td class="num">'+fmtPct(ctr,2)+'</td>'
+    +'<td class="num">'+money(cpc,2)+'</td></tr>';
+
+  // --- FX footnote -----------------------------------------------------------
+  // Search is the ONLY channel on this dashboard whose source currency is never AUD, so the
+  // conversion is stated rather than left implicit inside a blended total.
+  const fxr=(DATA.search_fx&&DATA.search_fx.rate_to_aud)||1.50;
+  el('searchFxFoot').innerHTML='This account bills in <b>US dollars</b>. Search spend is converted to AUD at <b>A$'
+    +fxr.toFixed(2)+' per US$1.00</b> - the same rate this dashboard applies to its other USD sources - so it can be '
+    +'compared with, and added to, the other platforms. The <b>'+money(tot.spend)+'</b> above is equivalent to <b>US$'
+    +Number(tot.usd).toLocaleString('en-US',{maximumFractionDigits:0})+'</b>. Every other channel here bills in AUD or '
+    +'is converted at the same shared rates.';
+
+  renderSearchPace();
+}
+
+// Clicks vs the media plan's committed Search click target. WHOLE FLIGHT, ALL MARKETS on both sides -
+// the plan is not split by region or week, so pacing a filtered actual against it would compare two
+// different things. Hidden when the scope has no seeded Search click target (mcset has no media plan
+// at all), because a pace bar against no target is just a bar.
+function renderSearchPace(){
+  const card=el('searchPaceCard'); if(!card) return;
+  let target=0; const named=[]; const targeted={};
+  (DATA.campaigns||[]).filter(function(c){ return inCamp(c.id); }).forEach(function(c){
+    (c.channels||[]).forEach(function(x){
+      if(x.group==='paid' && /search/i.test(x.name||'') && +x.click_target>0){
+        target+=+x.click_target; named.push(c.label); targeted[c.id]=1; }
+    });
+  });
+  if(!(target>0)){ card.style.display='none'; return; }
+  // ONLY the programs that put a target on the board may contribute clicks to this ratio. Summing
+  // every in-scope program's Search clicks against a target only some of them seeded flatters the
+  // pace by exactly the untargeted programs' delivery (mcset has no media plan, so under "All
+  // campaigns" its 168 clicks would push a 228% pace to 241% against an unchanged denominator).
+  const full=searchRowsFull().filter(function(r){ return targeted[r.program]; });
+  const clicks=full.reduce(function(a,r){ return a+(r.clicks||0); },0);
+  const imps=full.reduce(function(a,r){ return a+(r.imps||0); },0);
+  card.style.display='';
+  const usedPct=pct(clicks,target), cap=Math.max(target,clicks,1);
+  const w=function(v){ return (Math.min(v/cap,1)*100).toFixed(1); };
+  el('searchPaceHint').innerHTML='The media plan commits a Search click target for <b>'+escH(named.join(', '))
+    +'</b>, and only that program\'s clicks are counted here. <b>Whole flight, all markets</b> - the target is not split by region or date, so this card deliberately ignores the filters above.';
+  el('searchPaceBody').innerHTML=
+    '<div class="progress-row"><div>Click target</div><div class="pbar gray"><div class="fill" style="width:'+w(target)+'%"></div></div><div>'+fmtN(target)+'</div></div>'
+   +'<div class="progress-row"><div>Clicks to date</div><div class="pbar"><div class="fill" style="width:'+w(clicks)+'%"></div></div><div>'+fmtN(clicks)+'</div></div>'
+   +'<div class="prog-note">Delivered <b>'+fmtN(clicks)+'</b> of the <b>'+fmtN(target)+'</b> planned Search clicks (<b>'
+   +fmtPct(usedPct,0)+'</b>) from <b>'+fmtN(imps)+'</b> impressions, a <b>'+fmtPct(pct(clicks,imps),2)
+   +'</b> blended click-through rate. That blend is brand and non-brand together - read the split above before treating it as one number.</div>';
+}
+
 function renderPaid(){
   renderPaidByProgram();   // all-up decomposition (no-op unless "All campaigns" is selected)
-  // Client-facing copy must not claim a scope it is not showing.
-  if(el('pmIntro')) el('pmIntro').innerHTML = isAllCampaigns()
-    ? `Live DV360 · The Trade Desk · LinkedIn delivery <b>summed across all ${(DATA.campaigns||[]).length} programs</b>: spend, impressions, clicks, CTR. The per-program split is in <b>Paid delivery by program</b> below. Reflects the selected <b>platform(s)</b>, region(s) &amp; date range. Reporting currency AUD.`
-    : `Live DV360 · The Trade Desk · LinkedIn delivery for the selected program: spend, impressions, clicks, CTR. Reflects the selected <b>platform(s)</b>, region(s) &amp; date range. Reporting currency AUD.`;
   const rows=pmRows(), t=pmTotals(rows);
+  // Client-facing copy must not claim a scope - or a channel - it is not showing. The engine list is
+  // derived from the filtered rows, so a program that never bought Search is never told about it.
+  const engines=platNames(rows);
+  if(el('pmIntro')) el('pmIntro').innerHTML = isAllCampaigns()
+    ? `Live ${engines} delivery <b>summed across all ${(DATA.campaigns||[]).length} programs</b>: spend, impressions, clicks, CTR. The per-program split is in <b>Paid delivery by program</b> below. Reflects the selected <b>platform(s)</b>, region(s) &amp; date range. Reporting currency AUD.`
+    : `Live ${engines} delivery for the selected program: spend, impressions, clicks, CTR. Reflects the selected <b>platform(s)</b>, region(s) &amp; date range. Reporting currency AUD.`;
+  if(el('pmPlatSub')) el('pmPlatSub').innerHTML = rows.length
+    ? `${engines} - efficiency side by side (CTR / CPM / CPC in AUD).`
+    : `Efficiency side by side (CTR / CPM / CPC in AUD).`;
   const note=el('pmNote');
   if(!rows.length){ note.style.display='block'; note.innerHTML=isAllCampaigns()
       ? `<b>No paid delivery</b> across any program in the current filter - widen the region, platform or date filters. Salesforce leads are on the <b>Content Syndication</b> tab.`
@@ -1528,6 +1762,16 @@ function renderPaid(){
   tb.innerHTML=PLATFORMS.filter(p=>byPlat[p.key].imps||byPlat[p.key].spend).map(p=>{ const x=byPlat[p.key]; return `<tr><td><span class="pill"><span class="dot" style="background:${p.color}"></span>${p.label}</span></td><td class="num">${money(x.spend)}</td><td class="num">${fmtN(x.imps)}</td><td class="num">${fmtN(x.clk)}</td><td class="num">${fmtPct(pct(x.clk,x.imps),2)}</td><td class="num">${money(x.imps?x.spend/x.imps*1000:0,2)}</td><td class="num">${money(x.clk?x.spend/x.clk:0,2)}</td>${lfCell(p.key==='linkedin'?fmtN(x.leads):'-')}</tr>`; }).join('')
     + `<tr class="total"><td>Combined</td><td class="num">${money(t.spend)}</td><td class="num">${fmtN(t.imps)}</td><td class="num">${fmtN(t.clk)}</td><td class="num">${fmtPct(ctr,2)}</td><td class="num">${money(cpm,2)}</td><td class="num">${money(cpc,2)}</td>${lfCell(fmtN(t.leads))}</tr>`;
   if(!rows.length) tb.innerHTML=`<tr><td colspan="${hasLf?8:7}" style="text-align:center;color:var(--se-mute);padding:14px">No delivery in the current filter.</td></tr>`;
+  // Search sits in the same CTR / CPM columns as the programmatic engines and is not comparable with
+  // them on either: it is bought on intent, so its CTR is an order of magnitude higher and its CPM
+  // an order of magnitude higher too, for reasons that have nothing to do with how well it is
+  // performing. Say it once, here, and only when Search is actually in the table.
+  const hasSearch=rows.some(r=>r.platform==='google_search');
+  const platNote=el('pmPlatNote');
+  if(platNote){
+    platNote.style.display=hasSearch?'':'none';
+    if(hasSearch) platNote.innerHTML='<b>Reading this table:</b> Google Search is bought on intent, the programmatic and social lines are bought on reach. Search will always show a far higher CTR and a far higher CPM than DV360, The Trade Desk or LinkedIn - that is the difference between the buys, not a difference in performance. Compare each engine against its own history, and use <b>CPC</b> rather than CPM when you need one number across them.';
+  }
 
   // daily delivery chart
   const m={};
@@ -1550,6 +1794,8 @@ function renderPaid(){
         ySp:rel?{display:false}:{position:'right',display:true,grid:{display:false},border:{display:false},ticks:{display:false}} } }
   });
   wireKpiToggles();
+
+  renderSearch();   // Google Search detail (auto-hides unless this selection has Search delivery)
 
   // spend by platform doughnut
   const sp=PLATFORMS.filter(p=>byPlat[p.key].spend>0);
@@ -2046,7 +2292,8 @@ function renderOther(){
 function exportThisTab(){
   let lines=[`# Schneider CS - ${activeTab} - ${campaign().label} - ${activeMarketList().join('/')}`
     +((activeTab==='paid')?` - ${platformNote()}`:'')];
-  if(activeTab==='paid') lines=lines.concat(tableCSV('pm_delivery (filtered)', pmRows()));
+  if(activeTab==='paid') lines=lines.concat(tableCSV('pm_delivery (filtered)', pmRows()))
+    .concat(searchRows().length?tableCSV('google_search_campaigns (filtered)', searchRows()):[]);
   else if(activeTab==='other') lines=lines.concat(tableCSV('other_channels (plan only)', otherChannels()));
   else if(activeTab==='website') lines=lines.concat(tableCSV('ga4_sources (whole property)', (DATA.ga4&&DATA.ga4.sources)||[]));
   else lines=lines.concat(tableCSV('cs_by_programme (filtered)', csRows()))
@@ -2058,7 +2305,8 @@ function exportThisTab(){
 }
 function exportAllData(){
   let lines=['# Schneider Electric Pacific - Content Syndication - full export'];
-  lines=lines.concat(tableCSV('campaigns', DATA.campaigns)).concat(tableCSV('cs_by_programme', DATA.cs_by_programme)).concat(tableCSV('cs_weekly', DATA.cs_weekly)).concat(tableCSV('pm_delivery', DATA.pm_delivery));
+  lines=lines.concat(tableCSV('campaigns', DATA.campaigns)).concat(tableCSV('cs_by_programme', DATA.cs_by_programme)).concat(tableCSV('cs_weekly', DATA.cs_weekly)).concat(tableCSV('pm_delivery', DATA.pm_delivery))
+    .concat(tableCSV('google_search_campaigns', DATA.search_campaigns||[]));
   dl('schneider_content_syndication.csv', lines);
 }
 
@@ -2133,7 +2381,8 @@ function buildReportPayload(){
         cost_per_lead_form_lead:_r2(pt.leads?pt.spend/pt.leads:null) },
       by_platform, by_market:paid_by_market,
       platforms:activePlatformList().map(x=>x.label),
-      note:'DV360 / The Trade Desk / LinkedIn delivery (upper/mid-funnel). No per-strategy split and no CTR/CPM/CPC benchmarks are seeded. lead_form_leads are LinkedIn on-platform LEAD-FORM submissions - a paid-media metric, entirely separate from the Salesforce content-syndication leads in cs.* and NEVER to be added to them.'
+      note:'DV360 / The Trade Desk / LinkedIn / Google Search delivery. The programmatic and social lines are upper/mid-funnel; Google Search is intent-led and is NOT comparable with them on CTR or CPC - never rank the four against each other on those. No per-strategy split and no CTR/CPM/CPC benchmarks are seeded. lead_form_leads are LinkedIn on-platform LEAD-FORM submissions - a paid-media metric, entirely separate from the Salesforce content-syndication leads in cs.* and NEVER to be added to them.',
+      search_note:'Google Search (SEM) is reported for impressions, clicks, spend, CTR and CPC ONLY. It has NO conversion metric on this dashboard and you must not state, estimate or imply one - no conversions, no conversion rate, no cost per acquisition, no ROAS, no leads. The account records conversions but the figure is unreconciled and may be inflated by roughly 100x, so it is deliberately excluded from the data you have been given. Brand and non-brand search are bought for different jobs and their CTR and CPC differ by an order of magnitude - if you cite a blended search CTR or CPC, say it is a blend. Search spend is billed in USD and converted to AUD at the dashboard rate.'
     },
     plan:{
       target_mql:c.target_mql||0, target_hql:c.target_hql||0, target:c.target||0, committed_spend:_r2(c.committed_spend),
