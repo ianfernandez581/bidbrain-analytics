@@ -1496,7 +1496,7 @@ function renderControls(){
   // used to provide, so it must be reachable in one click, not assembled by the reader.
   const sel=el('campSelect'); sel.innerHTML='';
   const optAll=document.createElement('option'); optAll.value=ALL_ID;
-  optAll.textContent=`All campaigns (${(DATA.campaigns||[]).length} programs)`; sel.appendChild(optAll);
+  optAll.textContent='All campaigns'; sel.appendChild(optAll);
   (DATA.campaigns||[]).forEach(cp=>{ const o=document.createElement('option'); o.value=cp.id; o.textContent=cp.label; sel.appendChild(o); });
   sel.value=activeCampaign;
   // region chips
