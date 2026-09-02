@@ -177,6 +177,11 @@ def main():
                    f" SUM(COSTS) AS SPEND_USD, SUM(IMPRESSIONS) AS IMPS, SUM(CLICKS) AS CLICKS,"
                    f" SUM(CONVERSIONS) AS CONVERSIONS FROM {t('stg_google_ads')} GROUP BY 1")
     csp = rows(bq, f"SELECT * FROM {t('cs_pacing_v2')} ORDER BY THEATRE, BOOK, VENDOR, MARKET_SEQ, WEEK_START")
+    # CS COMPARISON panels (2026-09-02). Finer read of the SAME stg_cs_leads_v2 rows than
+    # cs_pacing_v2: it keeps COUNTRY, ASSET and DAY, which the Comparison tab needs and the
+    # week-grain pacing view aggregates away. Carries NO targets - those ship on cs_pacing at
+    # their own grain and must not exist twice. See sql/18_cs_compare_v2.sql.
+    csc = rows(bq, f"SELECT * FROM {t('cs_compare_v2')} ORDER BY THEATRE, BOOK, MARKET, DAY")
     tx = build_transmission(bq, t)   # "Internal Notes" tab: committed Source IDs + pacing plan
 
     # Window over the paid rows (min/max date + inclusive day count).
@@ -359,6 +364,38 @@ def main():
         } for r in csp],
     }
 
+    # CS COMPARISON payload. Same scope rules as cs_pacing (theatre x book x vendor), one
+    # grain finer. The dashboard re-derives every rate from these counts after it aggregates.
+    #
+    # NO empty-fact alarm of its own: this reads the same view chain as cs_pacing, whose scope
+    # WARNING above already fires on the one failure mode both share (the campaign-name scope
+    # breaking). A second warning on the same cause would be noise, and the dashboard hides the
+    # Comparison tab for a theatre with no rows rather than drawing an empty panel.
+    cs_compare_payload = {
+        "row_count": len(csc),
+        "rows": [{
+            "theatre":      r.get("THEATRE"),
+            "book":         r.get("BOOK"),
+            "vendor":       r.get("VENDOR"),
+            "market":       r.get("MARKET"),
+            # May be None: the feed does not always state a country. Rendered as an explicit
+            # "(not stated)" option, never folded into a real country (see sql/18).
+            "country":      r.get("COUNTRY_NAME"),
+            "day":          ymd(r.get("DAY")),
+            # Carried, not derived client-side: the week anchor is theatre-specific and
+            # clamped (sql/16). Re-deriving it in JS would be a third copy of that rule.
+            "week_start":   ymd(r.get("WEEK_START")),
+            "service":      r.get("SERVICE"),
+            # RAW asset string - the dashboard owns the alias folding (see sql/18).
+            "asset":        r.get("ASSET_1"),
+            "leads":        int(jval(r.get("LEADS")) or 0),
+            "delivered":    int(jval(r.get("DELIVERED")) or 0),
+            "accepted":     int(jval(r.get("ACCEPTED")) or 0),
+            "rejected":     int(jval(r.get("REJECTED")) or 0),
+            "unprocessed":  int(jval(r.get("UNPROCESSED")) or 0),
+        } for r in csc],
+    }
+
     # --- Extra single-campaign LinkedIn dashboards from the SHARED raw layer.
     # raw_snowflake.linkedin_ads_apac is already in BigQuery (snowflake_data_pull),
     # so read it directly. EDA-confirmed names: DAY (daily grain), IMPRESSIONS, CLICKS,
@@ -518,6 +555,7 @@ def main():
         "paid_media": paid_media,
         "pacing": pacing_payload,
         "cs_pacing": cs_pacing_payload,   # "Pacing detail" section: week x market x vendor, APAC + EMEA
+        "cs_compare": cs_compare_payload, # "CS Comparison" panels: day x market x country x asset
         "campaigns": campaigns,
         "qoq": qoq_block,   # Q3-vs-Q2 CS accepted leads, quarter-to-date aligned (actuals; targets pending)
         "transmission": tx,   # "Internal Notes" tab: committed Source IDs + the pacing plan
