@@ -18,13 +18,16 @@
 -- keys" (md/AGENTS.md).
 --
 -- PHASE is the ad set's media-plan LINE ITEM and is NOT re-derived here: it is `stg_linkedin.tactic`
--- taken from the ad set's latest name, so the Reports tab and the delivery tables can never disagree
--- about which funnel stage an ad set sits in. That single definition (and why Retargeting must be
--- tested before Conversion before Consideration before Awareness) lives in 01_stg_linkedin's header.
--- The ladder is loosely mirrored in load_targeting.py's phase_of(), which only pre-fills the CSV's
--- reference column; THIS view is what reaches the screen. Enterprise IT's ad sets carry a vertical
--- (Hero / Generic / Manufacturing / ...) rather than a funnel phase, so they land on 'Unspecified'
--- by design - that is true, not a parse failure.
+-- from the ad set's latest delivering row - a STATED override where one exists (01's LINE-ITEM
+-- OVERRIDES: the 2305 A/B test is that brief's Conversion line), else the name ladder - so the
+-- Reports tab and the delivery tables can never disagree about which funnel stage an ad set sits in.
+-- That single definition (and why Retargeting must be tested before Conversion before Consideration
+-- before Awareness) lives in 01_stg_linkedin's header. `load_targeting.py --scaffold` copies the same
+-- column into the CSV's reference `phase` (it used to re-derive it with its own token list, which
+-- would have written 'Unspecified' back over a stated line on every refresh); THIS view is what
+-- reaches the screen. Enterprise IT's ad sets carry a vertical (Hero / Generic / Manufacturing / ...)
+-- rather than a funnel phase, so they land on 'Unspecified' by design - that is true, not a parse
+-- failure.
 --
 -- GEO comes from the same market parser the delivery views use (stg_linkedin), taken from the latest
 -- name. Since 2026-08-18 stg_linkedin also reconciles a coarse market token against the ad set's

@@ -56,10 +56,12 @@
 -- or has a group name that matches no token either. Re-run that enumeration before widening a token
 -- again.
 --
--- Note the A/B ad sets legitimately read market 'ANZ' and tactic 'Unspecified'. They are a genuine
--- combined-ANZ line - never named per-country, so the coarse-token reconciliation below correctly
--- leaves them alone, and they are NOT the phantom ANZ a rename artefact created on ind_edge - and
--- their names carry no funnel-stage token. Both are true of the buy, not parse failures.
+-- Note the A/B ad sets legitimately read market 'ANZ'. They are a genuine combined-ANZ line - never
+-- named per-country, so the coarse-token reconciliation below correctly leaves them alone, and they
+-- are NOT the phantom ANZ a rename artefact created on ind_edge. Their LINE ITEM, on the other hand,
+-- could not be parsed at all: neither the ad-set names nor the group name carry a funnel-stage
+-- token, so until 2026-09-03 they read 'Unspecified' and brief 2305's LinkedIn CONVERSION line was
+-- missing from every line-item surface. It is now STATED - see LINE-ITEM OVERRIDES below.
 --
 -- MARKET is parsed from CAMPAIGN_NAME (LinkedIn carries no geo column) with the SAME parser
 -- client_schneider uses — country tokens win over coarse region tokens, ANZ wins over Pacific, first
@@ -99,10 +101,40 @@
 -- failure. This column is the SINGLE definition of the funnel stage: 05_linkedin_adsets reads its
 -- `phase` from here rather than re-deriving the same ladder.
 --
+-- LINE-ITEM OVERRIDES - a plan line the names do not state (2026-09-03, agency instruction).
+-- The 2305 A/B test above IS brief 2305's LinkedIn CONVERSION line item (the landing-page test:
+-- Expert page vs Interactive Demo). Nothing in the feed says so: the two ad-set names carry no stage
+-- token, the group name carries none either, and the mirror has no objective column. No name rule
+-- could be written for it honestly ('A/B test' => Conversion is false in general - a test can sit
+-- on any stage), so the plan line is STATED in `line_item_overrides` below, keyed on the AD-SET ID
+-- (LinkedIn's CAMPAIGN_ID, a STRING in this mirror) - the stable key; the names are not (repo rule).
+--   * An override WINS over the parsed ladder: it is a statement about the media plan, and a
+--     trafficker renaming the ad set does not change what was bought.
+--   * It can only RE-LABEL a row, never admit one: it is joined after the brief gate, so a new ad
+--     set in the same test lands on 'Unspecified' (a visible chip) until a row is added here.
+--     Adding one = one STRUCT + reapply views + FORCE_REBUILD.
+--   * Both readers of `tactic` (03_delivery/04_creative and 05_linkedin_adsets.phase) see the
+--     override, so the delivery tables and the staff Reports tab keep agreeing.
+--   * It reports reach, clicks and cost - never a conversion count. The test has no lead form
+--     (leads / lead_form_opens are 0 - the dashboard's hasForm() rule prints '-' there, not a false
+--     0) and LinkedIn's CONVERSIONS column is 0 on every Schneider row (Insight Tag outcomes do not
+--     reach this feed), so nothing downstream may present an on-site outcome for this line.
+--
 -- Spend is AUD: the Schneider LinkedIn accounts carry the currency in the name suffix (_AUD today;
 -- _USD@1.50 / _SGD@1.15 kept for robustness). LinkedIn has no currency column.
 CREATE OR REPLACE VIEW `bidbrain-analytics.client_schneidersecpwr.stg_linkedin` AS
-WITH scoped AS (
+WITH line_item_overrides AS (
+  -- Ad sets whose media-plan LINE ITEM is STATED rather than parsed from a name - see LINE-ITEM
+  -- OVERRIDES in the header. ovr_adset_id is LinkedIn's CAMPAIGN_ID (STRING). One row per ad set;
+  -- every field named on every row so the array's element type is unambiguous.
+  SELECT * FROM UNNEST([
+    STRUCT('868044926' AS ovr_adset_id, 'Conversion' AS ovr_tactic,
+           '2305 A/B test, ANZ Ad Set A - Expert Page (group 1191212126); agency-stated 2026-09-03' AS ovr_note),
+    STRUCT('868134606' AS ovr_adset_id, 'Conversion' AS ovr_tactic,
+           '2305 A/B test, ANZ Ad Set B - Interactive Demo (group 1191212126); agency-stated 2026-09-03' AS ovr_note)
+  ])
+),
+scoped AS (
   SELECT
     *,
     COALESCE(
@@ -157,8 +189,9 @@ parsed AS (
       WHEN CONTAINS_SUBSTR(CAMPAIGN_NAME, 'Pacific') OR REGEXP_CONTAINS(UPPER(CAMPAIGN_NAME), r'(^|[ _-])PAC([ _-]|$)') THEN 'Pacific'
       ELSE 'Unmapped'
     END                                      AS market_raw,
-    -- Media-plan LINE ITEM (funnel stage). Most-specific token first - see the header.
-    CASE
+    -- Media-plan LINE ITEM (funnel stage). A STATED override first (LINE-ITEM OVERRIDES in the
+    -- header), then the name ladder, most-specific token first.
+    COALESCE(o.ovr_tactic, CASE
       WHEN REGEXP_CONTAINS(UPPER(CAMPAIGN_NAME), r'(^|[ _-])(RTG[0-9]*|RT[0-9])([ _-]|$)')
         OR CONTAINS_SUBSTR(UPPER(CAMPAIGN_NAME), 'RETARGET')            THEN 'Retargeting'
       WHEN REGEXP_CONTAINS(UPPER(CAMPAIGN_NAME), r'(^|[ _-])CNV([ _-]|$)')
@@ -168,7 +201,7 @@ parsed AS (
       WHEN REGEXP_CONTAINS(UPPER(CAMPAIGN_NAME), r'(^|[ _-])AWR([ _-]|$)')
         OR CONTAINS_SUBSTR(UPPER(CAMPAIGN_NAME), 'AWARENESS')           THEN 'Awareness'
       ELSE 'Unspecified'
-    END                                      AS tactic,
+    END)                                     AS tactic,
     -- Creative: the ad TITLE is the message concept; CREATIVE_TYPE gives the format.
     COALESCE(NULLIF(TRIM(AD_TITLE), ''), 'Sponsored Content') AS concept,
     CASE
@@ -188,7 +221,9 @@ parsed AS (
     -- content-syndication leads and must never be summed into one. NULL on Trade Desk.
     LEADS                                    AS leads,
     LEAD_FORM_OPENS                          AS lead_form_opens
-  FROM scoped
+  FROM scoped s
+  -- After the brief gate, so an override can re-label a scoped row but never admit one.
+  LEFT JOIN line_item_overrides o ON o.ovr_adset_id = s.CAMPAIGN_ID
   WHERE campaign IS NOT NULL
 ),
 resolved AS (
