@@ -140,6 +140,11 @@ gcloud run deploy $SERVICE --image $IMG --region $REGION --project $PROJECT `
 # tag, and a wrong one would have printed an empty url after a successful deploy.)
 $STABLE = (gcloud run services describe $SERVICE --region $REGION --project $PROJECT --format "value(status.url)")
 $STABLE = "$STABLE".Trim()
+# Which revision LIVE is on now - named in the traffic-pinning warning below, so the person running
+# this knows exactly what is serving and what to route back to.
+$LIVE_REV = (gcloud run services describe $SERVICE --region $REGION --project $PROJECT --format json | ConvertFrom-Json)
+$LIVE_REV = @($LIVE_REV.status.traffic | Where-Object { $_.percent -gt 0 } | ForEach-Object { $_.revisionName }) -join ', '
+if (-not $LIVE_REV) { $LIVE_REV = '(unknown)' }
 $TAGURL = if ($STABLE -match '^https://(.+)$') { "https://$Tag---$($Matches[1])" } else { "(could not derive - run: gcloud run services describe $SERVICE --region $REGION)" }
 
 Write-Host ""
@@ -158,5 +163,12 @@ Write-Host "  Ship it for real (traffic flip, no rebuild):" -ForegroundColor Cya
 Write-Host "      .\grid-core\deploy_grid.ps1        # rebuilds from main AND scrubs the sandbox env vars"
 Write-Host "  Throw it away:" -ForegroundColor Cyan
 Write-Host "      gcloud run services update-traffic $SERVICE --region $REGION --remove-tags $Tag"
+Write-Host ""
+Write-Host "  !! THIS DEPLOY PINNED THE SERVICE'S TRAFFIC to $LIVE_REV." -ForegroundColor Yellow
+Write-Host "     --no-traffic stops Cloud Run auto-promoting new revisions, so the NEXT deploy_grid.ps1" -ForegroundColor Yellow
+Write-Host "     builds and deploys but LIVE STAYS PUT. That script now detects it and prints the fix;" -ForegroundColor Yellow
+Write-Host "     the fix always names a revision explicitly - NEVER --to-latest, which while this" -ForegroundColor Yellow
+Write-Host "     preview is the newest revision would promote the PREVIEW to live." -ForegroundColor Yellow
+Write-Host "     Live is on $LIVE_REV and stays there until you say otherwise." -ForegroundColor Yellow
 Write-Host ""
 Write-Host "  Reminder: keep this work PARKED (/park). /ship and /go auto-deploy grid-core to LIVE." -ForegroundColor Yellow
