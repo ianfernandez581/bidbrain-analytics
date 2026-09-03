@@ -758,12 +758,12 @@ body.ga-view #searchDiv,body.ga-view #searchGrp{display:none!important}
         <div class="card"><h3>Spend by funnel stage</h3><div class="hint">Where the budget is going. Click a legend item to hide or show a stage.</div><div class="chartbox" style="height:280px"><canvas id="stageDonut"></canvas></div></div>
       </div>
 
-      <div class="card" style="margin-top:16px"><h3>Performance by funnel stage</h3><div class="hint">Spend, share, enquiries, cost-per-enquiry and CTR for each funnel stage - where the budget works hardest.</div><div class="tablewrap" style="margin-top:6px"><table id="stageTable"><thead><tr><th>Stage</th><th class="num">Spend</th><th class="num">Share</th><th class="num c-lead">Enquiries</th><th class="num c-lead">CPL</th><th class="num">CTR</th></tr></thead><tbody></tbody></table></div></div>
+      <div class="card" style="margin-top:16px"><h3>Performance by funnel stage</h3><div class="hint" id="stageTableHint">Spend, share, enquiries, cost-per-enquiry and CTR for each funnel stage - where the budget works hardest.</div><div class="tablewrap" style="margin-top:6px"><table id="stageTable"><thead><tr><th>Stage</th><th class="num">Spend</th><th class="num">Share</th><th class="num c-lead">Enquiries</th><th class="num c-lead">CPL</th><th class="num">CTR</th></tr></thead><tbody></tbody></table></div></div>
 
       <div class="section" id="bdSection"><h2>Who &amp; where we reached</h2><span class="sub" id="bdSub">Meta audience &amp; placement breakdowns - honours the date filter.</span></div>
       <div class="grid cols-2">
-        <div class="card" id="audienceCard"><h3>Audience - age &amp; gender</h3><div class="hint">Impressions by age band, split by gender (Meta-inferred). Tooltip shows enquiries per age band - where demand actually converts.</div><div class="chartbox tall"><canvas id="audienceChart"></canvas></div></div>
-        <div class="card" id="placementCard"><h3>Placement - where ads ran</h3><div class="hint">Impressions by Meta placement - <span style="color:var(--accent);font-weight:600">Facebook</span> vs <span style="color:var(--leads);font-weight:600">Instagram</span>. Feed usually drives enquiries; Reels drive cheap reach.</div><div class="chartbox tall"><canvas id="placementChart"></canvas></div></div>
+        <div class="card" id="audienceCard"><h3>Audience - age &amp; gender</h3><div class="hint" id="audienceHint">Impressions by age band, split by gender (Meta-inferred). Tooltip shows enquiries per age band - where demand actually converts.</div><div class="chartbox tall"><canvas id="audienceChart"></canvas></div></div>
+        <div class="card" id="placementCard"><h3>Placement - where ads ran</h3><div class="hint" id="placementHint">Impressions by Meta placement - <span style="color:var(--accent);font-weight:600">Facebook</span> vs <span style="color:var(--leads);font-weight:600">Instagram</span>. Feed usually drives enquiries; Reels drive cheap reach.</div><div class="chartbox tall"><canvas id="placementChart"></canvas></div></div>
       </div>
 
       <div class="section"><h2>What stands out</h2></div>
@@ -793,7 +793,7 @@ body.ga-view #searchDiv,body.ga-view #searchGrp{display:none!important}
 
       <div class="card" style="margin-top:14px">
         <h3>Performance vs targets - by campaign</h3>
-        <div class="hint">CTR / CPM / CPC / CPL against the media-plan benchmarks. Green = beating target.</div>
+        <div class="hint" id="benchHint">CTR / CPM / CPC / CPL against the media-plan benchmarks. Green = beating target.</div>
         <div class="tablewrap"><table id="benchTable"><thead><tr>
           <th>Campaign</th><th>Stage</th><th class="num">Spend</th><th class="num c-lead">Leads</th>
           <th class="num">CTR</th><th class="num">Δ</th><th class="num">CPM</th><th class="num">Δ</th>
@@ -825,7 +825,7 @@ body.ga-view #searchDiv,body.ga-view #searchGrp{display:none!important}
       </div>
 
       <div class="card" style="margin-top:16px">
-        <h3>Ad performance</h3><div class="hint">Per-ad delivery + a thin-volume guard (⚠ thin = under 15k impressions or &lt;8 leads - treat its CPL as a weak signal).</div>
+        <h3>Ad performance</h3><div class="hint" id="adTableHint">Per-ad delivery + a thin-volume guard (⚠ thin = under 15k impressions or &lt;8 leads - treat its CPL as a weak signal).</div>
         <div class="tablewrap"><table id="adTable"><thead><tr><th>Ad</th><th>Ad set</th><th>Stage</th><th class="num">Spend</th><th class="num c-lead">Leads</th><th class="num c-lead">CPL</th><th class="num">CTR</th><th class="num c-lpv">LPV</th><th class="num c-lpv">Cost/LPV</th><th class="num c-reach">Freq.</th><th>Read</th></tr></thead><tbody></tbody></table></div>
       </div>
 
@@ -1040,7 +1040,14 @@ window.DateRange = (function(){
     else if(k==='quarter'){const q=Math.floor(MAX.getMonth()/3);s=new Date(MAX.getFullYear(),q*3,1);}
     else{s=new Date(MIN);e=new Date(MAX);}
     return [clamp(s),clamp(e)];}
-  function detectPreset(s,e){for(const p of PRESETS){const[ps,pe]=presetRange(p.k);if(iso(ps)===iso(s)&&iso(pe)===iso(e))return p.k;}return 'custom';}
+  // `all` is LAST in PRESETS (it belongs at the bottom of the menu) but it must be tested FIRST.
+  // Every relative preset is clamped to [MIN,MAX], so on a short dataset one of them coincides with
+  // the whole window and wins by position: with 13 days of delivery the button read "Last 14 days"
+  // while `narrowed()` was false and the page was showing everything. A control claiming a filter
+  // that is not applied is worse than no label, and it would have flipped to "Last 28 days" and on
+  // as the flight grew. Whole window = All time, whatever else happens to match today.
+  function detectPreset(s,e){const[as,ae]=presetRange('all');if(iso(as)===iso(s)&&iso(ae)===iso(e))return 'all';
+    for(const p of PRESETS){const[ps,pe]=presetRange(p.k);if(iso(ps)===iso(s)&&iso(pe)===iso(e))return p.k;}return 'custom';}
   function init(opts){opts=opts||{};MIN=parse(opts.min);MAX=parse(opts.max);if(!MAX)MAX=new Date();if(!MIN)MIN=addDays(MAX,-364);if(MIN>MAX){const t=MIN;MIN=MAX;MAX=t;}
     onApply=opts.onApply||null;selStart=new Date(MIN);selEnd=new Date(MAX);draftStart=new Date(selStart);draftEnd=new Date(selEnd);viewYear=draftEnd.getFullYear();viewMonth=draftEnd.getMonth();
     G('dpPrev').onclick=()=>nav(-1);G('dpNext').onclick=()=>nav(1);G('dpCancel').onclick=()=>close();G('dpApply').onclick=()=>apply();
@@ -1148,7 +1155,30 @@ const hasAny =f=>ROWS().some(r=>n(r[f])>0);
 // Lead-shaped = the platforms report leads, OR the plan commits a lead number. Either alone is
 // enough: a lead campaign on day one has a target and no leads yet, and a development can report
 // leads the signed plan never set a target against.
-const leadShaped=()=>reports('leads')||bench('lead_target')!=null;
+const leadsMeasured=()=>reports('leads')||bench('lead_target')!=null;
+// ===================== enquiries are WITHHELD until the CRM feed lands =====================
+// CLIENT INSTRUCTION 2026-09-03: report no enquiry count and no cost per enquiry until Salesforce
+// is connected. What the platforms hand us is a Meta lead-FORM submit count with nothing behind it
+// - and the tile stacked on top of it, `Qualified leads (modelled)`, was enquiries x an assumed 20%
+// rate. Two figures a reader can reasonably take for pipeline when neither has been near a CRM.
+//
+// ONE FLAG, NOT A HUNDRED DELETIONS. The page already knows how to render a development that does
+// not measure leads - see `renderMeasureScope` below, built in August for Northbourne's Trade Desk
+// lane, which has no lead form. Forcing that same shape means the enquiry funnel steps, the goal
+// chart, the efficiency map, the CPL trend, the day-of-week card, budget burn, the enquiry-type
+// split and every `.c-lead` column drop out TOGETHER, and the KPI band swaps to impressions / CPM /
+// clicks / spend. It is one code path, already in production, rather than a second half-stripped one.
+//
+// Flip it back to `true` the day Salesforce is wired and every lead surface returns exactly as it
+// was. NOTHING UPSTREAM CHANGED: sql/*, job/main.py and the payload still carry `leads` in full, so
+// this is a dashboard deploy and no re-seed or forced export.
+const LEADS_REPORTABLE = false;
+// Measured but not reported - the distinction the COPY has to make. An awareness development says
+// "no lead form, so there is no enquiry to report", which is true of Trade Desk and FALSE here:
+// Meta is running a lead-form line and reporting enquiries. Saying it anyway would be the one
+// sentence on the page a client could catch us out on.
+const leadsWithheld=()=>!LEADS_REPORTABLE&&leadsMeasured();
+const leadShaped=()=>LEADS_REPORTABLE&&leadsMeasured();
 // The audience/placement charts are fed by the geocon-only META breakdown pull, so they exist for
 // a development only insofar as it has Meta delivery.
 const hasBreakdowns=()=>(DATA.breakdowns||[]).some(r=>propOk(r));
@@ -1212,6 +1242,45 @@ function renderMeasureScope(){
 // here. Property names come from a committed CSV, but they are still interpolated into markup.
 const escProp=v=>String(v==null?'':v).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const propOf=r=>r.property||'Gateway Braddon';
+// ===================== developments hidden from the client view =====================
+// CLIENT INSTRUCTION 2026-09-03: show the live launch only. Gateway Braddon's flight ENDED
+// 2026-07-20 and it is a finished A$7,500 Meta campaign sitting in a dropdown beside a running
+// A$205,600 five-channel one - and because a finished campaign never moves again, every visit
+// after this one would have opened on a choice between the live work and an archive.
+//
+// Removing it leaves ONE development, and `initProperty` then hides the selector by itself (it
+// renders only for two or more), which is why there is no second edit for the dropdown.
+//
+// APPLIED AT THE ROOT, ONCE, BEFORE ANYTHING READS `DATA` - not in the selector. Filtering only
+// the dropdown would leave its 291 rows inside DATA.rows, and the date picker is built from
+// `meta.date_min`: Gateway Braddon delivered from 2026-05-05 and Northbourne from 2026-08-20, so
+// "All time" would have opened on three empty months of lead-in on every chart.
+//
+// NOTHING UPSTREAM CHANGED. sql/*, job/main.py and geocon.json still carry Gateway Braddon in
+// full, so bringing it back is emptying this Set and redeploying the dash - no re-seed, no forced
+// export, and its history is not lost in the meantime.
+const HIDDEN_PROPERTIES = new Set(['Gateway Braddon']);
+function dropHiddenProperties(){
+  if(!HIDDEN_PROPERTIES.size)return;
+  const shown=k=>!HIDDEN_PROPERTIES.has(k);
+  if(Array.isArray(DATA.properties)) DATA.properties=DATA.properties.filter(p=>shown(p&&p.key));
+  if(Array.isArray(DATA.rows))       DATA.rows      =DATA.rows.filter(r=>shown(propOf(r)));
+  if(Array.isArray(DATA.breakdowns)) DATA.breakdowns=DATA.breakdowns.filter(r=>shown(propOf(r)));
+  // GA4 IS DELIBERATELY NOT FILTERED. The Website tab's site figures are WHOLE-SITE and say so on
+  // screen - a Geocon property site carries traffic from every source, not just the campaign - so
+  // dropping rows by `property` would quietly turn a whole-site number into a campaign-scoped one
+  // under a caption still promising the whole site. Its one development-scoped card already filters
+  // itself by the selected development.
+  //
+  // The DATE WINDOW is rebuilt from what survives, over the paid rows AND the GA4 rows, because
+  // either can legitimately start first (GA4 landed 2026-08-21, one day after Northbourne's first
+  // delivery, and a re-pull could push it earlier).
+  const dates=(DATA.rows||[]).map(r=>r.date)
+    .concat((((DATA.ga4||{}).rows)||[]).map(r=>r.date))
+    .filter(Boolean).map(d=>String(d).slice(0,10)).sort();
+  if(dates.length&&DATA.meta){DATA.meta.date_min=dates[0];DATA.meta.date_max=dates[dates.length-1];
+                              DATA.meta.row_count=(DATA.rows||[]).length;}
+}
 const propHasData=p=>(DATA.rows||[]).some(r=>propOf(r)===p);
 const propOk=r=>!STATE.property||propOf(r)===STATE.property;
 function initProperty(){
@@ -1556,6 +1625,25 @@ function renderHeader(){
   // The audience/placement charts are fed by the Meta-only breakdown pull, so name the source
   // rather than implying they cover every channel a multi-channel development buys.
   const bs=$('bdSub');if(bs)bs.textContent=`Meta audience & placement breakdowns for the ${prop} campaigns - honours the date filter.`;
+  // Hints that NAME the columns beside them. `renderMeasureScope` drops the enquiry / CPL columns
+  // via the `no-leads` body class, which leaves any caption listing them describing a table the
+  // reader cannot see - the caption is then the only thing on the card that looks broken.
+  const setHint=(id,txt)=>{const e=$(id);if(e)e.innerHTML=txt;};
+  setHint('stageTableHint',lead
+    ? 'Spend, share, enquiries, cost-per-enquiry and CTR for each funnel stage - where the budget works hardest.'
+    : 'Spend, share and CTR for each funnel stage - where the budget is going and which stage earns the most attention per impression.');
+  setHint('benchHint',lead
+    ? 'CTR / CPM / CPC / CPL against the media-plan benchmarks. Green = beating target.'
+    : 'CTR / CPM / CPC against the media-plan benchmarks. Green = beating target.');
+  setHint('adTableHint',lead
+    ? 'Per-ad delivery + a thin-volume guard (⚠ thin = under 15k impressions or &lt;8 leads - treat its CPL as a weak signal).'
+    : 'Per-ad delivery + a thin-volume guard (⚠ thin = under 15k impressions - treat its rates as a weak signal).');
+  setHint('audienceHint',lead
+    ? 'Impressions by age band, split by gender (Meta-inferred). Tooltip shows enquiries per age band - where demand actually converts.'
+    : 'Impressions by age band, split by gender (Meta-inferred) - who the buy is actually reaching.');
+  setHint('placementHint',lead
+    ? 'Impressions by Meta placement - <span style="color:var(--accent);font-weight:600">Facebook</span> vs <span style="color:var(--leads);font-weight:600">Instagram</span>. Feed usually drives enquiries; Reels drive cheap reach.'
+    : 'Impressions by Meta placement - <span style="color:var(--accent);font-weight:600">Facebook</span> vs <span style="color:var(--leads);font-weight:600">Instagram</span>. Feed carries the most considered attention; Reels buy cheap reach.');
   // Meta's CDN thumbnails are the only creative images any feed gives us; Trade Desk sends names
   // only. Promising an ad image on a development that has none is a small lie that shows.
   const cs=$('creativeSub');if(cs)cs.innerHTML=`The 5 highest-spend creatives in the selected range`
@@ -1576,9 +1664,16 @@ function renderHeader(){
     // (Gateway Braddon, Meta-only). Reading it for every development would caption Northbourne
     // Gateway's Trade Desk delivery as "Meta-reported".
     const src=chans.length===1?safeName(chans[0]):'Platform';
+    // Three states, not two: enquiries reported, enquiries never measured, and enquiries measured
+    // but WITHHELD pending the CRM (see LEADS_REPORTABLE). The middle sentence blames the media
+    // buy - "no lead form" - which would be a false statement about a development whose Meta line
+    // is a lead-gen buy, so the withheld state says what is actually true.
+    const delivery=`Showing <b>${rangeLabel()}</b> across <b>${chans.length?chans.map(safeName).join(', '):'no channels'}</b> - ${compact(a.impressions)} impressions · ${money(a.spend)} spend.`;
     $('introCopy').innerHTML=lead
       ? `${chans.length>1?'Platform-reported':src+'-reported'} enquiries and modelled <b>qualified leads</b> for the ${safeName(prop)} launch, plus spend pacing and creative efficiency. Showing <b>${rangeLabel()}</b> across <b>${chans.map(safeName).join(', ')}</b> - ${int(a.leads)} enquiries · ${money(a.spend)} spend.`
-      : `Reach, delivery and cost efficiency for the ${safeName(prop)} launch, plus spend pacing against the signed media plan. Showing <b>${rangeLabel()}</b> across <b>${chans.length?chans.map(safeName).join(', '):'no channels'}</b> - ${compact(a.impressions)} impressions · ${money(a.spend)} spend. ${escProp(src)} buys awareness inventory with no lead form, so this development reports no enquiries.`;
+      : leadsWithheld()
+      ? `Reach, delivery and cost efficiency for the ${safeName(prop)} launch, plus spend pacing against the signed media plan. ${delivery} <b>Enquiry reporting is paused</b> until the CRM feed is connected.`
+      : `Reach, delivery and cost efficiency for the ${safeName(prop)} launch, plus spend pacing against the signed media plan. ${delivery} ${escProp(src)} buys awareness inventory with no lead form, so this development reports no enquiries.`;
   }
 }
 function renderDateScope(){
@@ -1600,11 +1695,20 @@ function renderKpis(){
   // above carries the actual story.
   if(awaitingDelivery()){
     const dash=(label,color)=>({color,label,value:'-',sub:'awaiting first delivery'});
-    $('kpiGridN').innerHTML=[dash('Enquiries',MC.leads),dash('Cost / enquiry (CPL)',MC.cost),
-      dash('Qualified leads (modelled)',MC.qualified),dash('Ad spend',MC.spend)]
+    // The placeholder band must name the SAME measures the live band will, or the tiles rearrange
+    // under the reader on the first day of delivery. It returned before the leadShaped() branch
+    // below, so it was the one place still printing an enquiry and a CPL label while enquiry
+    // reporting is paused (see LEADS_REPORTABLE).
+    $('kpiGridN').innerHTML=(leadShaped()
+      ? [dash('Enquiries',MC.leads),dash('Cost / enquiry (CPL)',MC.cost),
+         dash('Qualified leads (modelled)',MC.qualified),dash('Ad spend',MC.spend)]
+      : [dash('Impressions',MC.reach),dash('Cost per 1,000 (CPM)',MC.cost),
+         dash('Clicks',MC.ctr),dash('Ad spend',MC.spend)])
       .map(o=>kpiCard(Object.assign(o,{north:true}))).join('');
-    $('kpiGrid').innerHTML=[dash('Impressions',MC.reach),dash('CTR (link)',MC.ctr),
-      dash('Landing-page views',MC.lpv),dash('Reach',MC.reach)].map(kpiCard).join('');
+    $('kpiGrid').innerHTML=(leadShaped()
+      ? [dash('Impressions',MC.reach),dash('CTR (link)',MC.ctr),
+         dash('Landing-page views',MC.lpv),dash('Reach',MC.reach)]
+      : [dash('CTR (link)',MC.ctr),dash('Cost per click (CPC)',MC.cost)]).map(kpiCard).join('');
     return;
   }
   const a=agg(scoped());
@@ -1980,7 +2084,10 @@ function renderAudience(){
     {label:'Women',data:AGES.map(a=>sum(a,'female')),backgroundColor:MC.leads+'CC',borderColor:MC.leads,borderRadius:4,maxBarThickness:26},
     {label:'Men',data:AGES.map(a=>sum(a,'male')),backgroundColor:MC.reach+'CC',borderColor:MC.reach,borderRadius:4,maxBarThickness:26}
   ]},options:{responsive:true,maintainAspectRatio:false,
-    plugins:{legend:legendTop(),tooltip:{callbacks:{label:c=>`${c.dataset.label}: ${int(c.parsed.y)} impressions`,afterBody:items=>`Enquiries (all genders): ${int(leadsByAge(AGES[items[0].dataIndex]))}`}}},
+    // The enquiry line in the tooltip is a lead surface like any other - it goes with the rest when
+    // enquiry reporting is off, or the one number we removed everywhere else is still a hover away.
+    plugins:{legend:legendTop(),tooltip:{callbacks:Object.assign({label:c=>`${c.dataset.label}: ${int(c.parsed.y)} impressions`},
+      leadShaped()?{afterBody:items=>`Enquiries (all genders): ${int(leadsByAge(AGES[items[0].dataIndex]))}`}:{})}},
     scales:{x:axis({grid:{display:false},title:{display:true,text:'Age',color:MC.muted2,font:{size:11}}}),y:axis({beginAtZero:true,ticks:{color:MC.muted,font:{size:11},callback:v=>compact(v)},title:{display:true,text:'Impressions',color:MC.muted2,font:{size:11}}})}}});
 }
 function renderPlacement(){
@@ -1992,7 +2099,8 @@ function renderPlacement(){
   const arr=[...m.values()].filter(o=>o.imps>0).sort((a,b)=>b.imps-a.imps).slice(0,10);
   makeChart('placementChart',{type:'bar',data:{labels:arr.map(o=>NICE[o.seg]||o.seg),datasets:[{label:'Impressions',data:arr.map(o=>o.imps),backgroundColor:arr.map(o=>isIG(o.seg)?MC.leads+'CC':MC.accent+'CC'),borderColor:arr.map(o=>isIG(o.seg)?MC.leads:MC.accent),borderWidth:1,borderRadius:5}]},
     options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,
-      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>{const o=arr[c.dataIndex];return [`${compact(o.imps)} impressions`,`${int(o.leads)} enquiries · ${money(o.spend)}`];}}}},
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>{const o=arr[c.dataIndex];
+        return [`${compact(o.imps)} impressions`,leadShaped()?`${int(o.leads)} enquiries · ${money(o.spend)}`:money(o.spend)];}}}},
       scales:{x:axis({beginAtZero:true,ticks:{color:MC.muted,font:{size:11},callback:v=>compact(v)}}),y:{grid:{display:false},border:{display:false},ticks:{color:MC.muted,font:{size:11}}}}}});
 }
 function renderInsights(){
@@ -2032,15 +2140,29 @@ function renderInsightsAwareness(a,ads){
   $('insightGrid').innerHTML=items.map(i=>`<article class="insight"><div class="label">${i.label}</div><div class="value">${i.value}</div><div class="copy">${i.copy}</div></article>`).join('');
 }
 function renderNote(){
+  const tail=`All figures are ${meta().currency||'AUD'}; pacing is full-flight and independent of the date filter, `
+    +`and it paces the <b>whole</b> reportable plan, so it reads low while lines are still to launch.`;
+  // WITHHELD, not absent. The awareness wording below says "no lead form", which is true of a Trade
+  // Desk display buy and plainly false here - Meta is running a lead-form line and reporting
+  // enquiries; we are choosing not to publish them until they can be reported as CRM outcomes.
+  // Printing the awareness sentence anyway would be the one line on this page a client could catch
+  // us out on, so the withheld state gets its own words.
+  if(leadsWithheld()){
+    $('ovNote').innerHTML=`<b>How to read this.</b> <b>Enquiry reporting is paused</b> while the CRM `
+      +`connection is being built. The ad platforms report a form submission, which is not the same `
+      +`thing as a qualified enquiry, so enquiry volume and cost per enquiry are held back rather `
+      +`than published as an outcome they cannot yet stand behind - they return here once the CRM `
+      +`feed is live. What this page reports meanwhile is delivery: impressions, clicks, CTR and `
+      +`cost efficiency against the signed media plan. ${tail}`;
+    return;
+  }
   // The qualified-lead model only means anything where a platform reports enquiries at all.
   if(!leadShaped()){
     const chans=deliveredChans().map(safeName).join(' and ')||'this platform';
     $('ovNote').innerHTML=`<b>How to read this.</b> This is an <b>awareness</b> buy: ${chans} sells reach, `
       +`with <b>no lead form and no on-site tag</b>, so there is no enquiry, cost-per-enquiry or `
       +`landing-page figure to report - those panels are hidden rather than shown as zero. The measures `
-      +`here are impressions, clicks, CTR and cost efficiency against the signed media plan. `
-      +`All figures are ${meta().currency||'AUD'}; pacing is full-flight and independent of the date filter, `
-      +`and it paces the <b>whole</b> reportable plan, so it reads low while lines are still to launch.`;
+      +`here are impressions, clicks, CTR and cost efficiency against the signed media plan. ${tail}`;
     return;
   }
   $('ovNote').innerHTML=`<b>How to read this.</b> Meta reports <b>raw enquiries</b> only - a "qualified lead" is not measured by the ad platform, so <b>Qualified leads (modelled)</b> = Meta enquiries × a <b>${pctWhole(qualRate())} assumed qualification rate</b> (target ${bench('qualified_lead_target')!=null?int(bench('qualified_lead_target')):'-'}). It is a planning estimate, not an actual - wire a CRM feed to report true qualified leads. All figures are ${meta().currency||'AUD'}; pacing is full-flight and independent of the date filter.`;
@@ -2334,7 +2456,11 @@ function renderWebsite(){
     // EVENT configured on the property (the right signal), or a `form_submit` actually arriving.
     // Our pipeline is NOT the suspect - form_start flows, and one form_submit does come through on
     // the other property, so the event name is carried correctly end to end.
-    (onKeyEvents||submits>0)
+    // ...and it stays off while enquiry reporting is PAUSED (LEADS_REPORTABLE), or the enquiry
+    // figure removed from every paid surface would reappear on the tab next door under a different
+    // heading. A GA4 form submit is a weaker signal than the Meta lead form we are already holding
+    // back, so it cannot be the one enquiry number the client is left reading.
+    (LEADS_REPORTABLE&&(onKeyEvents||submits>0))
       ? {label:'Website enquiries',value:int(enq),color:MC.qualified,
          sub:onKeyEvents?`GA4 key events · ${int(starts)} form starts`
                         :`form submissions · ${int(starts)} starts, ${pct(enq/starts)} completed`}
@@ -2410,10 +2536,14 @@ function renderGaEvents(){
   const list=[...agg.values()].sort((a,b)=>b.count-a.count);
   $('gaEventsTable').querySelector('tbody').innerHTML=list.map(o=>
     `<tr><td>${escProp(o.event)}${o.conv?' · key event':''}</td><td class="num">${int(o.count)}</td></tr>`).join('');
+  // "...platform-reported enquiries remain the source of truth" was true until enquiry reporting
+  // was paused; leaving it would point the reader at a figure this dashboard no longer publishes.
   const eh=$('gaEvHint');if(eh)eh.innerHTML=`GA4 events on ${escProp(gaSite()||'')} in the selected range. `
     +`<b>Web enquiry tracking is thin today</b>: the sites record <b>form starts</b> but no form-submit key `
-    +`event is configured yet, so nothing here is an enquiry count - platform-reported enquiries remain the `
-    +`source of truth. Worth asking for a GA4 key event on the enquiry form.`;
+    +`event is configured yet, so nothing here is an enquiry count`
+    +(LEADS_REPORTABLE?` - platform-reported enquiries remain the source of truth.`
+                      :`, and enquiry reporting is paused until the CRM feed is connected.`)
+    +` Worth asking for a GA4 key event on the enquiry form.`;
 }
 
 // ---------- controls ----------
@@ -2455,13 +2585,32 @@ function renderStageChips(){
   document.querySelectorAll('#stageChips .chip').forEach(b=>b.addEventListener('click',()=>{STATE.stage=b.dataset.stage;renderStageChips();render();}));
 }
 
+// The INITIAL grain follows the length of the data window (the resetdata `syncToggleDefaults`
+// precedent). `week` is right over months and actively misleading over days: a 13-day window buckets
+// into three weeks, TWO of which are part-weeks, so the trend lines dive toward zero at both ends
+// and read as a campaign collapsing when nothing happened but the calendar. This only picks the
+// starting position - the VIEW BY toggle is untouched and the user can still choose any grain.
+function syncGrainDefault(){
+  const[a,b]=[meta().date_min,meta().date_max];
+  if(!a||!b)return;
+  const days=daysBetween(a,b)+1;
+  STATE.grain=days<=35?'day':(days<=400?'week':'month');
+  document.querySelectorAll('#grainSeg button').forEach(x=>x.classList.toggle('on',x.dataset.grain===STATE.grain));
+}
 async function load(){
   $('error').style.display='none';$('loading').style.display='block';
   try{
     const r=await fetch(JSON_URL,{cache:'no-store'});if(!r.ok)throw new Error('HTTP '+r.status+' from '+JSON_URL);
-    DATA=await r.json();bbApplySpendMult();initChartDefaults();
+    // Hidden developments go FIRST - before the spend shim walks the rows, before the date picker
+    // is built from meta, before anything renders. Everything downstream then sees a payload that
+    // simply does not contain them.
+    DATA=await r.json();dropHiddenProperties();bbApplySpendMult();initChartDefaults();
     initProperty();   // pick the default development + build the selector BEFORE anything renders
+    // The browser tab said "Gateway Braddon" on every development. It is the one label on the page
+    // the render functions never touched.
+    document.title=`${labelOfProp(STATE.property)||'Geocon'} · Live Dashboard`;
     DateRange.init({min:meta().date_min,max:meta().date_max,onApply:(s,e)=>{STATE.dateStart=s;STATE.dateEnd=e;renderChanChips();render();}});
+    syncGrainDefault();
     renderStageChips();renderChanChips();render();renderViewState();
     $('loading').style.display='none';$('app').style.display='block';
   }catch(e){$('loading').style.display='none';$('app').style.display='none';$('error').style.display='block';$('errDetail').textContent=e.stack||e.message||String(e);}
@@ -2470,12 +2619,23 @@ async function load(){
 // ---------- CSV export ----------
 function toCSV(rows,cols){const esc=v=>{const s=v==null?'':String(v);return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;};return [cols.map(c=>esc(c.label)).join(',')].concat(rows.map(r=>cols.map(c=>esc(typeof c.get==='function'?c.get(r):r[c.key])).join(','))).join('\n');}
 function downloadCSV(name,csv){const blob=new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1500);}
-function exportAllData(){const cols=['date','channel','plan_line','campaign','adset','ad','stage','creative_title','spend','impressions','reach','clicks','link_clicks','lpv','leads','video_3s_views','video_completes'].map(k=>({label:k,key:k}));downloadCSV(`geocon_${String(STATE.property||'all').toLowerCase().replace(/[^a-z0-9]+/g,'_')}_all_${meta().date_max||'data'}.csv`,toCSV(ROWS(),cols));}
+// An export is a client-facing surface like any other: leaving `leads` in the CSV hands back the
+// exact figure the page withholds, in a file that outlives the page and carries no caption
+// explaining it. The columns come back with LEADS_REPORTABLE.
+function exportAllData(){const cols=['date','channel','plan_line','campaign','adset','ad','stage','creative_title','spend','impressions','reach','clicks','link_clicks','lpv']
+  .concat(leadShaped()?['leads']:[]).concat(['video_3s_views','video_completes']).map(k=>({label:k,key:k}));
+  downloadCSV(`geocon_${String(STATE.property||'all').toLowerCase().replace(/[^a-z0-9]+/g,'_')}_all_${meta().date_max||'data'}.csv`,toCSV(ROWS(),cols));}
 function exportThisTab(){
   const[a,b]=rangeBounds();const stamp=(a&&b?a+'_'+b:'all');
-  if(STATE.view==='overview'){const cols=[{label:'date',key:'date'},{label:'spend',key:'spend'},{label:'leads',key:'leads'},{label:'qualified_modelled',get:r=>qualified(r.leads)},{label:'cum_leads',key:'cum_leads'}];downloadCSV(`geocon_daily_${stamp}.csv`,toCSV(dailyOf(scoped()),cols));}
+  if(STATE.view==='overview'){const cols=[{label:'date',key:'date'},{label:'spend',key:'spend'}]
+    .concat(leadShaped()?[{label:'leads',key:'leads'},{label:'qualified_modelled',get:r=>qualified(r.leads)},{label:'cum_leads',key:'cum_leads'}]
+                        :[{label:'impressions',key:'impressions'},{label:'clicks',key:'clicks'}]);
+    downloadCSV(`geocon_daily_${stamp}.csv`,toCSV(dailyOf(scoped()),cols));}
   else if(STATE.view==='website'){const cols=['date','site','channel','source','campaign','property','sessions','engaged_sessions','users','new_users','pageviews'].map(k=>({label:k,key:k}));downloadCSV(`geocon_website_${stamp}.csv`,toCSV(gaAll().filter(r=>inRange(r.date)),cols));}
-  else{const cols=[{label:'ad',key:'ad'},{label:'adset',key:'adset'},{label:'campaign',key:'campaign'},{label:'stage',key:'stage'},{label:'spend',key:'spend'},{label:'leads',key:'leads'},{label:'cpl',key:'cpl'},{label:'ctr',key:'ctr'},{label:'cpm',key:'cpm'},{label:'cpc',key:'cpc'},{label:'lpv',key:'lpv'},{label:'cost_per_lpv',key:'cost_per_lpv'},{label:'frequency',key:'frequency'}];downloadCSV(`geocon_by_ad_${stamp}.csv`,toCSV(byAd(searched(scoped())),cols));}
+  else{const cols=[{label:'ad',key:'ad'},{label:'adset',key:'adset'},{label:'campaign',key:'campaign'},{label:'stage',key:'stage'},{label:'spend',key:'spend'}]
+    .concat(leadShaped()?[{label:'leads',key:'leads'},{label:'cpl',key:'cpl'}]:[{label:'impressions',key:'impressions'}])
+    .concat([{label:'ctr',key:'ctr'},{label:'cpm',key:'cpm'},{label:'cpc',key:'cpc'},{label:'lpv',key:'lpv'},{label:'cost_per_lpv',key:'cost_per_lpv'},{label:'frequency',key:'frequency'}]);
+    downloadCSV(`geocon_by_ad_${stamp}.csv`,toCSV(byAd(searched(scoped())),cols));}
 }
 
 // ================= AI REPORT PAYLOAD (headless portal deck path) =================
@@ -2489,20 +2649,32 @@ function buildReportPayload(){
   // Braddon title on Northbourne's numbers.
   const prop=labelOfProp(STATE.property)||'Gateway Braddon';
   const chans=deliveredChans();
+  // WITHHOLDING A FIGURE MEANS NOT SENDING IT. The deck is a client deliverable, and a model handed
+  // `leads: 56` and `cpl: 201.52` will write a headline about them however firmly the prompt says
+  // not to - the prompt is a request, an absent key is a fact. So on a withheld payload the lead
+  // fields are dropped outright and the model is told what it is looking at instead.
+  const lead=leadShaped();
+  const leadFields=(o)=>{if(lead)return o;const c=Object.assign({},o);
+    ['leads','cpl','qualified_modelled','qualification_rate','lead_share','lead_target','cpl_target','qualified_lead_target'].forEach(k=>delete c[k]);return c;};
+  const leadNote=lead?'':' Enquiry reporting is PAUSED pending a CRM connection, so no lead, enquiry, '
+    +'cost-per-enquiry, CPL or conversion-volume figure is supplied. Do NOT mention, estimate, infer '
+    +'or ask about enquiries or lead cost anywhere in the deck - this is a REACH AND DELIVERY report: '
+    +'impressions, clicks, CTR, CPM, CPC, video views and spend pacing against the signed media plan.';
   return {client:'geocon',generated_for:`Geocon - ${prop}`,currency:meta().currency||'AUD',
+    leads_reported:lead,
     context:{campaign:prop,window:{start:f.start,end:f.end,days:f.days_total},days_elapsed:f.days_elapsed,days_total:f.days_total,data_through:meta().data_through,last_updated:meta().last_updated,generated_at:new Date().toISOString(),lead_source_label:meta().lead_source_label||'Meta-reported',
       channels:chans,
       // An explicit instruction rather than a silent zero payload: with no delivery there is no
       // performance to narrate, and a model handed nine zeros will otherwise write about them.
       no_delivery:awaitingDelivery()||!chans.length,
-      scope_note:(awaitingDelivery()||!chans.length)
+      scope_note:((awaitingDelivery()||!chans.length)
         ?`${prop} has NOT delivered. There is no performance data. Do not narrate any metric, trend or result - report only that the campaign is planned and not yet live.`
-        :`Figures cover ${prop} only, across ${chans.join(' + ')}. Other Geocon developments are excluded.`},
-    overview:{spend:r2(a.spend),budget:r2(n(f.budget)),pace_expected:r2(n(f.pace_expected)),projected_spend:r2(n(f.projected_spend)),pace_ratio:r2(paceRatio),leads:a.leads,qualified_modelled:qualified(a.leads),qualification_rate:qualRate(),cpl:r2(a.cpl),reach:a.reach,impressions:a.impressions,link_clicks:a.link_clicks,ctr:r6(a.ctr),cpm:r2(a.cpm),cpc:r2(a.cpc),landing_page_views:a.lpv,cost_per_lpv:r2(a.cost_per_lpv),frequency:r2(a.frequency)},
-    targets:{cpl_target:bench('cpl'),ctr_target:bench('ctr'),lead_target:bench('lead_target'),qualified_lead_target:bench('qualified_lead_target'),cost_per_lpv_target:bench('cost_per_lpv'),daily_pace:bench('daily_pace')},
-    by_stage:byS.map(r=>({stage:r.stage,spend:r2(r.spend),leads:r.leads,cpl:r2(r.cpl),ctr:r6(r.ctr),cpm:r2(r.cpm),lpv:r.lpv,cost_per_lpv:r2(r.cost_per_lpv),frequency:r2(r.frequency),spend_share:r6(r.spend_share),lead_share:r6(r.lead_share)})),
-    by_campaign:byC.map(r=>({campaign:r.campaign,stage:r.stage,spend:r2(r.spend),leads:r.leads,cpl:r2(r.cpl),ctr:r6(r.ctr),lpv:r.lpv,frequency:r2(r.frequency)})),
-    top_ads:ads.map(r=>({ad:r.ad,adset:r.adset,stage:r.stage,spend:r2(r.spend),leads:r.leads,cpl:r2(r.cpl),ctr:r6(r.ctr),lpv:r.lpv,cost_per_lpv:r2(r.cost_per_lpv),frequency:r2(r.frequency)})),
+        :`Figures cover ${prop} only, across ${chans.join(' + ')}. Other Geocon developments are excluded.`)+leadNote},
+    overview:leadFields({spend:r2(a.spend),budget:r2(n(f.budget)),pace_expected:r2(n(f.pace_expected)),projected_spend:r2(n(f.projected_spend)),pace_ratio:r2(paceRatio),leads:a.leads,qualified_modelled:qualified(a.leads),qualification_rate:qualRate(),cpl:r2(a.cpl),reach:a.reach,impressions:a.impressions,link_clicks:a.link_clicks,ctr:r6(a.ctr),cpm:r2(a.cpm),cpc:r2(a.cpc),landing_page_views:a.lpv,cost_per_lpv:r2(a.cost_per_lpv),frequency:r2(a.frequency)}),
+    targets:leadFields({cpl_target:bench('cpl'),ctr_target:bench('ctr'),lead_target:bench('lead_target'),qualified_lead_target:bench('qualified_lead_target'),cost_per_lpv_target:bench('cost_per_lpv'),daily_pace:bench('daily_pace'),imp_target:bench('imp_target'),click_target:bench('click_target'),cpm_target:bench('cpm'),cpc_target:bench('cpc')}),
+    by_stage:byS.map(r=>leadFields({stage:r.stage,spend:r2(r.spend),leads:r.leads,cpl:r2(r.cpl),ctr:r6(r.ctr),cpm:r2(r.cpm),lpv:r.lpv,cost_per_lpv:r2(r.cost_per_lpv),frequency:r2(r.frequency),spend_share:r6(r.spend_share),lead_share:r6(r.lead_share)})),
+    by_campaign:byC.map(r=>leadFields({campaign:r.campaign,stage:r.stage,spend:r2(r.spend),leads:r.leads,cpl:r2(r.cpl),ctr:r6(r.ctr),cpm:r2(r.cpm),impressions:r.impressions,lpv:r.lpv,frequency:r2(r.frequency)})),
+    top_ads:ads.map(r=>leadFields({ad:r.ad,adset:r.adset,stage:r.stage,spend:r2(r.spend),leads:r.leads,cpl:r2(r.cpl),ctr:r6(r.ctr),cpm:r2(r.cpm),impressions:r.impressions,lpv:r.lpv,cost_per_lpv:r2(r.cost_per_lpv),frequency:r2(r.frequency)})),
     fatigue:fat.map(r=>({ad:r.ad,adset:r.adset,frequency:r2(r.frequency),freq_wow:r2(r.freq_wow),ctr:r6(r.ctr),ctr_wow:r6(r.ctr_wow),flag:r.flag}))};
 }
 const BB_THEME = {
@@ -2511,12 +2683,23 @@ const BB_THEME = {
   serif:'Georgia', sans:'Arial', mono:'Courier New',
   agency:'100% Digital', client:'Geocon - Gateway Braddon', brand:'100% DIGITAL × GATEWAY BRADDON', filePrefix:'Gateway_Braddon'
 };
+// The three NAME fields above were hardcoded to the first development this dashboard ever had, so
+// a deck built on Northbourne Gateway's numbers carried a GATEWAY BRADDON cover, brand line and
+// filename. (The repo-wide rule: grep for the first client's name in string literals before you
+// ship a second lane - it is the same defect that watermarked Trade Desk creatives.) BB_THEME is a
+// module const evaluated before DATA loads, so the names are stamped at build time instead.
+function bbThemeFor(){
+  const prop=labelOfProp(STATE.property)||'';
+  return Object.assign({},BB_THEME,prop?{client:`Geocon - ${prop}`,
+    brand:`100% DIGITAL × ${prop.toUpperCase()}`,
+    filePrefix:prop.replace(/[^A-Za-z0-9]+/g,'_').replace(/^_|_$/g,'')}:{});
+}
 async function bbDeckLogos(){try{const res=await fetch('logo.png',{cache:'force-cache'});if(!res.ok)return{white:null,dark:null};const blob=await res.blob();const uri=await new Promise(function(r){const fr=new FileReader();fr.onload=function(){r(fr.result);};fr.onerror=function(){r(null);};fr.readAsDataURL(blob);});return{white:uri,dark:uri};}catch(e){return{white:null,dark:null};}}
 async function bbHeadlessSlides(){
   try{const payload=buildReportPayload();const res=await fetch('/report',{method:'POST',cache:'no-store',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
     if(!res.ok){let d='';try{d=(await res.json()).error||'';}catch(_){}throw new Error('HTTP '+res.status+(d?' - '+d:''));}
-    const report=await res.json();const logos=await bbDeckLogos();const out=await bbBuildDeck(report,payload,BB_THEME,logos,{download:false});
-    try{parent.postMessage({__bbslides:true,status:'done',blob:out&&out.blob,fileName:out&&out.fileName,report:report,theme:BB_THEME},location.origin);}catch(_){}
+    const report=await res.json();const logos=await bbDeckLogos();const theme=bbThemeFor();const out=await bbBuildDeck(report,payload,theme,logos,{download:false});
+    try{parent.postMessage({__bbslides:true,status:'done',blob:out&&out.blob,fileName:out&&out.fileName,report:report,theme:theme},location.origin);}catch(_){}
   }catch(e){try{parent.postMessage({__bbslides:true,status:'error',error:(e&&e.message)||String(e)},location.origin);}catch(_){}}
 }
 if(new URLSearchParams(location.search).has('bbslides')){(function bbWait(){if(typeof DATA!=='undefined'&&DATA&&DATA.meta&&DATA.meta.last_updated)bbHeadlessSlides();else setTimeout(bbWait,120);})();}

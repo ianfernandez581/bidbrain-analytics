@@ -1,12 +1,17 @@
-# client_geocon — Gateway Braddon + Northbourne Gateway (multi-channel paid media)
+# client_geocon — Northbourne Gateway (multi-channel paid media)
 
 Self-hosted paid-media dashboard for **Geocon's residential launches**, one development at a time
-via the top-nav selector. Two developments today:
+via the top-nav selector. Two developments exist in the pipeline; **only one is on the dashboard**:
 
 | Development | Channels | Budget | Flight | State |
 |---|---|---|---|---|
-| **Gateway Braddon** | Meta only | A$7,500 | 2026-06-21 -> 07-20 | live, delivering |
-| **Northbourne Gateway** (558 apartments) | Meta / LinkedIn / Trade Desk / Google Ads (+ SEO) | **A$205,600** | 2026-08-13 -> 10-31 | **LIVE since 2026-08-28** on its Trade Desk line alone (1 of 9 plan lines) - see "Awareness mode" |
+| **Northbourne Gateway** (558 apartments) | Meta / LinkedIn / Trade Desk / Google Ads (+ SEO) | **A$205,600** | 2026-08-13 -> 10-31 | **LIVE since 2026-08-28**; Meta + Trade Desk + Google Ads delivering |
+| ~~Gateway Braddon~~ | Meta only | A$7,500 | 2026-06-21 -> 07-20 | **HIDDEN from the dashboard 2026-09-03** (client request; flight ended). Still built end to end and still in `geocon.json` - see "Hiding a finished development" |
+
+**TWO CLIENT DECISIONS SHAPE WHAT THIS DASHBOARD SHOWS TODAY, and both are one-line reversals:**
+- **Enquiries and cost-per-enquiry are WITHHELD** pending a Salesforce/CRM connection -
+  `LEADS_REPORTABLE = false`. See "Enquiry reporting is paused".
+- **Gateway Braddon is hidden** - `HIDDEN_PROPERTIES`. See "Hiding a finished development".
 
 **Gateway Braddon is unchanged** by the 2026-08-24 multi-channel rebuild - verified as a strict
 no-op, see "The multi-channel rebuild" below. No Snowflake / Salesforce / Content-Syndication lane
@@ -100,6 +105,126 @@ No code change, no deploy - and it reverts the same way. **This is deliberately 
 it used to be (a development switched itself on the moment its first row landed), and the decision
 to publish a one-line view of a nine-line plan should be a person's, which is exactly what happened
 here.
+
+### Enquiry reporting is paused (2026-09-03, client instruction)
+
+**The client asked for no enquiry count and no cost per enquiry until Salesforce is connected.**
+What the platforms hand us is a Meta lead-FORM submit count with nothing behind it, and the tile
+stacked on top of it - `Qualified leads (modelled)` - was that count x an assumed 20% qualification
+rate. Two figures a reader can reasonably take for pipeline when neither has been near a CRM.
+
+**One flag does it, because the page already knew how to be an awareness dashboard.** Awareness mode
+(next section) was built in August for Northbourne's Trade Desk lane, which has no lead form. So the
+withheld state re-uses that exact code path rather than adding a second, half-stripped one:
+
+```js
+const LEADS_REPORTABLE = false;                       // dash/dashboard.html - the ONE knob
+const leadsMeasured = () => reports('leads') || bench('lead_target') != null;
+const leadsWithheld = () => !LEADS_REPORTABLE && leadsMeasured();   // measured, not reported
+const leadShaped    = () =>  LEADS_REPORTABLE && leadsMeasured();   // render the lead surfaces?
+```
+
+What comes off, all together, from that one flag: the enquiry / CPL / modelled-qualified KPI tiles
+(the band swaps to Impressions / CPM / Clicks / Spend), the enquiry and qualified funnel steps, the
+`On track to goal?` chart, the efficiency map, the CPL trend, the day-of-week card, budget burn, the
+enquiry-type split, and every `.c-lead` column in the stage / platform / benchmark / ad tables.
+
+**`leadsWithheld()` exists because the COPY has to tell the truth.** Awareness mode says *"no lead
+form, so there is no enquiry to report"* - true of Trade Desk, and plainly FALSE here: Meta is
+running a lead-form line (plan line 9, A$90,000) and reporting enquiries. That sentence would have
+been the one line on the page a client could catch us out on, so the withheld state gets its own
+wording in `renderNote()` and `introCopy` - *"enquiry reporting is paused while the CRM connection
+is being built"*. **This is the only place the dashboard says anything about it** (4 mentions in the
+how-to-read note, 1 in the intro). Nothing else on the page uses the words enquiry, lead or CPL -
+asserted by the render check below.
+
+**It reaches the surfaces that outlive the page, too**, because a client-facing number is not only
+what is on screen:
+- **CSV exports** (`exportAllData`, `exportThisTab`) drop the lead columns - otherwise the file
+  hands back the exact figure the page withholds, with no caption explaining it.
+- **The AI deck** (`buildReportPayload`) DELETES the lead keys rather than sending them with an
+  instruction not to use them. A model handed `leads: 56` and `cpl: 201.52` will write a headline
+  about them however firmly the prompt says not to: the prompt is a request, an absent key is a
+  fact. `report.py` then builds a reach-and-delivery brief (`leads_reported: false`), and
+  `_scope_directive()` appends an authoritative block to BOTH system prompts, both providers -
+  which is also where the stale *"single-engine Meta account for Gateway Braddon"* wording in those
+  static prompts gets corrected with the payload's real channel list.
+- **The GA4 `Website enquiries` tile** is gated on the same flag, or the number removed from every
+  paid surface would reappear on the tab next door under a different heading.
+
+**Turning it back on is `LEADS_REPORTABLE = true` and a dash deploy.** Nothing upstream changed:
+`sql/*`, `job/main.py` and `geocon.json` still carry `leads` in full, so there is no re-seed and no
+forced export, and no history is lost in the meantime.
+
+**Follow-up not done here:** `report.py`'s two static system prompts still read as a single-engine
+Meta lead-gen template for Gateway Braddon. `_scope_directive()` overrides the wrong parts at
+runtime, but the prompts themselves want a proper multi-channel re-template.
+
+### Hiding a finished development (2026-09-03, client request)
+
+The client asked to see the live launch only. Gateway Braddon's flight ended 2026-07-20; a finished
+campaign never moves again, so every visit after this one would have opened on a choice between the
+live work and an archive.
+
+```js
+const HIDDEN_PROPERTIES = new Set(['Gateway Braddon']);   // dash/dashboard.html
+```
+
+**There is no second edit for the dropdown.** `initProperty()` renders the selector only for two or
+more developments, so removing one leaves a single development and the control hides itself. That is
+what the client meant by "make it one tab".
+
+**It is applied at the ROOT, once, in `load()` before anything reads `DATA`** -
+`dropHiddenProperties()` filters `DATA.properties`, `DATA.rows` and `DATA.breakdowns`, then REBUILDS
+`meta.date_min` / `date_max` from what survives. Filtering only the selector would have left its 291
+rows in `DATA.rows`, and **the date picker is built from `meta.date_min`**: Gateway Braddon delivered
+from 2026-05-05 and Northbourne from 2026-08-20, so "All time" would have opened on three empty
+months of lead-in on every chart.
+
+**GA4 is deliberately NOT filtered.** The Website tab's site figures are whole-site and say so on
+screen; dropping rows by `property` would quietly turn a whole-site number into a campaign-scoped one
+under a caption still promising the whole site. Its one development-scoped card already filters
+itself.
+
+**Two things the shorter window then exposed, both fixed here:**
+- **The date picker read "Last 14 days" while showing everything.** Every relative preset is clamped
+  to `[MIN,MAX]`, so on a 13-day dataset one of them coincides with the whole window and won by
+  position (`all` is last in `PRESETS`, because that is where it belongs in the menu). `detectPreset`
+  now tests `all` FIRST. A control claiming a filter that is not applied is worse than no label, and
+  it would have flipped to "Last 28 days" and on as the flight grew.
+- **The trend chart defaulted to WEEK grain over 13 days** - three buckets, two of them part-weeks,
+  so the lines dived toward zero at both ends and read as a campaign collapsing when nothing had
+  happened but the calendar. `syncGrainDefault()` now picks the opening grain from the window
+  length (<=35 days -> day, <=400 -> week, else month). It sets the starting position only; the
+  VIEW BY toggle is untouched.
+
+**Elsewhere the same change corrected three first-client string literals** (the repo-wide "grep for
+the first client's name before shipping a second lane" rule): the browser tab title, the AI deck's
+`client` / `brand` / `filePrefix` (a Northbourne deck carried a GATEWAY BRADDON cover and filename),
+and the login page's development list in `dash/main.py`.
+
+**KNOWN DATA-QUALITY ISSUE, NOT FIXED HERE AND NOT OURS TO FIX IN CODE:** 100% of Northbourne's Meta
+delivery (A$11,283 / 424,313 impressions at 2026-09-01) sits under correctly-named campaigns
+(`0201_GG_..._Northboune Gateway_..._CNV`) whose ADS are named `GateWayBraddon_<market>_Statics` -
+the old development's naming convention applied to the new campaign's ads. The property tagging is
+right (the campaign name wins), but the creative gallery, the top-creative insight and the ad table
+all print "GateWayBraddon" on a dashboard that has just had Gateway Braddon removed from it. **The
+fix is a rename in Meta by whoever traffics these ads**; aliasing it in the UI would hide a real
+naming error rather than correct it.
+
+**Restoring the development** is emptying the Set and redeploying the dash. No re-seed, no forced
+export - `geocon.json` still carries it in full.
+
+### Verifying a change like this
+
+Both changes are pure frontend, so they are verifiable in a real browser before deploying: serve
+`dash/` over a tiny Node server answering `/data.json` with the real payload from
+`gs://bidbrain-analytics-geocon-dash/geocon.json`, append a probe script to a COPY of
+`dashboard.html`, and dump the DOM with headless Edge. The 2026-09-03 change was signed off on 16
+assertions against that dump - among them: zero occurrences of "Gateway Braddon", "CPL" or "lead" in
+`body.innerText`; the property selector `display:none`; `date_min` 2026-08-20; no `Leads`/`CPL`
+header in any of the four tables; no lead key in the deck payload; and `scrollWidth - clientWidth`
+equal to 0.
 
 ### Awareness mode - a development renders what it MEASURES (2026-08-28)
 

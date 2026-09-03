@@ -57,25 +57,27 @@ Cloudflare proxy. Config (`GCS_BUCKET`, `DATA_OBJECT`) and secrets (`DASH_PASSWO
 
 ## What the dashboard shows (`dashboard.html`)
 
-Branding: "MongoDB APAC — Live Dashboard" (Transmission + MongoDB logos; MongoDB greens). One
-external library: Chart.js 4.5.0. **Sticky control bar:** a **DNB ↔ KGA (IDC)** campaign toggle,
-multi-select **region chips**, **Download slides** (the AI Google Slides deck — see [§ AI report](#ai-report-download-slides--google-slides)),
-and CSV export ("this tab" / "all data"). Three tabs:
+Branding: Geocon mark + 100% Digital on a near-black canvas with a terracotta accent. One external
+library: Chart.js. **Sticky control bar:** date range, **Platform** chips (rendered only when more
+than one platform delivered), **Stage** chips, search, and CSV export ("this tab" / "all data").
+Three tabs:
 
-1. **Paid Media** — Trade Desk delivery. KPI tiles (spend, impressions/CPM, clicks/CTR, blended
-   CPC), a strategy-performance table vs benchmarks, daily imps/clicks/CTR (mixed chart),
-   spend-by-strategy (doughnut), daily stacked spend, spend-by-market, a CTR/clicks/CPC
-   efficiency trio, market-stacked-by-strategy, and a market summary table. **Then a
-   filter-independent "Content engagement" section** (the `pixel` payload): content-asset LP
-   views, plus spend by device / ad-environment and impressions by creative size — see the
-   [client README](../README.md#content-engagement-trade-desk-universal-pixel--a-static-seed).
-2. **Content Syndication** — Salesforce lead pacing. Snapshot (target, leads, pacing, outlook),
-   leads-vs-target and time-progress bars, weekly pacing, leads by market, leads by programme
-   (doughnut), a per-region mini-card grid, and a programme×market table.
-3. **CS Comparison** — two side-by-side region panels (target, leads, outlook, targets and
-   weekly-pacing charts).
+1. **Overview** - the KPI band, delivery over time (VIEW BY month/week/day + relative/absolute
+   axis), budget pacing against the in-market plan lines, the delivery funnel, spend by funnel
+   stage, the stage table, the Meta audience + placement breakdowns, and the insight cards.
+2. **Paid Media** - performance by platform, the top-5 creatives, performance vs the media-plan
+   targets, spend by ad set, the per-ad table and the creative-fatigue watch.
+3. **Website** - GA4 for the two Geocon properties. **Whole-site** figures (a site serves every
+   campaign that lands on it), so this tab follows the site chips and the date filter and NOT the
+   development selector or the platform chips. Hides itself when the payload carries no `ga4` block.
 
-It fetches **one** payload from `/data.json` and renders everything client-side — see the JSON
+**What renders is derived from what the delivering platforms MEASURE, not from what the first
+client measured** - `renderMeasureScope()`. Two client decisions currently shape it, both one-line
+reversals and both documented in the [client README](../README.md): **enquiries and cost per
+enquiry are withheld** pending the CRM connection (`LEADS_REPORTABLE`), and **Gateway Braddon is
+hidden** (`HIDDEN_PROPERTIES`), which leaves one development and so hides the development selector.
+
+It fetches **one** payload from `/data.json` and renders everything client-side - see the JSON
 contract in [`../job/README.md`](../job/README.md).
 
 ---
@@ -165,7 +167,12 @@ JSON is currently in the bucket. To change the password, add a new version of th
 
 ---
 
-## The login page wears GEOCON CORPORATE, the dashboard wears GATEWAY BRADDON
+## The login page wears GEOCON CORPORATE, the dashboard wears the dark property board
+
+(That dark board came from the Gateway Braddon campaign brand and is still the dashboard's
+skin, but the dashboard has reported on **Northbourne Gateway** since 2026-09-03 - the theme
+and the development are separate things. Two brands, two jobs; do not unify them without
+asking.)
 
 Re-skinned 2026-08-18 from geocon.com.au's own footer/CTA treatment: warm light-grey canvas
 (`#EDEDEB`), near-black heavy condensed uppercase display type (**Anton**, Google Fonts, loaded the
