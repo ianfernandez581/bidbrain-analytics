@@ -62,35 +62,20 @@ SCAFFOLD_SQL = f"""
 WITH latest AS (
   SELECT
     adset_id,
-    ARRAY_AGG(STRUCT(adset_name, market) ORDER BY metric_date DESC, imps DESC LIMIT 1)[OFFSET(0)] AS cur,
+    -- `tactic` is copied, not re-derived: stg_linkedin is the SINGLE definition of the line item
+    -- (its name ladder plus the stated overrides - e.g. the 2305 A/B test is that brief's Conversion
+    -- line). A second token list here used to write 'Unspecified' back over a stated line on every
+    -- --scaffold, so the CSV's reference column disagreed with the screen.
+    ARRAY_AGG(STRUCT(adset_name, market, tactic) ORDER BY metric_date DESC, imps DESC LIMIT 1)[OFFSET(0)] AS cur,
     ANY_VALUE(campaign) AS campaign
   FROM `{PROJECT}.{DATASET}.stg_linkedin`
   WHERE adset_id IS NOT NULL
   GROUP BY adset_id
 )
-SELECT adset_id, campaign, cur.adset_name AS adset_name, cur.market AS geo
+SELECT adset_id, campaign, cur.adset_name AS adset_name, cur.tactic AS phase, cur.market AS geo
 FROM latest
 ORDER BY campaign, adset_name
 """
-
-# Phase tokens, longest/most specific first. Retargeting before Conversion before Consideration
-# before Awareness: 'Conversion' CONTAINS 'Con', so a naive Consideration-first test mislabels every
-# conversion ad set. Kept identical to the CASE in sql/05_linkedin_adsets.sql - if you change one,
-# change both (the view is the source of truth on screen; this only pre-fills the CSV's hint column).
-PHASE_TOKENS = [
-    ("Retargeting",   ["RTG", "RT1", "RT2", "RETARGET"]),
-    ("Conversion",    ["CNV", "CONVERSION"]),
-    ("Consideration", ["CNS", "CONSIDERATION", "- CON ", "_CON_", " CON "]),
-    ("Awareness",     ["AWR", "AWARENESS"]),
-]
-
-
-def phase_of(name):
-    up = f" {(name or '').upper()} "
-    for label, toks in PHASE_TOKENS:
-        if any(t in up for t in toks):
-            return label
-    return "Unspecified"
 
 
 def read_csv():
@@ -120,7 +105,7 @@ def scaffold():
         row = {c: (prev.get(c) or "") for c in COLS}
         # Reference columns always follow the data, never the stale CSV.
         row.update(adset_id=aid, campaign=r["campaign"], adset_name=r["adset_name"],
-                   phase=phase_of(r["adset_name"]), geo=r["geo"] or "")
+                   phase=r["phase"] or "Unspecified", geo=r["geo"] or "")
         rows.append(row)
 
     # An ad set that stopped delivering is NOT dropped - its report row is still historically true and

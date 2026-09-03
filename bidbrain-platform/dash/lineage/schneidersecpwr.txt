@@ -1,3 +1,8 @@
+# Lineage digest for dashboard 'schneidersecpwr' (from clients/client_schneidersecpwr/)
+# Data contract: sql/<view>.sql (BigQuery view) -> job/main.py (data.json key) -> dashboard.html.
+
+## README.md (data contract, cookbook, gotchas)
+
 # client_schneidersecpwr — Schneider Electric "Secure Power"
 
 The **THIRD** Schneider dashboard, and a lean sibling of `client_schneiderlqai` (same engines, same
@@ -479,3 +484,144 @@ a failed run instead of a dashboard that reads "campaign stopped".
   line, which will otherwise read as a 0%-delivered line item. Do not hardcode targets, and do not
   half-wire it — a plan on one of three briefs is exactly the case the current copy ("no media plan has
   been supplied for any of them") would start lying about.
+
+
+## BigQuery views (sql/) - each header documents what the view computes and its raw sources
+
+### 01_stg_linkedin.sql
+-- Schneider Electric "Secure Power" — staged LinkedIn Ads (paid social).
+--
+-- A THREE-CAMPAIGN, paid-media-only dashboard (a sibling of client_schneiderlqai, NOT part of the
+-- multi-program client_schneider Pacific dashboard). It reports the three Secure Power briefs that
+-- are deliberately OUT of client_schneider's scope because they have separate stakeholders:
+--     ent_it          Enterprise IT Expansion        brief 1958   (multi-region: India/MEA/SAM/Pacific)
+--     ind_edge        Industrial Edge / Prefab       brief 2463   (Wave 3 only — see below)
+--     software_first  Software First EcoStruxure     brief 2305
+--
+-- SELF-CONTAINED: reads the shared raw mirror directly, exactly like client_schneiderlqai. It does
+-- NOT read client_schneider's views, so a scope change on that dashboard cannot move numbers here.
+--
+-- CAMPAIGN TAGGING — token matching on CAMPAIGN_NAME, never a fixed offset. Transmission is
+-- progressively prefixing campaign names with the brief number, so the SAME campaign appears under
+-- both `SE_*` and `<brief>_SE_*` forms; substring tokens roll both up (repo rule: "campaign names are
+-- NOT stable keys", md/AGENTS.md). The three token sets are disjoint — verified against every
+-- Schneider campaign before this view was written.
+--   * ent_it: `EntIT` catches SE_EntIT_2026_* and 1958_SE_EntIT_2026_*.
+--   * ind_edge: WAVE 3 ONLY. The bare token `Industrial Edge` would ALSO sweep in the 2025
+--     `1839_Schneider_Electric_Pacific_*` wave (Sep-Dec 2025, ~A$8.7k) which is a different brief, so
+--     the tokens are Wave-3 specific. Widen these ONLY on an explicit instruction.
+--   * software_first: `2305_` ALONE IS NOT ENOUGH — the Trade Desk line ran as
+--     `SE_EcoStruxureIT_AWR_2026` from 2026-06-17 and only gained the `2305_` prefix on 07-06, so a
+--     prefix-only token silently drops ~A$2.3k. Hence the `EcoStruxureIT` token.
+--
+-- CAMPAIGN NAME WINS; THE CAMPAIGN GROUP IS A FALLBACK, NOT A CO-EQUAL (2026-09-02).
+-- LinkedIn's group names are mislabelled here in BOTH directions: a group named
+-- `2305_SE_ANZ Industrial Edge W3 Prefab` holds campaigns named `2463_SE_Industrial Edge Wave3_*`,
+-- and a group named `2463_SE_Software First EcoStruxure_AWR_ANZ_static` holds campaigns named
+-- `2305_SE Software First EcoStruxure - AWR AU`. So the group may NEVER overrule a name that
+
+### 02_stg_tradedesk.sql
+-- Schneider Electric "Secure Power" — staged The Trade Desk (programmatic display).
+--
+-- Same three-brief scope and the same disjoint token sets as 01_stg_linkedin (see that file's header
+-- for why each token exists — in particular why `2305_` alone is not sufficient for software_first,
+-- and why ind_edge is deliberately Wave-3 only). Advertiser filter: ADVERTISER_NAME = 'Schneider
+-- Electric' (the Snowflake TTD mirror has NO advertiser/campaign ID columns — names only, which is
+-- exactly why every match here is a substring token and never a fixed offset).
+--
+-- MARKET is resolved AD GROUP FIRST, then campaign name — the same two-stage parser client_schneider
+-- uses, and it matters here: Industrial Edge and Software First carry their country only in the AD
+-- GROUP name (e.g. an `..._AWR_ANZ_display` campaign whose ad groups split AU vs NZ), so a
+-- campaign-name-only parse would strand that delivery in a phantom combined-ANZ market. Enterprise IT
+-- is the opposite — its region sits in the campaign name (`SE_EntIT_2026_S2_{MEA,India,SAM}`) with no
+-- country token at all, which is why markets are NOT folded to Australia/New Zealand on this
+-- dashboard. (LinkedIn has no ad-group grain to fall back on, so it reconciles a coarse token against
+-- the ad set's current name instead — see 01_stg_linkedin's header.)
+--
+-- TACTIC is the media-plan LINE ITEM (funnel stage), resolved with the SAME two-stage precedence as
+-- market — ad group first, campaign name second — because Trade Desk carries the stage in either
+-- depending on the brief: Industrial Edge's ad groups are `Awareness_Premium IT_{AU,NZ}` while its
+-- campaign name says `..._AWR_...`. The ladder itself (Retargeting > Conversion > Consideration >
+-- Awareness, delimiter-anchored short tokens) is identical to 01_stg_linkedin's, which carries the
+-- reasoning. Enterprise IT names its ad groups by VERTICAL rather than funnel stage, so it lands on
+-- 'Unspecified' by design.
+--
+-- Impressions = COALESCE(IMPRESSIONS, IMPRESSION): the mirror carries both spellings. Spend is AUD
+-- (CURRENCY is AUD today; the USD@1.50 / SGD@1.15 arms are kept for robustness).
+
+### 03_delivery.sql
+-- Secure Power unified paid-media delivery fact — the dashboard's main data source.
+--
+-- One row per campaign × platform × tactic × market × day (the `pm_delivery` analog). The dashboard
+-- aggregates this client-side: hero time-series, campaign comparison, line-item breakdown, market
+-- breakdown — filtered by the campaign dropdown, the channel / line-item / market chips and the
+-- date-range picker.
+--
+-- `tactic` is the media-plan LINE ITEM (Awareness / Consideration / Retargeting / Conversion, or
+-- 'Unspecified' where a brief names its ad sets by vertical rather than funnel stage). It was added
+-- 2026-08-18 on the client's request: the plan is bought as line items, but the dashboard could only
+-- break delivery down by CHANNEL, so an Awareness-vs-Consideration-vs-Conversion view was impossible.
+-- Definition and the token ladder live in the two staging views, not here.
+--
+-- AGGREGATED on purpose. The staging views are at ad-set/ad-group/creative grain and this view
+-- exposes no such column, so an ungrouped SELECT would emit one duplicate row per delivering ad group
+-- that every consumer would sum anyway - the exact defect that once blew client_schneider's payload to
+-- 13.6 MB. If a finer grain is ever needed, add a SEPARATE view rather than un-grouping this one.
+-- (Adding `tactic` splits each existing row at most one way per funnel stage that campaign runs -
+-- ent_it is single-tactic, so its row count is unchanged.)
+--
+-- `region` rolls the fine markets up to the four reporting regions these three briefs run in, so the
+-- Overview can show a regional split without losing the AU/NZ detail underneath. Note Pacific covers
+-- Australia, New Zealand, the combined 'ANZ' residual AND Enterprise IT's own 'Pacific' token. The
+-- ANZ arm is kept as a defensive residual even though ind_edge's phantom ANZ market was resolved at
+-- source in 01_stg_linkedin (see that file) - a genuinely combined-market ad set would still land
+-- there and must roll up to Pacific rather than 'Other'.
+--
+-- SUM(leads)/SUM(lead_form_opens) over an all-NULL Trade Desk group returns NULL, not 0, so the
+-- dashboard can auto-hide the LinkedIn-only lead-form metric instead of drawing a false zero.
+
+### 04_creative.sql
+-- Secure Power creative performance — one row per campaign × platform × tactic × market × concept ×
+-- format × creative, WHOLE FLIGHT (no date column). Backs the Creative tab.
+--
+-- `tactic` (the media-plan line item) is carried here as well as in `delivery` so the Creative tab
+-- honours the same line-item filter as the rest of the dashboard, and so "which creative ran in which
+-- funnel stage" is answerable - the same creative is frequently reused across stages, and rolling
+-- those up would have hidden that. Added 2026-08-18 with the rest of the line-item work.
+--
+-- Because these rows carry no date, the dashboard filters them by the campaign / line item / market /
+-- channel chips ONLY - the date-range picker does not narrow them, and the UI says so on the tab.
+-- (Same deliberate limitation as client_schneiderlqai and client_cloudflare; adding a date column
+-- here would multiply the row count for a table that is read as a whole-flight ranking.)
+
+### 05_linkedin_adsets.sql
+-- Secure Power — one row per LinkedIn AD SET, for the dashboard's "Targeting Breakdown" report.
+--
+-- The Reports tab reproduces a report the media buyer otherwise compiles by hand: click into every
+-- ad set in Campaign Manager, screenshot the Audience panel, and retype it into a spreadsheet. This
+-- view supplies the SKELETON of that report from real delivery (which ad sets exist, their current
+-- name, phase, geo and flight) and LEFT JOINs the hand-recorded audience columns from
+-- `seed_adset_targeting` (see ../load_targeting.py for why those are seeded and not fetched).
+--
+-- GRAIN: exactly one row per adset_id. `delivery` is deliberately aggregated and carries no ad-set
+-- column (see its header), so this is the SEPARATE finer-grain view that comment calls for - not an
+-- un-grouping of it. 36 rows today, so it is cheap to carry in the payload.
+--
+-- THE NAME IS NOT THE KEY. Transmission renames ad sets mid-flight (adset 859128356 delivered as
+-- `SE_Industrial Edge_Awareness_AU` and later as `2463_SE_Industrial Edge Wave3_AWR_AU_image`), so
+-- every name-derived field is resolved from the LATEST name the ad set delivered under and the
+-- earlier names are kept in `aliases` rather than being silently dropped. Grouping on the name
+-- instead would split one ad set into two report rows. Repo rule: "campaign names are NOT stable
+-- keys" (md/AGENTS.md).
+--
+-- PHASE is the ad set's media-plan LINE ITEM and is NOT re-derived here: it is `stg_linkedin.tactic`
+-- from the ad set's latest delivering row - a STATED override where one exists (01's LINE-ITEM
+-- OVERRIDES: the 2305 A/B test is that brief's Conversion line), else the name ladder - so the
+-- Reports tab and the delivery tables can never disagree about which funnel stage an ad set sits in.
+-- That single definition (and why Retargeting must be tested before Conversion before Consideration
+-- before Awareness) lives in 01_stg_linkedin's header. `load_targeting.py --scaffold` copies the same
+-- column into the CSV's reference `phase` (it used to re-derive it with its own token list, which
+-- would have written 'Unspecified' back over a stated line on every refresh); THIS view is what
+-- reaches the screen. Enterprise IT's ad sets carry a vertical (Hero / Generic / Manufacturing / ...)
+-- rather than a funnel phase, so they land on 'Unspecified' by design - that is true, not a parse
+-- failure.
