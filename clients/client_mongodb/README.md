@@ -399,6 +399,35 @@ FORCE_REBUILD=1 --wait`). Until you do, the campaign is excluded and the drift c
   ("MongoDB, Inc." on LinkedIn vs "MongoDB" on TTD) - the seed's `ACCOUNT_NAME` column records the
   per-platform name so the difference is explicit, and views never key on it.
 
+## Fiscal halves in the calendar (2026-09-03, client request)
+
+The date picker leads with two named reporting periods - **`H2 (Aug-Jan)`** then **`H1 (Feb-Jul)`** -
+above the relative presets, the Cloudflare quarter-preset pattern halved. MongoDB's fiscal year opens
+1 Feb, so **H2 crosses the calendar year end** (2026-08-01 -> 2027-01-31); H1 is 2026-02-01 -> 2026-07-31.
+
+- **One source of truth: `HALVES` + `HALF_ORDER`** in `dash/dashboard.html`, sitting above the
+  `DateRange` IIFE. The calendar presets AND the boot default both read it, so adding a half is one
+  entry and it appears in the dropdown on its own. `HALF_ORDER` is newest-first = the listed order.
+- **The dashboard opens on the half containing TODAY**, via `currentHalfKey()` - not a hardcoded H2.
+  Today (Sep 2026) that is H2, which is what the client asked for, and it rolls forward by itself
+  instead of needing an edit every six months. `halfSpan()` clamps the half to the loaded data window
+  and returns null if the half holds no delivery at all, in which case boot falls back to the full
+  window rather than opening on an empty range.
+- **The halves come FIRST in `PRESETS` deliberately.** `detectPreset()` returns the first preset whose
+  span matches, so leading with the halves means the button reads `H2 (Aug-Jan)` rather than a
+  coincidentally-identical relative preset. Verified there are no span collisions against the data
+  window as at 2026-09-02 - every preset round-trips to its own label.
+- **The default is now a FILTERED view, and that is the change to expect on screen**: Paid Media and
+  LinkedIn open on Aug 1 -> the last delivered day, not the whole flight. The CSV export's
+  `date_filter` / `dateFiltered` flags therefore read true on load (correct - it says so honestly).
+  The **AI deck is unaffected**: `buildDeckPayload()` nulls the range, so the deck stays whole-flight.
+- **The CS and Comparison tabs are unaffected** - the picker is still greyed there (their KPIs read
+  the whole-flight `cs_by_programme` aggregate), so a half only ever scopes Paid Media and LinkedIn.
+- Labels are the client's own wording and carry **no fiscal-year number**. Unambiguous while one FY
+  of data is loaded; if a second FY's H1/H2 is ever added, put the FY in the label at the same time.
+- Frontend only - no `sql/`, `job/main.py` or payload change. Redeploy with
+  `dash/deploy_dash_mongodb.ps1` (no forced job run needed).
+
 ## See also
 
 - [Root README](../../README.md) — the whole-platform map, security model, and naming conventions.

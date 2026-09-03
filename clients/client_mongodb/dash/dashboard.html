@@ -942,17 +942,52 @@
 const JSON_URL = '/data.json';
 
 //==============================================================================
+// THE HALVES - MongoDB reports on its own fiscal halves, not calendar quarters:
+// H1 = Feb-Jul, H2 = Aug-Jan (the fiscal year opens 1 Feb, so H2 crosses the calendar
+// year end). One source of truth: the calendar presets and the boot default both read
+// this, so adding a half here makes it appear in the dropdown automatically.
+// (Client request 2026-09-03 - the Cloudflare quarter-preset pattern, halved.)
+//==============================================================================
+const HALVES = { H1:{start:'2026-02-01', end:'2026-07-31', label:'H1 (Feb-Jul)'},
+                 H2:{start:'2026-08-01', end:'2027-01-31', label:'H2 (Aug-Jan)'} };
+const HALF_ORDER = ['H2','H1'];      // newest first - the order they list in the calendar
+
+// [startISO,endISO] for one half, clamped to the loaded data window; null if that half
+// falls entirely outside the data (so the caller can fall back to the full window rather
+// than opening the dashboard on an empty range).
+function halfSpan(key, minISO, maxISO){
+  const h = HALVES[key]; if(!h) return null;
+  let s = h.start, e = h.end;
+  if(minISO && s < minISO) s = minISO;
+  if(maxISO && e > maxISO) e = maxISO;
+  return s > e ? null : [s, e];
+}
+// The half TODAY sits in - what the dashboard opens on. Past the last defined half (or
+// before the first) it pins to the nearest one, so the default is always a real half.
+function currentHalfKey(){
+  const d = new Date();
+  const today = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  const keys = Object.keys(HALVES).sort((a,b)=>HALVES[a].start<HALVES[b].start?-1:1);
+  for(const k of keys){ if(today >= HALVES[k].start && today <= HALVES[k].end) return k; }
+  if(today < HALVES[keys[0]].start) return keys[0];
+  return keys[keys.length-1];
+}
+
+//==============================================================================
 // SHARED DATE-RANGE PICKER (Looker-style). API: DateRange.init({min,max,onApply}),
 // DateRange.getRange(). onApply(startISO,endISO) fires on Apply. Default = full window.
+// The half presets come FIRST: they are how you move between reporting periods, and
+// being first also means detectPreset() labels the button "H2 (Aug-Jan)" rather than
+// some coincidentally-identical relative preset.
 //==============================================================================
 window.DateRange = (function(){
-  const PRESETS = [
+  const PRESETS = HALF_ORDER.map(k => ({k:k.toLowerCase(), label:HALVES[k].label})).concat([
     {k:'7',  label:'Last 7 days'},  {k:'14', label:'Last 14 days'},
     {k:'28', label:'Last 28 days'}, {k:'30', label:'Last 30 days'},
     {k:'90', label:'Last 90 days'}, {k:'month',     label:'This month'},
     {k:'lastmonth', label:'Last month'}, {k:'quarter', label:'This quarter'},
     {k:'all', label:'All time'},
-  ];
+  ]);
   let MIN=null, MAX=null, onApply=null;
   let selStart=null, selEnd=null, draftStart=null, draftEnd=null;
   let viewYear=0, viewMonth=0, open=false;
@@ -973,7 +1008,11 @@ window.DateRange = (function(){
     else if(k==='lastmonth'){     s = new Date(MAX.getFullYear(), MAX.getMonth()-1, 1);
                                   e = new Date(MAX.getFullYear(), MAX.getMonth(), 0); }
     else if(k==='quarter'){       const q=Math.floor(MAX.getMonth()/3); s=new Date(MAX.getFullYear(), q*3, 1); }
+    else if(HALVES[k.toUpperCase()]){ const h=HALVES[k.toUpperCase()];   // a defined half, e.g. 'h2'
+                                  s=parse(h.start); e=parse(h.end); }
     else                          { s=new Date(MIN); e=new Date(MAX); }   // all
+    // Both ends are clamped to the loaded data window, so a half that runs past the last
+    // delivered day still resolves to a real span and detectPreset() can still name it.
     return [clamp(s), clamp(e)];
   }
   function detectPreset(s,e){
@@ -1536,8 +1575,15 @@ async function boot() {
       .concat(_liDates).filter(Boolean).sort();
     const _minD = _pmDates[0] || (DATA.window && DATA.window.start);
     const _maxD = _pmDates[_pmDates.length-1] || (DATA.window && DATA.window.end);
-    dateStartSel = _minD; dateEndSel = _maxD;
-    DateRange.init({ min:_minD, max:_maxD,
+    // Open on the CURRENT reporting half - H2 (Aug-Jan) from 2026-08-01 (client request
+    // 2026-09-03). currentHalfKey() picks the half today falls in rather than hardcoding
+    // one, so this rolls forward on its own as halves are added to HALVES; fall back to
+    // the full window if that half holds no delivery yet. From here the calendar's half
+    // presets drive the switch.
+    const _hspan = halfSpan(currentHalfKey(), _minD, _maxD);
+    dateStartSel = _hspan ? _hspan[0] : _minD;
+    dateEndSel   = _hspan ? _hspan[1] : _maxD;
+    DateRange.init({ min:_minD, max:_maxD, initialStart:dateStartSel, initialEnd:dateEndSel,
       onApply:(s,e)=>{ dateStartSel=s; dateEndSel=e; renderControls(); renderActive(); } });
 
     // LinkedIn tab shows only when there's real MongoDB LinkedIn delivery in the feed.
