@@ -45,7 +45,18 @@ deliberately left alone: `10_*` is scoped by the campaign-ID allowlist, which ma
 donut, QoQ number and status-dashboard accuracy check hangs off it. Nothing downstream of
 `10_*` reads `16`/`17`, so they cannot move a live number.
 
-Four things to know before editing them:
+Five things to know before editing them:
+
+- **PACING IS `ACCEPTED / TARGET`. Delivered is a count, never a pacing basis** (2026-09-03, Jade).
+  `IS_DELIVERED` is `Accepted|Rejected` — the *reviewed* leads — so it is the right denominator for
+  the acceptance and rejection RATES (they sum to 100%) and the right numerator for a "how much has
+  this publisher delivered" count. It is the WRONG numerator against a TARGET, because the plan is
+  bought in accepted leads. `17_*`'s `WEEKLY_PACING` divided DELIVERED by TARGET while
+  `LEAD_DEFICIT` in the same `SELECT` measured ACCEPTED, so the two columns disagreed by a week's
+  rejections; fixed 2026-09-03. Neither column reaches the dashboard (`job/main.py` carries only the
+  counts, deliberately — the rates are grain-specific and must never be summed), so that fix is for
+  ad-hoc queries against the view. The dashboard's own basis is covered in the client README →
+  "One basis for every pacing figure".
 
 - **`BOOK` is a dimension, and it is not the same thing as `THEATRE`** (added 2026-08-27 with the
   regional campaigns). `Core DG` is the bought plan the seeded targets cover; `Regional` is the

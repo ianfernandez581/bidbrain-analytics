@@ -1227,7 +1227,7 @@
         <!-- 3.4 two charts, side by side -->
         <div class="grid">
           <div class="card">
-            <h3 id="cspdMktTitle">Delivered vs target by market</h3>
+            <h3 id="cspdMktTitle">Accepted vs target by market</h3>
             <div class="hint" id="cspdMktLbl">-</div>
             <div class="chart-wrap tall"><canvas id="cspdMarketChart"></canvas></div>
             <!-- Client requirement: unmatched leads must be visible, never silently bucketed. -->
@@ -4337,14 +4337,31 @@ function cspdSetWeek(w){ CSPD.week = w; renderCsPacingDetail(); }
 
 // ---- charts --------------------------------------------------------------
 // Horizontal grouped bars, one pair per market, in the seed's display order.
+// ACCEPTED, not delivered (2026-09-03, Jade: "for the weekly lead pacing, instead of
+// 'delivered' we should show accepted"). This chart is a PACING panel - it puts an actual
+// next to a target - and it was the last one on the tab still measuring DELIVERED
+// (accepted + rejected) against a plan the client buys in ACCEPTED leads. So w/c 24 Aug read
+// 174 against a 173 target and looked on plan, while the pacing tile in the band above it,
+// the publisher table's pacing column, the campaign-to-date band, the top KPI strip and the
+// by-region cards all read the same week as 136 accepted. The 2026-08-27 fix corrected the
+// weekly tile and left this chart behind; there is now ONE basis for every target comparison
+// on the tab, and the chart's market bars sum to the accepted figure the tile prints.
+//
+// The band's own "Delivered" tile still shows delivered, and keeps its label - it is a
+// delivery COUNT, not a pacing figure. Same for the rejection-rate denominators beside it.
+//
+// NOTE the bars exclude UNMAPPED (it is a parse warning, not a market - see cspdCfg), so if a
+// market-name token ever breaks while carrying ACCEPTED leads, the bars will sum to less than
+// the tile. That is what the cspdUnmapped note below is for; today UNMAPPED holds 64 APAC
+// leads, all of them still unreviewed, so the two agree exactly.
 function cspdRenderMarketChart(cfg, slice, wkName){
   destroy('cspdMarketChart');
   const el = document.getElementById('cspdMarketChart');
   if (!el) return;
   const byMkt = {};
   for (const r of slice){
-    const o = byMkt[r.market] = byMkt[r.market] || { target:0, delivered:0 };
-    o.target += (r.target || 0); o.delivered += (r.delivered || 0);
+    const o = byMkt[r.market] = byMkt[r.market] || { target:0, accepted:0 };
+    o.target += (r.target || 0); o.accepted += (r.accepted || 0);
   }
   const labels = cfg.markets;
   // A book with NO target sheet gets ONE series, and the card is retitled to match. Drawing an
@@ -4352,12 +4369,12 @@ function cspdRenderMarketChart(cfg, slice, wkName){
   // it, under a heading promising a comparison that the data cannot make - the chart claimed
   // "vs target" while showing no target. One series and an honest title, instead.
   const ds = [
-    { label: 'Delivered', data: labels.map(m => (byMkt[m] || {}).delivered || 0), backgroundColor: CF, maxBarThickness: 9 },
+    { label: 'Accepted', data: labels.map(m => (byMkt[m] || {}).accepted || 0), backgroundColor: CF, maxBarThickness: 9 },
   ];
   if (cfg.hasTargets) ds.unshift(
     { label: 'Target', data: labels.map(m => (byMkt[m] || {}).target || 0), backgroundColor: TARGET, maxBarThickness: 9 });
   const title = document.getElementById('cspdMktTitle');
-  if (title) title.textContent = cfg.hasTargets ? 'Delivered vs target by market' : 'Delivered by market';
+  if (title) title.textContent = cfg.hasTargets ? 'Accepted vs target by market' : 'Accepted by market';
   charts['cspdMarketChart'] = new Chart(el, {
     type: 'bar',
     data: { labels: labels, datasets: ds },
@@ -4369,7 +4386,7 @@ function cspdRenderMarketChart(cfg, slice, wkName){
   const lbl = document.getElementById('cspdMktLbl');
   if (lbl) lbl.textContent = wkName + ' - ' + cspdBookLabel(cfg.book)
     + (CSPD.vendor === 'all' ? ', all publishers' : ', ' + CSPD.vendor)
-    + (cfg.hasTargets ? '' : ' (no target set - delivered only)');
+    + (cfg.hasTargets ? ', accepted leads vs target' : ' (no target set - accepted only)');
 
   // Unmatched leads are a CLIENT REQUIREMENT to surface, so this line always says
   // something - "all matched" is information too.
@@ -4705,8 +4722,15 @@ function cspdRenderStale(cfg){
 // renderProgress / renderRegionGrid), fed an agg-shaped object. That is the point: a
 // basis cannot drift between theatres if there is only one implementation. All four
 // already pace on ACCEPTED / target, which is what the client's own sheet does
-// (deficit = Planned - Accepted). DO NOT add a delivered-based variant here - the
-// delivered basis lives only in the Pacing detail weekly band, which says so.
+// (deficit = Planned - Accepted). DO NOT add a delivered-based variant here.
+//
+// As of 2026-09-03 (Jade) NOTHING on this tab paces on delivered: every target comparison
+// - this strip, the region cards, the campaign-to-date band, the weekly tile, the weekly
+// chart, the by-market chart and the publisher table's pacing column - reads ACCEPTED.
+// DELIVERED survives only as (a) a delivery COUNT in the two "Delivered" tiles and the
+// publisher table's Delivered column, and (b) the denominator of the acceptance and
+// rejection RATES, where accepted + rejected is the correct reviewed-lead base.
+// If you add a panel that compares an actual to a target, it uses accepted.
 //
 // SCOPE = theatre + book + publisher, i.e. exactly cspdRows(). This whole section
 // exists because two panels on one screen disagreed; scoping the top tiles differently
