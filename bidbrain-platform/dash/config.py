@@ -321,6 +321,42 @@ TOOLS = {
         "name": "The Grid (Central)", "slug": "central-grid", "status": "active",
         "url": "https://central-grid-p32gk2wuia-ts.a.run.app/",
     },
+    # A PRIVATE PREVIEW of The Grid: the same `central-grid` service, but a --no-traffic tagged
+    # revision (grid-core/deploy_grid_preview.ps1) carrying its own campaign seed and state object.
+    # Live keeps serving the entry above, untouched.
+    #
+    # URL COMES FROM THE ENVIRONMENT, and an empty one DISABLES the whole entry (_tools_tiles skips
+    # it, _may_open refuses it, the proxy has no upstream). Two reasons it is not hardcoded: the
+    # tagged host changes whenever the tag does, so a literal here would need a code edit + platform
+    # redeploy per tag; and shipping this file with a URL that does not exist yet would leave a dead
+    # tile in the console. Point it at a revision with:
+    #   gcloud run services update platform-dash --region australia-southeast1 `
+    #     --update-env-vars CENTRAL_PREVIEW_URL=https://<tag>---central-grid-p32gk2wuia-ts.a.run.app
+    # and retire the preview by clearing that var - no deploy either way.
+    #
+    # ALLOW_EMAILS is the access list, and it is NOT the usual staff check. TOOLS entries are
+    # normally open to any admin/superadmin session; this one is restricted to the addresses in
+    # CENTRAL_PREVIEW_EMAILS (comma-separated) - see _may_open. Note what that excludes on purpose:
+    # a session created by the typed admin or super-admin PASSWORD carries no email at all
+    # (_establish_session clears the session and stores only the role), so a shared password can
+    # never reach the preview - Google/Microsoft sign-in only. Empty list = the normal staff rule,
+    # but the empty URL keeps the whole entry off until it is deliberately pointed somewhere.
+    #
+    # The NAMES LIVE IN THE ENVIRONMENT, not here, so who is reviewing an unreleased change is not
+    # committed to git for every reader of this repo (and not preserved in its history). It is a
+    # privacy measure, NOT a security boundary: anyone holding project Owner can read the service's
+    # env vars anyway, and Owner carries run.invoker, so they can reach the tagged revision directly
+    # whatever this list says. See grid-core/README.md -> "Private preview revisions".
+    "central-preview": {
+        "name": "The Grid (Preview)", "slug": "central-grid-preview", "status": "active",
+        "url": os.environ.get("CENTRAL_PREVIEW_URL", "").strip(),
+        "allow_emails": [e.strip() for e in os.environ.get("CENTRAL_PREVIEW_EMAILS", "").split(",") if e.strip()],
+        "restricted": True,   # fail CLOSED: no allow_emails = nobody, never "all staff"
+        # Same service as `central`, so reuse its placeholder login secret (the Grid is IAM-gated
+        # and has no /login, so the value is never checked). Without this the proxy would look for
+        # a `central-preview-dash-password` secret that does not exist and 500 on first open.
+        "pw_secret": "central-dash-password",
+    },
 }
 
 # --- Google-account access (email -> what they can open) ----------------------------------

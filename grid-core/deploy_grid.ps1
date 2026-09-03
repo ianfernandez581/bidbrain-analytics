@@ -91,8 +91,15 @@ Write-Host "Updating Cloud Run service $SERVICE (image swap + state bucket + sec
 #     --update-env-vars GREENLIGHT_ENABLED=true --timeout 600
 # (--timeout 600 because the extraction call runs ~320s synchronously in the
 # request; Cloud Run's default 300s would cut it off. TODO: background job.)
+# --remove-env-vars SCRUBS the sandbox-only vars set by deploy_grid_preview.ps1. Cloud Run has
+# no per-revision env: a preview deploy leaves CENTRAL_IMPORT_PATH / CENTRAL_EXTRA_PATH /
+# GRID_STATE_OBJECT on the SERVICE TEMPLATE, and this command builds its revision FROM that
+# template - so without the scrub the next live deploy would boot the 14-row sandbox seed and
+# read the preview state blob, in front of every super-admin. Removing a var that is not set is
+# a no-op, so this is safe and idempotent on a service that has never had a preview.
 gcloud run services update $SERVICE --image $IMG --region $REGION --project $PROJECT `
     --update-env-vars "GRID_STATE_BUCKET=$STATE_BUCKET,GREENLIGHT_BUCKET=$DUMPS_BUCKET,GREENLIGHT_BASE_URL=https://api.kimi.com/coding,EXPECTED_MODEL=kimi-for-coding" `
+    --remove-env-vars "CENTRAL_IMPORT_PATH,CENTRAL_EXTRA_PATH,GRID_STATE_OBJECT" `
     --update-secrets "ANTHROPIC_API_KEY=anthropic-api-key:latest,GREENLIGHT_API_KEY=kimi-api-key:latest"; Must "update grid service"
 
 $URL = (gcloud run services describe $SERVICE --region $REGION --project $PROJECT --format "value(status.url)")

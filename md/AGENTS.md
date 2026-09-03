@@ -513,6 +513,12 @@ Build as yourself via the per-stage scripts (each self-contained, idempotent, in
 - `job/deploy_job_<c>.ps1` - edited `job/main.py` (JSON shape) -> rebuild + deploy + run JOB
 - `sql/deploy_views_<c>.ps1` - edited a `sql/*.sql` view -> reapply views + run JOB
 - Platform: `bidbrain-platform/dash/deploy_dash_platform.ps1`. Grid: `grid-core/deploy_grid.ps1`.
+- **A PRIVATE preview of the Grid** (staff-only, live sees nothing): `grid-core/deploy_grid_preview.ps1`
+  - a `--no-traffic --tag` revision with its own state object and campaign seed. Cloud Run has no
+  per-revision env, so that deploy leaves its vars on the SERVICE TEMPLATE and `deploy_grid.ps1`
+  `--remove-env-vars` them - never hand-roll a `gcloud run services update` on `central-grid` while a
+  preview is outstanding, or live boots the sandbox seed. Keep preview work PARKED (`/park`): ship
+  maps `grid-core/` -> `deploy_grid.ps1`, so `/ship` or `/go` deploys it to LIVE.
   Status: `status_dashboard/job/deploy_job_status.ps1` / `deploy/deploy_job_status_deploy.ps1`.
 - One-time switches (standup only): `scripts/enable_platform_sso.ps1`, `enable_super_admin.ps1`,
   `enable_google_login.ps1`, `enable_microsoft_login.ps1`, `clients/client_<c>/dash/enable_report_<c>.ps1`

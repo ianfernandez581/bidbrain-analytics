@@ -72,6 +72,37 @@ sync has ever run the app anchors to now and shows a LOUD amber badge + banner.
 
 Verify anytime: `npm test` (runs `calc.test.js` + the Central suites).
 
+## Private preview revisions (`deploy_grid_preview.ps1`)
+
+`deploy_grid.ps1` takes 100% of traffic, so every super-admin sees a change the moment it lands.
+`deploy_grid_preview.ps1` instead deploys a **`--no-traffic --tag` revision**: its own url, its own
+state object, its own campaign seed, while the stable url (and the `/d/central/` proxy, which points
+at it) keeps serving what it served before. Promotion is a traffic flip, not a rebuild.
+
+- **Reaching it.** `central-grid` is IAM-gated — unlike the client dashboards, which are public with
+  their own password screen — so the tagged url will NOT open in a browser and the platform proxy
+  points at the stable one. Tunnel instead (each viewer needs `roles/run.invoker`):
+  `gcloud run services proxy central-grid --region australia-southeast1 --tag <tag> --port 8081`.
+- **Seeding.** `CENTRAL_IMPORT_PATH` / `CENTRAL_EXTRA_PATH` override the two boot importers in
+  `server.js`; both default to today's files so **production is unchanged when they are unset**, and
+  each importer already returns early on a missing file, so a non-existent path disables that seed
+  outright (an empty Grid). `config/central-import-sandbox.json` is the committed 14-row snapshot.
+  **You cannot get a different campaign set by deleting rows in the UI** —
+  `db.importCentralSnapshot`'s guard counts rows `WHERE sourceOfRecord='sheet-import'`, so an emptied
+  table re-imports the whole snapshot on the next cold start.
+- **State.** Isolated by default (`GRID_STATE_OBJECT=grid-state/preview-<tag>.db`). `-ShareState`
+  points at the live blob and is **read-only in practice**: `persist.js` writes under an
+  `ifGenerationMatch` precondition and assumes one revision at a time ("overlap is confined to the
+  seconds around a deploy"), so a write from a permanently-running preview can make the LIVE
+  revision's next save fail with `generation-conflict`.
+- **The template trap.** Cloud Run has no per-revision env, so a preview deploy leaves its vars on
+  the SERVICE TEMPLATE and any later `gcloud run services update` would build a LIVE revision
+  carrying them. `deploy_grid.ps1` `--remove-env-vars` all three, so the normal path self-heals —
+  but do not hand-roll a `services update` on `central-grid` while a preview is outstanding.
+- **Git.** `merge-branches.ps1` maps `grid-core/` -> `deploy_grid.ps1`, so any grid-core change that
+  lands via `/ship` or `/go` deploys to LIVE. Keep preview work on a `wip/*` branch (`/park`) —
+  ship and go always skip those.
+
 ## The campaign data (live SQLite spine)
 
 `the-grid.html` boots by fetching `GET /api/central/campaigns` and mapping each DB

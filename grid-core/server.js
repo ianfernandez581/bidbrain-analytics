@@ -73,11 +73,25 @@ const CENTRAL_MIME = {
   pptx: ['application/vnd.openxmlformats-officedocument.presentationml.presentation', 'application/octet-stream']
 };
 
+// SEED PATHS ARE OVERRIDABLE (for sandbox revisions). Both importers below run on EVERY boot,
+// and they are idempotent only while the rows survive: db.importCentralSnapshot's guard counts
+// rows WHERE sourceOfRecord='sheet-import', so deleting campaigns in the UI drops that count to
+// zero and the next cold start re-imports the whole snapshot. A sandbox Grid holding a DIFFERENT
+// campaign set therefore cannot be produced by editing the table -- it has to BOOT from a
+// different file.
+// Both default to today's paths, so PRODUCTION BEHAVIOUR IS UNCHANGED when they are unset (same
+// ship-it-dark idiom as GREENLIGHT_ENABLED). Each importer already returns early when its file is
+// missing, so pointing one at a non-existent path is how you disable that seed outright (an empty
+// Grid). deploy_grid.ps1 --remove-env-vars BOTH, so a live deploy can never inherit a sandbox
+// deploy's service template -- without that, the next live redeploy would boot the wrong seed.
+const CENTRAL_IMPORT_PATH = process.env.CENTRAL_IMPORT_PATH || path.join(ROOT, 'config', 'central-import.json');
+const CENTRAL_EXTRA_PATH  = process.env.CENTRAL_EXTRA_PATH  || path.join(ROOT, 'config', 'central-extra-campaigns.json');
+
 // ONE-TIME import of the sheet parse into the campaigns DB (the DB is Central's source
 // of truth; this snapshot import is NOT a pipeline). Idempotent guard inside the method.
 (function importCentralSheetOnce() {
   try {
-    const snapPath = path.join(ROOT, 'config', 'central-import.json');
+    const snapPath = CENTRAL_IMPORT_PATH;
     if (!fs.existsSync(snapPath)) return;
     const snap = JSON.parse(fs.readFileSync(snapPath, 'utf8'));
     const mapped = snap.map(r => centralView._mapGridRowToCentral(r));
@@ -93,7 +107,7 @@ const CENTRAL_MIME = {
 // sourceOfRecord='scan' keeps their provenance honest (not 'sheet-import').
 (function importCentralExtraOnce() {
   try {
-    const p = path.join(ROOT, 'config', 'central-extra-campaigns.json');
+    const p = CENTRAL_EXTRA_PATH;
     if (!fs.existsSync(p)) return;
     const doc = JSON.parse(fs.readFileSync(p, 'utf8'));
     const rows = Array.isArray(doc) ? doc : (doc.campaigns || []);

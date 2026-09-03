@@ -471,11 +471,38 @@ def _fill_feedback_loop(page):
     return page.replace("__FEEDBACK_DATA_JSON__", data_json.replace("</", "<\\/"))
 
 
+def _tool_allowed(spec):
+    """May THIS session open this TOOLS entry? Staff-only as before, plus two extra gates.
+
+    A tool with no `url` is off (the preview entry ships that way until CENTRAL_PREVIEW_URL is set),
+    and one carrying a non-empty `allow_emails` is restricted to those addresses instead of being
+    open to every admin/superadmin. The email comes from session["email"], which ONLY the Google and
+    Microsoft sign-in paths set -- a typed-password admin/super-admin session has none, so it is
+    refused here by construction. That is deliberate: it keeps the shared passwords, which nobody can
+    attribute or revoke individually, away from a private preview."""
+    if not (spec or {}).get("url"):
+        return False
+    if session.get("kind") not in ("superadmin", "admin"):
+        return False
+    allow = [str(e).strip().lower() for e in (spec.get("allow_emails") or []) if str(e).strip()]
+    if not allow:
+        # FAIL CLOSED for an entry that declares itself restricted. Its list comes from the
+        # environment, so a misconfigured deploy (url set, emails forgotten) would otherwise fall
+        # through to the normal staff rule and quietly open a private preview to every admin -
+        # the failure nobody would notice, because it looks like it is working.
+        return not spec.get("restricted")
+    return (session.get("email") or "").strip().lower() in allow
+
+
 def _tools_tiles():
     """The internal-tools tile list (config.TOOLS) for the admin tree + super-admin console.
-    Empty unless TOOLS is populated, so the '{% if tools %}' block stays hidden otherwise."""
+    Empty unless TOOLS is populated, so the '{% if tools %}' block stays hidden otherwise.
+
+    Filtered HERE, server-side, rather than in the template: a Jinja `{% if %}` would still render
+    the entry's URL into the page source for a session that cannot use it."""
     return [{"key": k, "name": v.get("name", k)}
-            for k, v in getattr(cfg, "TOOLS", {}).items() if v.get("status") == "active"]
+            for k, v in getattr(cfg, "TOOLS", {}).items()
+            if v.get("status") == "active" and _tool_allowed(v)]
 
 
 @app.get("/")
@@ -2550,9 +2577,16 @@ def _upstream_base(client):
 
 def _upstream_pw(client):
     if client not in _UPSTREAM_PW:
+        # A TOOLS entry may name the secret to use instead of the `<client>-dash-password`
+        # convention. The Grid has no login screen (it is IAM-gated, not password-gated), so its
+        # secret is a placeholder the upstream ignores -- and its PREVIEW is the same service on a
+        # tagged revision, so it reuses the same one rather than needing a second dummy secret
+        # created before the tile can work at all.
+        spec = getattr(cfg, "TOOLS", {}).get(client) or {}
+        secret = spec.get("pw_secret") or f"{client}-dash-password"
         from google.cloud import secretmanager
         sm = secretmanager.SecretManagerServiceClient()
-        name = f"projects/{PROJECT}/secrets/{client}-dash-password/versions/latest"
+        name = f"projects/{PROJECT}/secrets/{secret}/versions/latest"
         _UPSTREAM_PW[client] = sm.access_secret_version(name=name).payload.data.decode().strip()
     return _UPSTREAM_PW[client]
 
@@ -2597,6 +2631,17 @@ def _tool_headers(client):
     if client not in getattr(cfg, "TOOLS", {}):
         return {}
     aud = _upstream_base(client)
+    # A plain-http upstream cannot be Cloud Run IAM-gated (that is a local dev target), and
+    # fetch_id_token would raise on it rather than return nothing. Every real tool URL is https,
+    # so this is inert in production and is what lets the platform be run against a local service.
+    if not (aud or "").startswith("https://"):
+        return {}
+    # A TAGGED revision url (https://<tag>---<service-host>) is a valid REQUEST target but NOT a
+    # valid AUDIENCE: Cloud Run checks the token's aud against the SERVICE url, so a token minted
+    # for the tagged host is rejected as invalid and the gate answers 401 (not 403 - nothing about
+    # permissions, the token simply is not accepted) before the request ever reaches the revision.
+    # Strip the tag prefix for the audience only; the request still goes to the tagged host.
+    aud = re.sub(r'^(https://)[A-Za-z0-9-]+---', r'\1', aud)
     tok, exp = _TOOL_TOKENS.get(aud, (None, 0))
     if not tok or exp < time.time() + 60:
         from google.oauth2 import id_token
@@ -2618,7 +2663,9 @@ def _upstream_login(client):
 def _may_open(client):
     kind = session.get("kind")
     if client in getattr(cfg, "TOOLS", {}):     # internal tool: staff only, never agency/client
-        return kind in ("superadmin", "admin")
+        # _tool_allowed keeps the staff-only rule and adds the url + allow_emails gates, so an
+        # entry the console does not show is also one the proxy will not open by typed URL.
+        return _tool_allowed(cfg.TOOLS[client])
     if kind == "superadmin":
         # god-mode: open ANY dashboard that has a URL, including coming_soon structure previews
         # (Caltex / Bell Shakespeare) that aren't surfaced to clients yet.
