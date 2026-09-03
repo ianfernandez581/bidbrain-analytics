@@ -26,6 +26,10 @@ clients/*/data/*
 !clients/client_schneider/data/targets.csv
 !clients/client_schneider/data/campaign_map.csv
 !clients/client_schneiderlqai/data/media_plan.csv
+# EXCEPTION: foodbank is a sample-data pitch preview - its data/ holds the seeded GENERATOR and its
+# committed output (the dashboard's only payload), not raw client exports. Track both.
+!clients/client_foodbank/data/generate_sample.py
+!clients/client_foodbank/data/foodbank_sample.json
 
 # Python
 __pycache__/

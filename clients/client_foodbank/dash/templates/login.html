@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ page_title }}</title>
+<link rel="icon" type="image/png" href="{{ asset(client.favicon) }}">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ asset('css/dashboard.css') }}">
+{#- Source of truth for this view: clients/client_foodbank/design/login_reference.html.
+    Markup is that file, split the repo way: CSS lives in static/css/dashboard.css (the `login`
+    block, under the shared :root tokens), JS in static/js/login.js. Sync by overwriting, never by
+    merging. Port mapping: the reference's `.field` wrapper is `.pw-field` here (the dashboard owns
+    `.field` for its purple masthead) and its `--line` token is the shared `--cream-line`. -#}
+</head>
+<body class="login-page">
+
+<div class="stage">
+
+  <!-- ============ COUNTER ============ -->
+  <section class="counter">
+    <p class="eyebrow"><span class="dot"></span>{{ agency.name }} &middot; {{ client.name }}</p>
+
+    <p class="stat-label" id="statLabel">Australian households that ran out of food</p>
+    <p class="number" id="num" title="Click to replay">3,500,000</p>
+
+    <p class="resolve" id="resolve">That's the number we're working toward.</p>
+    <!-- Source, if anyone asks where 3.5m comes from — uncomment to show:
+    <p class="source">Foodbank Hunger Report 2025: one in three Australian households — nearly 3.5 million — experienced food insecurity in the 12 months to July 2025.</p> -->
+  </section>
+
+  <!-- ============ LOGIN CARD ============ -->
+  <form class="card" method="POST" action="login" novalidate>
+    <img class="logo" src="{{ asset(client.logo) }}" alt="{{ client.name }}">
+
+    <p class="eyebrow"><span class="dot"></span>{{ agency.name }} &middot; {{ client.name }}</p>
+    <h1>Dashboard access</h1>
+    <p class="sub">Enter the password to open the {{ client.short }} awareness campaign dashboard.</p>
+
+    <label for="pw">Password</label>
+    <div class="pw-field">
+      <input id="pw" name="password" type="password" placeholder="Enter password" autocomplete="current-password" autofocus>
+      <button class="toggle" id="toggle" type="button" aria-label="Show password">Show</button>
+    </div>
+    <p class="error{% if error %} on{% endif %}" id="err" role="alert">{{ error or ("That password didn't work. Check with " ~ agency.contact_phrase ~ ".") }}</p>
+
+    <button class="submit" id="submit" type="submit">Unlock dashboard</button>
+    <p class="card-foot">Campaign reporting by {{ agency.name }}{% if show_platform_credit %}<br>{{ platform_credit }}{% endif %}</p>
+    <img class="thq" src="{{ asset(agency.logo_dark) }}" alt="{{ agency.name }}">
+  </form>
+</div>
+
+<script src="{{ asset('js/login.js') }}"></script>
+</body>
+</html>

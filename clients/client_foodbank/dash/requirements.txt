@@ -1,0 +1,6 @@
+# Cloud Run dash service: password gate + serves the campaign payload + the dashboard.
+# Pinned for reproducible container builds. Same set the other client dashes use - nothing new.
+Flask==3.0.3
+gunicorn==23.0.0
+# Only imported when DATA_MODE == "live" (reads <slug>.json from the private bucket).
+google-cloud-storage==2.18.2
