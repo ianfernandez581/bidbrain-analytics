@@ -252,8 +252,14 @@ checks. Code lives in the `BB:EMEATOP` block in `dash/dashboard.html`.
 `renderProgress` / `renderRegionGrid`), fed an agg-shaped object by `cspdTopAgg()`. That is the
 whole design: a basis cannot drift between theatres if there is one implementation. All four pace
 on **accepted / target**, which is what the client's sheet does (deficit = Planned - Accepted).
-**The delivered/target basis in the Pacing detail weekly band is a different component** and stays
-as it is - do not "harmonise" one into the other without asking, they answer different questions.
+
+**Every target comparison on this tab is now ACCEPTED / target, on all three lanes** (Core DG APJ,
+Core DG EMEA, Regional) - see "One basis for every pacing figure" below. An earlier version of this
+paragraph said the Pacing detail band was "a different component" that answers a different question
+and should not be harmonised; that was already contradicted 260 lines further down by the 08-27 fix
+to `cspd_w_pace`, and the contradiction is most of why the by-market chart kept a delivered basis
+for another week. **DELIVERED survives only as a delivery COUNT and as the acceptance/rejection
+rate denominator.** If you add a panel that puts an actual next to a target, it uses accepted.
 
 Verified 2026-08-27: accepted 265, delivered 306, rejected 41, unprocessed 253, flight target 830,
 target due to date 192 -> **31.9% of plan against 23.1% time elapsed, 138.0% leads pacing**. The
@@ -497,11 +503,15 @@ appeared inside one week in Aug 2026. A ninth programme lands in `Unclassified`,
 selectable, and is WARNed about by name in the job log; it is never folded into Core DG, where it
 would inflate delivery against a fixed target. Mapping it is one line in that CASE.
 
-**Still deliberately out of scope:** `SEG_PROGRAM = 'EXP'` (expansion motion, not a CS buy) and
-`VENDOR = 'ACQUISITION'` - the latter is **not a publisher**: those campaign names carry an extra
-segment (`2026_Q3_EMEA-DACH_ACQUISITION_EXP_CF1_...`), so the vendor-position token is a motion
-label and every offset after it is shifted by one. 482 rows at 2026-08-27, all still `New`
-(zero delivered), so no pacing figure is missing them.
+**~~Still deliberately out of scope: `SEG_PROGRAM = 'EXP'` and `VENDOR = 'ACQUISITION'`.~~ DEAD -
+both exclusions were REMOVED 2026-08-31 and both of this note's premises were wrong.** Jade
+confirmed Acquisition IS a CS partner (streams 2&3 of the "Q3 EMEA Content Syndication" plan, CPL
+$32, with seeded weekly targets), and CF1 EXP is a bought line on the same plan; the extra
+`EXP` segment sits AFTER the three segments the view parses, so region and vendor were never
+shifted. Its 482 rows were all `New` when the exclusion was written and were mostly DELIVERED by
+08-31 (EXP UKI alone 60 accepted / 17 rejected), so by then the exclusion was hiding real delivery
+from the pacing figures. `sql/16_stg_cs_leads_v2.sql` carries the live reasoning - kept here only
+so the old instruction cannot be followed by mistake.
 
 **A count-up race in the motion layer was fixed here too** (`countUp` in `dash/dashboard.html`).
 The last frame of the 780ms animation wrote back the string captured when it STARTED, so a figure
@@ -526,6 +536,80 @@ EMEA 08-21 112.5% -> 89.1% (deficit 7) and APJ 07-27 105.6% -> 90.0% (deficit 18
 week keeps its verdict and just drops by that week's rejection rate. **Nothing that reconciles to
 the client's sheet moves**: the campaign-to-date band (APJ 1,450 of 2,290 / 63.3%), the top KPI
 strip and every delivered/accepted/rejected count are untouched. Only this one tile.
+
+> **This change fixed the TILE and left the CHART below it on delivered** - closed 2026-09-03, see
+> "One basis for every pacing figure". The lesson is worth more than the fix: the note above says
+> "Only this one tile" as reassurance about blast radius, and it was accurate, but *"which other
+> panel on this card compares an actual to the same target?"* was never asked. Sweep the whole card,
+> not the one element in the ticket.
+
+### One basis for every pacing figure (2026-09-03, Jade)
+
+**Client decision, via the Internal Notes widget: "for the weekly lead pacing, instead of
+'delivered' we should show accepted".** Reported after Jade queried the KR/JP region cards in
+Teams; the cards were already accepted-based, and the panel actually disagreeing with them was the
+**by-market chart** - the last target comparison on the tab still measuring DELIVERED
+(accepted + rejected).
+
+**One change: `cspdRenderMarketChart()` aggregates `accepted` instead of `delivered`** (frontend
+only - the payload, the views and the counts all already carried both). The card is retitled
+*Accepted vs target by market* (*Accepted by market* on a book with no target sheet, e.g. Regional)
+and its caption now names the basis.
+
+How badly the two disagreed, on one card, for the same week: at w/c 31 Aug the weekly tile read
+**169 accepted vs 98 due** while the chart underneath it totalled **211 against a 171 target**.
+Jade's w/c 24 Aug example was the same shape - 174 vs a 173 target looked exactly on plan, when the
+week had delivered 136 accepted against 173.
+
+**It was NOT counting unreviewed leads** (the standing suspicion, ruled out): w/c 24 Aug is
+136 accepted + 38 rejected = 174 delivered, and its 64 pending sit in the UNMAPPED bucket the chart
+already excludes. `IS_DELIVERED` in `sql/16` has always been `Accepted|Rejected` only.
+
+Values that move, all three lanes (Core DG APJ, Core DG EMEA, Regional - one component serves them
+all, so a single edit covers all three). Every week drops by exactly its own rejected count:
+
+| lane / selection | target | before (delivered) | after (accepted) |
+|---|---|---|---|
+| APJ Core DG, w/c 31 Aug | 171 | 211 | **169** |
+| APJ Core DG, w/c 24 Aug (Jade's) | 173 | 174 | **136** |
+| APJ Core DG, Q3 to date | 1,599 | 1,965 | **1,661** |
+| EMEA Core DG, w/c 28 Aug | 1,268 | 208 | **185** |
+| EMEA Core DG, Flight to date | 1,986 | 1,247 | **1,078** |
+| Regional (ANZ DnB), w/c 3 Aug | no target | 71 | **62** |
+
+**Left alone deliberately:** the two `Delivered` tiles and the publisher table's Delivered column
+(delivery counts, not pacing); the acceptance and rejection RATES (accepted + rejected is the
+correct reviewed-lead denominator - it is what makes the two sum to 100%); the by-region cards and
+the KPI strip (already accepted); `cspdDefaultWeek()` / the `qtd` cut-off / the `noDeliveryYet`
+guard, which test `delivered > 0` to mean *"has this week been reviewed at all"* - a reviewed-ness
+test, not a pacing basis, and the caption already says "no processed delivery yet".
+
+`sql/17_cs_pacing_v2.sql`'s **`WEEKLY_PACING`** column moved to `ACCEPTED / TARGET` in the same
+change. It divided DELIVERED by TARGET while `LEAD_DEFICIT`, three lines below it in the same
+`SELECT`, measured ACCEPTED - so one column called w/c 24 Aug 100.6% of plan and its neighbour
+called it 37 short. Neither column reaches the dashboard (`job/main.py` carries only the counts),
+so this is purely for anyone querying the view directly - which is exactly who a disagreeing basis
+misleads. **Needs `sql/deploy_views_cloudflare.ps1`; the dashboard change needs
+`dash/deploy_dash_cloudflare.ps1`. No job or payload change, so no forced run is required and the
+status-dash accuracy checks (which compare the JSON to BigQuery counts) cannot move.**
+
+**Verified by internal consistency, not against fixed numbers** (this data moved twice on the day):
+a headless render of the real `cloudflare.json` across all 3 lanes x every delivering week x the
+cumulative chip (19 scenarios) confirms only the market chart's title, caption and series changed -
+band, weekly tile, weekly chart, rejection chart and row sums byte-identical - and 16 assertions
+pass: the chart's accepted total equals the accepted the pacing tile prints for the same selection;
+accepted + rejected = delivered and accepted + rejected + pending = total leads (checked against
+the independent `cs_compare` block) every week; weekly accepted sums to the band's Accepted tile
+(APJ 1,661 / EMEA 1,078 / Regional 63) and to the EMEA region cards; target sums by market equal
+target sums by publisher (APJ 2,290, EMEA 12,058); and monthly totals equal weekly totals.
+
+**One pre-existing gap this surfaced but did NOT touch:** on APJ the region cards and KPI strip read
+the LEGACY `pacing` model (`sql/10`, campaign-ID allowlist, and its "accepted" is
+`Accepted|Replied|Unresponsive`) while the Pacing detail band reads `cs_pacing` (`sql/16`,
+campaign-NAME scope, `LEAD_STATUS = 'Accepted'` only). At the Q3 default that is **1,650 vs 1,661**
+- an 11-lead, 0.7% gap between two panels on one screen. Both agree on the 2,290 target. It is the
+documented two-model split, and closing it means widening `sql/10`, which would move live APJ
+headline numbers and desync the status-dash checks - so it stays a known gap, not a silent one.
 
 **The per-publisher targets are an INTERNAL ALLOCATION - now APJ-ONLY** (the EMEA Roverpath/
 Final Funnel 1:1 rows described below were REMOVED 2026-08-31 - superseded Stream 1 scope, see

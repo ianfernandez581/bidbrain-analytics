@@ -82,10 +82,20 @@ SELECT
   COALESCE(a.REJECTED,      0) AS REJECTED,
   COALESCE(a.UNPROCESSED,   0) AS UNPROCESSED,
   COALESCE(a.NEEDS_REVIEW,  0) AS NEEDS_REVIEW,
-  -- convenience rates - see the header note; never SUM these
+  -- convenience rates - see the header note; never SUM these.
+  -- The two RATES keep DELIVERED as their denominator, and that is correct: acceptance and
+  -- rejection are shares of the leads that have actually been REVIEWED (accepted + rejected),
+  -- which is exactly what IS_DELIVERED counts, so the two sum to 100%.
   SAFE_DIVIDE(COALESCE(a.REJECTED,  0), NULLIF(COALESCE(a.DELIVERED, 0), 0)) AS REJECTION_RATE,
   SAFE_DIVIDE(COALESCE(a.ACCEPTED,  0), NULLIF(COALESCE(a.DELIVERED, 0), 0)) AS ACCEPTANCE_RATE,
-  SAFE_DIVIDE(COALESCE(a.DELIVERED, 0), NULLIF(COALESCE(t.TARGET,    0), 0)) AS WEEKLY_PACING,
+  -- PACING IS ACCEPTED / TARGET (fixed 2026-09-03, Jade's ruling that weekly lead pacing shows
+  -- accepted, not delivered). It divided DELIVERED by TARGET while LEAD_DEFICIT two lines below
+  -- measured ACCEPTED against the SAME target, so one column called w/c 24 Aug 100.6% of plan
+  -- and its neighbour called it 37 leads short. The plan is bought in accepted leads; the
+  -- dashboard, the client's own sheet and LEAD_DEFICIT all already used that basis.
+  -- Neither column reaches the dashboard (job/main.py carries only the counts), so this is for
+  -- anyone querying the view directly - which is precisely who a disagreeing basis misleads.
+  SAFE_DIVIDE(COALESCE(a.ACCEPTED,  0), NULLIF(COALESCE(t.TARGET,    0), 0)) AS WEEKLY_PACING,
   COALESCE(t.TARGET, 0) - COALESCE(a.ACCEPTED, 0)                            AS LEAD_DEFICIT
 FROM actual a
 FULL OUTER JOIN tgt t
