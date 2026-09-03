@@ -102,6 +102,30 @@ gcloud run services update $SERVICE --image $IMG --region $REGION --project $PRO
     --remove-env-vars "CENTRAL_IMPORT_PATH,CENTRAL_EXTRA_PATH,GRID_STATE_OBJECT" `
     --update-secrets "ANTHROPIC_API_KEY=anthropic-api-key:latest,GREENLIGHT_API_KEY=kimi-api-key:latest"; Must "update grid service"
 
+# TRAFFIC GUARD. A preview deploy (deploy_grid_preview.ps1) uses --no-traffic, which PINS the
+# service to whichever revision was serving at the time. Cloud Run then stops auto-promoting: this
+# script keeps building and deploying revisions that receive 0% while printing success, and live
+# silently stays on an old image. It cost us exactly that on 2026-09-03 - the ship said
+# "[OK] deployed central-grid" and live ran a three-week-old build.
+# So: verify the revision we just created is actually serving, and if not, say so LOUDLY and print
+# the exact fix. NOTE it names THAT revision rather than --to-latest: when a preview revision is the
+# newest, --to-latest would promote the PREVIEW to live, which is the opposite of what you want.
+$svcJson = (gcloud run services describe $SERVICE --region $REGION --project $PROJECT --format json | ConvertFrom-Json)
+$newRev  = "$($svcJson.status.latestCreatedRevisionName)".Trim()
+$serving = @($svcJson.status.traffic | Where-Object { $_.percent -gt 0 } | ForEach-Object { $_.revisionName })
+if ($newRev -and ($serving -notcontains $newRev)) {
+    Write-Host ""
+    Write-Host "!! DEPLOYED BUT NOT SERVING. Revision $newRev has 0% of traffic - LIVE IS UNCHANGED." -ForegroundColor Red
+    Write-Host "   The service's traffic is PINNED (a --no-traffic preview deploy does this)." -ForegroundColor Yellow
+    Write-Host "   Currently serving: $($serving -join ', ')" -ForegroundColor Yellow
+    Write-Host "   Send live to what you just built:" -ForegroundColor Yellow
+    Write-Host "     gcloud run services update-traffic $SERVICE --region $REGION --to-revisions ${newRev}=100" -ForegroundColor Yellow
+    Write-Host "   (do NOT use --to-latest while a preview revision exists - it would promote the PREVIEW)" -ForegroundColor Yellow
+    Write-Host ""
+} else {
+    Write-Host "[OK] $newRev is serving traffic." -ForegroundColor Green
+}
+
 $URL = (gcloud run services describe $SERVICE --region $REGION --project $PROJECT --format "value(status.url)")
 Write-Host ""
 Write-Host "Done. $SERVICE is now on image $SHA." -ForegroundColor Green
