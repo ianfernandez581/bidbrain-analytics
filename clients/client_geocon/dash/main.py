@@ -379,7 +379,10 @@ LOGIN_HTML = """<!doctype html>
       <div class="err">{{ error or "" }}</div>
     </form>
     <div class="rule"></div>
-    <div class="meta"><span>Gateway Braddon &middot; Northbourne Gateway</span><span>Reporting by 100% Digital</span></div>
+    <!-- The developments this login leads to. Gateway Braddon came off the dashboard on
+         2026-09-03 (its flight ended 2026-07-20) - see HIDDEN_PROPERTIES in dashboard.html;
+         naming it here would promise a page the session no longer reaches. -->
+    <div class="meta"><span>Northbourne Gateway</span><span>Reporting by 100% Digital</span></div>
   </main>
 <!-- BB-LOGIN-KIT:js v1 -->
 <script>
