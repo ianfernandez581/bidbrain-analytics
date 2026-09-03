@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Foodbank Australia — campaign performance | Think HQ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  /* Foodbank brand, sampled from foodbank.org.au */
+  --fb-purple:#671E75; --fb-coral:#FFA096; --fb-cream:#F2F2E2;
+  --fb-lilac:#CDB1F9;  --fb-ink:#332336;
+
+  /* dark field, derived from the purple */
+  --field-edge:#17091A; --field-mid:#2A0F30; --field-glow:#4A1554;
+  --card-top:#2E1233;  --card-bottom:#230D28; --input:#150818;
+  --line:rgba(242,242,226,.14);
+}
+
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0; background:var(--field-edge); color:var(--fb-cream);
+  font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;
+  display:flex; align-items:center; justify-content:center; padding:48px 32px;
+  overflow-x:hidden;
+}
+/* ambient field: one soft glow, slightly above centre */
+body::before{
+  content:""; position:fixed; inset:0; z-index:0; pointer-events:none;
+  background:
+    radial-gradient(1100px 720px at 50% 34%, var(--field-glow) 0%, var(--field-mid) 42%, var(--field-edge) 78%);
+}
+/* very light grain so the gradient doesn't band */
+body::after{
+  content:""; position:fixed; inset:0; z-index:0; pointer-events:none; opacity:.035;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='140'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3'/></filter><rect width='140' height='140' filter='url(%23n)'/></svg>");
+}
+
+.stage{
+  position:relative; z-index:1; width:100%; max-width:1120px;
+  display:grid; grid-template-columns:minmax(0,1fr) 464px; gap:88px; align-items:center;
+}
+
+/* ---------- left: the counter ---------- */
+.counter{max-width:520px}
+.eyebrow{
+  display:flex; align-items:center; gap:10px;
+  font-size:12px; letter-spacing:.14em; text-transform:uppercase;
+  color:rgba(242,242,226,.62); margin:0 0 28px;
+}
+.eyebrow .dot{width:6px;height:6px;border-radius:50%;background:var(--fb-coral);flex:none}
+
+.stat-label{
+  font-size:16px; line-height:1.45; color:rgba(242,242,226,.72);
+  margin:0 0 14px; white-space:nowrap;   /* keep it on one line */
+}
+.number{
+  font-family:Poppins,system-ui,sans-serif; font-weight:600;
+  font-variant-numeric:tabular-nums; font-size:clamp(56px,7.2vw,86px);
+  line-height:1; letter-spacing:-.02em; color:var(--fb-cream);
+  margin:0; cursor:pointer; user-select:none;
+  text-shadow:0 0 0 rgba(255,160,150,0);
+  transition:text-shadow 1.6s ease, color 1.6s ease;
+}
+.number.zero{ color:#fff; text-shadow:0 0 44px rgba(255,160,150,.42) }
+
+.resolve{
+  margin:22px 0 0; font-size:19px; line-height:1.5; color:var(--fb-cream);
+  max-width:24ch; opacity:0; transform:translateY(8px);
+  transition:opacity 1.1s ease .25s, transform 1.1s ease .25s;
+}
+.resolve.on{opacity:1; transform:none}
+
+/* ---------- right: login card ---------- */
+.card{
+  width:464px; padding:40px; border-radius:28px;
+  background:linear-gradient(180deg,var(--card-top),var(--card-bottom));
+  border:1px solid var(--line);
+  box-shadow:0 40px 90px rgba(0,0,0,.45), inset 0 1px 0 rgba(242,242,226,.06);
+  animation:rise .7s cubic-bezier(.2,.7,.3,1) both;
+}
+@keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+
+.logo{display:block; margin:0 auto 22px; height:64px}
+.card .eyebrow{justify-content:center; margin-bottom:22px}
+h1{font-family:Poppins,sans-serif; font-weight:600; font-size:26px; margin:0 0 8px; letter-spacing:-.01em}
+.sub{margin:0 0 26px; font-size:15px; line-height:1.5; color:rgba(242,242,226,.65)}
+label{display:block; font-size:12px; letter-spacing:.12em; text-transform:uppercase; color:rgba(242,242,226,.55); margin:0 0 10px}
+.field{position:relative}
+input{
+  width:100%; height:56px; border-radius:12px; padding:0 84px 0 18px;
+  background:var(--input); border:1px solid rgba(242,242,226,.12);
+  color:var(--fb-cream); font-size:16px; font-family:inherit; outline:none;
+  transition:border-color .18s ease, box-shadow .18s ease;
+}
+input::placeholder{color:rgba(242,242,226,.35)}
+input:focus{border-color:var(--fb-lilac); box-shadow:0 0 0 4px rgba(205,177,249,.16)}
+.toggle{
+  position:absolute; right:8px; top:8px; height:40px; padding:0 14px; border:0; border-radius:9px;
+  background:transparent; color:rgba(242,242,226,.6); font:inherit; font-size:13px; cursor:pointer;
+}
+.toggle:hover{color:var(--fb-cream); background:rgba(242,242,226,.06)}
+.error{
+  margin:12px 0 0; font-size:13.5px; color:var(--fb-coral); min-height:19px;
+  opacity:0; transition:opacity .2s ease;
+}
+.error.on{opacity:1}
+button.submit{
+  width:100%; height:58px; margin-top:20px; border:0; border-radius:12px; cursor:pointer;
+  background:linear-gradient(180deg,#FFB0A6,var(--fb-coral));
+  color:var(--fb-ink); font-family:Poppins,sans-serif; font-weight:600; font-size:16px;
+  box-shadow:0 14px 34px rgba(255,160,150,.22);
+  transition:transform .12s ease, box-shadow .2s ease;
+}
+button.submit:hover{box-shadow:0 18px 42px rgba(255,160,150,.3)}
+button.submit:active{transform:translateY(1px)}
+.card-foot{margin:22px 0 0; text-align:center; font-size:12px; color:rgba(242,242,226,.45)}
+.thq{display:block; margin:18px auto 0; height:15px; opacity:.5}
+:focus-visible{outline:2px solid var(--fb-lilac); outline-offset:3px}
+.shake{animation:shake .4s}
+@keyframes shake{25%{transform:translateX(-6px)}50%{transform:translateX(5px)}75%{transform:translateX(-3px)}}
+
+@media (max-width:1080px){
+  .stage{grid-template-columns:1fr; gap:52px; max-width:520px}
+  .card{width:100%}
+  .stat-label{white-space:normal}   /* allow wrap once stacked */
+}
+@media (prefers-reduced-motion:reduce){
+  .card{animation:none}
+  .number,.resolve{transition:none}
+}
+</style>
+</head>
+<body>
+
+<div class="stage">
+
+  <!-- ============ COUNTER ============ -->
+  <section class="counter">
+    <p class="eyebrow"><span class="dot"></span>Think HQ · Foodbank Australia</p>
+
+    <p class="stat-label" id="statLabel">Australian households that ran out of food</p>
+    <p class="number" id="num" title="Click to replay">3,500,000</p>
+
+    <p class="resolve" id="resolve">That's the number we're working toward.</p>
+    <!-- Source, if anyone asks where 3.5m comes from — uncomment to show:
+    <p class="source">Foodbank Hunger Report 2025: one in three Australian households — nearly 3.5 million — experienced food insecurity in the 12 months to July 2025.</p> -->
+  </section>
+
+  <!-- ============ LOGIN CARD ============ -->
+  <section class="card">
+    <!-- swap for the real SVG: foodbank.org.au/wp-content/uploads/FoodBank_Logo.svg -->
+    <svg class="logo" viewBox="0 0 150 100" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Foodbank">
+      <rect x="12" y="10" width="126" height="80" rx="6" stroke="#F2F2E2" stroke-width="5"/>
+      <text x="75" y="47" text-anchor="middle" fill="#F2F2E2" font-family="Poppins,sans-serif" font-weight="700" font-size="26">FOOD</text>
+      <text x="75" y="77" text-anchor="middle" fill="#F2F2E2" font-family="Poppins,sans-serif" font-weight="700" font-size="26">BANK</text>
+    </svg>
+
+    <p class="eyebrow"><span class="dot"></span>Think HQ · Foodbank Australia</p>
+    <h1>Dashboard access</h1>
+    <p class="sub">Enter the password to open the Foodbank awareness campaign dashboard.</p>
+
+    <label for="pw">Password</label>
+    <div class="field">
+      <input id="pw" type="password" placeholder="Enter password" autocomplete="current-password">
+      <button class="toggle" id="toggle" type="button">Show</button>
+    </div>
+    <p class="error" id="err">That password didn't work. Check with your Think HQ contact.</p>
+
+    <button class="submit" id="submit" type="button">Unlock dashboard</button>
+    <p class="card-foot">Campaign reporting by Think HQ</p>
+    <!-- <img class="thq" src="/static/img/thinkhq-logo-cream.png" alt="Think HQ"> -->
+  </section>
+</div>
+
+<script>
+/* ---------------------------------------------------------------
+   Countdown: 3,500,000 → 0 over 8s.
+   Eased so it moves quickly through the millions and lands gently
+   on zero. DURATION is the only speed knob.
+   Set LOOP = true to restart every REST_MS after it lands.
+----------------------------------------------------------------*/
+const START = 3_500_000, DURATION = 8_000, LOOP = false, REST_MS = 30_000;
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+const numEl = document.getElementById('num');
+const resolveEl = document.getElementById('resolve');
+const fmt = new Intl.NumberFormat('en-AU');
+
+// slow → fast → slow, weighted to end gently
+const ease = t => t < .5 ? 4*t*t*t : 1 - Math.pow(-2*t + 2, 3)/2;
+
+let raf, t0;
+function frame(now){
+  if (!t0) t0 = now;
+  const p = Math.min((now - t0) / DURATION, 1);
+  const value = Math.round(START * (1 - ease(p)));
+
+  numEl.textContent = fmt.format(value);
+
+  if (p < 1) { raf = requestAnimationFrame(frame); }
+  else { land(); }
+}
+
+function land(){
+  numEl.textContent = '0';
+  numEl.classList.add('zero');
+  resolveEl.classList.add('on');
+  if (LOOP) setTimeout(start, REST_MS);
+}
+
+function start(){
+  cancelAnimationFrame(raf);
+  t0 = null;
+  numEl.classList.remove('zero');
+  resolveEl.classList.remove('on');
+  raf = requestAnimationFrame(frame);
+}
+
+if (reduce) { land(); }
+else { start(); }
+
+numEl.addEventListener('click', () => { if (!reduce) start(); });
+
+/* ---- login card behaviour (demo only) ---- */
+const pw = document.getElementById('pw'), err = document.getElementById('err');
+document.getElementById('toggle').addEventListener('click', e => {
+  const show = pw.type === 'password';
+  pw.type = show ? 'text' : 'password';
+  e.target.textContent = show ? 'Hide' : 'Show';
+  pw.focus();
+});
+function attempt(){
+  err.classList.add('on');
+  pw.closest('.card').classList.add('shake');
+  setTimeout(() => pw.closest('.card').classList.remove('shake'), 420);
+}
+document.getElementById('submit').addEventListener('click', attempt);
+pw.addEventListener('keydown', e => { if (e.key === 'Enter') attempt(); });
+pw.addEventListener('input', () => err.classList.remove('on'));
+</script>
+</body>
+</html>

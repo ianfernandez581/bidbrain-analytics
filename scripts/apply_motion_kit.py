@@ -75,11 +75,19 @@ CLIENTS: dict[str, dict] = {
                              orbs=[(189, 107, 76), (79, 114, 144), (189, 107, 76)]),
     "vmch":             dict(canvas="light", surface="light", accent=(235, 51, 0),
                              orbs=[(235, 51, 0), (76, 39, 54), (46, 139, 114)]),
+    # Foodbank: white cards on a warm off-white page under a deep plum masthead. Brand purple rings
+    # and glows; the wash is purple / lilac / coral, the client's own three hues.
+    "foodbank":         dict(canvas="light", surface="light", accent=(103, 30, 117),
+                             orbs=[(103, 30, 117), (205, 177, 249), (255, 160, 150)]),
 }
 
 # City Perfume ships TWO web services off one pipeline; the all-sales fork is a front-end copy and
 # gets the same treatment or the two drift apart.
-EXTRA_TARGETS = {"cityperfume_total": ("clients/client_cityperfume/dash_total/dashboard.html", "cityperfume")}
+EXTRA_TARGETS = {"cityperfume_total": ("clients/client_cityperfume/dash_total/dashboard.html", "cityperfume"),
+                 # Foodbank is a Jinja template (templates/ + static/), not a single dashboard.html.
+                 # Same anchors, different path; the key matching a CLIENTS entry suppresses the
+                 # default clients/client_<c>/dash/dashboard.html target below.
+                 "foodbank": ("clients/client_foodbank/dash/templates/dashboard.html", "foodbank")}
 
 # The wash is the one thing tuned by CANVAS: light adds over a dark page and subtracts nothing, so
 # a dark canvas takes roughly double the alpha before it reads at all.
@@ -199,6 +207,8 @@ def main(argv):
 
     targets: list[tuple[str, Path, dict]] = []
     for key, cfg in CLIENTS.items():
+        if key in EXTRA_TARGETS:        # a client whose dashboard lives at a custom path
+            continue
         targets.append((key, ROOT / f"clients/client_{key}/dash/dashboard.html", cfg))
     for key, (rel, cfgkey) in EXTRA_TARGETS.items():
         targets.append((key, ROOT / rel, CLIENTS[cfgkey]))
