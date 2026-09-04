@@ -1623,10 +1623,12 @@ _CF_TEST_LEAD_FILTER = (
 
 def _cf_cs_cte(defs):
     """Rebuild cloudflare's CS region CTE (sql/10's REGION_GRP logic) from definitions.json —
-    byte-equivalent to sql/10: country match is case-normalised (UPPER(TRIM)), KR = Korea in the 6
-    El* campaigns (2026-07-02, seed_kr_campaign_ids), and the geographic arms are the 11-market grain.
+    byte-equivalent to sql/10: country match is case-normalised (UPPER(TRIM)), KR = Korea in the
+    definitions.json segments.KR campaign list (the 6 El* campaigns since 2026-07-02 + the Q3 VRSM
+    Lead Magnet campaign since 2026-09-04; seed_kr_campaign_ids), and the geographic arms are the
+    11-market grain.
     RIG then KR are evaluated BEFORE the geographic buckets; the geographic arms follow in declared
-    order. REGION_GRP='OTHER' (the ELSE) now holds Korea leads outside the 6 KR campaigns.
+    order. REGION_GRP='OTHER' (the ELSE) holds Korea leads outside the KR campaign list.
     2026-08-05: also applies the cs_q2_only_campaigns date cap (Q2 campaigns whose replacement
     leads carry Q3 created dates - mirrored from sql/10's WHERE)."""
     def esc(s):
@@ -1731,10 +1733,12 @@ def _build_cf_cs_checks(defs):
          "sql": "SELECT COUNT(*) AS korea_leads\nFROM " + src + "\n"
                 "WHERE UPPER(TRIM(COUNTRY_NAME)) = '%s'\n  AND CAMPAIGN_ID IN (%s)%s;"
                 % (esc(kr["country"]).upper(), _sql_inlist(kr["campaign_ids"]), _CF_TEST_LEAD_FILTER),
-         "note": "Korea Leads = Country '%s' leads in the 6 ORIGINAL El* CS campaigns ONLY (2026-07-02: "
-                 "reverted the 2026-06-25 all-Korea rule at the client's request; Korea leads outside "
-                 "these 6 land in OTHER). vs the count of pacing.rows[] with MARKET_REGION = 'KR'."
-                 % kr["country"] + _CF_CS_NOTE},
+         "note": "Korea Leads = Country '%s' leads in the %d Core DG CS campaigns listed in definitions.json "
+                 "segments.KR (the 6 ORIGINAL El* campaigns since 2026-07-02, when the 2026-06-25 all-Korea "
+                 "rule was reverted at the client's request, + the Q3 VRSM Lead Magnet campaign since "
+                 "2026-09-04; Korea leads outside the list land in OTHER). vs the count of pacing.rows[] "
+                 "with MARKET_REGION = 'KR'."
+                 % (kr["country"], len(kr["campaign_ids"])) + _CF_CS_NOTE},
         {"label": "RIG Leads · Total (RIG bucket)", "kind": "count", "group": "Content Syndication — Korea, RIG & residual",
          "dash": region("RIG"),
          "sql": "SELECT COUNT(*) AS rig_leads\nFROM " + src + "\n"
@@ -1743,11 +1747,11 @@ def _build_cf_cs_checks(defs):
          "note": "RIG Leads = NON-Korea AND the Modernize-Applications asset(s) AND the Final Funnel "
                  "campaigns. Asset-based, so it spans all countries — the dashboard's RIG bucket. vs the "
                  "count of pacing.rows[] with MARKET_REGION = 'RIG'." + _CF_CS_NOTE},
-        {"label": "Residual (OTHER: Korea outside the 6 KR campaigns)", "kind": "count",
+        {"label": "Residual (OTHER: Korea outside the KR campaigns)", "kind": "count",
          "group": "Content Syndication — Korea, RIG & residual", "dash": region("OTHER"),
          "sql": cte + "SELECT COUNT(*) AS other_leads\nFROM cf_cs\nWHERE REGION_GRP = 'OTHER';",
-         "note": "2026-07-02: with KR restricted to the 6 El* campaigns, REGION_GRP='OTHER' holds the "
-                 "Korea leads from the other 6 campaigns (~55 live 2026-07-02) plus any brand-new/unmapped "
+         "note": "2026-07-02: with KR restricted to the segments.KR campaign list, REGION_GRP='OTHER' holds "
+                 "the Korea leads from the N*/P* campaigns (~55 live 2026-07-02) plus any brand-new/unmapped "
                  "country. OTHER is NOT a market chip, so these are excluded from the dashboard; this check "
                  "just reconciles the dash's OTHER count to Snowflake. A jump well beyond the Korea residual "
                  "means a new unmapped country needs adding to geographic_regions. vs the count of "

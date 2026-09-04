@@ -23,9 +23,47 @@
 -- needs_review 0 in both theatres. APAC delivery runs AHEAD of the sheet because
 -- this is live off Salesforce and the sheet is a snapshot.
 --
--- NOT a pure 1:1 port in one respect: the Transmission TEST-LEAD filter from
--- 10_salesforce_leads_live is applied here too (added 2026-08-27). Without it the two
--- models counted different lead universes and the same CS tab showed two totals.
+-- NOT a pure 1:1 port in three respects, all so this view and 10_salesforce_leads_live
+-- count the SAME leads the same way (the client reads both on one screen):
+--   1. The Transmission TEST-LEAD filter from 10_* is applied here too (2026-08-27).
+--   2. The accepted bucket is the CLIENT's (definitions.json status_buckets: Accepted +
+--      Replied + Unresponsive), not the port's bare 'Accepted' (2026-09-04). No lead in the
+--      Q3 scope carries Replied/Unresponsive today (verified: Accepted 3,276 / Rejected 523 /
+--      New 365 / Unqualified 37 across both theatres), so this moves nothing - it stops the
+--      headline (which already used the client bucket) and this band drifting apart the day
+--      a post-acceptance status appears. IS_DELIVERED widens with it so the rates still
+--      sum to 100%.
+--   3. THEATRE IS RESOLVED FROM CAMPAIGN_ID FIRST, THE NAME SECOND, AND NEVER DEFAULTED
+--      (2026-09-04, John's report). The original port read the theatre off the name token's
+--      prefix - `IF(SEG_REGION LIKE 'EMEA%', 'EMEA', 'APAC')` - so a campaign named WITHOUT
+--      the prefix fell into APAC by default. Two Acquisition VER-FINANCE campaigns created
+--      2026-09-02 did exactly that (`2026_Q3_CEERI_ACQUISITION_...`, `2026_Q3_DACH_...`): 64
+--      EMEA leads (59 accepted; Israel/Romania/Poland and Germany/Switzerland) sat in the APJ
+--      lane's publisher table and needs-review warning while missing from EMEA's pacing.
+--      Now, in order:
+--        a. CAMPAIGN_ID. Every Salesforce campaign object has ONE id shared by all of its
+--           name variants (Acquisition's `701RG00001e1aegYAA` has 27 - 25 prefixed, 2 not).
+--           The `id_theatre` CTE VOTES each id's theatre from the UNAMBIGUOUS name forms only
+--           (an `EMEA-` prefix, or one of the canonical APAC tokens) and resolves it when one
+--           side holds >= 80% of the classified leads. Built from the data every run, not
+--           hardcoded, so the next mis-named campaign on a known id lands correctly with no
+--           edit here. Verified 2026-09-04: every id in the mirror votes 100% one way.
+--        b. The NAME, only when the id has no vote (a brand-new id whose leads are all
+--           mis-named, or a NULL id): a resolved MARKET implies its theatre, and an `EMEA-`
+--           prefix implies EMEA even when the market token after it is unknown.
+--        c. Otherwise 'UNRESOLVED' - counted, carried through 17/18, reported by the job
+--           (WARNING) and shown in the dashboard's Admin View as a count of unmatched
+--           campaigns. It appears on NEITHER lane: a lead nobody can place is surfaced, not
+--           silently assigned. This is the second naming bug on this account (mongodb's
+--           `2265_` prefix was the estate's first) - a typo must be CAUGHT, not routed.
+--      MARKET still comes from the name (the id spans every market of its theatre), and the
+--      market CASE accepts EMEA tokens with or without the prefix. If the name's market
+--      belongs to a DIFFERENT theatre than the id resolved (an APAC id with an `EMEA-DACH`
+--      lead), the market is set to UNMAPPED on the id's lane and REGION_CONFLICT=1, so the
+--      disagreement surfaces in the needs-review count instead of drawing an EMEA market on
+--      the APAC chart. Zero conflicts today.
+-- Without (1) the two models counted different lead universes and the same CS tab showed
+-- two totals; (2) and (3) close the same class of gap before it is reported again.
 --
 -- Campaign name shape:  2026_Q3_<region>_<vendor>_<program>_...
 --                       seg 3 = region, seg 4 = vendor, seg 5 = program
@@ -82,10 +120,40 @@ WITH base AS (
     AND LOWER(IFNULL(SPLIT(EMAIL, '@')[SAFE_OFFSET(1)], '')) NOT IN
         ('transmissionagency.com', 'transmission.com')
 ),
+-- Header point 3a: one theatre per CAMPAIGN_ID, voted from the unambiguous name forms.
+-- The bare EMEA tokens (DACH, CEERI, ...) are deliberately NOT counted on either side, so the
+-- vote is independent of the fallback map below - the mis-named leads are the ones being
+-- judged, they must not cast a ballot.
+id_theatre AS (
+  SELECT
+    CAMPAIGN_ID,
+    COUNTIF(UPPER(SEG_REGION) LIKE 'EMEA-%')                                              AS emea_n,
+    COUNTIF(SEG_REGION IN ('ANZ', 'ASEAN', 'SAARC', 'GCR - CN', 'TW - CN', 'HK - CN',
+                           'Japan', 'Korea'))                                             AS apac_n
+  FROM base
+  WHERE CAMPAIGN_ID IS NOT NULL
+  GROUP BY 1
+),
+id_resolved AS (
+  SELECT
+    CAMPAIGN_ID,
+    CASE
+      WHEN emea_n + apac_n = 0                     THEN NULL      -- nothing unambiguous to vote with
+      WHEN emea_n >= 0.8 * (emea_n + apac_n)       THEN 'EMEA'
+      WHEN apac_n >= 0.8 * (emea_n + apac_n)       THEN 'APAC'
+      ELSE NULL                                                  -- genuinely mixed id: fall back per lead
+    END AS ID_THEATRE
+  FROM id_theatre
+),
 typed AS (
   SELECT
     DAY, LEAD_STATUS, CAMPAIGN, CAMPAIGN_ID, COUNTRY_NAME, SEG_PROGRAM, ASSET_1, ASSET_2,
-    IF(UPPER(SEG_REGION) LIKE 'EMEA%', 'EMEA', 'APAC') AS THEATRE,
+    THEATRE,
+    -- A market from the WRONG theatre for this id is a conflict, not a market (header 3).
+    IF(NAME_THEATRE IS NOT NULL AND NAME_THEATRE <> THEATRE, 'UNMAPPED', MARKET_NAME) AS MARKET,
+    IF(NAME_THEATRE IS NOT NULL AND NAME_THEATRE <> THEATRE, 1, 0)                    AS REGION_CONFLICT,
+    -- Which rule placed the lead - 'id', 'name' or 'none' (UNRESOLVED). Job audit + Admin View.
+    CASE WHEN ID_THEATRE IS NOT NULL THEN 'id' WHEN NAME_THEATRE IS NOT NULL THEN 'name' ELSE 'none' END AS REGION_SOURCE,
     -- VENDOR (= the publisher) display names. Salesforce carries the same publisher in
     -- several casings - SHOUTY for the ones onboarded most recently (DEMANDAI, INTERLINK,
     -- PIPELINE360, INBOXINSIGHT), title case for the older ones - so the dashboard's vendor
@@ -151,17 +219,49 @@ typed AS (
     -- dashboard prints the count) rather than folded into a real market - an
     -- `ELSE '<a real market>'` here would turn a parse break into silent
     -- misattribution, which is the exact failure mode md/AGENTS.md calls out.
-    CASE SEG_REGION
-      WHEN 'ANZ'        THEN 'ANZ'     WHEN 'ASEAN'      THEN 'ASEAN'
-      WHEN 'SAARC'      THEN 'SAARC'   WHEN 'GCR - CN'   THEN 'GCR-CN'
-      WHEN 'TW - CN'    THEN 'GCR-TW'  WHEN 'HK - CN'    THEN 'GCR-HK'
-      WHEN 'Japan'      THEN 'Japan'   WHEN 'Korea'      THEN 'Korea'
-      WHEN 'EMEA-UKI'   THEN 'UKI'     WHEN 'EMEA-DACH'  THEN 'DACH'
-      WHEN 'EMEA-SEUR'  THEN 'SEUR'    WHEN 'EMEA-NEUR'  THEN 'NEUR'
-      WHEN 'EMEA-CEERI' THEN 'CEERI'   WHEN 'EMEA-META'  THEN 'MEA'
-      ELSE 'UNMAPPED'
-    END AS MARKET
-  FROM base
+    ID_THEATRE, NAME_THEATRE, MARKET_NAME
+  FROM (
+    SELECT
+      *,
+      -- Header 3a/3b/3c: id first, name second, never a default.
+      COALESCE(ID_THEATRE, NAME_THEATRE, 'UNRESOLVED') AS THEATRE
+    FROM (
+      SELECT
+        *,
+        -- What the NAME alone says about the theatre (3b). A resolved market implies its
+        -- theatre; an 'EMEA-' prefix implies EMEA even when the market token is unknown.
+        CASE
+          WHEN MARKET_NAME IN ('UKI', 'DACH', 'SEUR', 'NEUR', 'CEERI', 'MEA')                          THEN 'EMEA'
+          WHEN MARKET_NAME IN ('ANZ', 'ASEAN', 'SAARC', 'GCR-CN', 'GCR-TW', 'GCR-HK', 'Japan', 'Korea') THEN 'APAC'
+          WHEN UPPER(SEG_REGION) LIKE 'EMEA-%'                                                        THEN 'EMEA'
+          ELSE NULL
+        END AS NAME_THEATRE
+      FROM (
+        SELECT
+          b.*,
+          i.ID_THEATRE,
+          -- EMEA tokens arrive both as 'EMEA-DACH' (Roverpath / Final Funnel / Pipeline360 /
+          -- Inbox Insight) and as bare 'DACH' (Acquisition, from 2026-09-02) - header point 3.
+          -- Both spellings resolve to the ONE market the targets seed is keyed on.
+          CASE UPPER(b.SEG_REGION)
+        WHEN 'ANZ'        THEN 'ANZ'     WHEN 'ASEAN'      THEN 'ASEAN'
+        WHEN 'SAARC'      THEN 'SAARC'   WHEN 'GCR - CN'   THEN 'GCR-CN'
+        WHEN 'TW - CN'    THEN 'GCR-TW'  WHEN 'HK - CN'    THEN 'GCR-HK'
+        WHEN 'JAPAN'      THEN 'Japan'   WHEN 'KOREA'      THEN 'Korea'
+        WHEN 'EMEA-UKI'   THEN 'UKI'     WHEN 'UKI'        THEN 'UKI'
+        WHEN 'EMEA-DACH'  THEN 'DACH'    WHEN 'DACH'       THEN 'DACH'
+        WHEN 'EMEA-SEUR'  THEN 'SEUR'    WHEN 'SEUR'       THEN 'SEUR'
+        WHEN 'EMEA-NEUR'  THEN 'NEUR'    WHEN 'NEUR'       THEN 'NEUR'
+        WHEN 'EMEA-CEERI' THEN 'CEERI'   WHEN 'CEERI'      THEN 'CEERI'
+        WHEN 'EMEA-META'  THEN 'MEA'     WHEN 'META'       THEN 'MEA'
+        WHEN 'EMEA-MEA'   THEN 'MEA'     WHEN 'MEA'        THEN 'MEA'
+        ELSE 'UNMAPPED'
+      END AS MARKET_NAME
+        FROM base b
+        LEFT JOIN id_resolved i USING (CAMPAIGN_ID)
+      )
+    )
+  )
 ),
 scoped AS (
   -- ANZ DnB (DemandAI / Interlink) USED TO BE EXCLUDED HERE. It is now IN, as its own BOOK -
@@ -219,11 +319,19 @@ SELECT
     IF(THEATRE = 'EMEA', DATE '2026-07-31', DATE '2026-07-06')
   ) AS WEEK_START,
   LEAD_STATUS,
-  IF(LEAD_STATUS = 'Accepted', 1, 0)                     AS IS_ACCEPTED,
-  IF(LEAD_STATUS = 'Rejected', 1, 0)                     AS IS_REJECTED,
-  IF(LEAD_STATUS = 'New', 1, 0)                          AS IS_UNPROCESSED,
-  IF(LEAD_STATUS IN ('Accepted', 'Rejected'), 1, 0)      AS IS_DELIVERED,
+  -- The CLIENT's accepted bucket (definitions.json status_buckets.accepted - the same set the
+  -- headline KPI strip, sql/15 and the status verifier use), not the port's bare 'Accepted'.
+  -- Header point 2. Mirrored as a literal like the market CASE; change both together.
+  IF(LEAD_STATUS IN ('Accepted', 'Replied', 'Unresponsive'), 1, 0)             AS IS_ACCEPTED,
+  IF(LEAD_STATUS = 'Rejected', 1, 0)                                           AS IS_REJECTED,
+  IF(LEAD_STATUS = 'New', 1, 0)                                                AS IS_UNPROCESSED,
+  IF(LEAD_STATUS IN ('Accepted', 'Replied', 'Unresponsive', 'Rejected'), 1, 0) AS IS_DELIVERED,
   IF(MARKET = 'UNMAPPED', 1, 0)                          AS NEEDS_REVIEW,
+  -- Region-resolution audit (header 3): how the theatre was placed, and whether the name
+  -- disagreed with the id. Read by job/main.py for the log + the Admin View guard; NOT
+  -- carried by 17/18 (aggregates), so nothing on a client-facing surface changes shape.
+  REGION_SOURCE,
+  REGION_CONFLICT,
   CAMPAIGN,
   CAMPAIGN_ID,
   COUNTRY_NAME,

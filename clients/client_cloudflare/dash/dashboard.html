@@ -281,8 +281,8 @@
      established table look on THIS tab, and the two now sit a screen apart. Numeric columns
      carry .num (right-aligned + tabular figures) so the digits line up down the column;
      without tabular-nums the proportional face makes a column of counts look ragged.
-     Rows are the ONE place both books are visible at once, so a row is clickable - it sets
-     the campaign + publisher pickers above. The selected row gets a left accent rather than
+     A row is clickable - it sets the publisher picker above (rows followed the campaign
+     picker from 2026-09-04; before that this was the one place both books were visible). The selected row gets a left accent rather than
      a fill, so it reads as "you are here" without competing with the numbers. */
   .cspd-vtbl{width:100%;border-collapse:collapse;font-size:13px}
   /* 9 columns since Pending review (2026-09-01 layout pass): wider cell padding so columns
@@ -1138,6 +1138,12 @@
         <div class="card dev-only" id="cspdStale" style="display:none;margin-bottom:14px;border-color:var(--warn-amber)">
           <div class="hint" id="cspdStaleMsg" style="margin:0;color:var(--warn-amber)"></div>
         </div>
+        <!-- Admin View only: the region-resolution guard (2026-09-04). sql/16 places a lead's
+             theatre by CAMPAIGN_ID, then by name, and never defaults - a lead it cannot place
+             is on NEITHER lane and is counted here instead. Empty payload = card hidden. -->
+        <div class="card dev-only" id="cspdUnresolved" style="display:none;margin-bottom:14px;border-color:var(--warn-amber)">
+          <div class="hint" id="cspdUnresolvedMsg" style="margin:0;color:var(--warn-amber)"></div>
+        </div>
 
         <!-- 3.1 campaign-to-date band - fixed, follows the campaign + publisher selectors only -->
         <!-- Built in JS (cspdRenderScopeHint): it names the selectors that are ACTUALLY on
@@ -1243,12 +1249,14 @@
         </div>
 
         <!-- 3.5 delivery by publisher (2026-08-27, Lydia's request to get the regional
-             campaigns/publishers onto this section). This is the ONE panel that spans EVERY
-             campaign book in the theatre, not just the selected one - the pickers above scope
-             the pacing panels, and mixing books there would pace delivery against a target
-             that only covers one of them. Here nothing is paced across books: each row is its
-             own publisher, and the Target column is blank where no target sheet exists.
-             Campaign to date, so it ties to the band at the top of the section. -->
+             campaigns/publishers onto this section). SCOPED BY THE CAMPAIGN PICKER since
+             2026-09-04 (John: DemandAI and Interlink are ANZ DnB - they must not sit in the
+             Core DG view). It used to span every book in the theatre, which put the Regional
+             publishers under Core DG with a badge. Now it follows the picker like every other
+             panel here: Core DG shows the Core DG publishers, Regional shows DemandAI and
+             Interlink in full. Each row is its own publisher, and the Target column is blank
+             where no target sheet exists. Campaign to date, so it ties to the band at the top
+             of the section. -->
         <div class="card" id="cspdVendorCard">
           <h3>Delivery by publisher</h3>
           <div class="hint" id="cspdVendorLbl">-</div>
@@ -3923,13 +3931,14 @@ function cspdTheatre(){ return laneTheatre(); }
 // `markets` honours the seed's own display order (market_seq) rather than alphabetical -
 // display order is data, not code.
 //
-// THREE fields are deliberately theatre-wide, NOT book-scoped:
+// TWO fields are deliberately theatre-wide, NOT book-scoped:
 //   * `books`     - the picker has to offer books other than the one selected.
 //   * `weeksAll`  - the targets-seed staleness check is a fact about the SEED (which is per
 //                   theatre), not about whichever book you happen to be looking at. Scoping
 //                   it would have made the Regional book - which has no targets at all by
 //                   design - raise the amber "targets have gone stale" alarm every time.
-//   * `allRows`   - the publisher table spans every book on purpose.
+// (`allRows` was a third until 2026-09-04: the publisher table spanned every book. It now
+// follows the picker like every other panel - see cspdRenderVendorTable.)
 // The book scoping is what keeps a target that covers only Core DG from ever being paced
 // against delivery from another book.
 // Resolve the book + publisher SELECTION for a theatre, and return the row sets that follow
@@ -3982,7 +3991,10 @@ function cspdCfg(th){
   const hasTargets = targetsApply && rows.some(r => (r.target || 0) > 0);
   return { theatre: th, book: CSPD.book, books, weeks, weeksAll, markets, vendors,
            hasTargets, targetsApply,
-           allRows: all,
+           // The selected book's rows, every market and every week (the publisher table's
+           // scope since 2026-09-04 - it follows the campaign picker, not the market chips
+           // or the week selector, exactly as it never did when it spanned every book).
+           rows,
            // The seed is NAMED for a quarter, but a flight is not a quarter: EMEA's 830 runs
            // 07 Aug -> 05 Nov and 310 of it (37%) lands in Q4. Every caption in this section
            // reads period_label, so making it lane-aware here fixes them all at once ("whole
@@ -4198,6 +4210,7 @@ function renderCsPacingDetail(){
   cspdRenderVendorTable(cfg);
   cspdRenderReasons(cfg, wkName);
   cspdRenderStale(cfg);
+  cspdRenderUnresolved();
 
   // LAST, and it has to be last. This is the tail of renderAll(), and several blocks on
   // this tab set their own display during that pass - renderLeadDetail() in particular
@@ -4552,24 +4565,30 @@ function cspdRenderRejChart(cfg, rows){
     : 'Selected: week of ' + cspdWkLabel(CSPD.week) + '.';
 }
 
-// ---- delivery by publisher: EVERY book in the theatre, campaign to date --
-// The one panel that is deliberately NOT scoped by the campaign picker. Lydia's ask was to
-// get the regional publishers onto this section; a picker alone would still mean you can only
-// ever see one book at a time, and comparing publishers is the whole point of the ask.
+// ---- delivery by publisher: the SELECTED book, campaign to date -----------
+// Scoped by the campaign picker since 2026-09-04 (John, Cloudflare: "I thought we agreed we
+// would move DemandAI and Interlink as these are DNB campaigns only in Australia"). Until then
+// this was the one panel that spanned EVERY book in the theatre - built that way on 2026-08-27
+// so the regional publishers had somewhere to appear at all, but it left ANZ DnB publishers
+// sitting in the Core DG view under a REGIONAL badge. The badge made the tagging right and the
+// scope wrong. Lydia's ask (see the regional publishers) still holds: they render in full with
+// the picker on Regional - they are scoped, not hidden.
 //
-// Nothing here is paced ACROSS books: every row is one publisher, and Target is blank (not 0)
-// where no target sheet covers it - a "0" would read as a target of zero rather than as no
-// target, and would then make Pacing look infinitely ahead. There is no Total row for the
-// same reason: summing a book that has targets with one that does not would produce a pacing
-// figure with no meaning. The band at the top of the section is the total, per book.
+// Target is blank (not 0) where no target sheet covers a publisher - a "0" would read as a
+// target of zero rather than as no target, and would then make Pacing look infinitely ahead.
+// There is no Total row: the band at the top of the section is the total for this book. This
+// table reads the same book (cfg.rows) at every market and every publisher, so with the market
+// chips and the publisher picker at "all" the two tie exactly.
 function cspdRenderVendorTable(cfg){
   const card = document.getElementById('cspdVendorCard');
   const body = document.querySelector('#cspdVendorTbl tbody');
   if (!card || !body) return;
 
-  // book x publisher, campaign to date (every week), so these tie to the band above.
+  // publisher, campaign to date (every week, every market), within the selected book. Every
+  // row carries cfg.book, but the book is kept on the aggregate because the badge column and
+  // cspdPickVendor() both name it.
   const agg = new Map();
-  for (const r of cfg.allRows){
+  for (const r of cfg.rows){
     if (!r.vendor) continue;
     const book = cspdBookOf(r), key = book + ' ' + r.vendor;
     const o = agg.get(key) || { book, vendor: r.vendor, target:0, delivered:0, accepted:0, rejected:0, unprocessed:0 };
@@ -4623,8 +4642,11 @@ function cspdRenderVendorTable(cfg){
   }).join('');
 
   const lbl = document.getElementById('cspdVendorLbl');
-  if (lbl) lbl.textContent = 'Campaign to date, whole ' + cfg.period_label
-    + ' - every campaign in ' + cfg.theatre + ', not just the one selected above. '
+  // Names the book on screen: the badge column repeats it per row, but the caption is what
+  // a reader scans first, and it used to claim the opposite ("every campaign in APAC"). The
+  // picker is mentioned only where it is rendered - a single-book theatre (EMEA) hides it.
+  if (lbl) lbl.textContent = 'Campaign to date, whole ' + cfg.period_label + ' - '
+    + cspdBookLabel(cfg.book) + (cfg.books.length > 1 ? ' only, as set by the Campaign picker above. ' : '. ')
     + 'Pacing is accepted leads against target. Click a row to scope the panels above to it.';
   const note = document.getElementById('cspdVendorNote');
   if (note){
@@ -4658,15 +4680,20 @@ function cspdRenderVendorTable(cfg){
       allocated = 'Publisher targets are an internal allocation of the market plan, not a '
         + 'client-set target. Publisher pacing is indicative.';
     }
+    // A book with NO seeded targets at all (Regional, since the table follows the picker) has
+    // no publisher target to describe - the allocation sentence would be about nothing.
+    if (!withTgt.length) allocated = '';
     const noTgt = list.filter(o => !o.target).map(o => o.vendor);
     note.className = 'cspd-note';
-    note.textContent = allocated + ' ' + (noTgt.length
+    note.textContent = (allocated ? allocated + ' ' : '') + (noTgt.length
       ? 'No lead target is loaded for ' + noTgt.join(', ') + ', so those rows show delivery only.'
       : 'Every publisher here is paced against a loaded ' + cfg.period_label + ' lead target.');
   }
 }
-// Row click -> set both pickers. Clicking the row that is already selected clears the
-// publisher filter, so a row is a toggle rather than a one-way trip into a filtered view.
+// Row click -> set the publisher picker (the book is already the selected one, since the
+// table follows the campaign picker; the book branch survives so a caller passing another
+// book still lands on it). Clicking the row that is already selected clears the publisher
+// filter, so a row is a toggle rather than a one-way trip into a filtered view.
 function cspdPickVendor(book, vendor){
   const same = CSPD.book === book && CSPD.vendor === vendor;
   if (CSPD.book !== book){ CSPD.book = book; CSPD.week = null; }
@@ -4715,6 +4742,32 @@ function cspdRenderStale(cfg){
     ? 'Targets for <b>' + cfg.theatre + '</b> only run to the week of <b>' + last + '</b>, which is behind the current week. '
       + 'The ' + cfg.period_label + ' targets seed is loaded once per quarter from the client sheet - reload it, or pacing reads against a short target.'
     : 'No targets are loaded for <b>' + cfg.theatre + '</b> at all - every pacing figure below reads against zero.';
+}
+// Region-resolution guard (2026-09-04, Admin View only). The payload's cs_pacing.unresolved
+// lists campaigns sql/16 could not place in a theatre from CAMPAIGN_ID or name, plus any whose
+// name and id disagree. Those leads sit on NEITHER lane by design - the alternative was the old
+// prefix default that filed 64 EMEA Acquisition leads under APJ - so this card is what makes
+// them visible. It is theatre-independent: a lead with no theatre belongs to no lane's caption.
+function cspdRenderUnresolved(){
+  const card = document.getElementById('cspdUnresolved');
+  if (!card) return;
+  const u = (CSPD_META && CSPD_META.unresolved) || null;
+  if (!devMode || !u || !(u.leads > 0)){ card.style.display = 'none'; return; }
+  card.style.display = '';
+  const items = (u.items || []).slice(0, 12).map(it =>
+    '<li><b>' + esc(it.campaign || '(no name)') + '</b> - ' + (it.leads || 0).toLocaleString() + ' lead'
+    + ((it.leads || 0) === 1 ? '' : 's') + ' (' + (it.accepted || 0).toLocaleString() + ' accepted), '
+    + (it.reason === 'conflict'
+        ? 'name market disagrees with the campaign id (booked UNMAPPED on ' + esc(it.theatre || '?') + ')'
+        : 'no theatre could be resolved from the campaign id or the name')
+    + '</li>').join('');
+  const more = (u.items || []).length > 12 ? '<li>... and ' + ((u.items || []).length - 12) + ' more</li>' : '';
+  document.getElementById('cspdUnresolvedMsg').innerHTML =
+    '<b>' + u.campaigns.toLocaleString() + ' campaign' + (u.campaigns === 1 ? '' : 's') + ' / '
+    + u.leads.toLocaleString() + ' lead' + (u.leads === 1 ? '' : 's') + '</b> could not be placed in a '
+    + 'region with confidence and are on NEITHER the APJ nor the EMEA lane. Fix the campaign naming in '
+    + 'Salesforce (region token after the quarter, e.g. EMEA-DACH) or add the token to sql/16.'
+    + '<ul style="margin:6px 0 0 16px;padding:0">' + items + more + '</ul>';
 }
 // <<< BB:CSPD <<<
 
