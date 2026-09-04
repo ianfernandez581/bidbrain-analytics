@@ -36,6 +36,9 @@ of a Snowflake-modelled `src_*` copy — that exception is gone; see
 | `16_stg_cs_leads_v2.sql`     | `stg_cs_leads_v2`     | `raw_snowflake.salesforce_cs_apac_all` scoped by **campaign NAME** (`STARTS_WITH('2026_Q3')`), not the 13-ID allowlist — which is what brings **EMEA** in. theatre / **book** / market / vendor / theatre-anchored `WEEK_START`. **Parallel to `10_*`, which is untouched.** | `CS_REPORTING.V_CS_LEADS_V2` |
 | `17_cs_pacing_v2.sql`        | `cs_pacing_v2`        | `stg_cs_leads_v2` + `seed_cs_targets_q3` (FULL OUTER JOIN, **book** × week × market × vendor, aggregated / PII-free) | `CS_REPORTING.V_CS_PACING_V2` |
 
+| `18_cs_compare_v2.sql`       | `cs_compare_v2`       | `stg_cs_leads_v2` (day × market × country × service × asset, both theatres; NO targets) — the EMEA CS Comparison panels | — |
+| `19_cs_composition_v2.sql`   | `cs_composition_v2`   | `stg_cs_leads_v2` (theatre × book × vendor × market × **dim × value**, LONG format, campaign to date, accepted + New) — the five composition donuts off-theatre; each dim sums to `cs_pacing_v2` accepted per (theatre, book), asserted by the job | — |
+
 ### 16 + 17 — the "Pacing detail" pair (2026-08-24)
 
 Feed the **Pacing detail** section on the Content Syndication tab (APAC + EMEA). They are a

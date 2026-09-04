@@ -197,6 +197,11 @@ def main():
     # week-grain pacing view aggregates away. Carries NO targets - those ship on cs_pacing at
     # their own grain and must not exist twice. See sql/18_cs_compare_v2.sql.
     csc = rows(bq, f"SELECT * FROM {t('cs_compare_v2')} ORDER BY THEATRE, BOOK, MARKET, DAY")
+    # COMPOSITION DONUTS for a non-legacy theatre (2026-09-05). Long format: one row per
+    # scope x dimension x value with the accepted (+ New) count. The dashboard filters it
+    # through the SAME predicate as cs_pacing (theatre + book + vendor + market) and hands the
+    # five dimensions to the one donut() the APJ tab uses. See sql/19_cs_composition_v2.sql.
+    csx = rows(bq, f"SELECT * FROM {t('cs_composition_v2')} ORDER BY THEATRE, BOOK, VENDOR, MARKET, DIM, ACCEPTED DESC")
     tx = build_transmission(bq, t)   # "Internal Notes" tab: committed Source IDs + pacing plan
 
     # Window over the paid rows (min/max date + inclusive day count).
@@ -413,6 +418,45 @@ def main():
         } for r in csp],
     }
 
+    # COMPOSITION payload - and its ONE invariant, asserted here because it is what makes the
+    # rings trustworthy: every dimension of a (theatre, book) must sum to that scope's accepted
+    # total on cs_pacing. Both views read stg_cs_leads_v2, so a mismatch can only mean one of
+    # them dropped or duplicated leads (a blank that stopped folding to 'Unknown', a UNION arm
+    # lost) - the dashboard would then draw an "Unaccounted" slice, and this names the cause
+    # first. It is also the theatre-isolation check: an EMEA lead counted under APAC here would
+    # break the APAC sum, so "no data spills between lanes" is a printed number, not a hope.
+    csx_acc = {}
+    for r in csx:
+        k = (r.get("THEATRE"), r.get("BOOK"), r.get("DIM"))
+        csx_acc[k] = csx_acc.get(k, 0) + int(jval(r.get("ACCEPTED")) or 0)
+    csp_acc = {}
+    for r in csp:
+        k = (r.get("THEATRE"), r.get("BOOK"))
+        csp_acc[k] = csp_acc.get(k, 0) + int(jval(r.get("ACCEPTED")) or 0)
+    for (th, book), acc in sorted(csp_acc.items(), key=lambda kv: (str(kv[0][0]), str(kv[0][1]))):
+        dims = {d: n for (t2, b2, d), n in csx_acc.items() if t2 == th and b2 == book}
+        bad = {d: n for d, n in dims.items() if n != acc}
+        if len(dims) < 5 or bad:
+            print(f"WARNING cs_composition {th} / {book}: dimensions {dims} do not all sum to the "
+                  f"cs_pacing accepted total {acc} - the dashboard will draw an Unaccounted slice; "
+                  f"check sql/19 (a blank not folding to 'Unknown', or a UNION arm missing)")
+        else:
+            print(f"cs_composition {th} / {book}: 5 dimensions each sum to {acc} accepted (ties to cs_pacing)")
+    cs_composition_payload = {
+        "row_count": len(csx),
+        "rows": [{
+            "theatre":     r.get("THEATRE"),
+            "book":        r.get("BOOK"),
+            "vendor":      r.get("VENDOR"),
+            "market":      r.get("MARKET"),
+            # The dashboard's own dimension keys: solutions / countries / jobFunc / jobLevel / jobTitle.
+            "dim":         r.get("DIM"),
+            "value":       r.get("VALUE"),
+            "accepted":    int(jval(r.get("ACCEPTED")) or 0),
+            "unprocessed": int(jval(r.get("UNPROCESSED")) or 0),
+        } for r in csx],
+    }
+
     # CS COMPARISON payload. Same scope rules as cs_pacing (theatre x book x vendor), one
     # grain finer. The dashboard re-derives every rate from these counts after it aggregates.
     #
@@ -605,6 +649,7 @@ def main():
         "pacing": pacing_payload,
         "cs_pacing": cs_pacing_payload,   # "Pacing detail" section: week x market x vendor, APAC + EMEA
         "cs_compare": cs_compare_payload, # "CS Comparison" panels: day x market x country x asset
+        "cs_composition": cs_composition_payload,  # the five composition donuts off-theatre: scope x dim x value
         "campaigns": campaigns,
         "qoq": qoq_block,   # Q3-vs-Q2 CS accepted leads, quarter-to-date aligned (actuals; targets pending)
         "transmission": tx,   # "Internal Notes" tab: committed Source IDs + the pacing plan
