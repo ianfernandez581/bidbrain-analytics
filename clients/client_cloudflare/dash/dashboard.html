@@ -4457,14 +4457,53 @@ function cspdDayInWeek(weekStart){
   const d = Math.floor((new Date() - s) / 864e5) + 1;
   return (d >= 1 && d <= 7) ? d : 0;
 }
+// COMPLETED = every one of the week's seven days has passed, i.e. today is on or after the day
+// following its last day (APJ weeks close at the start of Monday, EMEA's at the start of Friday).
+// UTC day boundary, like cspdDayInWeek. This is THE predicate: weekDueFraction() (the week-close
+// target rule) and cspdDefaultWeek() (which week the card opens on) both read it, so the selector
+// can never open on a week whose target the pacing tile says is not yet due.
+function cspdWeekClosed(weekStart){
+  const end = new Date(weekStart + 'T00:00:00Z'); end.setUTCDate(end.getUTCDate() + 7);
+  return end.toISOString().slice(0,10) <= new Date().toISOString().slice(0,10);
+}
 const cspdWkLabel = w => w.slice(5).replace('-', '/');          // 2026-07-06 -> 07/06
 
-// The week the dashboard opens on: the latest week that actually carries delivery
-// (matching the approved layout). The fixed band above already answers "whole quarter".
+// The week the card opens on: the most recent COMPLETED plan week (2026-09-05, client). It used
+// to be the latest week carrying delivery - which, since leads land daily, was always the week
+// in progress, and under week-close target recognition that week shows '-' for Weekly pacing
+// and Lead deficit. The client wants the default view to carry values, and the last completed
+// week is the one whose pacing is final. A completed week with NO delivery still wins over an
+// older one that delivered: 0 accepted against its target is the honest read, not a reason to
+// look further back. Shared by both lanes (this whole section is one component).
+// No completed week yet (the first days of a plan): fall back to the week in progress, and
+// cspdWeekStatus() LABELS that state on the card - never a silent fallback. The user's own
+// pick (a chip or a bar click) is kept until the lane changes; this only fills an empty or
+// invalid selection.
 function cspdDefaultWeek(cfg){
-  const d = cspdRows().filter(r => r.delivered > 0 && r.week_start).map(r => r.week_start).sort();
-  if (d.length) return d[d.length - 1];
-  return cfg.weeks.length ? cfg.weeks[0] : null;
+  const closed = cfg.weeks.filter(cspdWeekClosed).sort();
+  if (closed.length) return closed[closed.length - 1];
+  const live = cfg.weeks.find(w => cspdDayInWeek(w) >= 1);
+  return live || (cfg.weeks.length ? cfg.weeks[0] : null);
+}
+// How to describe the selected week so nobody mistakes a completed week for the current one,
+// or the current one for a completed week. Read from the DATA each render, never stored.
+//   { closed, latestClosed, day, label, note }
+function cspdWeekStatus(cfg, wk){
+  if (!wk || wk === 'qtd') return { closed: false, latestClosed: false, day: 0, label: '', note: '' };
+  const closedWeeks = cfg.weeks.filter(cspdWeekClosed).sort();
+  const closed = cspdWeekClosed(wk);
+  const latestClosed = closed && closedWeeks[closedWeeks.length - 1] === wk;
+  const day = cspdDayInWeek(wk);
+  const w = 'Week of ' + cspdWkLabel(wk);
+  let label, note;
+  if (closed)        { label = w + (latestClosed ? ' - last completed week' : ' - completed');
+                       note  = w + (latestClosed ? ' (last completed week)' : ' (completed)'); }
+  else if (day >= 1) { const inp = 'in progress, day ' + day + ' of 7';
+                       label = closedWeeks.length ? w + ' - ' + inp
+                                                  : 'No completed week yet - ' + w.toLowerCase() + ' ' + inp;
+                       note  = w + ' (' + inp + (closedWeeks.length ? '' : '; no completed week yet') + ')'; }
+  else               { label = w + ' - not started'; note = w + ' (not started)'; }
+  return { closed, latestClosed, day, label, note };
 }
 
 // Sum the metric set over an arbitrary row slice.
@@ -4526,7 +4565,7 @@ function renderCsPacingDetail(){
   const w = cspdSum(slice);
   if (!cfg.targetsApply) w.target = 0;
   const wkName = qtd ? cfg.period_label + ' to date' : 'Week of ' + cspdWkLabel(CSPD.week);
-  S('cspdWkLbl', qtd ? cfg.period_label + ' to date' : 'Selected week');
+  S('cspdWkLbl', qtd ? cfg.period_label + ' to date' : cspdWeekStatus(cfg, CSPD.week).label);
   // Under the cumulative chip this figure is no longer a WEEKLY pacing number - it is
   // delivered against the target that has come due so far. Say which one it is.
   S('cspd_w_pace_k', qtd ? 'Pacing to date' : 'Weekly pacing');
@@ -4919,7 +4958,7 @@ function cspdRenderWeeklyChart(cfg, rows, canvasId){
     ? 'Monthly view - each month sums the weeks that START in it. Switch to Week to select a week.'
     : (CSPD.week === 'qtd'
         ? 'Showing every week of the ' + cfg.period_label + ' plan. Click a bar to select that week.'
-        : 'Selected: week of ' + cspdWkLabel(CSPD.week) + '. Click a bar to change it.');
+        : 'Selected: ' + cspdWeekStatus(cfg, CSPD.week).note + '. Click a bar to change it.');
 }
 
 // Rejected count per week with the rejection rate overlaid. Bars are clickable and
@@ -4971,7 +5010,7 @@ function cspdRenderRejChart(cfg, rows){
   const n = document.getElementById('cspdRejNote');
   if (n) n.textContent = CSPD.week === 'qtd'
     ? 'Showing every week. Click a bar to scope the figures above to that week.'
-    : 'Selected: week of ' + cspdWkLabel(CSPD.week) + '.';
+    : 'Selected: ' + cspdWeekStatus(cfg, CSPD.week).note + '.';
 }
 
 // ---- delivery by publisher: the SELECTED book, campaign to date -----------
@@ -5253,8 +5292,7 @@ function flightDaysElapsed(f, now){
 // the week's last day) instead of climbing daily. That is the requested behaviour.
 function weekDueFraction(f, elapsedDays, weekStart){
   if (!f || f.weeks.indexOf(weekStart) < 0) return 0;
-  const end = new Date(weekStart + 'T00:00:00Z'); end.setUTCDate(end.getUTCDate() + 7);
-  return end.toISOString().slice(0,10) <= new Date().toISOString().slice(0,10) ? 1 : 0;
+  return cspdWeekClosed(weekStart) ? 1 : 0;
 }
 
 // ---- agg builder ---------------------------------------------------------

@@ -1024,7 +1024,19 @@ cards unchanged.
   Pacing-detail "Weekly pacing" card keeps its own `CSPD_DETAIL_BARS` cap - a different, taller
   card. Both lanes have 13 week columns, but at Month grain APJ has 3 and EMEA 4 (flight to late
   Oct), so identical config still gives EMEA ~25% narrower month bars; matching pixels there would
-  need a fixed barThickness and was rejected. Two facts
+  need a fixed barThickness and was rejected. **The Pacing detail card opens on the most recent
+  COMPLETED week (2026-09-05, client):** `cspdDefaultWeek()` used to take the latest week with
+  delivery, which is always the week in progress, and under week-close recognition that week shows
+  '-' for Weekly pacing and Lead deficit - a default view of dashes. It now takes the latest week
+  for which `cspdWeekClosed()` is true (the ONE closed-week predicate, also read by
+  `weekDueFraction()`, so the selector and the target rule can never disagree), falling back to the
+  week in progress ONLY when no plan week has closed yet - and `cspdWeekStatus()` labels the card
+  "No completed week yet - week of dd/mm in progress, day d of 7" in that case, never silently. The
+  card label is now "Week of 08/24 - last completed week" / "Week of 08/31 - in progress, day 5 of
+  7" instead of the bare "Selected week", and the two chart notes carry the same status. A completed
+  week with zero delivery still wins over an older delivering week. The in-progress week stays
+  selectable and keeps its '-' tiles + notes. Every tile in the card is built from one week slice,
+  so accepted / delivered / rejections / pacing / deficit always describe the same week. Two facts
   worth knowing when someone compares TTD% to Time%: time elapsed is measured over the CALENDAR
   quarter (1 Jul - 30 Sep) while the plan's 13 weeks run Mon 6 Jul - Sun 4 Oct, and the weekly
   targets are a mild front-loaded curve (182 -> 169 -> 176, total 2,290), so the two
