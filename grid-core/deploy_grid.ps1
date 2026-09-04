@@ -82,6 +82,16 @@ if ($LASTEXITCODE -ne 0) {
 gcloud storage buckets add-iam-policy-binding "gs://$DUMPS_BUCKET" --member="serviceAccount:$RUNTIME_SA" `
     --role="roles/storage.objectAdmin" --project $PROJECT *> $null
 
+# Connections tab reads windsor_connections.json (written hourly by the windsor-connections-probe
+# job, ingest/windsor_data_pull/connections/) from the STATUS bucket, and "Probe now" runs that
+# job through the Cloud Run Admin API. Read-only on the bucket; run.invoker on the job. Idempotent.
+$CONN_BUCKET = "bidbrain-analytics-status-dash"
+$CONN_JOB    = "windsor-connections-probe"
+gcloud storage buckets add-iam-policy-binding "gs://$CONN_BUCKET" --member="serviceAccount:$RUNTIME_SA" `
+    --role="roles/storage.objectViewer" --project $PROJECT *> $null
+gcloud run jobs add-iam-policy-binding $CONN_JOB --region $REGION --project $PROJECT `
+    --member="serviceAccount:$RUNTIME_SA" --role="roles/run.invoker" *> $null   # no-op until the job exists
+
 Write-Host "Updating Cloud Run service $SERVICE (image swap + state bucket + secrets; other env/flags preserved) ..."
 # --update-env-vars / --update-secrets MERGE (they never clear the others), so
 # re-asserting these every deploy is idempotent and self-heals a service that
@@ -98,7 +108,7 @@ Write-Host "Updating Cloud Run service $SERVICE (image swap + state bucket + sec
 # read the preview state blob, in front of every super-admin. Removing a var that is not set is
 # a no-op, so this is safe and idempotent on a service that has never had a preview.
 gcloud run services update $SERVICE --image $IMG --region $REGION --project $PROJECT `
-    --update-env-vars "GRID_STATE_BUCKET=$STATE_BUCKET,GREENLIGHT_BUCKET=$DUMPS_BUCKET,GREENLIGHT_BASE_URL=https://api.kimi.com/coding,EXPECTED_MODEL=kimi-for-coding" `
+    --update-env-vars "GRID_STATE_BUCKET=$STATE_BUCKET,GREENLIGHT_BUCKET=$DUMPS_BUCKET,GREENLIGHT_BASE_URL=https://api.kimi.com/coding,EXPECTED_MODEL=kimi-for-coding,GRID_CONNECTIONS_BUCKET=$CONN_BUCKET,GRID_CONNECTIONS_JOB=$CONN_JOB" `
     --remove-env-vars "CENTRAL_IMPORT_PATH,CENTRAL_EXTRA_PATH,GRID_STATE_OBJECT" `
     --update-secrets "ANTHROPIC_API_KEY=anthropic-api-key:latest,GREENLIGHT_API_KEY=kimi-api-key:latest"; Must "update grid service"
 

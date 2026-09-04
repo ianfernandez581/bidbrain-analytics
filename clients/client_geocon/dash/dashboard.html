@@ -1193,6 +1193,9 @@ const hasBreakdowns=()=>(DATA.breakdowns||[]).some(r=>propOk(r));
 // AND the `Conv.` / `Cost per conv` table columns, which this same flag drives - stays off until
 // there is a real number, then appears together. No edit needed when the first one lands.
 const hasConversions=()=>hasAny('conversions');
+// TrueView views, Google Ads only. `hasAny` not `reports`: a display campaign in the same account
+// returns 0 rather than NULL, so nullness alone would light this up for a buy with no video in it.
+const hasVideoViews=()=>hasAny('video_views');
 // How much of the signed plan is actually in market - and, since 2026-08-28, the basis pacing is
 // drawn against (see job/main.py `_flight`). Read from the PAYLOAD, not recomputed from ROWS():
 // pacing is full-flight and must not move when someone unticks a platform chip, which is exactly
@@ -1364,6 +1367,10 @@ function agg(rows){const s=k=>rows.reduce((a,r)=>a+n(r[k]),0);
   // sql/09_stg_google_ads and job/main.py state): a search conversion and a Meta lead form can be
   // the same human enquiring twice, so summing them would double-count an enquiry.
   const conv=s('conversions'),vtc=s('view_through_conversions');
+  // Google Ads TrueView views. The FACT carries only the count (the repo-wide rule that a rate must
+  // never enter a fact table); view rate and cost-per-view are derived HERE from summed components,
+  // so they stay exact for any date, platform or stage selection.
+  const vviews=s('video_views');
   // Cost per conversion divides by the spend of the channels that REPORT conversions, not by all
   // spend. Blended, an awareness channel that cannot report a conversion still lands in the
   // numerator, so every display dollar makes search look more expensive: on the mixed Northbourne
@@ -1376,6 +1383,14 @@ function agg(rows){const s=k=>rows.reduce((a,r)=>a+n(r[k]),0);
   return {spend,impressions:imp,reach,clicks,link_clicks:lc,lpv,leads,video_3s_views:v3,video_completes:vc,thruplays:tp,leads_website:lw,leads_onfacebook:lof,
     conversions:conv,view_through_conversions:vtc,
     cost_per_conversion:(convSpend==null||!conv)?null:convSpend/conv,
+    video_views:vviews,
+    // View rate divides by the impressions of the rows that REPORT views - the video campaign's own
+    // impressions - not by every impression on the page. Blended with display, the rate would fall
+    // as the display line scaled, which says nothing about the video.
+    video_view_rate:(()=>{const vi=rows.reduce((a,r)=>a+(r.video_views==null?0:n(r.impressions)),0);
+                          return vi?vviews/vi:null;})(),
+    cost_per_view:(()=>{const vs=rows.reduce((a,r)=>(r.video_views==null?a:(r.spend===null?null:nAdd(a,n(r.spend)))),0);
+                        return (vs==null||!vviews)?null:vs/vviews;})(),
     ctr:imp?lc/imp:null,cpm:nMul(per(imp),1000),cpc:per(lc),cpl:per(leads),cost_per_lpv:per(lpv),frequency:reach?imp/reach:null,count:rows.length};}
 function groupRollup(rows,keyFn,metaFn){const m=new Map();rows.forEach(r=>{const k=keyFn(r);if(!m.has(k))m.set(k,[]);m.get(k).push(r);});const out=[];m.forEach(rs=>out.push(Object.assign({},metaFn(rs[0],rs),agg(rs))));return out;}
 function byStage(rows){const g=groupRollup(rows,r=>r.stage||'Other',r0=>({stage:r0.stage||'Other'}));const ts=g.reduce((a,x)=>a+n(x.spend),0)||1,tl=g.reduce((a,x)=>a+n(x.leads),0)||1;
@@ -1744,6 +1759,7 @@ function renderKpis(){
     {color:MC.reach,label:'Reach',value:compact(a.reach),sub:`frequency ${a.frequency!=null?a.frequency.toFixed(1):'-'}`}
   ];
   // Never inside the lead tiles above - a Google conversion is not an enquiry (see agg()).
+  if(hasVideoViews())ctx.push(videoTile(a));
   if(hasConversions())ctx.push(convTile(a));
   $('kpiGridN').innerHTML=north.map(kpiCard).join('');
   $('kpiGrid').innerHTML=ctx.map(kpiCard).join('');
@@ -1783,6 +1799,7 @@ function renderKpisAwareness(a){
     {color:MC.cost,label:'Cost per click (CPC)',value:a.cpc!=null?money(a.cpc,2):'-',
       sub:targetSub('target','cpc_target_aud',v=>money(v,2))}
   ];
+  if(hasVideoViews())ctx.push(videoTile(a));
   if(hasConversions())ctx.push(convTile(a));
   if(reports('reach'))ctx.push({color:MC.reach,label:'Reach',value:compact(a.reach),
     sub:`frequency ${a.frequency!=null?a.frequency.toFixed(1):'-'}`});
@@ -1801,6 +1818,31 @@ function renderKpisAwareness(a){
 // Conversions get their OWN tile and their own words. The label names the reporting platform,
 // because a Google-reported conversion is not the same event as a Meta lead form and the two must
 // never read as one number a client could add up.
+// THE METRIC THE YOUTUBE LINE IS ACTUALLY BOUGHT ON. Its plan commits 24,000 views at a A$0.50
+// cost-per-view; impressions and clicks are incidental, and judging it on CTR makes a strong video
+// buy look like a failure (6 clicks on 27,648 impressions).
+function videoTile(a){
+  // THE TARGET MUST DESCRIBE THE SAME LINES AS THE FIGURE. The property-wide video_view_target is
+  // 824,000 and 800,000 of that is the Trade Desk High Impact line, which reports no views at all -
+  // pacing Google's views against it read 2% where YouTube is at 69% of its own 24,000. So the
+  // target is summed from the plan lines the view-reporting rows actually belong to.
+  const vlines=new Set(ROWS().filter(r=>r.video_views!=null&&n(r.video_views)>0)
+                             .map(r=>r.plan_line).filter(Boolean));
+  const lines=(propDef().plan||[]).filter(l=>vlines.has(l.line));
+  const target=lines.reduce((x,l)=>x+n(l.video_view_target),0)||null;
+  // Only compare against a CPV target the contributing lines AGREE on - taking the max across two
+  // different targets (Trade Desk buys video at A$0.05, Google at A$0.50) would silently pick the
+  // flattering one, and a blended target nobody signed is worse than none.
+  const cpvT=(()=>{const c=[...new Set(lines.map(l=>numOrNull(l.cpv_target)).filter(v=>v!=null))];
+                   return c.length===1?c[0]:null;})();
+  const pctv=target?Math.round(n(a.video_views)/target*100):null;
+  const bits=[];
+  if(a.cost_per_view!=null)bits.push(`${money(a.cost_per_view,3)} per view${cpvT?` vs ${money(cpvT,2)}`:''}`);
+  if(a.video_view_rate!=null)bits.push(`${pct(a.video_view_rate,1)} view rate`);
+  return {color:MC.qualified,label:'Video views',value:compact(a.video_views),
+          badge:pctv!=null?`${pctv}% of ${compact(target)}`:null,
+          sub:bits.join(' · ')||'Google Ads TrueView'};
+}
 function convTile(a){
   const src=deliveredChans().filter(c=>ROWS().some(r=>r.channel===c&&r.conversions!=null));
   const who=src.map(safeName).join(' / ')||'platform';

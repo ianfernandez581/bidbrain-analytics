@@ -1,0 +1,159 @@
+{
+  "_doc": [
+    "Windsor connections probe - the ONE place that says which Windsor accounts we depend on,",
+    "which client each belongs to, whether a dashboard actually reads it, and when each connector",
+    "was last re-authorised. probe.py reads this; the Grid's Connections tab renders the result.",
+    "",
+    "Per account: id (as the LOADER stores it, prefix-free), name, client (registry key), label,",
+    "expected = daily | ended | standby | retired | snapshot, alerts = whether a bad state EMAILS",
+    "(false for accounts no dashboard reads - they still show on the tab, they just cannot page us).",
+    "Per datasource: grant.last_reauth (the day the connector was last re-authorised in Windsor),",
+    "grant.reauth_by, grant.token_lifetime_days (the platform's TYPICAL lifetime; Windsor exposes no",
+    "expiry, so expiry_estimate = last_reauth + lifetime and the UI labels it an estimate).",
+    "last_reauth is the SEED only: the probe OBSERVES re-grants itself (Windsor's ds-accounts list gaining ids, or an",
+    "account flipping not_granted -> granted) and uses the later of the two dates. Edit it only to correct history."
+  ],
+  "recipients": ["ian@100.digital", "charles@100.digital"],
+  "digest_hour_utc": 22,
+  "expiry_warn_days": 14,
+  "frozen_after_days": 3,
+  "probe_window_days": 3,
+  "datasources": [
+    {
+      "ds": "facebook",
+      "label": "Meta Ads",
+      "endpoint": "https://connectors.windsor.ai/all",
+      "prefix": "facebook__",
+      "fields": "account_id,account_name,date,impressions",
+      "table": "raw_windsor.perf_meta",
+      "key_col": "account_id",
+      "loader_job": "windsor-meta-ingest",
+      "schedule": "21:15 UTC daily",
+      "loader_file": "ingest/windsor_data_pull/meta/meta_loader.py",
+      "grant": { "last_reauth": "2026-08-25", "reauth_by": "Calvin", "token_lifetime_days": 60,
+                 "note": "Meta long-lived user tokens last ~60 days; the 2026-08-11 lapse was exactly this." },
+      "accounts": [
+        { "id": "3754165911553001", "name": "100% Digital - Clients", "client": "geocon", "label": "Geocon", "expected": "daily", "alerts": true,
+          "consumers": ["geocon", "nextsmile", "bellshakespeare"] },
+        { "id": "465058559225771", "name": "Reset backup - Ad account", "client": "resetdata", "label": "Reset Data", "expected": "daily", "alerts": true,
+          "consumers": ["resetdata"] },
+        { "id": "1126027130805483", "name": "Cityperfume.com.au", "client": "cityperfume", "label": "City Perfume", "expected": "ended", "alerts": false,
+          "consumers": ["cityperfume"], "why": "client offboarded 2026-09-01; dashboards deleted, data retained" },
+        { "id": "1302148091859257", "name": "unknown (never delivered)", "client": null, "label": "Unmapped", "expected": "retired", "alerts": false },
+        { "id": "910485528634664", "name": "Ad Assembly - ACRS", "client": null, "label": "Ad Assembly", "expected": "retired", "alerts": false, "why": "no rows since 2026-05-01" },
+        { "id": "927205350157043", "name": "Ad Assembly - BuyerX", "client": null, "label": "Ad Assembly", "expected": "retired", "alerts": false, "why": "no rows since 2026-05-29" }
+      ]
+    },
+    {
+      "ds": "tradedesk",
+      "label": "The Trade Desk",
+      "endpoint": "https://connectors.windsor.ai/tradedesk",
+      "prefix": "",
+      "fields": "advertiser,advertiser_id,date,impressions",
+      "table": "raw_windsor.perf_the_trade_desk",
+      "key_col": "advertiser_id",
+      "seat": "569",
+      "loader_job": "windsor-tradedesk-ingest",
+      "schedule": "04:35 + 21:35 UTC daily",
+      "loader_file": "ingest/windsor_data_pull/tradedesk/tradedesk_loader.py",
+      "grant": { "last_reauth": "2026-08-25", "reauth_by": "Calvin", "token_lifetime_days": null,
+                 "note": "Agency seat 569 (was 484 until the 2026-08-25 re-grant issued a new id). TTD partner tokens have no published lifetime." },
+      "accounts": [
+        { "id": "0lw3hp6", "name": "Caltex Star Card", "client": "caltex", "label": "Caltex", "expected": "daily", "alerts": true, "consumers": ["caltex"] },
+        { "id": "lxp46o9", "name": "ResetData", "client": "resetdata", "label": "Reset Data", "expected": "daily", "alerts": true, "consumers": ["resetdata"] },
+        { "id": "mor6pp1", "name": "The Little Marionette", "client": "tlm", "label": "The Little Marionette", "expected": "daily", "alerts": true, "consumers": ["tlm"] },
+        { "id": "sif8zx0", "name": "VMCH", "client": "vmch", "label": "VMCH", "expected": "daily", "alerts": true, "consumers": ["vmch"] },
+        { "id": "tg1ubik", "name": "Geocon Group", "client": "geocon", "label": "Geocon", "expected": "daily", "alerts": true, "consumers": ["geocon"] },
+        { "id": "l4dj1fw", "name": "City Perfume", "client": "cityperfume", "label": "City Perfume", "expected": "ended", "alerts": false, "consumers": ["cityperfume"],
+          "why": "client offboarded 2026-09-01" }
+      ]
+    },
+    {
+      "ds": "linkedin",
+      "label": "LinkedIn Ads",
+      "endpoint": "https://connectors.windsor.ai/all",
+      "prefix": "linkedin__",
+      "fields": "account_id,account_name,date,impressions",
+      "table": "raw_windsor.perf_linkedin",
+      "key_col": "account_id",
+      "loader_job": "windsor-linkedin-ingest",
+      "schedule": "21:40 UTC daily",
+      "loader_file": "ingest/windsor_data_pull/linkedin/linkedin_loader.py",
+      "grant": { "last_reauth": "2026-08-25", "reauth_by": "Calvin", "token_lifetime_days": 365,
+                 "note": "LinkedIn refresh tokens last 365 days. Only 4 of 34 configured accounts came back on 2026-08-25; the LinkedIn dashboards read Transmission's Snowflake mirror, so none of these is on a client's critical path today - it becomes one the day geocon's LinkedIn lane goes live." },
+      "accounts": [
+        { "id": "520254094", "name": "Cloudflare APAC", "client": "cloudflare", "label": "Cloudflare", "expected": "standby", "alerts": false, "consumers": [], "why": "cloudflare reads raw_snowflake.linkedin_ads_apac" },
+        { "id": "517045062", "name": "Schneider (AUD)", "client": "schneider", "label": "Schneider", "expected": "standby", "alerts": false, "consumers": [], "why": "schneider reads raw_snowflake.linkedin_ads_apac" },
+        { "id": "504047196", "name": "Schneider (USD)", "client": "schneider", "label": "Schneider", "expected": "standby", "alerts": false, "consumers": [] },
+        { "id": "516221072", "name": "Schneider (SGD)", "client": "schneider", "label": "Schneider", "expected": "standby", "alerts": false, "consumers": [] },
+        { "id": "515691430", "name": "STT", "client": "stt", "label": "STT", "expected": "standby", "alerts": false, "consumers": [], "why": "stt reads raw_snowflake" },
+        { "id": "511609128", "name": "STT", "client": "stt", "label": "STT", "expected": "standby", "alerts": false, "consumers": [] },
+        { "id": "510177932", "name": "PropTrack_TransmissionSG_AUD", "client": "proptrack", "label": "PropTrack", "expected": "standby", "alerts": false, "consumers": [], "why": "proptrack reads raw_snowflake" },
+        { "id": "513554482", "name": "HireRight", "client": "hireright", "label": "HireRight", "expected": "standby", "alerts": false, "consumers": [], "why": "hireright reads raw_snowflake" },
+        { "id": "516746102", "name": "Reset Data", "client": "resetdata", "label": "Reset Data", "expected": "standby", "alerts": false, "consumers": [], "why": "resetdata has no LinkedIn lane on the dashboard" },
+        { "id": "507877947", "name": "Cisco APJC", "client": null, "label": "Unmapped (Transmission)", "expected": "standby", "alerts": false },
+        { "id": "502299829", "name": "mongodb AWS Immersion Day (Windsor 500s on 'start')", "client": "mongodb", "label": "MongoDB", "expected": "daily", "alerts": false, "consumers": ["mongodb"],
+          "why": "the ONE LinkedIn account a dashboard reads from Windsor; the connector has 500'd on it since 2026-07 (Windsor-side bug), mongodb's LinkedIn tab auto-hides until it lands. alerts off until Windsor fixes it - flipping to true is the way to be told when it does" }
+      ],
+      "extra_configured_ids": ["504606769", "504758918", "507224127", "508673116", "508732444", "508766215", "508768204", "508768205", "508801607", "509003962", "509046900", "509091286", "509841591", "510202977", "511313581", "512344932", "512350710", "512810387", "516748074", "517047078", "547920275", "547920277", "547960230"],
+      "_extra_doc": "extra_configured_ids = the rest of the loader's 34-account list: Transmission accounts we hold no client mapping for. Probed and shown collapsed as 'Unmapped (Transmission)' so a surprise grant change is still visible, never alerted."
+    },
+    {
+      "ds": "reddit",
+      "label": "Reddit Ads",
+      "endpoint": "https://connectors.windsor.ai/all",
+      "prefix": "reddit__",
+      "fields": "account_id,account_name,date,impressions",
+      "table": "raw_windsor.perf_reddit",
+      "key_col": "account_id",
+      "loader_job": "windsor-reddit-ingest",
+      "schedule": "21:50 UTC daily",
+      "loader_file": "ingest/windsor_data_pull/reddit/reddit_loader.py",
+      "grant": { "last_reauth": "2026-08-05", "reauth_by": "Ian", "token_lifetime_days": null,
+                 "note": "Reddit refresh tokens do not expire while in use." },
+      "accounts": [
+        { "id": "a2_igd0szmw7roq", "name": "ResetData Ad Account", "client": "resetdata", "label": "Reset Data", "expected": "daily", "alerts": true, "consumers": ["resetdata"] },
+        { "id": "a2_iq3fdsq6rem5", "name": "Transmission_Cloudflare", "client": "cloudflare", "label": "Cloudflare", "expected": "ended", "alerts": false, "consumers": [],
+          "why": "Cloudflare's Reddit lane ran Q2 only (ended 2026-06-30) and the dashboard reads Snowflake for it" }
+      ]
+    },
+    {
+      "ds": "googleanalytics4",
+      "label": "Google Analytics 4",
+      "endpoint": "https://connectors.windsor.ai/googleanalytics4",
+      "prefix": "",
+      "fields": "account_id,date,sessions",
+      "table": "raw_windsor.perf_ga4",
+      "key_col": "property_id",
+      "loader_job": "windsor-ga4-ingest",
+      "schedule": "21:25 UTC daily (pinned to the two Geocon properties)",
+      "loader_file": "ingest/windsor_data_pull/ga4/ga4_loader.py",
+      "grant": { "last_reauth": "2026-08-31", "reauth_by": "Ian", "token_lifetime_days": null,
+                 "note": "Google refresh tokens do not expire while in use (they lapse after 6 months idle, or 7 days if the OAuth app is left in Testing)." },
+      "accounts": [
+        { "id": "550962241", "name": "Geocon brand site", "client": "geocon", "label": "Geocon", "expected": "daily", "alerts": true, "consumers": ["geocon"] },
+        { "id": "551838402", "name": "Gatewaybraddon (landing site)", "client": "geocon", "label": "Geocon", "expected": "daily", "alerts": true, "consumers": ["geocon"] },
+        { "id": "287370621", "name": "VMCH", "client": "vmch", "label": "VMCH", "expected": "standby", "alerts": false, "consumers": ["vmch"],
+          "why": "laptop-run fallback path; vmch's GA4 is DTS-first (raw_ga4.perf_ga4)" }
+      ]
+    },
+    {
+      "ds": "hubspot",
+      "label": "HubSpot CRM",
+      "endpoint": "https://connectors.windsor.ai/hubspot",
+      "prefix": "",
+      "fields": "contact_email,contact_createdate",
+      "table": "raw_windsor.hubspot_contacts",
+      "key_col": null,
+      "snapshot_col": "_pulled_at",
+      "loader_job": "windsor-hubspot-ingest",
+      "schedule": "21:55 UTC daily",
+      "loader_file": "ingest/windsor_data_pull/hubspot/hubspot_loader.py",
+      "grant": { "last_reauth": null, "reauth_by": null, "token_lifetime_days": null,
+                 "note": "HubSpot private-app tokens do not expire. Single tenant (Reset Data), no account selection." },
+      "accounts": [
+        { "id": "hubspot", "name": "Reset Data HubSpot portal", "client": "resetdata", "label": "Reset Data", "expected": "snapshot", "alerts": true, "consumers": ["resetdata"] }
+      ]
+    }
+  ]
+}

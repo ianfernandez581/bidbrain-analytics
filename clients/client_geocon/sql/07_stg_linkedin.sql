@@ -45,7 +45,26 @@ nm_map AS (SELECT nm, property_key FROM nm_rank WHERE rn = 1)
 SELECT
   b.metric_date                                       AS date,
   'LinkedIn'                                          AS channel,
-  COALESCE(nm.property_key, 'Unmapped')               AS property,
+  -- ACCOUNT-SCOPED FALLBACK (client-confirmed 2026-09-04, applied at go-live). The name join is
+  -- still tried FIRST and still wins wherever it resolves. It is the fallback that is new: LinkedIn
+  -- ad account 556629043 was built for Northbourne Gateway and its delivery is Northbourne's, but
+  -- its campaign is named "Gateway Braddon Aug2026" and carries no Northbourne token - so without
+  -- this every row would land in 'Unmapped', be excluded from every KPI, and alarm the export.
+  --
+  -- This is an INSTRUCTION, not an inference, and it is SETTLED (client, 2026-09-04): this is the
+  -- FIRST LinkedIn campaign Geocon has run, set up before a naming convention existed, so the
+  -- Braddon naming is an artefact of that and not a signal about the development. Do not "correct"
+  -- it back. Three naming signals point at Braddon and all three are knowingly overridden - the
+  -- account name (`Geocon Group - AUD`), the campaign group (`Gateway Braddon Aug2026`) and the
+  -- ad-set prefix (`GWB_ACT_PROSP_*`, GWB = Gateway Braddon).
+  --
+  -- Scoped to the ACCOUNT ID so a genuine Gateway Braddon LinkedIn campaign on a different account
+  -- still resolves on its own, and 'Unmapped' still fires for anything neither rule claims. Delete
+  -- this arm the day the ad sets are renamed to carry a Northbourne token - the name join above
+  -- runs first and will take over by itself.
+  COALESCE(nm.property_key,
+           IF(CAST(b.account_id AS STRING) = '556629043', 'Northbourne Gateway', 'Unmapped')
+          )                                           AS property,
   b.campaign_id,
   TRIM(IFNULL(b.campaign_group_name, b.campaign_name)) AS campaign_name,
   b.campaign_id                                       AS adset_id,   -- LinkedIn's "campaign" IS the ad set

@@ -426,7 +426,7 @@ Worth remembering repo-wide: `Number.isFinite(Number(x))` is not a null guard.
 | **Trade Desk** | **RESOLVED, LIVE and ON THE DASHBOARD.** Advertiser `Geocon Group` is granted on the shared Windsor seat. The **High Impact** line (plan seq 1) has delivered since **2026-08-20**: 71 rows, **A$3,848.90 / 737,352 imps / 637 clicks** at 2026-08-26, resolving to `property = Northbourne Gateway` and `plan_line = High Impact` with zero Unmapped. Published to the Northbourne tab on **2026-08-28** (see "Awareness mode"). **Retargeting (seq 7) and Lookalike (seq 8), A$12,000 each, have not started.** |
 | **Meta** | **Feed RESOLVED, campaigns not built.** The Windsor Meta grant was re-authed 2026-08-25 and Gateway Braddon is current to 08-25, so the pipe is healthy - but the ad account holds **no Northbourne campaign at all** yet. The A$90,000 `Leads` line (seq 9) is waiting on campaign build, not on a grant. Its plan row has a NULL `match_pattern` **by design** - it is the Meta channel catch-all, and Meta has exactly one line. |
 | **Google Ads** | **Wired, PAUSED.** All three campaigns exist and are correctly named; they flow the moment they are un-paused. Nothing is needed from us. |
-| **LinkedIn** | **STILL BLOCKED - the only outstanding grant.** The connector carries APJC / STT / Cloudflare / Schneider / PropTrack / HireRight / ResetData and nothing else; there is no Geocon account on it. `sql/07_stg_linkedin.sql` is written and returns zero rows. A$6,000 (seq 4). |
+| **LinkedIn** | **LIVE 2026-09-04.** Calvin connected ad account **556629043** ("Geocon Group - AUD") to Windsor, and `556629043` was added to `SELECT_ACCOUNTS` + `LINKEDIN_ACCOUNT_TO_CLIENT` in `ingest/windsor_data_pull/linkedin/linkedin_loader.py` - **the connector grant alone is NOT enough, the loader pulls an explicit allowlist and that was the real blocker.** Delivering since 2026-09-03: 1,692 imps / 3 clicks / A$82.03 across two ad sets. **The Braddon naming is deliberate and settled** (client 2026-09-04: first LinkedIn campaign Geocon ran, set up before a naming convention existed) - `sql/07` resolves it to Northbourne by ACCOUNT ID, and the plan's LinkedIn line became the channel catch-all (empty match_pattern) because `GWB_ACT_PROSP_*` matched neither `LinkedIn` nor `LI`, so the spend paced against nothing and the export warned. |
 
 **Do not re-read the old "A$64,000 Trade Desk blocker" line anywhere - it is dead.** That grant landed
 with the estate-wide Trade Desk re-auth on 2026-08-25, which also issued a NEW seat id (484 -> 569).
@@ -821,7 +821,7 @@ utm campaign names (the same class of break as the delivery scope, and just as s
 
 ### Channel connection status (verified 2026-08-31)
 
-- **LinkedIn — still blocked on the Windsor grant.** No Geocon LinkedIn ad account exists in the
+- **LinkedIn - LIVE since 2026-09-04.** Connected to Windsor by Calvin and added to the loader allowlist; see the go-live table above for the naming override.
   connector (probed via the Windsor API, not the table). The socket (`sql/07`) is ready; when the
   account is connected at onboard.windsor.ai, add its id to `SELECT_ACCOUNTS` +
   `LINKEDIN_ACCOUNT_TO_CLIENT` (→ `('geocon','100-digital')`) in
