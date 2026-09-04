@@ -344,6 +344,24 @@ WARNs by name if not; the dashboard draws an `Unaccounted` slice on any shortfal
 BigQuery on apply: APAC Core DG 1,661 x 5, APAC Regional 63 x 5, EMEA Core DG 1,834 x 5, all `ties
 = true`; and in the headless render the APAC and EMEA Country rings share no label.
 
+**Scope is by campaign ID against an explicit allowlist, never by name prefix (2026-09-05, client
+rule).** `definitions.json` -> `cs_emea_campaigns` -> `seed_cs_emea_campaign_ids`, read by `sql/16`
+as the FIRST theatre rule (`REGION_SOURCE='allowlist'`), with the id vote and the per-lead name token
+kept below it as fallbacks that never default a theatre. Five IDs, one per EMEA publisher
+(Acquisition `701RG00001e1aegYAA`, Pipeline360 `701RG00001ddoNpYAI`, Roverpath `701RG00001cj4ibYAA`,
+Final Funnel `701RG00001ciw9zYAA`, Inbox Insight `701RG00001e0CoAYAU`); every EMEA sub-region is a
+campaign NAME under the same id, so a new region needs no edit and a new publisher does. **The sweep
+for un-prefixed EMEA campaigns found TWO names, both on Acquisition's id:** `2026_Q3_CEERI_ACQUISITION_
+VER-FINANCE_...` (52 rows) and `2026_Q3_DACH_ACQUISITION_VER-FINANCE_...` (12 rows) - a `LIKE
+'EMEA-%'` filter would have put all 64 in APAC. They were already placed correctly by the id vote (the
+same id carries 25 prefixed names); the allowlist makes that placement explicit and the job WARNs by
+name on any EMEA lead it did not place. **Render-time assertions** (`assertDimsSumTo`, `cscxDims`'s
+spill counter, `assertTheatreIsolation` once per payload) log to `console.error` with a `[cs-isolation]`
+prefix and to `window.BB_ISOLATION_LOG`; the job mirrors the market check (`CS_THEATRE_MARKETS`)
+before the block ships. The two DATA objects are different and never shared: APJ reads the legacy
+lead rows (`rawRows` -> `aggregate()`), EMEA reads `cs_composition`; the LAYOUT code
+(`renderCompositionDonuts` -> `donut` -> `dlLegend`) is the one shared piece.
+
 **Ring total on EMEA = `cspdTopAgg().accepted`** (+ New in Admin View), i.e. the KPI strip's own
 figure for the same scope - the two tie or the ring says so. An older JSON with no
 `cs_composition` block hides both donut rows (`renderCompositionV2`) rather than drawing five

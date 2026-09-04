@@ -91,6 +91,14 @@ def rows(bq, sql):
     return [dict(r) for r in bq.query(sql, location=LOC).result()]
 
 
+# The L3 markets each theatre may carry - sql/16_stg_cs_leads_v2's own CASE arms. Used by the
+# cs_composition isolation guard; a new market is added HERE and in that CASE together.
+CS_THEATRE_MARKETS = {
+    "APAC": {"ANZ", "ASEAN", "SAARC", "GCR-CN", "GCR-TW", "GCR-HK", "Japan", "Korea"},
+    "EMEA": {"UKI", "DACH", "SEUR", "NEUR", "CEERI", "MEA"},
+}
+
+
 def build_transmission(bq, t):
     """What Transmission committed for this dashboard, for the dev-only "Internal Notes" tab (named
     "Data from Transmission" until 2026-08-05):
@@ -192,6 +200,18 @@ def main():
         WHERE THEATRE = 'UNRESOLVED' OR REGION_CONFLICT = 1
         GROUP BY 1, 2, 3, 4, 5 ORDER BY leads DESC""")
     region_src = rows(bq, f"SELECT REGION_SOURCE, COUNT(*) AS n FROM {t('stg_cs_leads_v2')} GROUP BY 1")
+    # ALLOWLIST GUARD (2026-09-05, client rule: scope EMEA by campaign ID against an explicit
+    # list, never by name prefix). sql/16 places a lead by definitions.json's id allowlist FIRST
+    # (REGION_SOURCE='allowlist'); anything it placed by the name vote or a per-lead token still
+    # renders (under-inclusion is silent, over-inclusion is loud - md/AGENTS.md) but is named
+    # here so the list gets extended. EMEA-only: APAC's Regional book (DemandAI / Interlink) is
+    # deliberately outside the legacy 13-ID list and is a documented, expected 'id' placement.
+    allow_miss = rows(bq, f"""
+        SELECT CAMPAIGN_ID, ANY_VALUE(VENDOR) AS VENDOR, REGION_SOURCE,
+               COUNT(DISTINCT CAMPAIGN) AS names, COUNT(*) AS leads, SUM(IS_ACCEPTED) AS accepted
+        FROM {t('stg_cs_leads_v2')}
+        WHERE THEATRE = 'EMEA' AND REGION_SOURCE <> 'allowlist'
+        GROUP BY 1, 3 ORDER BY leads DESC""")
     # CS COMPARISON panels (2026-09-02). Finer read of the SAME stg_cs_leads_v2 rows than
     # cs_pacing_v2: it keeps COUNTRY, ASSET and DAY, which the Comparison tab needs and the
     # week-grain pacing view aggregates away. Carries NO targets - those ship on cs_pacing at
@@ -355,8 +375,15 @@ def main():
                       f"Map the programme to 'Core DG' or 'Regional' and re-apply views.")
 
     src_census = {r.get("REGION_SOURCE"): int(jval(r.get("n")) or 0) for r in region_src}
-    print(f"cs_pacing region resolution: {src_census} (id = placed by CAMPAIGN_ID vote, "
-          f"name = by campaign-name token, none = UNRESOLVED)")
+    print(f"cs_pacing region resolution: {src_census} (allowlist = definitions.json campaign-ID list, "
+          f"id = placed by CAMPAIGN_ID vote, name = by campaign-name token, none = UNRESOLVED)")
+    for r in allow_miss:
+        print(f"WARNING cs EMEA allowlist: campaign {r.get('CAMPAIGN_ID')} ({r.get('VENDOR')}, "
+              f"{int(jval(r.get('names')) or 0)} name(s), {int(jval(r.get('leads')) or 0)} leads / "
+              f"{int(jval(r.get('accepted')) or 0)} accepted) resolved to EMEA by '{r.get('REGION_SOURCE')}', "
+              f"NOT by definitions.json cs_emea_campaigns - it renders, but add the id to the allowlist.")
+    if not allow_miss:
+        print("cs EMEA allowlist: every EMEA lead is placed by definitions.json cs_emea_campaigns (REGION_SOURCE='allowlist')")
     unresolved_items = [{
         "campaign":    r.get("CAMPAIGN"),
         "campaign_id": r.get("CAMPAIGN_ID"),
@@ -429,6 +456,21 @@ def main():
     for r in csx:
         k = (r.get("THEATRE"), r.get("BOOK"), r.get("DIM"))
         csx_acc[k] = csx_acc.get(k, 0) + int(jval(r.get("ACCEPTED")) or 0)
+    # THEATRE / MARKET ISOLATION (2026-09-05, client rule): no EMEA aggregate row may carry an
+    # APAC market and vice versa. The market sets are sql/16's own CASE arms; UNMAPPED is the
+    # audited residual and belongs to neither. Loud, by name, before the block ships.
+    spill = {}
+    for r in csx:
+        th, mk = r.get("THEATRE"), r.get("MARKET")
+        other = {"APAC": "EMEA", "EMEA": "APAC"}.get(th)
+        if other and mk in CS_THEATRE_MARKETS[other]:
+            k = (th, mk); spill[k] = spill.get(k, 0) + int(jval(r.get("ACCEPTED")) or 0)
+    for (th, mk), n in sorted(spill.items()):
+        print(f"WARNING cs_composition ISOLATION: {n} accepted lead(s) sit under THEATRE={th} with the "
+              f"{'EMEA' if th == 'APAC' else 'APAC'} market '{mk}' - a theatre/market mismatch in sql/16; "
+              f"the dashboard filters by theatre, so these would draw on the WRONG lane's rings")
+    if not spill:
+        print("cs_composition isolation: no theatre carries the other theatre's market")
     csp_acc = {}
     for r in csp:
         k = (r.get("THEATRE"), r.get("BOOK"))
