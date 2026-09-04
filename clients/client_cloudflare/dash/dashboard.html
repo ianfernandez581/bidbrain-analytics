@@ -1187,7 +1187,8 @@
           <div class="group">
             <div class="lbl" id="cspdWkLbl">Selected week</div>
             <div class="pair">
-              <div class="stat"><div class="k">Delivered</div><div class="v" id="cspd_w_del">-</div></div>
+              <div class="stat"><div class="k">Accepted</div><div class="v" id="cspd_w_acc">-</div>
+                <div class="cnt" id="cspd_w_acc_cnt">-</div></div>
               <div class="stat"><div class="k" id="cspd_w_pace_k">Weekly pacing</div><div class="v" id="cspd_w_pace">-</div>
                 <div class="cnt" id="cspd_w_pace_cnt">-</div></div>
             </div>
@@ -4113,7 +4114,17 @@ function renderCsPacingDetail(){
   // Under the cumulative chip this figure is no longer a WEEKLY pacing number - it is
   // delivered against the target that has come due so far. Say which one it is.
   S('cspd_w_pace_k', qtd ? 'Pacing to date' : 'Weekly pacing');
-  S('cspd_w_del',   w.delivered.toLocaleString());
+  // ACCEPTED is the headline of this card (2026-09-04, client: "for the weekly lead pacing,
+  // instead of delivered we should show accepted"). Every pacing figure in this card already
+  // measured accepted - the pacing tile, its deficit twin and the chart below - so a Delivered
+  // headline sat beside a caption reading "136 accepted vs 173 target" and invited the reader
+  // to pace the wrong number (Jade's w/c 24 Aug example: 174 delivered against a 173 accepted
+  // target reads exactly on plan on a week that delivered 136 accepted). The delivery count is
+  // NOT dropped - it moves to the sub-line, where it also keeps the rejection-rate denominator
+  // (accepted + rejected) on screen beside the rate itself. The campaign-to-date band above
+  // still carries its own Delivered tile; this is the WEEKLY card only.
+  S('cspd_w_acc',   w.accepted.toLocaleString());
+  S('cspd_w_acc_cnt', w.delivered.toLocaleString() + ' delivered (reviewed)');
   S('cspd_w_rej',   w.rejected.toLocaleString());
   S('cspd_w_rrate', cspdPct(w.rejected, w.delivered));
   S('cspd_w_arate', cspdPct(w.accepted, w.delivered));

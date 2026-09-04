@@ -529,7 +529,9 @@ openly contradicted each other - EMEA w/c 08-21 read "112.5% - 72 vs 64 target" 
 "Lead deficit 7 - accepted leads behind target" (behind). Accepted is what the plan is bought in
 and what every other pacing figure on the tab already used (the campaign-to-date band, the
 publisher table, the deficit tile). The caption now names the metric - "57 accepted vs 64 target" -
-so nobody re-derives it from the Delivered tile above it.
+so nobody re-derives it. (The `Delivered` tile it used to sit beside became an **Accepted** tile on
+2026-09-04 - see "The weekly card's headline is accepted" below - so the whole card now reads in
+one unit.)
 
 Two weeks change verdict, and **both flips move INTO agreement with their own deficit tile**:
 EMEA 08-21 112.5% -> 89.1% (deficit 7) and APJ 07-27 105.6% -> 90.0% (deficit 18). Every other
@@ -577,8 +579,9 @@ all, so a single edit covers all three). Every week drops by exactly its own rej
 | EMEA Core DG, Flight to date | 1,986 | 1,247 | **1,078** |
 | Regional (ANZ DnB), w/c 3 Aug | no target | 71 | **62** |
 
-**Left alone deliberately:** the two `Delivered` tiles and the publisher table's Delivered column
-(delivery counts, not pacing); the acceptance and rejection RATES (accepted + rejected is the
+**Left alone deliberately:** the campaign-to-date band's `Delivered` tile and the publisher
+table's Delivered column (delivery counts, not pacing; the WEEKLY card's Delivered tile went on
+2026-09-04, see the next section); the acceptance and rejection RATES (accepted + rejected is the
 correct reviewed-lead denominator - it is what makes the two sum to 100%); the by-region cards and
 the KPI strip (already accepted); `cspdDefaultWeek()` / the `qtd` cut-off / the `noDeliveryYet`
 guard, which test `delivered > 0` to mean *"has this week been reviewed at all"* - a reviewed-ness
@@ -602,6 +605,36 @@ accepted + rejected = delivered and accepted + rejected + pending = total leads 
 the independent `cs_compare` block) every week; weekly accepted sums to the band's Accepted tile
 (APJ 1,661 / EMEA 1,078 / Regional 63) and to the EMEA region cards; target sums by market equal
 target sums by publisher (APJ 2,290, EMEA 12,058); and monthly totals equal weekly totals.
+
+### The weekly card's headline is accepted (2026-09-04, Jade)
+
+**Same client instruction, one panel further.** The 09-03 change put every target COMPARISON on
+accepted; what it left behind was the weekly card's own headline TILE, still labelled `Delivered`.
+So the card read `Delivered 174` in its largest figure, immediately left of a pacing tile whose
+caption said `136 accepted vs 173 target` - the exact pair of numbers Jade's example was about, on
+one card, in two units. A reader taking the headline at face value re-derives the delivered-vs-
+target comparison the 09-03 fix removed from the chart.
+
+**`cspd_w_del` -> `cspd_w_acc`, printing `w.accepted`.** The delivery count is NOT dropped: it
+moves to the tile's `.cnt` sub-line as *"N delivered (reviewed)"*, which also keeps the
+acceptance/rejection-rate denominator on screen next to the rates themselves. The id was renamed
+rather than left pointing at a different measure - an id that says `del` while holding accepted is
+how the next person re-introduces the bug.
+
+**Frontend only, one file.** No `sql/`, no `job/main.py`, no payload key - `accepted` and
+`delivered` have both been in `cs_pacing` since the section was built, and `cspdSum()` already
+returned both. Needs `dash/deploy_dash_cloudflare.ps1` only; no forced job run, and the status-dash
+accuracy checks cannot move.
+
+**Still `Delivered`, still correctly so:** the campaign-to-date band at the top of the section
+(which pairs Delivered WITH Accepted, so neither can be mistaken for the other) and the publisher
+table's Delivered column. Both are delivery counts that nothing paces against.
+
+**The transferable half** is the repo-wide rule this section already carries one level up: a basis
+is a property of the CARD. 08-27 fixed the tile and left the chart; 09-03 fixed the chart and left
+the headline. Each pass swept what the ticket named. When you next change a basis, enumerate every
+figure in that card - including the ones that state no target at all, because a headline in the
+wrong unit is what the reader paces by eye.
 
 **One pre-existing gap this surfaced but did NOT touch:** on APJ the region cards and KPI strip read
 the LEGACY `pacing` model (`sql/10`, campaign-ID allowlist, and its "accepted" is
