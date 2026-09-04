@@ -94,6 +94,13 @@ WITH base AS (
     -- (3,387 rows, 39 distinct APAC / 26 EMEA), so there is no NULL arm to design for.
     ASSET_1,
     ASSET_2,
+    -- Job columns, added 2026-09-05 for the EMEA composition donuts (19_cs_composition_v2).
+    -- Lead-grain passthrough ONLY: this view is read by 17/18/19, all aggregates, and the
+    -- job never ships a row of it. JOB_TITLE is the closest thing to a person here (the
+    -- schneider PII-scope note) - it reaches the payload only as a count per value.
+    JOB_FUNCTION,
+    JOB_LEVEL,
+    JOB_TITLE,
     SPLIT(CAMPAIGN, '_')[SAFE_OFFSET(2)] AS SEG_REGION,
     SPLIT(CAMPAIGN, '_')[SAFE_OFFSET(3)] AS SEG_VENDOR,
     SPLIT(CAMPAIGN, '_')[SAFE_OFFSET(4)] AS SEG_PROGRAM
@@ -148,6 +155,7 @@ id_resolved AS (
 typed AS (
   SELECT
     DAY, LEAD_STATUS, CAMPAIGN, CAMPAIGN_ID, COUNTRY_NAME, SEG_PROGRAM, ASSET_1, ASSET_2,
+    JOB_FUNCTION, JOB_LEVEL, JOB_TITLE,
     THEATRE,
     -- A market from the WRONG theatre for this id is a conflict, not a market (header 3).
     IF(NAME_THEATRE IS NOT NULL AND NAME_THEATRE <> THEATRE, 'UNMAPPED', MARKET_NAME) AS MARKET,
@@ -337,6 +345,9 @@ SELECT
   COUNTRY_NAME,
   ASSET_1,
   ASSET_2,
+  JOB_FUNCTION,
+  JOB_LEVEL,
+  JOB_TITLE,
   -- SERVICE = the Cloudflare SOLUTION the lead's campaign was bought under. Parsed from the
   -- campaign name, which is where it lives; there is no solution column in the mirror.
   --

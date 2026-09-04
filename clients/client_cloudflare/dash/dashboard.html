@@ -249,6 +249,46 @@
   /* The assets/trend row: 12 horizontal bars + the solution legend need more room than
      .tall, and BOTH charts on the row carry it so neither card stretches to dead space. */
   .chart-wrap.xtall{height:364px}
+  /* ===== Composition-donut legend: a horizontal SCROLLING chip lane (2026-09-05) =========
+     The Chart.js legend is OFF on the five composition donuts (donut() sets
+     legend.display=false) and this HTML lane sits under the ring instead. The ring gets a
+     FIXED height (.dl-ring) and the lane a fixed height per lane, so a card is the same
+     height whether it holds 4 values or 24 - Country used to wrap its legend to two lines
+     and Professional demographic's legend grew taller than its donut and overflowed the
+     card. The lane scrolls sideways; the ONLY affordance is the edge fade on whichever side
+     still has content (.more-l / .more-r, toggled from JS) - no instruction text.
+     Class prefix is dl- because .chip is the market-filter chip on this page. */
+  .dl-ring{height:172px}
+  .dl-wrap{position:relative;margin:8px -16px 0;min-width:0}   /* bleed to the card edge so the fades sit on it */
+  .dl-wrap::before,.dl-wrap::after{content:'';position:absolute;top:0;bottom:8px;width:34px;pointer-events:none;
+    z-index:2;opacity:0;transition:opacity .18s ease}
+  .dl-wrap::before{left:0;background:linear-gradient(90deg,var(--cf-card) 12%,transparent)}
+  .dl-wrap::after{right:0;background:linear-gradient(270deg,var(--cf-card) 12%,transparent)}
+  .dl-wrap.more-l::before{opacity:1}
+  .dl-wrap.more-r::after{opacity:1}
+  .dl-sc{overflow-x:auto;overflow-y:hidden;padding:2px 16px 8px;scroll-behavior:smooth;scrollbar-width:thin;
+    scrollbar-color:color-mix(in srgb,var(--brand-accent) 34%,var(--surface-2)) var(--surface-2)}
+  .dl-sc::-webkit-scrollbar{height:6px}
+  .dl-sc::-webkit-scrollbar-track{background:var(--surface-2);border-radius:3px}
+  .dl-sc::-webkit-scrollbar-thumb{background:color-mix(in srgb,var(--brand-accent) 34%,var(--surface-2));border-radius:3px;border:0}
+  .dl-sc::-webkit-scrollbar-thumb:hover{background:color-mix(in srgb,var(--brand-accent) 62%,var(--surface-2))}
+  .dl-lane{display:flex;gap:7px;width:max-content}
+  .dl-lane+.dl-lane{margin-top:7px}
+  .dl-chip{display:inline-flex;align-items:center;gap:7px;background:var(--surface-2);border:1px solid transparent;
+    border-radius:20px;padding:5px 12px 5px 10px;white-space:nowrap;font:inherit;font-size:12px;line-height:1.3;
+    cursor:pointer;flex:0 0 auto;color:var(--cf-mute);appearance:none;-webkit-appearance:none;
+    transition:background .12s ease,border-color .12s ease,opacity .12s ease}
+  .dl-chip i{width:8px;height:8px;border-radius:2px;flex:0 0 auto;display:inline-block}
+  .dl-chip .nm{color:var(--cf-mute)}
+  .dl-chip .v{color:var(--cf-ink);font-variant-numeric:tabular-nums;padding-left:7px;border-left:1px solid var(--cf-line)}
+  .dl-chip:hover,.dl-chip.on{background:color-mix(in srgb,var(--brand-accent) 12%,var(--surface-2));border-color:var(--brand-accent)}
+  .dl-chip:hover .nm,.dl-chip.on .nm{color:var(--cf-ink)}
+  .dl-chip.dim{opacity:.3}
+  /* Toggled OFF (click) - struck through like the native legend was, swatch faded. */
+  .dl-chip.off .nm,.dl-chip.off .v{text-decoration:line-through;opacity:.55}
+  .dl-chip.off i{opacity:.35}
+  .dl-chip.fold .nm{font-style:italic}
+  .dl-chip:focus-visible{outline:2px solid var(--brand-accent);outline-offset:2px}
   /* >>> BB:CSPD (pacing detail) >>> */
   /* ===== CS "Pacing detail" (2026-08-24) ====================================
      Config-driven per THEATRE - see CSPD and cspdCfg(). Structurally this is a
@@ -869,6 +909,8 @@
     .card:hover,.kpi:hover,.cs-snap .group:hover,.qoq-stats .stat:hover,.compare-panel:hover,
     .why:hover,.qoq-note:hover,.reason:hover,.gap-tile:hover,.pix:hover,.qoq-cell:hover{transform:none !important}
     .pbar .fill,.reg-bar .reg-fill,.pace-bar .pfill,.demo-row .bar>span,.cmp-asset .bar>span{transition:none !important}
+    .dl-sc{scroll-behavior:auto}
+    .dl-chip,.dl-wrap::before,.dl-wrap::after{transition:none !important}
   }
 </style>
 </head>
@@ -1286,12 +1328,16 @@
       </div>
       <!-- <<< BB:CSPD <<< -->
 
-      <div class="grid">
+      <!-- The five composition donuts. Rendered for EVERY theatre since 2026-09-05 through the
+           one renderCompositionDonuts(): APJ off aggregate() (legacy lead rows), any other
+           theatre off cs_composition (sql/19) filtered by the same scope predicate as the band
+           above - see cscxDims(). The ids are what keep them out of applyRegionPanelScope. -->
+      <div class="grid" id="csDonutRow1">
         <div class="card"><h3>Solutions</h3><div class="chart-wrap"><canvas id="solChart"></canvas></div></div>
         <div class="card"><h3>Country</h3><div class="chart-wrap"><canvas id="countryChart"></canvas></div></div>
       </div>
 
-      <div class="grid3">
+      <div class="grid3" id="csDonutRow2">
         <div class="card"><h3>Job function</h3><div class="chart-wrap"><canvas id="jfChart"></canvas></div></div>
         <div class="card"><h3>Job level</h3><div class="chart-wrap"><canvas id="jlChart"></canvas></div></div>
         <div class="card"><h3>Professional demographic</h3><div class="chart-wrap"><canvas id="jtChart"></canvas></div></div>
@@ -2632,6 +2678,7 @@ async function boot() {
     // Absent on an older JSON, in which case the whole section hides itself.
     CSPD_ROWS = (COMBINED.cs_pacing && COMBINED.cs_pacing.rows) || [];
     CSPD_META = COMBINED.cs_pacing || {};
+    CSX_ROWS  = (COMBINED.cs_composition && COMBINED.cs_composition.rows) || [];
     // "CS Comparison" panels for a theatre the legacy model does not cover: the same lead
     // universe one grain finer (day x market x country x asset). Absent on an older JSON, in
     // which case the Comparison tab simply does not appear on that lane (see emeaHasCompare).
@@ -2949,8 +2996,8 @@ function aggregate(filterFn) {
   // week of the quarter, not from today forward, so a closed quarter (Q2) is unchanged and an
   // in-progress one has no discontinuity. The same predicate drives the per-market TTD bars
   // below - the two must never use different rules. NOTE this is a deliberate exception to
-  // the repo-wide "prorate a weekly target" rule (md/AGENTS.md); the EMEA lane keeps its
-  // labelled completed/prorated pair.
+  // the repo-wide "prorate a weekly target" rule (md/AGENTS.md); the EMEA lane follows the
+  // same week-close rule via weekDueFraction() (client instruction, same day).
   const todayISO = now.toISOString().slice(0,10);
   const weekClosed = r => {
     const wk = weekStartISO(r.DAY);                 // Monday of the row's plan week
@@ -3259,18 +3306,18 @@ function renderKPIs(agg) {
   document.getElementById('kpi_target').textContent = agg.q2Target ? fmtN(agg.q2Target) : '-';
   document.getElementById('kpi_total').textContent = fmtN(agg.accepted);
   if (emea) {
-    // EVERY pacing figure carries its BASIS (2026-08-31, Calvin): the plan is back-loaded
-    // (weeks 1-3 at ~64/wk, weeks 5-13 at ~1,260/wk), so "X% of expected" style blends read
-    // as verdicts while measuring the plan's shape. Two labelled figures, no unlabelled one:
-    //   - vs COMPLETED target weeks (the weeks whose full target has come due), and
-    //   - INCLUDING the week in progress, its target prorated to days elapsed.
-    const cw = agg.dueCompleted || 0, iw = agg.ttdTarget || 0;
-    S('kpi_current_k', 'Vs completed target weeks');
+    // EVERY pacing figure carries its BASIS (2026-08-31, Calvin) - and since 2026-09-05 that
+    // basis is the SAME one APJ uses: the weekly target is recognised at WEEK CLOSE, so
+    // "Current pacing" is accepted vs the target of the weeks that have closed, and "Overall
+    // pacing" is accepted vs the full flight plan. The prorated "incl. week in progress" figure
+    // is gone (client instruction); the week in progress is named in the sub-line instead.
+    const cw = agg.dueCompleted || 0, ft = agg.q2Target || 0;
+    S('kpi_current_k', 'Current pacing');
     S('kpi_current', cw ? (agg.accepted/cw*100).toFixed(1)+'%' : '-');
-    S('kpi_current_cnt', cw ? fmtN(agg.accepted) + ' accepted vs ' + fmtN(cw) + ' target' : '');
-    S('kpi_overall_k', 'Incl. week in progress');
-    S('kpi_overall', iw ? (agg.accepted/iw*100).toFixed(1)+'%' : '-');
-    S('kpi_overall_cnt', iw ? 'vs ' + fmtN(iw) + ' due - current week prorated to days elapsed' : '');
+    S('kpi_current_cnt', cw ? fmtN(agg.accepted) + ' accepted vs ' + fmtN(cw) + ' target - weeks closed to date' : 'no plan week has closed yet');
+    S('kpi_overall_k', 'Overall pacing');
+    S('kpi_overall', ft ? (agg.accepted/ft*100).toFixed(1)+'%' : '-');
+    S('kpi_overall_cnt', ft ? 'vs the full flight target of ' + fmtN(ft) : '');
     const c1 = document.getElementById('kpi_current_cnt'), c2 = document.getElementById('kpi_overall_cnt');
     if (c1) c1.style.display = ''; if (c2) c2.style.display = '';
   } else {
@@ -3326,18 +3373,20 @@ function renderLeadsTarget(agg) {
   // a trap, and the unlabelled blend it carried is the top/pacing-detail contradiction. APJ
   // keeps its original rows and wording byte-for-byte.
   if (topFromPacing()) {
-    const cw = agg.dueCompleted || 0, iw = agg.ttdTarget || 0;
-    const maxV = Math.max(agg.q2Target, iw, agg.accepted, 1);
+    // Week-close basis (2026-09-05): ONE due-to-date row, the target of the weeks that have
+    // closed. The prorated "Incl. week in progress" row is gone by client instruction.
+    const cw = agg.dueCompleted || 0;
+    const maxV = Math.max(agg.q2Target, cw, agg.accepted, 1);
     const w = v => (v/maxV*100).toFixed(1);
     document.getElementById('leadsTarget').innerHTML = `
       <div class="progress-row"><div>${QL} target</div><div class="pbar gray"><div class="fill" style="width:${w(agg.q2Target)}%"></div></div><div style="text-align:right">${fmtN(agg.q2Target)}</div></div>
-      <div class="progress-row"><div>Completed target weeks</div><div class="pbar gray"><div class="fill" style="width:${w(cw)}%"></div></div><div style="text-align:right">${fmtN(cw)}</div></div>
-      <div class="progress-row"><div>Incl. week in progress</div><div class="pbar gray"><div class="fill" style="width:${w(iw)}%"></div></div><div style="text-align:right">${fmtN(iw)}</div></div>
+      <div class="progress-row"><div>TTD target (weeks closed)</div><div class="pbar gray"><div class="fill" style="width:${w(cw)}%"></div></div><div style="text-align:right">${fmtN(cw)}</div></div>
       <div class="progress-row"><div>${toDateWord()} Accepted</div><div class="pbar"><div class="fill" style="width:${w(agg.accepted)}%"></div></div><div style="text-align:right">${fmtN(agg.accepted)}</div></div>
       <div style="font-size:12px;color:var(--cf-mute);margin-top:14px">
-        Accepted to date is <b>${cw ? (agg.accepted/cw*100).toFixed(1) : '0'}% of the completed target weeks</b> (${fmtN(cw)})
-        and <b>${iw ? (agg.accepted/iw*100).toFixed(1) : '0'}% including the week in progress</b> (${fmtN(iw)}, current week prorated to days elapsed).
-        The full ${QL.toLowerCase()} plan is ${fmtN(agg.q2Target)}.
+        Accepted to date is <b>${agg.q2Target ? (agg.accepted/agg.q2Target*100).toFixed(1) : '0'}%</b> of the ${QL.toLowerCase()} plan, <b>${cw ? (agg.accepted/cw*100).toFixed(1) : '0'}%</b> of the TTD target.
+      </div>
+      <div style="font-size:11.5px;color:var(--cf-mute);margin-top:6px">
+        Weekly target is recognised at week close: the TTD target is the ${agg.ttdWeeksClosed || 0} plan week${agg.ttdWeeksClosed === 1 ? '' : 's'} completed${agg.ttdThrough ? ' to ' + fmtDateShort(agg.ttdThrough) : ''}; the week in progress${agg.inProg && agg.inProg.day ? ' (day ' + agg.inProg.day + ' of 7)' : ''} is not yet included.
       </div>`;
     return;
   }
@@ -3371,11 +3420,9 @@ function renderProgress(agg) {
   // contradiction a client will challenge. The verdict is now a LABELLED PAIR - the same two
   // bases the pacing detail uses - and neither figure ever renders without its label.
   if (topFromPacing()) {
-    const cw = agg.dueCompleted || 0;               // full target of every COMPLETED week
-    const iw = agg.ttdTarget || 0;                  // + the in-progress week, prorated
-    const p1 = cw ? agg.accepted / cw : 0;
-    const p2 = iw ? agg.accepted / iw : 0;
-    const scale = Math.max(1.08, p1, p2);
+    const cw = agg.dueCompleted || 0;               // full target of every CLOSED week
+    const p1 = cw ? agg.accepted / cw : 0;          // the one basis (week-close, 2026-09-05)
+    const scale = Math.max(1.08, p1);
     const P = f => (Math.max(0, f) / scale * 100).toFixed(2);
     const row = (label, pct, tgt, cls) => `
       <div class="progress-row"><div>${label}</div>
@@ -3393,11 +3440,9 @@ function renderProgress(agg) {
     document.getElementById('progress').innerHTML = `
       ${badge}
       ${row('Completed target weeks', p1, cw, true)}
-      ${row('Incl. week in progress', p2, iw, false)}
       <div style="font-size:12px;color:var(--cf-mute);margin-top:10px">
-        <b>Completed target weeks:</b> ${fmtN(agg.accepted)} accepted vs ${fmtN(cw)} target - ${(p1*100).toFixed(1)}%${p1 >= 1 ? ' · ahead' : ''}.<br>
-        <b>Including week in progress:</b> ${fmtN(agg.accepted)} accepted vs ${fmtN(iw)} target - ${(p2*100).toFixed(1)}%.
-        <span style="display:block;margin-top:4px">Current week prorated to days elapsed${upNote}.</span>
+        <b>Completed target weeks:</b> ${fmtN(agg.accepted)} accepted vs ${fmtN(cw)} target - ${(p1*100).toFixed(1)}%${p1 >= 1 ? ' · ahead' : ''}.
+        <span style="display:block;margin-top:4px">Weekly target is recognised at week close - the week in progress${agg.inProg && agg.inProg.day ? ' (day ' + agg.inProg.day + ' of 7)' : ''} is not yet included${upNote}.</span>
       </div>`;
     return;
   }
@@ -3519,32 +3564,252 @@ function renderWeekly(agg) {
 //      slices, so with the ring covering the total it reads the scoped total; toggling a legend
 //      entry off still subtracts live, as before.
 //   3. No fixed label lists anywhere - a new country, function or level appears on its own.
-function donut(id, data, limit, total) {
-  const all  = data || [];
-  const n    = limit || 10;
+//
+// THE LEGEND IS HTML, NOT CHART.JS (2026-09-05). The native legend was the layout problem the
+// fold was working around: Country wrapped to two lines, Professional demographic's legend grew
+// taller than its ring and overflowed the card, and cards in one row came out different
+// heights. donut() now sets legend.display=false and dlLegend() draws a horizontal scrolling
+// chip lane under the ring - see that function. Two consequences for the fold rule above:
+//   * `limit` may be null = NO fold. Country (14) and Job function (12) fit a scrolling lane,
+//     and on Job function that also removes the collision between the REAL Salesforce value
+//     "Other" (128 leads) and the "Other (n more)" fold slice that used to sit right under it.
+//     Professional demographic is the one panel where a fold still earns its place (top 24 of
+//     ~150 titles, in TWO lanes - opts.lanes).
+//   * Slices are sorted DESCENDING by count (the aggregate's Map order is first-seen), fold and
+//     Unaccounted last, so the ring and the lane read in the same order and a screenshot always
+//     catches the values that matter; what scrolls off is the tail.
+// Click-to-toggle SURVIVES: a chip click calls chart.toggleDataVisibility(i), which is the same
+// state the native legend drove, so bbDonutCenter (sums getDataVisibility) keeps subtracting a
+// hidden slice from the centre total unchanged. The AI deck (buildDeckPayload -> _bbTop(agg.*))
+// and the CSV export read the AGGREGATE, never this DOM, so they always carry the full set.
+function donut(id, data, limit, total, opts) {
+  opts = opts || {};
+  const cv = document.getElementById(id);
+  if (!cv) return;
+  const all  = (data || []).slice().sort((a, b) => b[1] - a[1]);
+  const n    = limit == null ? all.length : limit;
   const tail = all.slice(n);
   const tailSum = tail.reduce((s, d) => s + d[1], 0);
-  let arr = all.slice(0, n);
-  if (tailSum > 0) arr = arr.concat([['Other (' + tail.length + ' more)', tailSum]]);
+  let arr = all.slice(0, n).map(d => ({ label: d[0], value: d[1], kind: 'value' }));
+  if (tailSum > 0) arr.push({ label: 'Other (' + tail.length + ' more)', value: tailSum, kind: 'fold' });
   if (total != null) {
-    const shown = arr.reduce((s, d) => s + d[1], 0);
+    const shown = arr.reduce((s, d) => s + d.value, 0);
     if (total - shown > 0) {
-      arr = arr.concat([['Unaccounted', total - shown]]);
+      arr.push({ label: 'Unaccounted', value: total - shown, kind: 'gap' });
       console.warn('[donut ' + id + '] slices sum to ' + shown + ' but the scoped total is ' + total
         + ' - ' + (total - shown) + ' lead(s) carry no value in this dimension and are not in the aggregate');
     } else if (shown > total) {
       console.warn('[donut ' + id + '] slices sum to ' + shown + ', MORE than the scoped total ' + total);
     }
   }
+  // Colours as RGB triples so the isolate state (alpha .2) derives from the same value.
+  const rgb = arr.map((d, i) => d.kind === 'value' ? dlColor(i) : d.kind === 'fold' ? DL_FOLD_RGB : DL_GAP_RGB);
+  const base = rgb.map(c => 'rgb(' + c.join(',') + ')');
   destroy(id);
-  charts[id] = new Chart(document.getElementById(id), {
+  const chart = charts[id] = new Chart(cv, {
     type:'doughnut',
-    data:{ labels: arr.map(d => d[0]),
-      datasets:[{data: arr.map(d => d[1]), backgroundColor: colors, borderColor:'#27150B', borderWidth:2}] },
+    data:{ labels: arr.map(d => d.label),
+      datasets:[{data: arr.map(d => d.value), backgroundColor: base.slice(), borderColor:'#27150B', borderWidth:2}] },
     options:{ responsive:true, maintainAspectRatio:false, cutout:'58%',
-      plugins:{ bbCenter:{label:'Leads'}, legend:{position:'bottom', labels:{boxWidth:8, boxHeight:8, font:{size:10}, padding:6}},
+      // Root-level callback (NOT under plugins.*, where a function is a scriptable option and
+      // blanks the chart). Slice hover -> isolate + bring its chip into view; see dlLegend.
+      onHover: (evt, els) => { const L = cv._dlLegend; if (!L) return;
+        if (els && els.length) L.focusFromRing(els[0].index); else L.clear(); },
+      plugins:{ bbCenter:{label:'Leads'}, legend:{display:false},
         tooltip:{ callbacks:{ label: c => ` ${c.label}: ${c.parsed.toLocaleString()}` } } } }
   });
+  dlLegend(chart, id, arr, rgb, base, opts.lanes || 1, total);
+}
+
+// ---- the five composition donuts, ONE call list for every theatre ---------------------------
+// `dims` is agg-SHAPED: {solutions, countries, jobFunc, jobLevel, jobTitle}, each an array of
+// [label, count] (aggregate() on APJ; cscxDims() off cs_composition elsewhere). Every donut gets
+// the SCOPED total (accepted, + unprocessed in Admin View) so the ring is checked against it -
+// see donut(). limit = how many values keep their own slice before the rest fold into "Other
+// (n more)"; null = no fold, every value gets a slice. Since the legend scrolls (2026-09-05)
+// only Professional demographic still folds - top 24 titles, in two lanes. Nothing is dropped
+// at any limit. Having the ids, limits and lanes in ONE place is what stops the two theatres
+// drifting onto different charts.
+function renderCompositionDonuts(dims, total){
+  donut('solChart',     dims.solutions, null, total);
+  donut('countryChart', dims.countries, null, total);
+  donut('jfChart',      dims.jobFunc,   null, total);
+  donut('jlChart',      dims.jobLevel,  null, total);
+  donut('jtChart',      dims.jobTitle,  24,   total, { lanes: 2 });
+}
+function setDonutRows(show){
+  ['csDonutRow1', 'csDonutRow2'].forEach(id => { const el = document.getElementById(id); if (el) el.style.display = show ? '' : 'none'; });
+}
+// cs_composition -> agg-shaped dims for the CURRENT scope. The rows are long format (one per
+// scope x dim x value, sql/19) and carry theatre/book/vendor/market, so cspdScopeOk() - the
+// same predicate cspdRows() applies to the band above - is the whole filter. That is the
+// no-spill guarantee: an APAC row cannot reach an EMEA ring because the same test that admits
+// a pacing row admits a composition row, and the job asserts every dimension sums to
+// cs_pacing's accepted per (theatre, book) before it ships. Count = accepted, + New in Admin
+// View, mirroring aggregate()'s breakdownLeads; zero-count values are dropped so a value that
+// exists only as backlog does not draw an empty chip for the client.
+function cscxDims(){
+  const th = cspdTheatre(), mk = cspdActiveMarkets();
+  const out = { solutions: new Map(), countries: new Map(), jobFunc: new Map(), jobLevel: new Map(), jobTitle: new Map() };
+  for (const r of CSX_ROWS){
+    if (!out[r.dim] || !cspdScopeOk(r, th, mk)) continue;
+    const n = (r.accepted || 0) + (devMode ? (r.unprocessed || 0) : 0);
+    if (!n) continue;
+    out[r.dim].set(r.value, (out[r.dim].get(r.value) || 0) + n);
+  }
+  const arr = m => [...m.entries()].sort((a, b) => b[1] - a[1]);
+  return { solutions: arr(out.solutions), countries: arr(out.countries), jobFunc: arr(out.jobFunc),
+           jobLevel: arr(out.jobLevel), jobTitle: arr(out.jobTitle) };
+}
+// Off-theatre donuts. `top` is cspdTopAgg() for the same scope, so the ring total is the KPI
+// strip's own accepted figure (+ New in Admin View) - the two tie or the ring says so with an
+// Unaccounted slice. An older JSON with no cs_composition block hides both rows rather than
+// drawing five empty rings under an EMEA heading (the CSPD_ANY_THEATRE_BLOCKS rule).
+function renderCompositionV2(top){
+  if (!CSX_ROWS.length){ setDonutRows(false); ['solChart','countryChart','jfChart','jlChart','jtChart'].forEach(destroy); return; }
+  setDonutRows(true);
+  renderCompositionDonuts(cscxDims(), (top.accepted || 0) + (devMode ? (top.unprocessed || 0) : 0));
+}
+
+// ---- the scrolling legend -------------------------------------------------------------------
+// ONE implementation for every composition donut on this page - APJ (aggregate()) and EMEA
+// (cscxDims()) both arrive through renderCompositionDonuts() -> donut() -> here. Behaviour, in
+// the order it matters:
+//   1. Chips (swatch / label / count) in `lanes` horizontal lanes that scroll TOGETHER inside
+//      one scroller; the card height is fixed by CSS whatever the category count.
+//   2. Edge fades only on the side with more content, toggled on scroll and on resize (a
+//      ResizeObserver, so a lane that first renders inside a hidden tab corrects itself when the
+//      tab opens - a window resize never fires for that).
+//   3. Hover a chip -> its slice stays, the others drop to alpha .2, the other chips dim.
+//   4. Hover a SLICE -> the same isolation AND its chip is scrolled into view when it is outside
+//      the visible lane (scrollIntoView inline:center, block:nearest - CSS scroll-behavior
+//      decides smooth vs instant, so prefers-reduced-motion is honoured for free). This is what
+//      makes an off-screen chip acceptable: you point at a sliver and its name arrives.
+//   5. Wheel over the lane scrolls it sideways, but preventDefault only while there is room in
+//      that direction - at either end the page scrolls as normal.
+//   6. Click / Enter / Space toggles the slice (chart.toggleDataVisibility); focus isolates like
+//      hover so a keyboard user gets the same read, and :focus-visible draws the ring.
+// The scroller DOM is created once per card and reused; listeners that outlive a render (scroll,
+// wheel, resize) are bound once and look the current render up through DL_LEGENDS, so a filter
+// change that re-renders every donut cannot accumulate handlers.
+const DL_FOLD_RGB = [139, 122, 107];   // the fold slice - deliberately unbranded
+const DL_GAP_RGB  = [156, 107, 94];    // Unaccounted - visible, not alarming
+const DL_LEGENDS  = new Map();          // canvas id -> live legend api (edges/clear)
+window.addEventListener('resize', () => DL_LEGENDS.forEach(L => L.edges()));
+function dlHexRgb(hex){ const h = hex.replace('#', ''); const v = parseInt(h, 16); return [(v >> 16) & 255, (v >> 8) & 255, v & 255]; }
+// Past the 12-colour palette, later cycles shift toward light then dark so 24 slices stay apart.
+function dlColor(i){
+  const c = dlHexRgb(colors[i % colors.length]);
+  const cyc = Math.floor(i / colors.length);
+  if (!cyc) return c;
+  const t = (cyc % 2) ? 235 : 40, a = 0.32;
+  return c.map(x => Math.round(x + (t - x) * a));
+}
+function dlLegend(chart, id, arr, rgb, base, lanes, total){
+  const cv = chart.canvas, wrap = cv.parentElement, card = cv.closest('.card');
+  if (wrap) wrap.classList.add('dl-ring');
+  // A grid item's automatic minimum width is its content's min-content width, and a
+  // max-content lane of 33 chips is very wide - so without this the CARD grows to fit the
+  // lane, the grid blows out past the page edge and the scroller never overflows (measured:
+  // scrollWidth - clientWidth = 0 on every lane, and a document-level horizontal scrollbar).
+  // min-width:0 lets the card keep its grid column, which is what makes the lane scroll.
+  if (card) card.style.minWidth = '0';
+  let box = document.getElementById(id + 'Legend');
+  if (!box){
+    box = document.createElement('div');
+    box.id = id + 'Legend'; box.className = 'dl-wrap';
+    box.innerHTML = '<div class="dl-sc"></div>';
+    (wrap || cv).insertAdjacentElement('afterend', box);
+  }
+  const sc = box.querySelector('.dl-sc');
+  sc.innerHTML = '';
+  const laneEls = [];
+  for (let k = 0; k < lanes; k++){ const l = document.createElement('div'); l.className = 'dl-lane'; sc.appendChild(l); laneEls.push(l); }
+
+  const title = card && card.querySelector('h3') ? card.querySelector('h3').textContent.trim() : id;
+  cv.setAttribute('role', 'img');
+  cv.setAttribute('aria-label', 'Doughnut of leads by ' + title.toLowerCase() + ': ' + arr.length + ' slice'
+    + (arr.length === 1 ? '' : 's') + (total != null ? ', ' + fmtN(total) + ' leads in total' : '')
+    + '. The legend chips below isolate a slice on hover or focus and toggle it on click.');
+
+  const dim = rgb.map(c => 'rgba(' + c.join(',') + ',.2)');
+  const ds  = chart.data.datasets[0];
+  let cur = null;
+  const chips = arr.map((d, i) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'dl-chip' + (d.kind !== 'value' ? ' fold' : '');
+    b.title = 'Click to show or hide this slice';
+    b.setAttribute('aria-pressed', 'true');
+    b.setAttribute('aria-label', d.label + ', ' + d.value.toLocaleString() + ' leads');
+    b.innerHTML = '<i style="background:' + base[i] + '"></i><span class="nm">' + esc(d.label) + '</span>'
+      + '<span class="v">' + d.value.toLocaleString() + '</span>';
+    laneEls[i % lanes].appendChild(b);
+    return b;
+  });
+
+  function focus(i){
+    if (cur === i) return;
+    cur = i;
+    ds.backgroundColor = base.map((c, j) => j === i ? c : dim[j]);
+    chart.update('none');
+    chips.forEach((c, j) => { c.classList.toggle('on', j === i); c.classList.toggle('dim', j !== i); });
+  }
+  function clear(){
+    if (cur === null) return;
+    cur = null;
+    ds.backgroundColor = base.slice();
+    chart.update('none');
+    chips.forEach(c => c.classList.remove('on', 'dim'));
+  }
+  function reveal(chip){
+    const cr = chip.getBoundingClientRect(), sr = sc.getBoundingClientRect();
+    if (cr.left < sr.left + 30 || cr.right > sr.right - 30) chip.scrollIntoView({ inline: 'center', block: 'nearest' });
+  }
+  function toggle(i){
+    chart.toggleDataVisibility(i);
+    chart.update();
+    const vis = chart.getDataVisibility(i);
+    chips[i].classList.toggle('off', !vis);
+    chips[i].setAttribute('aria-pressed', vis ? 'true' : 'false');
+  }
+  chips.forEach((c, i) => {
+    c.addEventListener('mouseenter', () => focus(i));
+    c.addEventListener('mouseleave', clear);
+    c.addEventListener('focus', () => { focus(i); reveal(c); });
+    c.addEventListener('blur', clear);
+    c.addEventListener('click', () => toggle(i));
+  });
+  function edges(){
+    const max = sc.scrollWidth - sc.clientWidth;
+    box.classList.toggle('more-l', sc.scrollLeft > 4);
+    box.classList.toggle('more-r', sc.scrollLeft < max - 4);
+  }
+  const api = {
+    edges, clear,
+    focusFromRing(i){ if (i >= chips.length) return; const was = cur; focus(i); if (was !== i) reveal(chips[i]); }
+  };
+  cv._dlLegend = api;
+  DL_LEGENDS.set(id, api);
+  // Bound ONCE per canvas / scroller; each looks up the live render through cv / DL_LEGENDS.
+  if (!cv.dataset.dlBound){
+    cv.dataset.dlBound = '1';
+    cv.addEventListener('mouseleave', () => { const L = cv._dlLegend; if (L) L.clear(); });
+  }
+  if (!sc.dataset.dlBound){
+    sc.dataset.dlBound = '1';
+    const live = () => DL_LEGENDS.get(id);
+    sc.addEventListener('scroll', () => { const L = live(); if (L) L.edges(); });
+    sc.addEventListener('wheel', e => {
+      if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
+      const max = sc.scrollWidth - sc.clientWidth;
+      if ((e.deltaY > 0 && sc.scrollLeft >= max) || (e.deltaY < 0 && sc.scrollLeft <= 0)) return;
+      e.preventDefault(); sc.scrollLeft += e.deltaY;
+    }, { passive: false });
+    if (typeof ResizeObserver !== 'undefined') new ResizeObserver(() => { const L = live(); if (L) L.edges(); }).observe(sc);
+  }
+  sc.scrollLeft = 0;
+  requestAnimationFrame(edges);
 }
 
 // Asset ID → full asset name, from the CF Q2 Core asset list (Asset Name & ID sheets).
@@ -3829,7 +4094,7 @@ function renderRegionGrid(agg) {
   const hint = document.getElementById('regionGridHint');
   if (hint) {
     if (!hint.dataset.orig) hint.dataset.orig = hint.innerHTML;
-    if (emea) hint.textContent = 'Per-region delivery vs the target due to date (current week prorated to days elapsed).';
+    if (emea) hint.textContent = 'Per-region delivery vs the target due to date (weeks closed; the week in progress is not yet included).';
     else hint.innerHTML = hint.dataset.orig;
   }
   agg.regionRows.forEach(({market, q2, ttd, accepted, unprocessed}) => {
@@ -3849,10 +4114,10 @@ function renderRegionGrid(agg) {
       ? `<div class="reg-row"><div class="reg-lbl">${emea ? 'Pending review' : 'Unprocessed'}</div><div class="reg-bar"><div class="reg-fill" style="width:${wU}%;background:#B9C2CC"></div></div><div class="reg-num">${fmtN(unprocessed||0)}</div></div>`
       : '';
     const chip = !ttd ? '-'
-      : emea ? `<span title="Accepted vs the target due to date for this market - current week prorated to days elapsed">${pace.toFixed(0)}% of due</span>`
+      : emea ? `<span title="Accepted vs the target due to date for this market - the weeks that have closed; the week in progress is not yet included">${pace.toFixed(0)}% of due</span>`
              : pace.toFixed(0) + '% pace';
     const dueLbl = emea
-      ? `<span title="This market's target due to date - completed weeks in full, the current week prorated to days elapsed">Due incl. current week</span>`
+      ? `<span title="This market's target due to date - the weeks that have closed, in full; the week in progress is not yet included">Due to date</span>`
       : 'TTD Target';
     grid.insertAdjacentHTML('beforeend', `
       <div style="border:1px solid var(--cf-line);border-radius:10px;padding:${emea ? '16px 18px' : '14px 16px'};background:var(--surface-2)">
@@ -3887,6 +4152,7 @@ function renderAll() {
     renderProgress(t);
     renderRegionGrid(t);
     renderTopScopeNote(t);
+    renderCompositionV2(t);    // the five donuts, off cs_composition, through the APJ donut()
     renderCsPacingDetail();
     setLiveBanner(COMBINED && COMBINED.last_updated, rawRows.length);
     return;
@@ -3899,14 +4165,8 @@ function renderAll() {
   renderLeadsTarget(agg);
   renderProgress(agg);
   renderWeekly(agg);
-  // Every composition donut gets the SCOPED total (accepted, + unprocessed in Admin View) so
-  // the ring is checked against it - see donut(). The limit is how many values keep their own
-  // slice before the rest fold into "Other (n more)"; nothing is dropped at any limit.
-  donut('solChart',     agg.solutions, 10, agg.breakdownTotal);
-  donut('countryChart', agg.countries, 10, agg.breakdownTotal);
-  donut('jfChart',      agg.jobFunc,   8,  agg.breakdownTotal);
-  donut('jlChart',      agg.jobLevel,  10, agg.breakdownTotal);
-  donut('jtChart',      agg.jobTitle,  10, agg.breakdownTotal);
+  setDonutRows(true);
+  renderCompositionDonuts(agg, agg.breakdownTotal);
   renderAssets(agg);
   renderDaily(agg);
   renderRegionGrid(agg);
@@ -3935,6 +4195,7 @@ function renderAll() {
 // today.
 // --------------------------------------------------------------------------
 let CSPD_ROWS = [];                                   // cs_pacing.rows
+let CSX_ROWS  = [];                                   // cs_composition.rows (scope x dim x value; off-theatre donuts)
 let CSC_ROWS  = [];                                   // cs_compare.rows (Comparison panels)
 let CSPD_META = {};                                   // cs_pacing meta (period label, reasons)
 // book: which PLAN is on screen ('Core DG' | 'Regional' | 'Unclassified'), resolved on the
@@ -4102,15 +4363,23 @@ function cspdActiveMarkets(){
   return CSPD.markets;
 }
 
+// THE scope predicate: theatre + book + publisher + L3 market. One function, two readers
+// (cspdRows over cs_pacing, cscxDims over cs_composition) so the band and the donuts under it
+// can never disagree about which rows are in scope - and so a row from the OTHER theatre is
+// rejected by the same test on both payload blocks. `th` and `mk` are passed in because both
+// callers resolve them once per render, not per row.
+function cspdScopeOk(r, th, mk){
+  return r.theatre === th && cspdBookOf(r) === CSPD.book
+      && (CSPD.vendor === 'all' || r.vendor === CSPD.vendor)
+      && (r.market === 'UNMAPPED' || mk.has(r.market));
+}
 function cspdRows(){
-  const th = cspdTheatre(), v = CSPD.vendor;
+  const th = cspdTheatre();
   // L3 market filter. Applied HERE so the KPI band, the pacing chart, the by-market chart and
   // the Pacing detail figures can never disagree about which markets are in scope - that
   // single enforcement point is the whole reason the chips are safe to add.
   const mk = cspdActiveMarkets();
-  return CSPD_ROWS.filter(r => r.theatre === th && cspdBookOf(r) === CSPD.book
-                            && (v === 'all' || r.vendor === v)
-                            && (r.market === 'UNMAPPED' || mk.has(r.market)));
+  return CSPD_ROWS.filter(r => cspdScopeOk(r, th, mk));
 }
 
 const cspdPct = (n, d) => d > 0 ? (100 * n / d).toFixed(1) + '%' : '-';
@@ -4226,42 +4495,40 @@ function renderCsPacingDetail(){
   // The honest framing for early delivery is the CAPTION below, never exclusion.
   const earlyAcc = slice.filter(r => !((r.target || 0) > 0))
                         .reduce((s, r) => s + (r.accepted || 0), 0);
-  // A week still in progress is NOT measured against its full week target (Calvin,
-  // 2026-08-31): 4 days of processed delivery against 7 days of target read "0.0%, 1,268
-  // behind" on a week that was half over. Pro-rate the due target to days elapsed (the
-  // repo-wide "a weekly target against continuous time must be prorated" rule); when the
-  // in-progress week has NO processed delivery at all yet, show no pacing figure rather
-  // than 0% of anything. Complete weeks keep their full target. The qtd path prorates
-  // only whichever week in its span contains today.
+  // A week still in progress is NOT paced (client rule, 2026-09-05, both lanes): its target is
+  // recognised at WEEK CLOSE, so until then there is nothing due to divide by. The selected
+  // week's tile shows its accepted count and names the day of the week; the pacing and deficit
+  // tiles read '-'. The period-to-date path sums the target of CLOSED weeks only. This replaces
+  // the 2026-08-31 proration (target x days elapsed / 7), which the client asked to drop.
   const wkDay = (!qtd && CSPD.week) ? cspdDayInWeek(CSPD.week) : 0;
-  const inProgress = wkDay >= 1 && wkDay < 7;
+  const inProgress = wkDay >= 1 && wkDay <= 7;
+  const todayISO = new Date().toISOString().slice(0,10);
   let tgtDue = w.target;
   if (cfg.targetsApply && qtd) {
     const perWk = {};
     for (const r of slice) if (r.week_start) perWk[r.week_start] = (perWk[r.week_start] || 0) + (r.target || 0);
     tgtDue = 0;
     for (const wk of Object.keys(perWk)) {
-      const d = cspdDayInWeek(wk);
-      tgtDue += (d >= 1 && d < 7) ? perWk[wk] * d / 7 : perWk[wk];
+      // closed = today is past the week AND the week is not in progress
+      if (cspdDayInWeek(wk) === 0 && wk < todayISO) tgtDue += perWk[wk];
     }
     tgtDue = Math.round(tgtDue);
-  } else if (inProgress) {
-    tgtDue = Math.round(w.target * wkDay / 7);
   }
-  const noDeliveryYet = inProgress && w.delivered === 0;
-  S('cspd_w_pace', (!w.target || noDeliveryYet) ? '-' : cspdPct(w.accepted, tgtDue));
+  const notDueYet = inProgress || (qtd && !tgtDue);
+  S('cspd_w_pace', (!w.target || notDueYet) ? '-' : cspdPct(w.accepted, tgtDue));
   S('cspd_w_pace_cnt', !w.target ? 'no target for this week'
-      : noDeliveryYet
-        ? 'week in progress, day ' + wkDay + ' of 7 - no processed delivery yet (week target '
-          + w.target.toLocaleString() + ')'
-        : w.accepted.toLocaleString() + ' accepted vs ' + tgtDue.toLocaleString()
-          + (inProgress ? ' due by day ' + wkDay + ' of 7 (week target ' + w.target.toLocaleString() + ')' : ' target')
-          + (qtd && tgtDue !== w.target ? ' - current week prorated to days elapsed' : '')
+      : inProgress
+        ? 'week in progress, day ' + wkDay + ' of 7 - ' + w.accepted.toLocaleString() + ' accepted so far; '
+          + 'the week target (' + w.target.toLocaleString() + ') is recognised at week close'
+      : notDueYet
+        ? 'no plan week has closed yet - target recognised at week close'
+        : w.accepted.toLocaleString() + ' accepted vs ' + tgtDue.toLocaleString() + ' target'
+          + (qtd ? ' - weeks closed to date; the week in progress is not yet included' : '')
           + (earlyAcc > 0 ? ' - includes ' + earlyAcc.toLocaleString() + ' accepted ahead of their target start' : ''));
   const deficit = tgtDue - w.accepted;
-  S('cspd_w_def', (!w.target || noDeliveryYet) ? '-' : (deficit > 0 ? deficit.toLocaleString() : '0'));
+  S('cspd_w_def', (!w.target || notDueYet) ? '-' : (deficit > 0 ? deficit.toLocaleString() : '0'));
   S('cspd_w_def_cnt', !w.target ? 'no target to measure against'
-                    : noDeliveryYet ? 'week in progress'
+                    : notDueYet ? 'week in progress - target not yet due'
                     : deficit > 0 ? 'accepted leads behind target' : 'target met');
 
   cspdRenderMarketChart(cfg, slice, wkName);
@@ -4312,7 +4579,11 @@ const CSPD_ANY_THEATRE_BLOCKS = new Set(['cspdSection','csKpiStrip','csTargetGri
   // 2026-09-01 (John): the L3 MARKET row and the pacing chart in APJ's own slot. Both were
   // hidden off-theatre, which is why EMEA had no market filter and its only pacing chart sat
   // buried inside Pacing detail rather than at the top where APJ puts it.
-  'csFilterRow','csPacingCard']);
+  'csFilterRow','csPacingCard',
+  // 2026-09-05: the five composition donuts, repointed at cs_composition (sql/19) off-theatre
+  // through cscxDims() - the SAME scope predicate as the band, the SAME donut() as APJ. On an
+  // older JSON with no cs_composition block renderCompositionV2() hides both rows itself.
+  'csDonutRow1','csDonutRow2']);
 
 // A lane with no explicit theatre is APAC - so an older lane definition, or a new one added
 // without thinking about theatre, degrades to exactly today's behaviour.
@@ -4897,28 +5168,23 @@ function flightDaysElapsed(f, now){
   return Math.max(0, Math.min(f.totalDays, Math.floor((now - f.start) / 864e5) + 1));
 }
 
-// ---- the load-bearing bit: prorate the in-progress week -------------------
-// Targets are seeded WEEKLY; elapsed time is continuous. Counting a whole week's target
-// the moment that week opens makes pacing lurch with no change on the ground - EMEA
-// would drop from 138% to 104% overnight between Thu 27 and Fri 28 Aug. So each week
-// contributes its target x (its days elapsed / 7), which draws a smooth curve.
-//
-// The legacy APJ model does NOT prorate (corrected 2026-09-05 - this note used to claim its
-// ALLOCATED_TARGET rows were "seeded per day"; they sit on accepted leads' dates or on a
-// Monday placeholder, so summing `DAY <= now` was start-of-week in effect). APJ now
-// recognises a week's target at WEEK CLOSE, by client instruction - see aggregate(). The two
-// lanes therefore use DIFFERENT bases on purpose: EMEA labels a completed-weeks figure AND a
-// prorated one; APJ shows completed weeks only. Do not "harmonise" either onto the other
-// without the client.
-//
-// NOTE FOR ANYONE TESTING: on the last day of a week, days-elapsed and completed-weeks
-// give the SAME answer by coincidence (21 of 91 days = exactly 3 whole weeks on
-// 27 Aug 2026). A proration bug is invisible that day. Test a mid-week date.
+// ---- the load-bearing bit: a week's target is due at WEEK CLOSE ----------
+// CLIENT RULE (2026-09-05, both lanes): a plan week's target joins the due-to-date denominator
+// only once every one of its days has passed - the week in progress contributes NOTHING until
+// it closes. This function used to PRORATE the in-progress week (target x days elapsed / 7,
+// the repo-wide md/AGENTS.md rule) and EMEA showed a labelled prorated figure beside the
+// completed-weeks one; the client asked for the week-close basis on APJ first and then on EMEA
+// too, so the two lanes now share ONE rule (see aggregate() for APJ's `weekClosed()`).
+// Returns 1 for a closed week, 0 otherwise - kept as a "fraction" so every caller
+// (cspdTopAgg, cscAgg) moved with no edit. `elapsedDays` is unused but kept in the
+// signature for the same reason. The day boundary is UTC, like cspdDayInWeek() and APJ's
+// todayISO, so all three agree on the moment a week closes.
+// Consequence worth knowing: the due-to-date figure now STEPS once a week (on the day after
+// the week's last day) instead of climbing daily. That is the requested behaviour.
 function weekDueFraction(f, elapsedDays, weekStart){
-  if (!f) return 0;
-  const i = f.weeks.indexOf(weekStart);
-  if (i < 0) return 0;
-  return Math.max(0, Math.min(7, elapsedDays - i * 7)) / 7;
+  if (!f || f.weeks.indexOf(weekStart) < 0) return 0;
+  const end = new Date(weekStart + 'T00:00:00Z'); end.setUTCDate(end.getUTCDate() + 7);
+  return end.toISOString().slice(0,10) <= new Date().toISOString().slice(0,10) ? 1 : 0;
 }
 
 // ---- agg builder ---------------------------------------------------------
@@ -4938,25 +5204,28 @@ function cspdTopAgg(){
 
   const mk = new Map();       // market -> full target, due-to-date target, actuals
   let q2Target = 0, ttdTarget = 0, dueCompleted = 0;
-  // The week containing today, kept separate (2026-08-31, Calvin): the top verdict shows BOTH
-  // "vs completed target weeks" and "incl. the week in progress (prorated)", each labelled -
-  // a single unlabelled blend of the two is exactly what let the top band read "behind" while
-  // the pacing detail below read "target met" on the same page.
+  // The week containing today, kept separate: since 2026-09-05 (week-close rule) its target is
+  // NOT in ttdTarget at all - ttdTarget and dueCompleted are the same number - but the top
+  // cards still name it ("week in progress, day d of 7") and count its unreviewed delivery.
   const inProg = { target: 0, unprocessed: 0, delivered: 0, week: null, day: 0 };
+  const closedWks = new Set();   // plan weeks (with a target) that have closed - methodology line
   for (const r of rows){
     // Same rule as the pacing band below: a publisher-filtered target is an allocation, so it
     // is not paced against. Zeroing it here makes every downstream figure (q2Target/ttdTarget,
     // the per-market rows, the progress bar) fall back to the no-target path together.
     const t = targetsApply ? (r.target || 0) : 0;
-    const frac = weekDueFraction(f, elapsed, r.week_start);
+    const frac = weekDueFraction(f, elapsed, r.week_start);   // 1 = week closed, else 0
     const due = t * frac;
     q2Target  += t;
     ttdTarget += due;
-    if (frac >= 1) dueCompleted += t;
-    else if (frac > 0) {
-      inProg.target += t; inProg.unprocessed += (r.unprocessed || 0);
-      inProg.delivered += (r.delivered || 0);
-      inProg.week = r.week_start; inProg.day = Math.round(frac * 7);
+    if (frac >= 1) { dueCompleted += t; if (t > 0) closedWks.add(r.week_start); }
+    else {
+      const d = cspdDayInWeek(r.week_start);                    // 1-7 only for the week in progress
+      if (d >= 1) {
+        inProg.target += t; inProg.unprocessed += (r.unprocessed || 0);
+        inProg.delivered += (r.delivered || 0);
+        inProg.week = r.week_start; inProg.day = d;
+      }
     }
     if (r.market === 'UNMAPPED') continue;   // surfaced as needs_review, never as a market
     const o = mk.get(r.market) || { market: r.market, seq: 999, q2: 0, ttd: 0, accepted: 0, unprocessed: 0 };
@@ -4973,6 +5242,9 @@ function cspdTopAgg(){
     accepted: sum('accepted'), rejected: sum('rejected'), unprocessed: sum('unprocessed'),
     delivered: sum('delivered'), needsReview: sum('needs_review'),
     q2Target, ttdTarget: Math.round(ttdTarget), dueCompleted, inProg,
+    // Week-close basis facts for the methodology line (mirror APJ's ttdWeeksClosed/ttdThrough).
+    ttdWeeksClosed: closedWks.size,
+    ttdThrough: closedWks.size ? (() => { const d = new Date([...closedWks].sort().pop() + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + 6); return d.toISOString().slice(0,10); })() : null,
     timePct: f && f.totalDays ? elapsed / f.totalDays : 0,
     flight: f, daysElapsed: elapsed,
     regionRows
@@ -5002,7 +5274,7 @@ function renderTopScopeNote(agg){
     + (CSPD.vendor && CSPD.vendor !== 'all' ? esc(CSPD.vendor) : 'all publishers')
     + ' · flight <b>' + fmtD(f && f.start) + '</b> to <b>' + fmtD(f && f.end) + '</b> ('
     + (f ? f.weeks.length : 0) + ' weeks), <b>' + agg.daysElapsed + '</b> of '
-    + (f ? f.totalDays : 0) + ' days elapsed. Target due to date prorates the week in progress.'
+    + (f ? f.totalDays : 0) + ' days elapsed. Target due to date counts the weeks that have closed; the week in progress is not yet included.'
     + (agg.needsReview ? ' <span style="color:var(--warn-amber)">' + fmtN(agg.needsReview)
         + ' lead(s) matched no market and are excluded from the regions below.</span>' : '');
 }
@@ -5300,8 +5572,9 @@ function renderCompareScopeNote(){
   bits.push(CSPD.vendor === 'all' ? 'all publishers'
                                   : 'publisher <b>' + esc(CSPD.vendor) + '</b>');
   el.innerHTML = 'Scope: ' + bits.join(' &middot; ')
-    + '. Targets are the seeded weekly plan, prorated to today and <b>not</b> pro-rated to the '
-    + 'date range. The book and publisher are set on the <b>Content Syndication</b> tab.';
+    + '. Targets are the seeded weekly plan for the weeks closed to date (the week in progress is not '
+    + 'yet included) and <b>not</b> pro-rated to the date range. The book and publisher are set on the '
+    + '<b>Content Syndication</b> tab.';
   el.style.display = 'block';
 }
 
@@ -5544,10 +5817,11 @@ const PROGRAMS = {
     note: '<b>Core DG EMEA</b> - Content Syndication and CS Comparison, live since '
         + '<b>7 Aug 2026</b>. Paid Media and Quarter on Quarter are not shown: no EMEA ad '
         + 'accounts are connected, and EMEA launched part-way through the quarter so there is '
-        + 'no prior quarter to compare. The Content-Syndication KPIs, donuts and trends that '
-        + 'normally sit above <b>Pacing detail</b> are scoped to APAC and are hidden here too, '
-        + 'rather than shown under an EMEA heading - so on that tab this lane is the Pacing '
-        + 'detail section, which is driven by its own week selector.'
+        + 'no prior quarter to compare. On Content Syndication the KPI strip, region cards and '
+        + 'the five composition donuts read the EMEA model; the leads trend and Best performing '
+        + 'assets that normally sit above <b>Pacing detail</b> are scoped to APAC and are hidden '
+        + 'here rather than shown under an EMEA heading. Pacing detail is driven by its own week '
+        + 'selector.'
   },
   surround_abm: {
     prog: 'SURROUND_ABM', label: 'Surround ABM', theatre: 'APAC',

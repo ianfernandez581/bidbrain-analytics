@@ -304,13 +304,69 @@ pacing-versus-time comparison is the point of the section: a bare 31.9% reads as
   `Flight` off-theatre and to the payload's own label on APAC, which is what stops EMEA captions
   reading "whole Q3" / "265 of 830 Q3 target" for a flight that is 37% Q4.
 
-**Still hidden on EMEA** (donuts, Job function/level/demographic, Best performing assets, the
-leads-trend and the lead-detail table): they need lead-GRAIN columns - `ASSET_1`, `JOB_FUNCTION`,
-`JOB_LEVEL`, `JOB_TITLE`, `COMPANY_NAME` - that `stg_cs_leads_v2` does not carry. All six are
-present and 100% populated for EMEA in `raw_snowflake.salesforce_cs_apac_all` (1,043 rows), so
-this is a view widening plus a payload branch, not a data chase. `CSPD_ANY_THEATRE_BLOCKS` is the
-list that decides what renders off-theatre - **adding an id there without repointing its data
-source at `cs_pacing` renders an EMPTY panel under an EMEA heading**, which is what it prevents.
+**The five composition donuts render on EMEA since 2026-09-05** (client: "these updates we are
+doing for APJ do it on EMEA too, just make sure no data will spill onto each other") - see
+"Composition donuts on EMEA" below. **Still hidden on EMEA:** Best performing assets, the
+leads-trend and the lead-detail table. They need lead-GRAIN rows that the v2 model deliberately
+does not ship. `CSPD_ANY_THEATRE_BLOCKS` is the list that decides what renders off-theatre -
+**adding an id there without repointing its data source at a v2 view renders an EMPTY panel under
+an EMEA heading**, which is what it prevents.
+
+### Composition donuts on EMEA (2026-09-05)
+
+The APJ donuts aggregate the LEGACY lead rows in the browser (`aggregate()` over
+`salesforce_leads_live`, APAC-only by its 13-ID allowlist). EMEA had no lead-grain rows in the
+payload at all, so the five cards were hidden. Now:
+
+| | |
+|---|---|
+| Lead grain | `sql/16_stg_cs_leads_v2.sql` - **+`JOB_FUNCTION`, `JOB_LEVEL`, `JOB_TITLE`** (passthrough) |
+| Composition grain | `sql/19_cs_composition_v2.sql` -> `cs_composition_v2` (theatre x book x vendor x market x **dim x value**, LONG format, campaign to date) |
+| Payload branch | `job/main.py` -> `cs_composition` (`{theatre, book, vendor, market, dim, value, accepted, unprocessed}`) |
+| Frontend | `cscxDims()` -> `renderCompositionDonuts()` -> the SAME `donut()` APJ uses |
+
+**Why long format and no day:** five dimensions in one block, one reader; a wide row per lead would
+ship a job TITLE against a market at lead grain for no gain. The EMEA CS tab has no date control
+(the top band is campaign-to-date), so the donuts are campaign-to-date too, like the band they sit
+under. `DIM` values are the dashboard's own keys (`solutions / countries / jobFunc / jobLevel /
+jobTitle`), so the reader is a lookup, not a translation table. Blank -> `Unknown`, the same label
+`aggregate()`'s `lbl()` gives a blank on APJ, which is what lets every dimension sum to the same
+total.
+
+**No-spill guarantee, in three layers.** (1) The view carries `THEATRE`, and both theatres are in
+it on purpose (the `18_*` reasoning) - a view silently holding one theatre is a trap the day APJ
+migrates. (2) The dashboard filters it through **`cspdScopeOk()`** - the ONE predicate behind
+`cspdRows()` (theatre + book + publisher + L3 market), factored out for exactly this - so the same
+test that admits a pacing row to the band admits a composition row to the ring. APJ never reads
+`cs_composition` (it keeps `aggregate()`), EMEA never reads the legacy rows. (3) The job asserts,
+per (theatre, book), that **each of the five dimensions sums to `cs_pacing`'s accepted total** and
+WARNs by name if not; the dashboard draws an `Unaccounted` slice on any shortfall. Verified in
+BigQuery on apply: APAC Core DG 1,661 x 5, APAC Regional 63 x 5, EMEA Core DG 1,834 x 5, all `ties
+= true`; and in the headless render the APAC and EMEA Country rings share no label.
+
+**Ring total on EMEA = `cspdTopAgg().accepted`** (+ New in Admin View), i.e. the KPI strip's own
+figure for the same scope - the two tie or the ring says so. An older JSON with no
+`cs_composition` block hides both donut rows (`renderCompositionV2`) rather than drawing five
+empty rings. The five call sites (ids, fold limits, lane counts) live in ONE function,
+`renderCompositionDonuts()`, so the theatres cannot drift onto different charts.
+
+**The scrolling legend (2026-09-05)** replaced the Chart.js legend on all five donuts, both
+theatres: `plugins.legend.display=false` and `dlLegend()` draws a horizontal chip lane under the
+ring (swatch / label / count, sorted descending, edge fades only on the side with more content,
+hover a chip to isolate its slice, hover a SLICE to isolate AND scroll its chip into view, wheel
+scrolls the lane but only preventDefaults while there is room, thin themed scrollbar,
+`prefers-reduced-motion` turns the smooth scroll off). Card height is fixed by CSS (`.dl-ring`
+172px + one or two lanes) whatever the category count - Country used to wrap its legend and
+Professional demographic's legend overflowed the card. **Folds:** Country and Job function no
+longer fold (every value gets a slice - which also removes the collision between Salesforce's
+REAL `Other` job function, 128 leads, and the `Other (n more)` fold chip); only Professional
+demographic folds (top 24 titles, two lanes). **Click-to-toggle survived:** a chip click calls
+`chart.toggleDataVisibility(i)`, the same state the native legend drove, so `bbDonutCenter`
+(vendored, untouched) keeps subtracting a hidden slice from the centre total. The AI deck
+(`buildDeckPayload` -> `_bbTop(agg.*)`) and the CSV export read the AGGREGATE, never the legend
+DOM, so they always carry the full set. Class prefix is `dl-` because `.chip` is the market chip.
+Reference prototype the build was matched to: `donut-legend-scroller.html` (Build A, single lane;
+Build C, two lanes) - not committed.
 
 **Scope = theatre + book + publisher (`cspdRows()`), the same as the band below**, so the two can
 never disagree - that disagreement is what this work existed to fix. Because the book/publisher
@@ -933,9 +989,16 @@ cards unchanged.
   QTD accepted 1,661 and overall 72.5% untouched. The card carries a methodology line naming the
   basis ("recognised at week close: the N plan weeks completed to <date>; the week in progress
   is not yet included") and the deck payload carries `ttd_basis`. **This is a deliberate,
-  client-directed EXCEPTION to the repo-wide "prorate a weekly target" rule** (md/AGENTS.md) -
-  the EMEA lane on the same page keeps its labelled completed-weeks + prorated pair, so the two
-  lanes use different bases on purpose; do not harmonise either without the client. Two facts
+  client-directed EXCEPTION to the repo-wide "prorate a weekly target" rule** (md/AGENTS.md).
+  **EMEA follows the SAME rule since the same day (client: "this should apply to EMEA too"):**
+  `weekDueFraction()` now returns 1 for a closed plan week and 0 otherwise (it prorated before),
+  so `cspdTopAgg` / `cscAgg` / the per-market "Due to date" bars all moved with no per-site edit;
+  the prorated "Incl. week in progress" KPI, Leads-vs-target row and Progress row were REMOVED
+  and EMEA's top cards now carry APJ's labels (Current pacing = vs weeks closed, Overall pacing =
+  vs the full flight target) plus the same methodology line; the Pacing detail weekly tile shows
+  '-' with "week in progress, day d of 7 - the week target is recognised at week close" for the
+  in-progress week and sums CLOSED weeks only under "to date". Do not restore proration on
+  either lane without the client. Two facts
   worth knowing when someone compares TTD% to Time%: time elapsed is measured over the CALENDAR
   quarter (1 Jul - 30 Sep) while the plan's 13 weeks run Mon 6 Jul - Sun 4 Oct, and the weekly
   targets are a mild front-loaded curve (182 -> 169 -> 176, total 2,290), so the two
@@ -1884,6 +1947,15 @@ opening the form is a targeting problem, opening and abandoning is a form proble
   "pacing": {
     "row_count": 0,
     "rows": [ /* every column of V_PACING_FINAL_MODEL, dates as ISO strings */ ]
+  },
+  // cs_composition (2026-09-05): the five composition donuts for a non-legacy theatre. Long
+  // format - one row per scope x dimension x value with the accepted (+ New) count; dim is one
+  // of solutions / countries / jobFunc / jobLevel / jobTitle. Scoped in the browser by
+  // cspdScopeOk(), the same predicate as cs_pacing. Absent on an older JSON -> the donut rows
+  // hide themselves off-theatre. See sql/19_cs_composition_v2.sql + cscxDims().
+  "cs_composition": {
+    "row_count": 0,
+    "rows": [ { "theatre","book","vendor","market","dim","value","accepted","unprocessed" } ]
   },
   // cs_compare (2026-09-02): the CS Comparison panels for a non-legacy theatre. Same lead
   // universe as cs_pacing, one grain finer (it keeps country / asset / day, which the panels
