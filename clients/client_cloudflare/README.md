@@ -890,6 +890,35 @@ cards unchanged.
   grand total EMEA + APJ + Regional conserved. The 64 leads carry TAL `VER-FINANCE`, which has NO
   target of its own: the seed has no programme dimension, so they pace inside Acquisition's
   per-market weekly targets (which the plan's BFSI block is summed into - see "Streams 2&3").
+- **Composition donuts undercounted - the top-N slice dropped the tail (2026-09-05, Nabeel).** The
+  five CS donuts (Solutions / Country / Job function / Job level / Professional demographic) read
+  the same 1,661 accepted leads, but Country printed 1,539 and Job function 1,657. `donut()` did
+  `data.slice(0, limit)` and appended an "Other" slice ONLY when a total was passed - which only
+  the job-title chart did - so Country drew 10 of 14 countries (New Zealand 40 / Thailand 37 /
+  Philippines 35 / Viet Nam 10 dropped = 122) and Job function 8 of 12 (Finance/Procurement,
+  DevOps, Press/Media, Developer, 1 each = 4). Solutions and Job level only reconciled because
+  they have fewer values than the limit. The centre label (`bbDonutCenter`, vendored) sums the
+  VISIBLE slices, so a truncated ring printed a truncated total and concealed itself. Now: (1)
+  `donut()` folds everything past the limit into ONE visible **"Other (n more)"** slice built
+  from the data - labelled with the count of folded VALUES because JOB_FUNCTION carries a REAL
+  Salesforce value called "Other" (128 leads), and a bare "Other" fold would have drawn two
+  legend entries with one name; (2) every donut is passed the scoped total
+  (`agg.breakdownTotal`) and draws any shortfall as an **"Unaccounted"** slice + a console
+  warning, so a future drop is visible rather than absorbed; (3) `aggregate()` labels a blank
+  dimension **"Unknown"** instead of letting `groupCount()` skip the row (zero blanks in scope
+  today). The AI-deck payload had the same blind spot, worse - `_bbTop` was a bare `slice(0,8)`
+  (8 of 14 countries, 1,423 of 1,661) - so it now folds its tail the same way and ships
+  `dims_total`. **Not changed, on purpose:** the lowercase **"C-level"** slice (13 accepted, all on
+  the VRSM Lead Magnet ANZ campaign) and the country casing variants are REAL upstream values -
+  the raw mirror carries them and nothing in the pipeline rewrites the column. Folding them in
+  the frontend would hide a publisher-feed defect that also reaches the CSV and the deck; if the
+  client wants them merged, it belongs in `sql/10` beside the country map's `UPPER(TRIM())`,
+  with the status-check updated in the same change. **Manager is absent for a legitimate
+  reason:** the only Q3 Manager leads in the allowlist sit on a Q2-only campaign (capped) and
+  are Rejected/New, so they are outside an accepted-only ring either way. Verified headless
+  against the live payload: all five rings sum to 1,661 at the Q3 default; Country shows 10 +
+  "Other (4 more)" 122, Job function 8 + "Other (4 more)" 4, job titles 10 + "Other (139 more)"
+  842. Frontend only - `dash/deploy_dash_cloudflare.ps1`.
 - **Weekly buckets will NOT match the client's sheet, and that is understood and accepted.**
   The sheet is dated when Nabeel delivers leads to Integrate; Salesforce dates them on lead
   creation. Quarter totals reconcile exactly, weekly splits do not (EMEA returns 114 / 120 for
