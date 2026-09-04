@@ -47,7 +47,11 @@
 
   var CSS = [
     // ===== page shell: the mockup's measure, centred, with real side padding =====
-    '#view-connections{max-width:1340px;margin:0 auto;padding:22px 30px 72px;display:flex;flex-direction:column;gap:15px}',
+    // The tab mounts into #connectionsMount, which is the ONLY child of #view-connections.
+    // Putting the column layout on the outer div gave the gap one child to space, so no gap
+    // ever appeared between the sections. The measure lives outside, the stacking inside.
+    '#view-connections{max-width:1340px;margin:0 auto;padding:22px 30px 72px}',
+    '#connectionsMount{display:flex;flex-direction:column;gap:16px}',
     '@media(max-width:900px){#view-connections{padding:18px 16px 60px}}',
     '#view-connections .cx-num{font-variant-numeric:tabular-nums}',
     // ===== header =====
@@ -77,7 +81,7 @@
     '#view-connections .cx-scard.zero .base{opacity:.35}',
     '#view-connections .cx-scard[aria-pressed="true"]{border-color:var(--brand)}',
     '#view-connections .cx-est{font-size:8.5px;font-weight:700;letter-spacing:.07em;padding:2px 5px;border-radius:4px;background:var(--grp);color:var(--ink-3);margin-left:5px}',
-    '#view-connections .cx-tilefoot{display:flex;flex-wrap:wrap;gap:4px 20px;font-size:11.5px;color:var(--ink-3);padding:0 3px}',
+    '#view-connections .cx-tilefoot{display:flex;flex-wrap:wrap;gap:4px 20px;font-size:11.5px;color:var(--ink-3);padding:0 3px;margin-top:-7px}',
     '#view-connections .cx-tilefoot b{color:var(--ink-2);font-weight:600;font-variant-numeric:tabular-nums}',
     '@media(max-width:1100px){#view-connections .cx-tiles{grid-template-columns:repeat(2,minmax(0,1fr))}}',
     '@media(max-width:560px){#view-connections .cx-tiles{grid-template-columns:1fr}}',
