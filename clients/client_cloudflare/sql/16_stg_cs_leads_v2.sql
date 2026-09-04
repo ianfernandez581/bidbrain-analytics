@@ -142,15 +142,32 @@ id_theatre AS (
   GROUP BY 1
 ),
 id_resolved AS (
+  -- Header 3a, refined 2026-09-05 (client rule: scope by campaign ID against an EXPLICIT
+  -- allowlist, never by name prefix). Rule order:
+  --   1. ALLOWLIST - the id is on definitions.json's list for a theatre (seed_cs_emea_campaign_ids
+  --      for EMEA; the legacy 13-ID seed_cs_campaign_ids for APAC). Explicit, reviewed, and what
+  --      the export job WARNs against: an EMEA lead placed by any LOWER rule is named in the log so
+  --      the list gets extended. This is the same result the vote gave for every EMEA lead at the
+  --      time of the change (all 2,106 were REGION_SOURCE='id'), made explicit.
+  --   2. VOTE - the id's own prefixed names, 80% majority (the original 3a).
+  --   3. NULL -> per-lead name token (3b), then UNRESOLVED (3c). Never a default theatre.
+  -- The allowlist is FIRST so that a campaign whose names are ALL bare tokens (no 'EMEA-'
+  -- prefix anywhere on the id) is still EMEA when the id says so - the vote alone would return
+  -- NULL for it and leave the placement to the per-lead token map.
   SELECT
-    CAMPAIGN_ID,
+    t.CAMPAIGN_ID,
     CASE
+      WHEN e.campaign_id IS NOT NULL               THEN 'EMEA'
+      WHEN a.campaign_id IS NOT NULL               THEN 'APAC'
       WHEN emea_n + apac_n = 0                     THEN NULL      -- nothing unambiguous to vote with
       WHEN emea_n >= 0.8 * (emea_n + apac_n)       THEN 'EMEA'
       WHEN apac_n >= 0.8 * (emea_n + apac_n)       THEN 'APAC'
       ELSE NULL                                                  -- genuinely mixed id: fall back per lead
-    END AS ID_THEATRE
-  FROM id_theatre
+    END AS ID_THEATRE,
+    IF(e.campaign_id IS NOT NULL OR a.campaign_id IS NOT NULL, 'allowlist', 'vote') AS ID_METHOD
+  FROM id_theatre t
+  LEFT JOIN `bidbrain-analytics.client_cloudflare.seed_cs_emea_campaign_ids` e ON e.campaign_id = t.CAMPAIGN_ID
+  LEFT JOIN `bidbrain-analytics.client_cloudflare.seed_cs_campaign_ids`      a ON a.campaign_id = t.CAMPAIGN_ID
 ),
 typed AS (
   SELECT
@@ -160,8 +177,11 @@ typed AS (
     -- A market from the WRONG theatre for this id is a conflict, not a market (header 3).
     IF(NAME_THEATRE IS NOT NULL AND NAME_THEATRE <> THEATRE, 'UNMAPPED', MARKET_NAME) AS MARKET,
     IF(NAME_THEATRE IS NOT NULL AND NAME_THEATRE <> THEATRE, 1, 0)                    AS REGION_CONFLICT,
-    -- Which rule placed the lead - 'id', 'name' or 'none' (UNRESOLVED). Job audit + Admin View.
-    CASE WHEN ID_THEATRE IS NOT NULL THEN 'id' WHEN NAME_THEATRE IS NOT NULL THEN 'name' ELSE 'none' END AS REGION_SOURCE,
+    -- Which rule placed the lead - 'allowlist' (definitions.json id list), 'id' (name vote on the
+    -- id), 'name' (per-lead token) or 'none' (UNRESOLVED). Job audit + Admin View; the job WARNs on
+    -- any EMEA lead that is not 'allowlist'.
+    CASE WHEN ID_THEATRE IS NOT NULL THEN IF(ID_METHOD = 'allowlist', 'allowlist', 'id')
+         WHEN NAME_THEATRE IS NOT NULL THEN 'name' ELSE 'none' END AS REGION_SOURCE,
     -- VENDOR (= the publisher) display names. Salesforce carries the same publisher in
     -- several casings - SHOUTY for the ones onboarded most recently (DEMANDAI, INTERLINK,
     -- PIPELINE360, INBOXINSIGHT), title case for the older ones - so the dashboard's vendor
@@ -248,6 +268,7 @@ typed AS (
         SELECT
           b.*,
           i.ID_THEATRE,
+          i.ID_METHOD,
           -- EMEA tokens arrive both as 'EMEA-DACH' (Roverpath / Final Funnel / Pipeline360 /
           -- Inbox Insight) and as bare 'DACH' (Acquisition, from 2026-09-02) - header point 3.
           -- Both spellings resolve to the ONE market the targets seed is keyed on.

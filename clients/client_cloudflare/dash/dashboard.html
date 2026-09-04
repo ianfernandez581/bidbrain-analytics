@@ -2694,6 +2694,7 @@ async function boot() {
     CSPD_ROWS = (COMBINED.cs_pacing && COMBINED.cs_pacing.rows) || [];
     CSPD_META = COMBINED.cs_pacing || {};
     CSX_ROWS  = (COMBINED.cs_composition && COMBINED.cs_composition.rows) || [];
+    try { assertTheatreIsolation(); } catch (e) { console.error('[cs-isolation] check failed to run', e); }
     // "CS Comparison" panels for a theatre the legacy model does not cover: the same lead
     // universe one grain finer (day x market x country x asset). Absent on an older JSON, in
     // which case the Comparison tab simply does not appear on that lane (see emeaHasCompare).
@@ -3646,7 +3647,30 @@ function donut(id, data, limit, total, opts) {
 // only Professional demographic still folds - top 24 titles, in two lanes. Nothing is dropped
 // at any limit. Having the ids, limits and lanes in ONE place is what stops the two theatres
 // drifting onto different charts.
+// RENDER-TIME ASSERTIONS (2026-09-05, client rule). Each theatre's breakdowns must sum to that
+// theatre's own scoped total, and no row admitted to an EMEA aggregate may carry an APAC market
+// or vice versa. Both are asserted where the numbers are, logged LOUDLY (console.error, one line
+// per failure, prefixed so a grep finds them) and mirrored into window.BB_ISOLATION_LOG so a
+// headless check can read them. They never alter what renders: a failing ring still draws, with
+// donut()'s own Unaccounted slice making the shortfall visible on screen.
+const CSPD_THEATRE_MARKETS = {      // sql/16's own CASE arms - change both together
+  APAC: new Set(['ANZ','ASEAN','SAARC','GCR-CN','GCR-TW','GCR-HK','Japan','Korea']),
+  EMEA: new Set(['UKI','DACH','SEUR','NEUR','CEERI','MEA'])
+};
+window.BB_ISOLATION_LOG = window.BB_ISOLATION_LOG || [];
+function bbIsolationFail(msg){
+  window.BB_ISOLATION_LOG.push(msg);
+  console.error('[cs-isolation] ' + msg);
+}
+function assertDimsSumTo(dims, total, theatre){
+  if (total == null) return;
+  for (const k of ['solutions','countries','jobFunc','jobLevel','jobTitle']){
+    const s = (dims[k] || []).reduce((a, d) => a + (d[1] || 0), 0);
+    if (s !== total) bbIsolationFail(theatre + ' ' + k + ' sums to ' + s + ' but the scoped total is ' + total);
+  }
+}
 function renderCompositionDonuts(dims, total){
+  assertDimsSumTo(dims, total, topFromPacing() ? cspdTheatre() : CSPD_LEGACY_THEATRE);
   donut('solChart',     dims.solutions, null, total);
   donut('countryChart', dims.countries, null, total);
   donut('jfChart',      dims.jobFunc,   null, total);
@@ -3667,15 +3691,37 @@ function setDonutRows(show){
 function cscxDims(){
   const th = cspdTheatre(), mk = cspdActiveMarkets();
   const out = { solutions: new Map(), countries: new Map(), jobFunc: new Map(), jobLevel: new Map(), jobTitle: new Map() };
+  const other = th === 'EMEA' ? 'APAC' : 'EMEA', spill = new Map();
   for (const r of CSX_ROWS){
     if (!out[r.dim] || !cspdScopeOk(r, th, mk)) continue;
+    // Isolation: a row that passed the theatre test but carries the OTHER theatre's market is a
+    // model defect (sql/16), not a rendering choice - count it, log it, still draw it.
+    if (CSPD_THEATRE_MARKETS[other] && CSPD_THEATRE_MARKETS[other].has(r.market)) spill.set(r.market, (spill.get(r.market) || 0) + (r.accepted || 0));
     const n = (r.accepted || 0) + (devMode ? (r.unprocessed || 0) : 0);
     if (!n) continue;
     out[r.dim].set(r.value, (out[r.dim].get(r.value) || 0) + n);
   }
+  for (const [m, n] of spill) bbIsolationFail(th + ' composition rows carry the ' + other + ' market ' + m + ' (' + n + ' accepted)');
   const arr = m => [...m.entries()].sort((a, b) => b[1] - a[1]);
   return { solutions: arr(out.solutions), countries: arr(out.countries), jobFunc: arr(out.jobFunc),
            jobLevel: arr(out.jobLevel), jobTitle: arr(out.jobTitle) };
+}
+// Once per payload: the two data objects are DIFFERENT (the legacy APAC lead rows vs the v2
+// cs_pacing / cs_composition blocks) and must each hold only their own theatre's markets. The
+// legacy rows have no theatre column - they are APAC by the 13-ID allowlist - so the test there
+// is that no row carries an EMEA market token.
+function assertTheatreIsolation(){
+  const emeaTok = CSPD_THEATRE_MARKETS.EMEA;
+  const legacyLeak = (rawRows || []).filter(r => emeaTok.has(r.MARKET_REGION)).length;
+  if (legacyLeak) bbIsolationFail('legacy APAC lead rows carry an EMEA market token: ' + legacyLeak + ' row(s)');
+  for (const [name, rows] of [['cs_pacing', CSPD_ROWS], ['cs_composition', CSX_ROWS]]){
+    const bad = {};
+    for (const r of rows){
+      const other = r.theatre === 'EMEA' ? 'APAC' : r.theatre === 'APAC' ? 'EMEA' : null;
+      if (other && CSPD_THEATRE_MARKETS[other].has(r.market)) bad[r.theatre + '/' + r.market] = (bad[r.theatre + '/' + r.market] || 0) + 1;
+    }
+    for (const k in bad) bbIsolationFail(name + ' rows under ' + k + ' carry the other theatre\'s market: ' + bad[k] + ' row(s)');
+  }
 }
 // Off-theatre donuts. `top` is cspdTopAgg() for the same scope, so the ring total is the KPI
 // strip's own accepted figure (+ New in Admin View) - the two tie or the ring says so with an

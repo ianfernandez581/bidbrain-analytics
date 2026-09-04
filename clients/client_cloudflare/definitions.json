@@ -6,7 +6,7 @@
   "source_table_snowflake": "APAC_ALL_PLATFORM.PUBLIC.\"Salesforce_CS_APAC_ALL\"",
   "mirror_table_bigquery": "bidbrain-analytics.raw_snowflake.salesforce_cs_apac_all",
 
-  "last_edited_by": "2026-09-04: added the Q3 VRSM Lead Magnet campaign (701RG00001W1FQRYA3) to segments.KR so its Korean leads count in the KR chip instead of the OTHER residual - closes the 1,650 vs 1,661 headline-vs-Pacing-detail gap the client reported (Charles). 2026-08-05: added cs_q2_only_campaigns - the 4 P* ABM/Modernize Q2 campaigns still receive REPLACEMENT leads with Q3 created dates; their leads now count only when created before 2026-07-01 so replacements stop surfacing on the Q3 side (client request via Transmission). Both sides (sql/10 + the status verifier) apply the same cap (Ian).",
+  "last_edited_by": "2026-09-05: added cs_emea_campaigns - the explicit EMEA campaign-ID allowlist (5 IDs, one per publisher) that sql/16 now places FIRST, before the name vote; every EMEA lead was already placed by CAMPAIGN_ID, so this is the same result made explicit, and the export job WARNs by name on any EMEA lead resolved without it (Charles). 2026-09-04: added the Q3 VRSM Lead Magnet campaign (701RG00001W1FQRYA3) to segments.KR so its Korean leads count in the KR chip instead of the OTHER residual - closes the 1,650 vs 1,661 headline-vs-Pacing-detail gap the client reported (Charles). 2026-08-05: added cs_q2_only_campaigns - the 4 P* ABM/Modernize Q2 campaigns still receive REPLACEMENT leads with Q3 created dates; their leads now count only when created before 2026-07-01 so replacements stop surfacing on the Q3 side (client request via Transmission). Both sides (sql/10 + the status verifier) apply the same cap (Ian).",
   "last_edited_at": "2026-08-05",
 
   "_seed_spec": [
@@ -15,7 +15,8 @@
     {"table": "seed_cs_q2_only_campaign_ids", "column": "campaign_id", "path": "cs_q2_only_campaigns.campaigns[].id"},
     {"table": "seed_rig_campaign_ids", "column": "campaign_id", "path": "segments.RIG.campaign_ids"},
     {"table": "seed_rig_assets",       "column": "asset_2",     "path": "segments.RIG.asset_2"},
-    {"table": "seed_kr_campaign_ids",  "column": "campaign_id", "path": "segments.KR.campaign_ids"}
+    {"table": "seed_kr_campaign_ids",  "column": "campaign_id", "path": "segments.KR.campaign_ids"},
+    {"table": "seed_cs_emea_campaign_ids", "column": "campaign_id", "path": "cs_emea_campaigns.campaigns[].id"}
   ],
 
   "_smoke_views": ["client_cloudflare.salesforce_leads_live", "client_cloudflare.cf1_cs", "client_cloudflare.pacing_model"],
@@ -35,6 +36,17 @@
     {"id": "701RG00001PXHnzYAH", "label": "Roverpath - Modernize Applications (ANZ)"},
     {"id": "701RG00001W1FQRYA3", "label": "VRSM Lead Magnet - Tier 3 (ANZ)"}
   ],
+
+  "cs_emea_campaigns": {
+    "_note": "2026-09-05 (client rule: EMEA data must never appear in an APAC figure and vice versa; scope by campaign ID, not by name prefix). The Core DG EMEA campaign IDs read by sql/16_stg_cs_leads_v2 (seed_cs_emea_campaign_ids) as the FIRST theatre rule - a lead on one of these IDs is EMEA whatever its campaign NAME says. It matters because the feed is not consistently prefixed: Acquisition's ID 701RG00001e1aegYAA carries 25 'EMEA-<region>' names AND 2 bare-token names (2026_Q3_CEERI_ACQUISITION_... 52 rows, 2026_Q3_DACH_ACQUISITION_... 12 rows) that a LIKE 'EMEA-%' filter would drop into APAC. One Salesforce campaign ID per publisher; every EMEA sub-region (UKI/DACH/SEUR/NEUR/CEERI/MEA) is a NAME under the same ID, so a new region needs no edit here - a new PUBLISHER does. A campaign this list does not hold still resolves by the existing ID vote / name token (never dropped, never defaulted to APAC), and the export job prints a WARNING naming it so it gets added here. NOT read by sql/10 or the status verifier: the legacy APAC model keeps its own 13-ID cs_campaigns list.",
+    "campaigns": [
+      {"id": "701RG00001e1aegYAA", "label": "Acquisition - EMEA Core DG (streams 2&3; incl. the two un-prefixed CEERI/DACH VER-FINANCE names)"},
+      {"id": "701RG00001ddoNpYAI", "label": "Pipeline360 - EMEA Core DG (streams 2&3)"},
+      {"id": "701RG00001cj4ibYAA", "label": "Roverpath - EMEA Core DG (IDE Lite)"},
+      {"id": "701RG00001ciw9zYAA", "label": "Final Funnel - EMEA Core DG (IDE Lite)"},
+      {"id": "701RG00001e0CoAYAU", "label": "Inbox Insight - EMEA Core DG (streams 2&3)"}
+    ]
+  },
 
   "cf1_cs_campaigns": [
     {"id": "701RG00001NJd6NYAT", "label": "Roverpath - Connectivity Cloud (CF1)"},
