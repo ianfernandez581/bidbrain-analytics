@@ -919,6 +919,28 @@ cards unchanged.
   against the live payload: all five rings sum to 1,661 at the Q3 default; Country shows 10 +
   "Other (4 more)" 122, Job function 8 + "Other (4 more)" 4, job titles 10 + "Other (139 more)"
   842. Frontend only - `dash/deploy_dash_cloudflare.ps1`.
+- **APJ TTD target is recognised at WEEK CLOSE (2026-09-05, client instruction via Nabeel).** The
+  "Leads vs target" card's TTD Target, the KPI strip's "Current pacing", the per-market TTD bars
+  in the region grid, the Comparison tab's "QTD Target" bar and the AI deck's `ttd_target` /
+  `vs_ttd_pct` all read `aggregate().ttdTarget`. It used to be `DAY <= now` over `pacing.rows`,
+  which was START-of-week in effect: `sql/13_pacing_model` puts a cell's weekly target either
+  on its accepted leads' own dates or, with no lead yet, on a placeholder dated the week's
+  MONDAY, so the whole week counted the moment it opened (Fri 4 Sep read 1,599 = plan weeks 1-9
+  INCLUDING the week in progress, 103.9% pacing). Now a week's target joins the denominator only
+  once the FOLLOWING Monday has arrived (`weekClosed()` in `aggregate()`), applied to every week
+  of the quarter so a closed quarter (Q2) is unchanged and there is no discontinuity. Same day
+  after the change: TTD 1,428 (8 weeks to Sun 30 Aug), current pacing 116.3%; Q3 target 2,290,
+  QTD accepted 1,661 and overall 72.5% untouched. The card carries a methodology line naming the
+  basis ("recognised at week close: the N plan weeks completed to <date>; the week in progress
+  is not yet included") and the deck payload carries `ttd_basis`. **This is a deliberate,
+  client-directed EXCEPTION to the repo-wide "prorate a weekly target" rule** (md/AGENTS.md) -
+  the EMEA lane on the same page keeps its labelled completed-weeks + prorated pair, so the two
+  lanes use different bases on purpose; do not harmonise either without the client. Two facts
+  worth knowing when someone compares TTD% to Time%: time elapsed is measured over the CALENDAR
+  quarter (1 Jul - 30 Sep) while the plan's 13 weeks run Mon 6 Jul - Sun 4 Oct, and the weekly
+  targets are a mild front-loaded curve (182 -> 169 -> 176, total 2,290), so the two
+  percentages are not directly comparable under ANY recognition rule. The weekly pacing chart
+  plots each week's own target and is unaffected; the lead CSV export carries no target.
 - **Weekly buckets will NOT match the client's sheet, and that is understood and accepted.**
   The sheet is dated when Nabeel delivers leads to Integrate; Salesforce dates them on lead
   creation. Quarter totals reconcile exactly, weekly splits do not (EMEA returns 114 / 120 for

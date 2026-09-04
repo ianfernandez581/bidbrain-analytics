@@ -215,6 +215,11 @@ seed is already DAILY (cloudflare's legacy `ALLOCATED_TARGET`) this is free - su
 IS the proration; the trap is only for weekly/monthly seeds.
 **Testing trap that hides it:** on the LAST DAY of a period, days-elapsed and completed-periods give
 the same answer by coincidence. A proration bug is invisible that day. Always test a mid-period date.
+**EXCEPTION (client-directed, 2026-09-05): cloudflare's APJ "Leads vs target" TTD recognises a week's
+target at WEEK CLOSE, not prorated** - the week in progress is excluded until the following Monday
+(`weekClosed()` in `aggregate()`, `clients/client_cloudflare/dash/dashboard.html`), and the card says so
+in a methodology line. Its EMEA lane still shows the labelled completed-weeks + prorated pair. Do not
+"restore the standard" on either lane without asking; see the client README.
 **And derive a flight from the seeded period starts, not from a stated end date** - cloudflare EMEA
 had three conflicting end dates (5 Nov / 31 Oct / 30 Sep) while its 13 week-start rows were
 unambiguous. First period start -> last period start + (period length - 1).
