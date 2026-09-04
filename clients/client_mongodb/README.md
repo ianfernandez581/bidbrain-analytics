@@ -408,11 +408,16 @@ above the relative presets, the Cloudflare quarter-preset pattern halved. MongoD
 - **One source of truth: `HALVES` + `HALF_ORDER`** in `dash/dashboard.html`, sitting above the
   `DateRange` IIFE. The calendar presets AND the boot default both read it, so adding a half is one
   entry and it appears in the dropdown on its own. `HALF_ORDER` is newest-first = the listed order.
-- **The dashboard opens on the half containing TODAY, PROVIDED that half has delivery** -
-  `defaultHalfKey()`, not a hardcoded H2, so it rolls forward by itself instead of needing an edit
-  every six months. If the current half has delivered nothing it falls back to the most recent half
-  that did (then to the full window), and `halfDefaultNote` says so in `#pmNote` - otherwise the
-  picker just reads `H1 (Feb-Jul)` and the H2 default looks like it was never implemented.
+- **The dashboard opens on the half containing TODAY, UNCONDITIONALLY** - `currentHalfKey()`, not a
+  hardcoded H2, so it rolls forward by itself instead of needing an edit every six months. **It opens
+  on that half even when the half has delivered nothing** - the client confirmed 2026-09-03 that H2
+  is the preferred view regardless. A delivery-aware default was built first and reversed on that
+  confirmation; `latestDeliveringHalf()` survives and is all a re-reversal needs.
+- **An empty opening half must SAY it is empty.** `halfHasDelivery()` tests the opening half and
+  `halfDefaultNote` explains the zeros in `#pmNote`, naming the half that did deliver. This is not
+  optional decoration: the standard `#pmNote` empty-state keys on `rows.length === 0` and **cannot
+  fire here**, because the feed keeps emitting rows after a flight ends - so without the note the
+  dash shows fully-populated tables of zeros with nothing saying why.
 - **"Are there rows in this half" is NOT "did this half deliver", and that distinction is the whole
   trap here.** The Trade Desk feed keeps emitting rows after a flight ends: as at 2026-09-03 the
   flight ended in July and **Aug+Sep carry 1,863 rows of ZERO imps/clicks/spend**. So a row-count or
@@ -420,8 +425,8 @@ above the relative presets, the Cloudflare quarter-preset pattern halved. MongoD
   open every KPI, table and chart on 0 - while the existing `#pmNote` empty-state could not fire,
   because `rows.length` is not 0. `halfHasDelivery()` tests imps/clicks/spend > 0 instead. **Verify a
   period the same way before making it a default** - `SUM(IMPS)` by month, never `COUNT(*)`.
-- As at 2026-09-03 this means the dash opens on **H1** with the note showing; it promotes itself to
-  **H2** with no edit the day H2 delivery lands.
+- As at 2026-09-03 this means the dash opens on **H2 showing zeros**, with the note pointing at H1.
+  The note clears itself the day H2 delivery lands - no edit.
 - **The halves come FIRST in `PRESETS` deliberately.** `detectPreset()` returns the first preset whose
   span matches, so leading with the halves means the button reads `H2 (Aug-Jan)` rather than a
   coincidentally-identical relative preset. Verified there are no span collisions against the data

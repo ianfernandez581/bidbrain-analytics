@@ -973,18 +973,17 @@ function halfHasDelivery(key, rows, liDaily){
   return (rows||[]).some(r => inH(r.date) && live(r))
       || (liDaily||[]).some(r => inH(r.date) && live(r));
 }
-// The half the dashboard OPENS on: the half containing today when it has delivery, else the
-// most recent half that does, so the dash never opens on a page of zeros (which reads as a
-// broken dashboard, not an out-of-season one). null = no half has delivery -> full window.
-function defaultHalfKey(rows, liDaily){
-  const cur = currentHalfKey();
-  if(halfHasDelivery(cur, rows, liDaily)) return cur;
+// The most recent half that DID deliver - named in the note when the opening half is empty,
+// so the reader is pointed at the period holding the campaign instead of guessing.
+function latestDeliveringHalf(rows, liDaily){
   const newestFirst = Object.keys(HALVES).sort((a,b)=>HALVES[a].start<HALVES[b].start?1:-1);
   for(const k of newestFirst){ if(halfHasDelivery(k, rows, liDaily)) return k; }
   return null;
 }
-// The half TODAY sits in - the half we WANT to open on. Past the last defined half (or
-// before the first) it pins to the nearest one, so this is always a real half.
+// The half TODAY sits in - the half the dashboard opens on, UNCONDITIONALLY (client
+// confirmed 2026-09-03: H2 is the preference even while it holds no delivery). Past the
+// last defined half (or before the first) it pins to the nearest one, so this is always
+// a real half.
 function currentHalfKey(){
   const d = new Date();
   const today = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
@@ -1597,25 +1596,27 @@ async function boot() {
       .concat(_liDates).filter(Boolean).sort();
     const _minD = _pmDates[0] || (DATA.window && DATA.window.start);
     const _maxD = _pmDates[_pmDates.length-1] || (DATA.window && DATA.window.end);
-    // Open on the CURRENT reporting half - H2 (Aug-Jan) from 2026-08-01 (client request
-    // 2026-09-03). currentHalfKey() picks the half today falls in rather than hardcoding
-    // one, so this rolls forward on its own as halves are added to HALVES.
-    // BUT a half with no delivery must never become the opening view: as at 2026-09-03 the
-    // flight ended in July and H2 carries only zero-valued rows, so a hard H2 default would
-    // open every KPI, table and chart on 0. defaultHalfKey() therefore falls back to the
-    // most recent half that DID deliver and says so on screen (halfDefaultNote) - and it
-    // promotes H2 by itself, with no edit, the day H2 delivery lands.
+    // Open on the CURRENT reporting half - H2 (Aug-Jan) from 2026-08-01. currentHalfKey()
+    // picks the half today falls in rather than hardcoding one, so this rolls forward on
+    // its own as halves are added to HALVES.
+    // The default is UNCONDITIONAL: the client confirmed (2026-09-03) that H2 is the
+    // preferred opening view even while it holds no delivery. As at that date the flight
+    // ended 2 Jul and H2 carries only zero-valued rows, so the dash legitimately opens on
+    // zeros - halfDefaultNote then says so and points at the half that DID deliver, because
+    // the standard empty-state cannot fire here (rows exist, they are just all zero).
+    // To restore a delivery-aware default, fall back to latestDeliveringHalf() below.
     const _liDaily  = (DATA.linkedin && DATA.linkedin.daily) || [];
-    const _wantHalf = currentHalfKey();
-    const _bootHalf = defaultHalfKey(DATA.rows || [], _liDaily);
-    const _hspan    = _bootHalf ? halfSpan(_bootHalf, _minD, _maxD) : null;
+    const _bootHalf = currentHalfKey();
+    const _hspan    = halfSpan(_bootHalf, _minD, _maxD);   // null only if the half is wholly outside the data
     dateStartSel = _hspan ? _hspan[0] : _minD;
     dateEndSel   = _hspan ? _hspan[1] : _maxD;
-    halfDefaultNote = (_bootHalf === _wantHalf) ? '' :
-      `${HALVES[_wantHalf].label} has no delivery yet, so this opens on `
-      + `${_bootHalf ? HALVES[_bootHalf].label : 'the full data window'}. `
-      + `${HALVES[_wantHalf].label} is selectable in the calendar and becomes the default `
-      + `view automatically once delivery lands in it.`;
+    const _delivered = halfHasDelivery(_bootHalf, DATA.rows || [], _liDaily);
+    const _lastLive  = _delivered ? null : latestDeliveringHalf(DATA.rows || [], _liDaily);
+    halfDefaultNote = _delivered ? '' :
+      `${HALVES[_bootHalf].label} is the current reporting period and has no delivery in it yet, `
+      + `so the figures below read zero.`
+      + (_lastLive ? ` The most recent delivery sits in ${HALVES[_lastLive].label} - select it in `
+                     + `the calendar to see that flight.` : '');
     DateRange.init({ min:_minD, max:_maxD, initialStart:dateStartSel, initialEnd:dateEndSel,
       onApply:(s,e)=>{ dateStartSel=s; dateEndSel=e; renderControls(); renderActive(); } });
 
@@ -1788,8 +1789,9 @@ function renderPaidAll() {
       ? `No paid-media delivery for ${CAMP[activeCampaign].label} in the selected region(s).`
       : `No paid-media data yet for ${CAMP[activeCampaign].label}. The charts below will populate once the feed includes it.`;
   } else if (halfDefaultNote) {
-    // Says WHY the dashboard did not open on the current fiscal half. Without it the picker
-    // just reads "H1 (Feb-Jul)" and the H2 default looks like it was never implemented.
+    // Says WHY every figure on an intentionally-empty half reads zero. The standard
+    // empty-state above cannot fire: the feed keeps emitting rows after a flight ends, so
+    // rows.length is non-zero even though nothing delivered.
     note.style.display = 'block';
     note.textContent = halfDefaultNote;
   } else {
