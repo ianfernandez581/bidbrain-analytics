@@ -3014,11 +3014,15 @@ function aggregate(filterFn) {
   // feeds the job-title donut's 'Other' fold so its centre total stays correct either way.
   const breakdownLeads = devMode ? accepted.concat(newLeads) : accepted;
 
-  const solutions = groupCount(breakdownLeads, r => r.SERVICE || 'Unknown');
-  const countries = groupCount(breakdownLeads, r => r.COUNTRY_NAME);
-  const jobFunc   = groupCount(breakdownLeads, r => r.JOB_FUNCTION);
-  const jobLevel  = groupCount(breakdownLeads, r => r.JOB_LEVEL);
-  const jobTitle  = groupCount(breakdownLeads, r => r.JOB_TITLE);
+  // groupCount() SKIPS null / '' keys, so a lead with a blank dimension used to leave the ring
+  // silently (zero such leads in scope today - verified 2026-09-05 - but the donuts now assert
+  // they cover breakdownTotal, so a blank must be a labelled slice, not a dropped row).
+  const lbl = v => (v == null || String(v).trim() === '') ? 'Unknown' : v;
+  const solutions = groupCount(breakdownLeads, r => lbl(r.SERVICE));
+  const countries = groupCount(breakdownLeads, r => lbl(r.COUNTRY_NAME));
+  const jobFunc   = groupCount(breakdownLeads, r => lbl(r.JOB_FUNCTION));
+  const jobLevel  = groupCount(breakdownLeads, r => lbl(r.JOB_LEVEL));
+  const jobTitle  = groupCount(breakdownLeads, r => lbl(r.JOB_TITLE));
 
   // ONE ROW PER ASSET (2026-08-26). This used to key on `asset||service`, which drew a
   // SECOND bar under the SAME label whenever an asset ran on two solution campaigns
@@ -3462,14 +3466,41 @@ function renderWeekly(agg) {
   });
 }
 
-function donut(id, data, limit, foldTo) {
-  let arr = data.slice(0, limit || 10);
-  // When foldTo (a total) is given, append an 'Other' slice for everything past the top-N so
-  // the donut sums to foldTo. Used by the Professional-demographic (job-title) chart, which has
-  // a ~25-title long tail: the top-10 slice alone undercounted (showed 40 of the 56 leads).
-  if (foldTo != null) {
+// COMPOSITION DONUTS (2026-09-05, Nabeel's report). Three rules, in order:
+//   1. Every value the aggregate returned is on the ring. The top-N keep their own slice; the
+//      rest fold into ONE visible "Other (n more)" slice built from the DATA (the sum of the
+//      folded values), never from a total. Before this, `data.slice(0, limit)` simply dropped
+//      the tail: Country drew 10 of 14 countries and read 1,539 while the page said 1,661
+//      (New Zealand 40 / Thailand 37 / Philippines 35 / Viet Nam 10 gone), Job function drew 8
+//      of 12 and read 1,657. Only the job-title chart folded its tail, because only it passed a
+//      total - the other four looked right whenever they happened to have <= N values.
+//      The label carries the count of folded VALUES ("Other (4 more)") because JOB_FUNCTION has
+//      a REAL Salesforce value called "Other" (128 leads) - a bare "Other" fold would have drawn
+//      two identical legend entries meaning different things (the C-Level / C-level trap).
+//   2. `total` is the SCOPED population (agg.breakdownTotal) and the ring MUST account for it.
+//      If the slices sum to less, the shortfall is drawn as its own "Unaccounted" slice and
+//      logged - a lead the aggregate lost is made visible, never absorbed. aggregate() labels
+//      blank dimensions "Unknown" (below), so today this slice can only appear if a future edit
+//      drops rows again. The centre label (bbDonutCenter, vendored, untouched) sums the VISIBLE
+//      slices, so with the ring covering the total it reads the scoped total; toggling a legend
+//      entry off still subtracts live, as before.
+//   3. No fixed label lists anywhere - a new country, function or level appears on its own.
+function donut(id, data, limit, total) {
+  const all  = data || [];
+  const n    = limit || 10;
+  const tail = all.slice(n);
+  const tailSum = tail.reduce((s, d) => s + d[1], 0);
+  let arr = all.slice(0, n);
+  if (tailSum > 0) arr = arr.concat([['Other (' + tail.length + ' more)', tailSum]]);
+  if (total != null) {
     const shown = arr.reduce((s, d) => s + d[1], 0);
-    if (foldTo - shown > 0) arr = arr.concat([['Other', foldTo - shown]]);
+    if (total - shown > 0) {
+      arr = arr.concat([['Unaccounted', total - shown]]);
+      console.warn('[donut ' + id + '] slices sum to ' + shown + ' but the scoped total is ' + total
+        + ' - ' + (total - shown) + ' lead(s) carry no value in this dimension and are not in the aggregate');
+    } else if (shown > total) {
+      console.warn('[donut ' + id + '] slices sum to ' + shown + ', MORE than the scoped total ' + total);
+    }
   }
   destroy(id);
   charts[id] = new Chart(document.getElementById(id), {
@@ -3834,11 +3865,14 @@ function renderAll() {
   renderLeadsTarget(agg);
   renderProgress(agg);
   renderWeekly(agg);
-  donut('solChart',     agg.solutions, 10);
-  donut('countryChart', agg.countries, 10);
-  donut('jfChart',      agg.jobFunc,   8);
-  donut('jlChart',      agg.jobLevel,  10);
-  donut('jtChart',      agg.jobTitle,  10, agg.breakdownTotal);   // + 'Other' tail; total = accepted (+unprocessed in dev mode)
+  // Every composition donut gets the SCOPED total (accepted, + unprocessed in Admin View) so
+  // the ring is checked against it - see donut(). The limit is how many values keep their own
+  // slice before the rest fold into "Other (n more)"; nothing is dropped at any limit.
+  donut('solChart',     agg.solutions, 10, agg.breakdownTotal);
+  donut('countryChart', agg.countries, 10, agg.breakdownTotal);
+  donut('jfChart',      agg.jobFunc,   8,  agg.breakdownTotal);
+  donut('jlChart',      agg.jobLevel,  10, agg.breakdownTotal);
+  donut('jtChart',      agg.jobTitle,  10, agg.breakdownTotal);
   renderAssets(agg);
   renderDaily(agg);
   renderRegionGrid(agg);
@@ -7433,7 +7467,15 @@ const BB_THEME = {
 };
 const _r2=v=>v==null||isNaN(v)?null:Math.round(v*100)/100;
 const _r6=v=>v==null||isNaN(v)?null:Math.round(v*1e6)/1e6;
-const _bbTop=(pairs,n)=> (pairs||[]).slice(0,n||8).map(([name,count])=>({name, count}));
+// Top-N for the deck payload, with the tail folded into a visible "Other (n more)" entry - the
+// same rule the donuts follow (2026-09-05). It used to be a bare slice(0,8): the narrative was
+// handed 8 of 14 countries (1,423 of 1,661 leads) with nothing saying the rest existed, so any
+// generated sentence about "the markets" had the same blind spot the chart did.
+const _bbTop=(pairs,n)=>{ const p=(pairs||[]), k=n||8;
+  const top=p.slice(0,k).map(([name,count])=>({name, count}));
+  const tail=p.slice(k).reduce((s,d)=>s+d[1],0);
+  if(tail>0) top.push({name:'Other ('+(p.length-k)+' more)', count:tail});
+  return top; };
 function buildDeckPayload(){
   // CS: reuse aggregate() with full scope (all 11 markets, full window), then restore the live globals.
   const _am=activeMarkets, _rs=rangeStart, _re=rangeEnd;
@@ -7476,7 +7518,10 @@ function buildDeckPayload(){
       leads_pct:_r6(agg.q2Target?agg.accepted/agg.q2Target:0), ttd_target:agg.ttdTarget, vs_ttd_pct:_r6(agg.ttdTarget?agg.accepted/agg.ttdTarget:0),
       time_pct:_r6(agg.timePct),
       by_market:(agg.regionRows||[]).map(r=>({market:r.market, q2_target:r.q2, ttd_target:r.ttd, accepted:r.accepted})),
+      // Every dims[] list sums to dims_total (whole-flight accepted leads) - the long tail is
+      // folded into an "Other (n more)" entry, never dropped.
       dims:{ solutions:_bbTop(agg.solutions), countries:_bbTop(agg.countries), job_function:_bbTop(agg.jobFunc) },
+      dims_total:agg.breakdownTotal,
       note:'Accepted = Accepted + Replied + Unresponsive (engaged), NOT a graded MQL; New = unprocessed backlog. Headline lead totals are exact; the tier sub-split is non-deterministic in the source.'
     },
     paid:{
