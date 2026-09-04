@@ -41,17 +41,22 @@
 -- agree, so the error is silent on the metric most people spot-check. BasicStats is segmented only
 -- by date / device / network / slot and is additive.
 --
--- ***NO VIDEO-VIEW OR QUARTILE METRIC EXISTS IN THIS FEED.*** Neither CampaignBasicStats,
--- CampaignStats nor the (empty) VideoStats table carries views, view rate or quartiles, and
--- raw_windsor.perf_google_ads has no video columns either. video_3s_views / video_completes are
--- therefore hard NULL here -- NOT zero, which would be a factual claim that a video campaign
--- delivered no views. The YouTube line's plan CPV and 24,000-view target consequently cannot be
--- reported against until the DTS export is extended (a go-live gap; see the client README).
+-- ***VIDEO VIEWS ARE AVAILABLE - correcting an earlier note that said they were not (2026-09-03).***
+-- They are absent from CampaignBasicStats and CampaignStats, and the MCC-wide VideoStats table was
+-- EMPTY, which is where the old "no video metric exists in any source" conclusion came from. The
+-- PER-ACCOUNT table set carries them: `p_ads_VideoNonClickStats_<customer_id>` has
+-- `metrics_video_trueview_views`, the view rate, the average CPV and all four completion quartiles.
+-- Verified on the live YouTube line: 16,547 TrueView views at A$0.072 CPV over 2026-08-26..08-29.
 --
--- Cost is micros -> AUD (the account's own currency; no FX step). Conversions are carried and
--- LABELLED as Google-reported conversions, never folded into `leads` -- Northbourne's lead lane is
--- Meta + LinkedIn lead forms, and silently summing search conversions into it would double-count
--- an enquiry that also filled in the Meta form.
+-- ONLY THE COUNT IS CARRIED. `video_views` is additive and every rate is re-derived downstream from
+-- summed components (view rate = views / impressions, CPV = spend / views) - the repo-wide rule that
+-- a RATE must never enter a fact table, because every consumer SUMs these rows by day and channel.
+-- The quartile columns are rates whose denominator (video-capable impressions) is NOT in that table,
+-- so they cannot be multiplied back to counts here and are deliberately left out rather than carried
+-- as un-summable rates.
+--
+-- `video_3s_views` / `video_completes` stay NULL: those are META's 3-second-view and completion
+-- events, and a TrueView view (30s, or the full ad, or an interaction) is a DIFFERENT event.
 CREATE OR REPLACE VIEW `bidbrain-analytics.client_geocon.stg_google_ads` AS
 WITH map AS (
   SELECT seq, property_key, LOWER(match_pattern) AS pat
@@ -94,6 +99,19 @@ stats AS (
     FROM `bidbrain-analytics.raw_google_ads.p_ads_CampaignBasicStats_2020134915` WHERE customer_id = 2020134915
   )
   GROUP BY 1, 2
+),
+-- TrueView views per campaign x day, both accounts. LEFT JOINed below so a non-video campaign keeps
+-- a NULL (not measured) rather than a 0 (measured, none) - the nullness rule the dashboard reads.
+vid AS (
+  SELECT campaign_id, segments_date AS date, SUM(metrics_video_trueview_views) AS video_views
+  FROM (
+    SELECT campaign_id, segments_date, metrics_video_trueview_views
+    FROM `bidbrain-analytics.raw_google_ads.p_ads_VideoNonClickStats_5457742070` WHERE customer_id = 5457742070
+    UNION ALL
+    SELECT campaign_id, segments_date, metrics_video_trueview_views
+    FROM `bidbrain-analytics.raw_google_ads.p_ads_VideoNonClickStats_2020134915` WHERE customer_id = 2020134915
+  )
+  GROUP BY 1, 2
 )
 SELECT
   s.date,
@@ -127,8 +145,10 @@ SELECT
   CAST(NULL AS INT64)                          AS video_3s_views,     -- not in the feed; see header
   CAST(NULL AS INT64)                          AS video_completes,    -- not in the feed; see header
   CAST(NULL AS INT64)                          AS thruplays,
+  v.video_views,
   s.conversions,
   s.view_through_conversions
 FROM stats s
 JOIN camp c USING (campaign_id)
+LEFT JOIN vid v USING (campaign_id, date)
 LEFT JOIN nm_map nm ON c.campaign_name = nm.nm
