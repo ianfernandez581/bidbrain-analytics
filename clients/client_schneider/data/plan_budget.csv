@@ -1,7 +1,7 @@
 internal_campaign_id,budget_aud,budget_basis,flight_start,flight_end
 active_kpx,,,,
 ai_lc,480600.0,ex_fees,,
-airset,90000.0,ex_fees,2026-06-17,2026-09-17
+airset,90000.0,ex_fees,2026-06-17,2026-12-11
 aveva,15400.0,ex_fees,,
 csp,82355.0,ex_fees,,
 digital_bldg,,,,
@@ -11,8 +11,8 @@ eba,32500.0,ex_fees,2026-05-25,2026-08-31
 ecocare,,,,
 ecoconsult,30000.0,ex_fees,,
 ent_it,100000.0,ex_fees,2026-04-15,2026-09-30
-global_rebrand,,,2026-07-01,
-heavy,67195.0,ex_fees,2026-06-01,2026-10-31
+global_rebrand,,,2026-07-01,2026-12-11
+heavy,67195.0,ex_fees,2026-06-01,2026-12-11
 ia_services,8750.0,ex_fees,2026-03-09,2026-06-01
 impact_maker,,,,
 ind_edge,49596.0,ex_fees,,
