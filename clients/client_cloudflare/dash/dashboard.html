@@ -2349,6 +2349,21 @@ let effGrain='day';      // shared by ctrTrend / clkTrend / cpcTrend
 let cmpGrain='day';      // shared by cmpDaily + cmpSpend
 let csDailyGrain='day';  // dailyChart (accepted leads)
 let csWeeklyGrain='week';// weeklyChart (pacing target vs actual; Month/Week only)
+// BAR GEOMETRY for the "Pacing - target vs actual" chart, shared by BOTH lanes (2026-09-05).
+// APJ is the reference: Chart.js's own defaults and NO thickness cap, so a column's width is
+// the card width divided by the number of periods - 34.5px a week / 149.5px a month at 1,400px.
+// EMEA's renderer used to hard-cap every dataset at maxBarThickness 22, so its columns drew at
+// 22px in both views beside APJ's 34.5 / 149.5. Both renderers now SPREAD this object into every
+// dataset and nothing else sets a width property, so the two lanes cannot drift apart again.
+// Written once, on purpose: change it here and both charts move.
+// Known and accepted: with identical config the pixel width still follows the category COUNT,
+// and at Month grain APJ has 3 columns (Jul-Sep) while EMEA has 4 (its flight runs to late Oct),
+// so EMEA's month bars are ~25% narrower than APJ's. Matching PIXELS there would need a fixed
+// barThickness, which stops the bars filling the chart and breaks with the viewport - rejected.
+const PACING_BARS = Object.freeze({ barPercentage: 0.9, categoryPercentage: 0.8 });
+// The APJ Pacing-detail "Weekly pacing" card draws with the SAME function into its own, taller
+// canvas (cspdWeeklyChart) and keeps a cap - it is a different card, not the hero chart above.
+const CSPD_DETAIL_BARS = Object.freeze({ maxBarThickness: 22 });
 let cspdWeeklyGrain='week';// cspdWeeklyChart - the same Month/Week control on the Pacing detail chart
 let currentCampaignKey=null;                  // active single-campaign view key
 let cmpTab='li';                              // CF1-view tab: 'li' (LinkedIn) | 'cs' (content syndication)
@@ -3523,13 +3538,14 @@ function renderWeekly(agg) {
   // target (a pacing read); tooltips always show the true accepted count.
   const isRel = csWeeklyScale==='rel';
   const pace = keys.map((k,i)=> tgt[i] ? act[i]/tgt[i]*100 : 0);
+  // Bar geometry comes from PACING_BARS (shared with the EMEA renderer) - never set here.
   const datasets = isRel ? [
-      {label:'Accepted vs target', data: pace, backgroundColor:CF, borderRadius:3}
+      {label:'Accepted vs target', data: pace, backgroundColor:CF, borderRadius:3, ...PACING_BARS}
     ] : [
-      {label:'Target', data: tgt, backgroundColor:TARGET, borderRadius:3, stack:'plan'},
-      {label:'Accepted actual', data: act, backgroundColor:CF, borderRadius:3, stack:'actual'},
+      {label:'Target', data: tgt, backgroundColor:TARGET, borderRadius:3, stack:'plan', ...PACING_BARS},
+      {label:'Accepted actual', data: act, backgroundColor:CF, borderRadius:3, stack:'actual', ...PACING_BARS},
       // Dev mode: stack the unprocessed/New backlog on top of accepted so the full delivered bar shows.
-      ...(devMode ? [{label:'Unprocessed', data: unp, backgroundColor:'#B9C2CC', borderRadius:3, stack:'actual'}] : [])
+      ...(devMode ? [{label:'Unprocessed', data: unp, backgroundColor:'#B9C2CC', borderRadius:3, stack:'actual', ...PACING_BARS}] : [])
     ];
   charts.weeklyChart = new Chart(document.getElementById('weeklyChart'), {
     type:'bar',
@@ -4804,17 +4820,20 @@ function cspdRenderWeeklyChart(cfg, rows, canvasId){
   const dimIf = (base, k) => (monthly || k === CSPD.week || CSPD.week === 'qtd')
     ? base : 'color-mix(in srgb,' + base + ' 45%,transparent)';
   const UNPROC = '#B9C2CC';                 // same swatch as the APJ chart's Unprocessed series
+  // On the hero canvas (EMEA's "Pacing - target vs actual") the bars must match APJ's chart
+  // exactly, so they take the shared PACING_BARS; the APJ Pacing-detail card keeps its cap.
+  const bars = (cid === 'weeklyChart') ? PACING_BARS : CSPD_DETAIL_BARS;
   // Unprocessed is ADMIN-VIEW ONLY, exactly as on the APJ chart: the client rule of
   // 2026-07-07 (Jade call) keeps the unreviewed backlog out of the client view. It is a
   // DISPLAY series either way - never added into accepted, and no pacing figure reads it.
   const datasets = [
-    { label: 'Target',   data: tgt, borderRadius: 3, maxBarThickness: 22,
+    { label: 'Target',   data: tgt, borderRadius: 3, ...bars,
       backgroundColor: keys.map(k => dimIf(TARGET, k)) },
-    { label: 'Accepted actual', data: acc, borderRadius: 3, maxBarThickness: 22,
+    { label: 'Accepted actual', data: acc, borderRadius: 3, ...bars,
       backgroundColor: keys.map(k => dimIf(CF, k)) },
   ];
   if (devMode) datasets.push(
-    { label: 'Unprocessed', data: unp, borderRadius: 3, maxBarThickness: 22,
+    { label: 'Unprocessed', data: unp, borderRadius: 3, ...bars,
       backgroundColor: keys.map(k => dimIf(UNPROC, k)) });
   const swatch = [TARGET, CF, UNPROC];
   charts[cid] = new Chart(el, {

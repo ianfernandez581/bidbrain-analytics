@@ -998,7 +998,15 @@ cards unchanged.
   vs the full flight target) plus the same methodology line; the Pacing detail weekly tile shows
   '-' with "week in progress, day d of 7 - the week target is recognised at week close" for the
   in-progress week and sums CLOSED weeks only under "to date". Do not restore proration on
-  either lane without the client. Two facts
+  either lane without the client. **Pacing chart bar width is ONE shared constant (2026-09-05):**
+  `PACING_BARS` (Chart.js defaults, no cap - APJ was the reference) is spread into every dataset
+  of the "Pacing - target vs actual" chart by BOTH renderers (`renderWeekly` and
+  `cspdRenderWeeklyChart` when it draws into `weeklyChart`); EMEA's datasets used to hard-cap at
+  `maxBarThickness 22` and drew 22px columns beside APJ's 34.5px (week) / 149.5px (month). The APJ
+  Pacing-detail "Weekly pacing" card keeps its own `CSPD_DETAIL_BARS` cap - a different, taller
+  card. Both lanes have 13 week columns, but at Month grain APJ has 3 and EMEA 4 (flight to late
+  Oct), so identical config still gives EMEA ~25% narrower month bars; matching pixels there would
+  need a fixed barThickness and was rejected. Two facts
   worth knowing when someone compares TTD% to Time%: time elapsed is measured over the CALENDAR
   quarter (1 Jul - 30 Sep) while the plan's 13 weeks run Mon 6 Jul - Sun 4 Oct, and the weekly
   targets are a mild front-loaded curve (182 -> 169 -> 176, total 2,290), so the two
