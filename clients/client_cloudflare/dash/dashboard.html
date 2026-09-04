@@ -3355,14 +3355,17 @@ function renderKPIs(agg) {
   document.getElementById('kpi_rej').textContent = (rejRatio*100).toFixed(2)+'%';
   document.getElementById('kpi_acc_cnt').textContent = fmtN(agg.accepted) + ' leads';
   document.getElementById('kpi_rej_cnt').textContent = fmtN(agg.rejected) + ' leads';
-  // Pending/unprocessed tile. EMEA: ALWAYS shown to the client as "Pending review" (2026-08-31,
-  // Calvin - these leads sit in the client's own review queue, and hiding them understates the
-  // publishers; Inbox Insight read 22 delivered when it had delivered 75). APJ keeps the
-  // 2026-07-07 client rule EXACTLY as agreed: dev-mode only, original wording - do not unify.
-  // Either way the count stays OUT of the acceptance-rate denominator above.
+  // Pending/unprocessed tile: ADMIN VIEW ONLY on BOTH lanes (2026-09-05, Ian: "remove pending
+  // review value for client view on EMEA"). History: APJ has been dev-only since the 2026-07-07
+  // client rule; EMEA showed it to the client as "Pending review" from 2026-08-31 (Calvin - the
+  // publishers' delivered counts were understated without it, Inbox Insight read 22 delivered
+  // when it had delivered 75) until 2026-09-05. That understatement is now answered by the
+  // publisher table's own Pending review COLUMN, which stays. The wording still differs per lane
+  // in Admin View (EMEA "Pending review", APJ "Unprocessed (New)") - do not unify. Either way the
+  // count stays OUT of the acceptance-rate denominator above.
   const upStat = document.getElementById('kpi_unprocessed_stat');
   if (upStat) {
-    const show = emea || devMode;
+    const show = devMode;
     upStat.style.display = show ? '' : 'none';
     const pair = document.getElementById('overallPair');
     if (pair) pair.classList.toggle('triple', show);   // 2-col -> 3-col so the extra stat fits
@@ -4171,7 +4174,9 @@ function renderRegionGrid(agg) {
     const wTd = (ttd/denom*100).toFixed(1);
     const wA  = (accepted/denom*100).toFixed(1);
     const wU  = ((unprocessed||0)/denom*100).toFixed(1);
-    const showPending = emea || devMode;
+    // Same rule as the KPI tile (2026-09-05): the per-market Pending review row is Admin View
+    // only on both lanes - one basis for the whole card, not one tile.
+    const showPending = devMode;
     const unpRow = showPending
       ? `<div class="reg-row"><div class="reg-lbl">${emea ? 'Pending review' : 'Unprocessed'}</div><div class="reg-bar"><div class="reg-fill" style="width:${wU}%;background:#B9C2CC"></div></div><div class="reg-num">${fmtN(unprocessed||0)}</div></div>`
       : '';

@@ -1276,6 +1276,14 @@ columns in `sql/13` (they had silently gone to zero under the 11-chip codes).
   rate 14.1% -> the true 12.2%; `reviewed` 142 -> 139). Accepted was unaffected (no test lead is Accepted),
   which is why only the one check went red. **Any new CS lane must carry this filter** — the status dash's
   CF1 checks had it on the source side from day one and are what caught the gap. Keep the two identical.
+- **EMEA followed on 2026-09-05 (Ian: "remove pending review value for client view on EMEA").** From
+  2026-08-31 to 09-05 the EMEA lane showed the top-strip "Pending review" tile and the per-market
+  Pending review row to the CLIENT (Calvin: hiding them understated the publishers). Both are now
+  Admin View only on BOTH lanes (`show = devMode` in `renderKPIs`, `showPending = devMode` in
+  `renderRegionGrid`) - one basis for the whole card, not one tile. The publisher table's own
+  *Pending review* COLUMN (Pacing detail) stays client-visible on both lanes: it is what answers the
+  understatement, and it was not part of the instruction. Admin View wording still differs per lane
+  (EMEA "Pending review", APJ "Unprocessed (New)").
 - **Unprocessed / New leads removed from the dashboard.** They're our internal backlog, not shown to
   Cloudflare. Acceptance & rejection rate now use **reviewed = accepted + rejected** as the denominator
   (so acc% + rej% = 100%); the unprocessed pacing bar, the "pending triage" note, the Comparison-tab
