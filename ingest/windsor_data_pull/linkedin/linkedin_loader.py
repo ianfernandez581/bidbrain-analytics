@@ -111,6 +111,10 @@ SELECT_ACCOUNTS = [
     "511313581", "511609128", "512344932", "512350710", "512810387", "513554482",
     "515691430", "516221072", "516746102", "516748074", "517045062", "517047078",
     "520254094", "547920275", "547920277", "547960230",
+    "556629043",   # Geocon Group - Campaign Manager account built 2026-09, connected to Windsor
+                   # 2026-09-04. Its delivery is NORTHBOURNE GATEWAY's (client-confirmed), even
+                   # though the campaign is named "Gateway Braddon Aug2026" - see
+                   # clients/client_geocon/sql/07_stg_linkedin.sql.
     # The full set granted on the 2026-07 LinkedIn connector. Add ids here AND (optionally) map
     # them in LINKEDIN_ACCOUNT_TO_CLIENT below. Find ids at https://onboard.windsor.ai?datasource=linkedin.
 ]
@@ -165,6 +169,7 @@ LOG_FILE = WORK_DIR / "linkedin_loader.log"
 # but the campaign name starts 'MONGODB_', so the campaign-name keyword fallback below tags it
 # correctly to ('mongodb','transmission') the moment any MongoDB row lands, whatever account it's in.
 LINKEDIN_ACCOUNT_TO_CLIENT = {
+    "556629043": ("geocon", "100-digital"),       # Geocon Group
     "517045062": ("schneider", "transmission"),   # SchneiderElectric_TransmissionSG_AUD
     "504047196": ("schneider", "transmission"),   # SchneiderElectric_TransmissionSG_USD
     "516221072": ("schneider", "transmission"),   # SchneiderElectric_TransmissionSG_SGD

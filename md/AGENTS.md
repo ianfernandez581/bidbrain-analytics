@@ -92,8 +92,10 @@ dates, "verified on") lives there too, never here.**
   job writes `status.json` every `*/15`; `status-deploy` job is the privileged "Make this live"
   worker; CS verification queries are BUILT from each client's `definitions.json`.
 - **`grid-core/`** - The Grid: Node/SQLite cross-client cockpit (Pulse pacing, Central table, Exec
-  KPIs), service `central-grid`, deployed via `grid-core/deploy_grid.ps1` (auto-run by ship on any
-  grid-core change). Its PHASE*_REPORT.md audit trail lives in `md/` - cited by live code, keep.
+  KPIs, **Connections** = per-account Windsor connector health off `windsor_connections.json`,
+  written hourly by the `windsor-connections-probe` job in `ingest/windsor_data_pull/connections/`,
+  which also emails ian@+charles@ on a state change - see that README), service `central-grid`,
+  deployed via `grid-core/deploy_grid.ps1` (auto-run by ship on any grid-core change). Its PHASE*_REPORT.md audit trail lives in `md/` - cited by live code, keep.
   Its SQLite state is DURABLE on Cloud Run via `gs://bidbrain-analytics-grid-state` (env
   `GRID_STATE_BUCKET`; `src/brain/persist.js`) - the ONLY non-`<c>`-derived bucket in the project.
   `central_sync.py` queries BigQuery through the CLIENT LIBRARY, never the `bq` CLI: there is no
