@@ -226,6 +226,36 @@ def observe_grant(ds: dict, held_now: dict | None, prev_ds: dict | None, changes
 def newest_days(bq: bigquery.Client, ds: dict) -> dict:
     """{key: newest metric_date iso} for the datasource's raw table. Snapshot tables
     (hubspot) return {'hubspot': newest _pulled_at day}. Never raises."""
+    # NATIVE DTS datasources are shaped differently: Google runs them, there is no Windsor
+    # connector to probe, and each account gets its OWN table rather than a shared one keyed
+    # by account_id. So freshness is the only signal, and it is one query per account.
+    #
+    # Each family also needs its own date expression, and NEVER __TABLES__.last_modified:
+    # a DTS run that loads nothing still TOUCHES the table, so last_modified advances
+    # straight through an outage and reports green. That is exactly how the MCC Google Ads
+    # failure stayed invisible (md/AGENTS.md).
+    #   Google Ads  segments_date    the reported ad date, on the row
+    #   GA4         _PARTITIONTIME   p_ga4_* carries no date column at all (16 columns, none
+    #                                a date), so the ingestion partition is the only per-row
+    #                                time that exists
+    if ds.get("source") == "dts":
+        out: dict = {}
+        for a in ds.get("accounts", []):
+            tbl = ds["table_template"].format(id=a["id"])
+            sql = f"SELECT MAX({ds['date_expr']}) AS d FROM `{PROJECT}.{tbl}`"
+            try:
+                for r in bq.query(sql, location=LOCATION).result():
+                    if r["d"] is not None:
+                        d = r["d"]
+                        out[a["id"]] = (d.date() if hasattr(d, "date") else d).isoformat()
+            except Exception as e:  # noqa: BLE001
+                # A missing table is a REAL finding, not a probe failure: eight GA4 properties
+                # have failing transfers and no table at all. Recorded per account so one
+                # absent table cannot hide the other accounts' freshness.
+                log(f"DTS newest-day failed for {tbl}: {type(e).__name__}: {str(e)[:120]}")
+                out[f"_error:{a['id']}"] = str(e)[:200]
+        return out
+
     table = f"`{PROJECT}.{ds['table']}`"
     try:
         if ds.get("key_col"):
@@ -243,8 +273,14 @@ def newest_days(bq: bigquery.Client, ds: dict) -> dict:
 
 
 # ----------------------------------------------------------------------------- classify
-def classify(acct: dict, probe: dict, newest: str | None, frozen_after: int, prev_state: str | None) -> tuple[str, str]:
-    """-> (state, fix). The verdict + the plain-English next step the tab prints."""
+def classify(acct: dict, probe: dict, newest: str | None, frozen_after: int, prev_state: str | None,
+             kind: str = "windsor") -> tuple[str, str]:
+    """-> (state, fix). The verdict + the plain-English next step the tab prints.
+
+    kind="dts" means a native BigQuery Data Transfer: nobody probed a connector, so the only
+    evidence is freshness and every "re-grant in Windsor" instruction would be wrong. The fix
+    text has to point at the transfer instead.
+    """
     expected = acct.get("expected", "daily")
     today = today_utc()
     behind = None
@@ -252,6 +288,30 @@ def classify(acct: dict, probe: dict, newest: str | None, frozen_after: int, pre
         behind = (today - dt.date.fromisoformat(newest)).days - 1     # data through yesterday = 0 behind
         behind = max(behind, 0)
     v = probe["verdict"]
+
+    # ---- native DTS: freshness is the whole story -----------------------------
+    if kind == "dts":
+        if newest is None:
+            # No table at all. Eight GA4 properties are in exactly this state - their
+            # transfers fail on "User does not have permission to access the Google Analytics
+            # property", so nothing was ever created. A freshness check alone would stay
+            # silent forever on these, which is why absence is stated as a finding.
+            if expected in ("ended", "retired", "standby"):
+                return "idle", f"No transfer data, and that is expected - {acct.get('why') or expected}."
+            return "not_granted", ("This transfer has never landed a table. Check its run log in "
+                                   "BigQuery Data Transfers - a permission error on the upstream "
+                                   "property looks exactly like this. The transfer state alone is "
+                                   "not enough: a DTS run can report SUCCEEDED while loading nothing.")
+        if expected in ("ended", "retired"):
+            return "idle", f"Quiet by design - {acct.get('why') or expected}."
+        if behind is not None and behind <= frozen_after:
+            return "ok", ""
+        if expected == "standby":
+            return "idle", f"Behind, but nothing reads it - {acct.get('why') or 'standby path'}."
+        return "frozen", (f"The transfer has stopped advancing (last data {newest}). Read its RUN LOG, "
+                          "not just its state - a DTS run reports SUCCEEDED while loading nothing, and "
+                          "the real cause sits in the per-run log. A lost upstream permission is the "
+                          "usual reason.")
 
     if v == "not_granted":
         if expected in ("ended", "retired"):
@@ -334,6 +394,9 @@ def build(cfg: dict, api_key: str, bq: bigquery.Client | None, prev: dict | None
     # 1. every (ds, id) to probe - configured accounts + TTD's single seat + LinkedIn extras
     jobs: list[tuple[dict, str, dict | None]] = []
     for ds in cfg["datasources"]:
+        # Native DTS has no Windsor connector to ask. Skipped here; judged on freshness alone.
+        if ds.get("source") == "dts":
+            continue
         if ds["ds"] == "tradedesk":
             jobs.append((ds, ds["seat"], None))
             continue
@@ -365,7 +428,19 @@ def build(cfg: dict, api_key: str, bq: bigquery.Client | None, prev: dict | None
         connector = {"state": "ok", "latency_ms": None, "note": "", "configured_in_windsor": None}
         latencies = []
 
-        if ds["ds"] == "tradedesk":
+        if ds.get("source") == "dts":
+            # Nothing was probed, so there is no connector verdict to report. A synthetic
+            # "granted" is honest here: the transfer is Google's to run, and the only question
+            # we can answer is whether data arrived. rows=None keeps classify() out of the
+            # Windsor row-count branches entirely.
+            connector = {"state": "n/a", "latency_ms": None, "configured_in_windsor": None,
+                         "note": "Native BigQuery Data Transfer - no Windsor connector to probe. "
+                                 "Judged on table freshness alone."}
+            synthetic = {"http": None, "ms": None, "rows": None, "by_key": {},
+                         "verdict": "granted", "note": "", "configured": None}
+            for a in ds["accounts"]:
+                accts_out.append(_account_row(ds, a, synthetic, nd, frozen_after, prev_acc, today, changes, counts))
+        elif ds["ds"] == "tradedesk":
             seat = results[(ds["ds"], ds["seat"])]
             latencies.append(seat["ms"])
             if seat["verdict"] == "not_granted":
@@ -425,9 +500,15 @@ def build(cfg: dict, api_key: str, bq: bigquery.Client | None, prev: dict | None
         grant["effective_reauth"], grant["effective_reauth_source"] = effective_reauth(grant)
         grant["expiry_estimate"] = expiry_estimate(grant)
         out_ds.append({
-            "ds": ds["ds"], "label": ds["label"], "table": ds["table"], "loader_job": ds.get("loader_job"),
+            # DTS has one table per account, so the datasource-level value is the template.
+            "ds": ds["ds"], "label": ds["label"],
+            "table": ds.get("table") or ds.get("table_template"), "loader_job": ds.get("loader_job"),
             "schedule": ds.get("schedule"), "loader_file": ds.get("loader_file"),
-            "reauth_url": f"https://onboard.windsor.ai?datasource={ds['ds']}",
+            "source": ds.get("source", "windsor"),
+            # A Windsor re-auth link is meaningless for a DTS feed - the fix is in the BigQuery
+            # transfer, and offering the wrong button is how someone re-authorises the wrong thing.
+            "reauth_url": (None if ds.get("source") == "dts"
+                           else f"https://onboard.windsor.ai?datasource={ds['ds']}"),
             "grant": grant, "connector": connector,
             "bq_error": nd.get("_error"),
             "accounts": accts_out,
@@ -451,10 +532,14 @@ def build(cfg: dict, api_key: str, bq: bigquery.Client | None, prev: dict | None
 
 
 def _account_row(ds, a, pr, nd, frozen_after, prev_acc, today, changes, counts):
-    newest = nd.get(a["id"]) if ds.get("key_col") else nd.get("hubspot")
+    is_dts = ds.get("source") == "dts"
+    if is_dts:
+        newest = nd.get(a["id"])
+    else:
+        newest = nd.get(a["id"]) if ds.get("key_col") else nd.get("hubspot")
     prev = prev_acc.get(f"{ds['ds']}:{a['id']}")
     prev_state = prev.get("state") if prev else None
-    state, fix = classify(a, pr, newest, frozen_after, prev_state)
+    state, fix = classify(a, pr, newest, frozen_after, prev_state, "dts" if is_dts else "windsor")
     behind = None
     if newest:
         behind = max((today_utc() - dt.date.fromisoformat(newest)).days - 1, 0)
@@ -467,7 +552,8 @@ def _account_row(ds, a, pr, nd, frozen_after, prev_acc, today, changes, counts):
         "state": state, "since": since, "since_days": since_days, "fix": fix, "why": a.get("why"),
         "extra": bool(a.get("_extra")),
         "probe": {"http": pr.get("http"), "ms": pr.get("ms"), "rows": pr.get("rows"), "verdict": pr.get("verdict"), "note": (pr.get("note") or "")[:300]},
-        "data": {"table": ds["table"], "newest_day": newest, "days_behind": behind, "sibling_newest_day": max(sib) if sib else None},
+        "data": {"table": (ds["table_template"].format(id=a["id"]) if is_dts else ds["table"]),
+                 "newest_day": newest, "days_behind": behind, "sibling_newest_day": max(sib) if sib else None},
     }
     counts[state] = counts.get(state, 0) + 1
     if prev_state and prev_state != state:
@@ -487,8 +573,34 @@ def decide_alerts(cfg: dict, doc: dict, prev: dict | None) -> list[dict]:
     red = [(d, a) for d in doc["datasources"] for a in d["accounts"] if a["alerts"] and a["state"] in ("not_granted", "frozen", "error")]
     changes = [c for c in doc["_changes"] if c["alerts"] and (c["new"] in ("not_granted", "frozen", "error") or c["old"] in ("not_granted", "frozen", "error"))]
 
-    if changes:
-        out.append(dict(kind="change", **render_change_email(changes, red, doc, GRID_URL)))
+    # FLAP DAMPING. A change email fires on every transition, which is right for a real
+    # ok -> not_granted and wrong for an account that cannot make up its mind. The realistic
+    # oscillator here is frozen <-> quiet: those two differ only by whether Windsor returned
+    # rows for the 3-day window, and a connector whose row count flickers between 0 and >0
+    # flips state every hour. Measured undamped: 24 flips in a day produced 25 emails.
+    #
+    # After flap_limit transitions in one UTC day an account stops earning change emails for
+    # the rest of that day. It is NOT hidden: it still shows on the Grid tab and still appears
+    # in the daily digest, so a flapping feed is reported once rather than hourly.
+    flap_limit = int(cfg.get("flap_limit_per_day", 4))
+    flaps = dict(al.get("flaps") or {})
+    today_iso = today_utc().isoformat()
+    kept = []
+    for c in changes:
+        fk = f"{c['ds']}:{c['id']}"
+        rec = flaps.get(fk) or {}
+        n = (int(rec.get("n", 0)) + 1) if rec.get("day") == today_iso else 1
+        flaps[fk] = {"day": today_iso, "n": n}
+        if n <= flap_limit:
+            kept.append(c)
+        elif n == flap_limit + 1:
+            log(f"  FLAPPING: {c['ds']} / {c['account']} has changed state {n} times today - "
+                f"further change emails suppressed until tomorrow (still on the tab + digest)")
+    # Only today's counters are kept, so this cannot grow without bound in the payload.
+    al["flaps"] = {k: v for k, v in flaps.items() if v.get("day") == today_iso}
+
+    if kept:
+        out.append(dict(kind="change", **render_change_email(kept, red, doc, GRID_URL)))
 
     # digest: first run at/after digest_hour_utc while anything is still red, once per UTC day
     now = dt.datetime.now(dt.timezone.utc)
@@ -496,8 +608,21 @@ def decide_alerts(cfg: dict, doc: dict, prev: dict | None) -> list[dict]:
         out.append(dict(kind="digest", **render_digest_email(red, doc, GRID_URL)))
         al["last_digest_day"] = now.date().isoformat()
 
-    # expiry warnings (estimate): once per (datasource, last_reauth)
+    # expiry warnings (estimate): ESCALATING - once per milestone per (datasource, last_reauth).
+    #
+    # This was one email at expiry_warn_days and then silence, including on the expiry day
+    # itself. The brief is 2 weeks, then 1 week, then daily - because a single warning two
+    # weeks out is one deferred email away from the exact silent expiry this job exists to
+    # prevent. Milestones are matched as "days <= m", so a probe that misses a day (a failed
+    # run, a paused scheduler) still fires the next one down rather than skipping it.
+    #
+    # Past expiry it keeps firing daily: the estimate can be days out either way, and going
+    # quiet at the moment the token is most likely already dead is the worst possible timing.
     warn_days = int(cfg.get("expiry_warn_days", 14))
+    # ASCENDING matters. With `days <= m` over a descending list, T-7 matches 14 first - which
+    # is already marked from the T-14 email - and every milestone after the first goes silent.
+    # Ascending picks the SMALLEST milestone at or above days, so each fires on its own day.
+    milestones = sorted({int(x) for x in (cfg.get("expiry_milestones") or [warn_days, 7, 3, 2, 1])})
     warned = dict(al.get("expiry_warned") or {})
     for d in doc["datasources"]:
         g = d.get("grant") or {}
@@ -506,11 +631,52 @@ def decide_alerts(cfg: dict, doc: dict, prev: dict | None) -> list[dict]:
             continue
         days = (dt.date.fromisoformat(est) - today_utc()).days
         key = f"{d['ds']}@{g.get('last_reauth')}"
-        if days <= warn_days and warned.get(key) is None:
+        # Per key we remember two separate things, because they de-duplicate differently:
+        #   milestones  the countdown marks already sent (each fires at most ONCE)
+        #   expired_on  the last day an at-or-past-expiry mail went out (fires once a DAY)
+        # Keeping the expired case as a single date rather than an accumulating mark matters:
+        # a connector left expired for months would otherwise grow one entry per day forever.
+        prev_marks = warned.get(key)
+        if isinstance(prev_marks, dict):
+            seen = {int(m) for m in (prev_marks.get("milestones") or [])}
+            expired_on = prev_marks.get("expired_on")
+        elif isinstance(prev_marks, list):
+            seen, expired_on = {int(m) for m in prev_marks}, None
+        else:
+            # Pre-escalation state file: the value was a single ISO date string meaning
+            # "the one warn_days mail has been sent". Treat that mark as already spent.
+            seen, expired_on = ({warn_days} if prev_marks else set()), None
+
+        today_iso = today_utc().isoformat()
+        if days <= 0:
+            fire = expired_on != today_iso
+            if fire:
+                expired_on = today_iso
+        else:
+            due = next((m for m in milestones if days <= m), None)
+            fire = due is not None and due not in seen
+            if fire:
+                seen.add(due)
+
+        if fire:
             out.append(dict(kind="expiry", **render_expiry_email(d, days, GRID_URL)))
-            warned[key] = now.date().isoformat()
+        warned[key] = {"milestones": sorted(seen), "expired_on": expired_on}
     al["expiry_warned"] = warned
     return out
+
+
+def write_payload(args, gcs, doc, quiet: bool = False) -> None:
+    """Publish the doc (which doubles as the alert ledger - see main())."""
+    payload = json.dumps(doc, indent=1)
+    if args.local:
+        with open(args.local, "w", encoding="utf-8") as f:
+            f.write(payload)
+        if not quiet:
+            log(f"wrote {args.local} ({len(payload) // 1024} KB)")
+    else:
+        gcs.bucket(BUCKET).blob(OBJECT).upload_from_string(payload, content_type="application/json")
+        if not quiet:
+            log(f"wrote gs://{BUCKET}/{OBJECT} ({len(payload) // 1024} KB)")
 
 
 def main() -> int:
@@ -519,10 +685,23 @@ def main() -> int:
     ap.add_argument("--no-email", action="store_true", help="decide alerts but do not send (logged + recorded as not sent)")
     ap.add_argument("--no-bq", action="store_true", help="skip the BigQuery newest-day read (connector-only verdicts)")
     ap.add_argument("--config", default=os.path.join(HERE, "config.json"))
+    # --to exists so a real test send never requires editing config.json. Editing the
+    # recipient list to test delivery is how a one-person test list ends up deployed: the
+    # edit is invisible in review and the team silently stops being told anything.
+    ap.add_argument("--to", default="", metavar="ADDR[,ADDR]",
+                    help="override recipients for THIS RUN only (local delivery test); "
+                         "config.json is left untouched")
     args = ap.parse_args()
 
     with open(args.config, encoding="utf-8") as f:
         cfg = json.load(f)
+
+    if args.to:
+        cfg["recipients"] = [a.strip() for a in args.to.split(",") if a.strip()]
+        # Loud on purpose. A run that quietly mails one person instead of the team looks
+        # identical in the logs to a healthy run, so say which it was.
+        log(f"RECIPIENT OVERRIDE (--to): this run mails {', '.join(cfg['recipients'])} "
+            f"ONLY. config.json is unchanged.")
 
     api_key = os.environ.get("WINDSOR_API_KEY") or get_secret(WINDSOR_SECRET)
     if not api_key:
@@ -549,31 +728,51 @@ def main() -> int:
     for c in doc["_changes"]:
         log(f"  CHANGE {c['ds']} / {c['client']} / {c['account']}: {c['old']} -> {c['new']}{'' if c['alerts'] else ' (no alert - account not on a critical path)'}")
 
-    # alerts
+    # ---- decide -------------------------------------------------------------
     emails = decide_alerts(cfg, doc, prev)
     al = doc["alerts"]
     hist = list(al.get("history") or [])
     token = None if args.no_email else get_secret(GMAIL_SECRET)
     al["enabled"] = bool(token)
+
+    # ---- PERSIST BEFORE SENDING --------------------------------------------
+    # This published JSON *is* the state file: the alert ledger (last_digest_day,
+    # expiry_warned, flap counters) rides inside it, and `prev` is simply the last run's copy.
+    #
+    # So the write is what makes de-duplication real, and it MUST happen before the send.
+    # Sending first was a storm waiting to happen: decide_alerts() marks the ledger, then if
+    # the upload failed the marks died with the process, and the next hourly run re-decided
+    # from scratch and re-sent. Measured at 26 emails a day, every day, for as long as the
+    # write kept failing - and a bucket permission or quota problem does keep failing.
+    #
+    # Ordering it this way makes the failure loud instead: the exception propagates, the Cloud
+    # Run execution goes RED, and NOTHING is emailed. Losing one alert while the job is
+    # visibly broken is a far better trade than mailing the team hourly forever.
+    hist_placeholder = list(hist)
+    al["history"] = hist_placeholder[-50:]
+    al["last_run_at"] = doc["generated_at"]
+    doc["alerts"] = al
+    doc.pop("_changes", None)
+    write_payload(args, gcs, doc)
+
+    # ---- send ---------------------------------------------------------------
+    # A send failure is recorded in `history` (sent:false + the error) and surfaces on the
+    # Grid tab. It is deliberately NOT retried: the ledger is already committed, and anything
+    # still wrong is picked up by tomorrow's digest.
     if emails:
         from mailer import send_gmail
         for e in emails:
             sent, err = (False, "email disabled (--no-email)") if args.no_email else send_gmail(token, cfg["recipients"], e["subject"], e["html"], e["text"]) if token else (False, f"no Gmail token in Secret Manager ({GMAIL_SECRET})")
             hist.append({"sent_at": now_iso(), "kind": e["kind"], "subject": e["subject"], "to": cfg["recipients"], "sent": sent, "error": err})
             log(f"  EMAIL [{e['kind']}] {'SENT' if sent else 'NOT SENT - ' + str(err)}: {e['subject']}")
-    al["history"] = hist[-50:]
-    al["last_run_at"] = doc["generated_at"]
-    doc["alerts"] = al
-    doc.pop("_changes", None)
-
-    payload = json.dumps(doc, indent=1)
-    if args.local:
-        with open(args.local, "w", encoding="utf-8") as f:
-            f.write(payload)
-        log(f"wrote {args.local} ({len(payload) // 1024} KB)")
-    else:
-        gcs.bucket(BUCKET).blob(OBJECT).upload_from_string(payload, content_type="application/json")
-        log(f"wrote gs://{BUCKET}/{OBJECT} ({len(payload) // 1024} KB)")
+        # Re-publish so the tab shows what actually went out. Best-effort: the ledger is
+        # already safely written above, so a failure here costs a history line, not a storm.
+        al["history"] = hist[-50:]
+        doc["alerts"] = al
+        try:
+            write_payload(args, gcs, doc, quiet=True)
+        except Exception as e:  # noqa: BLE001
+            log(f"  (send history not republished: {type(e).__name__}: {str(e)[:120]})")
     return 0
 
 

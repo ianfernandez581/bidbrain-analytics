@@ -283,8 +283,14 @@ reading the raw `ads_*_<id>` sets directly needs the same union - `client_resetd
 7 months (28,143 rows -> 116) before it was caught. **A client can also have MORE THAN ONE Google
 Ads account** (geocon opened a second purely to bill one line separately) - union them and key off
 the campaign NAME, never the account.
-**Still on the MCC set and therefore still frozen: The Little Marionette (1869745895) and Reset Data
-(1054407474)** - each needs its own transfer plus a `create_views.py` repoint.
+**RESOLVED 2026-09-04 - The Little Marionette (1869745895) and Reset Data (1054407474) are done**:
+both have their own per-account transfer and both sides of the cutover are wired (`GADS_LIVE_FROM`
+2026-08-25 in `create_views.py`, MCC capped at `GADS_FROZEN_THROUGH` 2026-08-24). All five Google
+Ads accounts verified fresh, max `segments_date` 2026-09-02/03.
+**Measure DTS freshness on `segments_date`, NEVER on `__TABLES__.last_modified`** - a run that loads
+nothing still TOUCHES the table, so last_modified advances straight through the outage above and
+reports green. GA4's `p_ga4_*` tables carry no date column at all (16 columns, none a date), so
+there `MAX(_PARTITIONTIME)` is the only honest signal.
 
 ## A SCOPE FIX MEANT TO ADMIT ROWS MUST BE VERIFIED BY WHAT IT ADMITS (2026-08-31)
 The estate verifies a scope change by proving it is a **strict no-op** - identical totals before and

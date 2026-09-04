@@ -13,9 +13,11 @@
     "last_reauth is the SEED only: the probe OBSERVES re-grants itself (Windsor's ds-accounts list gaining ids, or an",
     "account flipping not_granted -> granted) and uses the later of the two dates. Edit it only to correct history."
   ],
-  "recipients": ["ian@100.digital", "charles@100.digital"],
+  "_recipients_doc": "The DEPLOYED list (Jerome's call, 2026-09-04): Jerome, Ian and Charles. Calvin (calvin@100.digital) is deliberately held back until the alerts have proven themselves - add the address here and redeploy, nothing else changes. For a LOCAL test send, do NOT edit this list: pass `--to jerome@bidbrain.ai` on probe.py, which overrides recipients for that one run. Editing the list to test it is how a test list gets deployed by accident. Read at send time from cfg['recipients'] and published into the payload, so the Grid tab always states the live list.",
+  "recipients": ["jerome@bidbrain.ai", "ian@100.digital", "charles@100.digital"],
   "digest_hour_utc": 22,
   "expiry_warn_days": 14,
+  "expiry_milestones": [14, 7, 3, 2, 1],
   "frozen_after_days": 3,
   "probe_window_days": 3,
   "datasources": [
@@ -153,6 +155,91 @@
                  "note": "HubSpot private-app tokens do not expire. Single tenant (Reset Data), no account selection." },
       "accounts": [
         { "id": "hubspot", "name": "Reset Data HubSpot portal", "client": "resetdata", "label": "Reset Data", "expected": "snapshot", "alerts": true, "consumers": ["resetdata"] }
+      ]
+    },
+    {
+      "ds": "dts_google_ads",
+      "label": "Google Ads (native BigQuery transfer)",
+      "source": "dts",
+      "table_template": "raw_google_ads.p_ads_CampaignBasicStats_{id}",
+      "date_expr": "segments_date",
+      "_doc": [
+        "NOT a Windsor connector - Google runs these, so there is nothing to probe and freshness is",
+        "the only signal. That is also why they belong here: a broken transfer leaves no Windsor",
+        "grant to fail, so the connector half of this monitor cannot see it at all.",
+        "",
+        "table: use CampaignBasicStats, NEVER CampaignStats - the latter is also segmented by",
+        "click_type and DOUBLE-COUNTS impressions (22,892 vs a true 21,008 over one week). Clicks",
+        "agree, which is what makes it silent. See md/AGENTS.md.",
+        "",
+        "date_expr: segments_date, NEVER __TABLES__.last_modified. A DTS run that loads nothing",
+        "still TOUCHES the table, so last_modified advances straight through an outage and reports",
+        "green - exactly how the MCC failure of 2026-08-18 stayed invisible.",
+        "",
+        "All five verified fresh 2026-09-04 (max segments_date 2026-09-02/03). md/AGENTS.md said TLM",
+        "and Reset Data were still frozen on the MCC set; that is stale - both have their own",
+        "per-account transfer since 2026-08-25 (GADS_LIVE_FROM in ingest/dts_data_pull/create_views.py)."
+      ],
+      "grant": { "last_reauth": null, "reauth_by": null, "token_lifetime_days": null,
+                 "note": "Native DTS, authorised by the Google account that owns the transfer. No token to expire, but it DOES break when upstream access is revoked - which is what freshness catches." },
+      "accounts": [
+        { "id": "3451896252", "name": "MCC 345-189-6252", "client": null, "label": "MCC (shared)", "expected": "daily", "alerts": true, "consumers": ["cloudflare", "geocon"] },
+        { "id": "1054407474", "name": "Reset Data", "client": "resetdata", "label": "Reset Data", "expected": "daily", "alerts": true, "consumers": ["resetdata"] },
+        { "id": "5457742070", "name": "Geocon", "client": "geocon", "label": "Geocon", "expected": "daily", "alerts": true, "consumers": ["geocon"] },
+        { "id": "2020134915", "name": "Geocon Group", "client": "geocon", "label": "Geocon", "expected": "daily", "alerts": true, "consumers": ["geocon"] },
+        { "id": "1869745895", "name": "The Little Marionette", "client": "tlm", "label": "The Little Marionette", "expected": "daily", "alerts": true, "consumers": ["tlm"] }
+      ]
+    },
+    {
+      "ds": "dts_ga4",
+      "label": "GA4 (native BigQuery transfer)",
+      "source": "dts",
+      "table_template": "raw_ga4.p_ga4_TrafficAcquisition_{id}",
+      "date_expr": "_PARTITIONTIME",
+      "_doc": [
+        "date_expr is _PARTITIONTIME because the p_ga4_* tables carry NO date column at all -",
+        "16 columns, not one of them a date - so the ingestion partition is the only per-row time",
+        "that exists. Verified 2026-09-04.",
+        "",
+        "NINE of these transfers are FAILING, all with 'User does not have permission to access the",
+        "Google Analytics property' - ian@100.digital was never granted GA4 Viewer on them. Eight",
+        "have no table at all, which is why classify() treats a missing table as a finding rather",
+        "than staying silent: a pure freshness check cannot see a feed that never existed.",
+        "",
+        "Property -> client names come from PROPERTY_NAMES in ingest/dts_data_pull/create_views.py,",
+        "which is the authoritative map. STT and Reset Data read raw_ga4.perf_ga4 directly, so their",
+        "properties are on a live critical path and alert. The rest are marked standby with alerts",
+        "off - they are worth SEEING, not worth paging anyone about."
+      ],
+      "grant": { "last_reauth": null, "reauth_by": null, "token_lifetime_days": null,
+                 "note": "Native DTS. Breaks on upstream GA4 property permission, not on a token." },
+      "accounts": [
+        { "id": "287370621", "name": "VMCH Website", "client": "vmch", "label": "VMCH", "expected": "daily", "alerts": true, "consumers": ["vmch"],
+          "why": "LIVE client (vmch-dash). Its DTS transfer has never landed a table, and its Windsor fallback (raw_windsor.perf_ga4, property 287370621) stopped advancing 2026-07-14 - so BOTH GA4 paths are stale. This is the one genuinely urgent GA4 finding." },
+        { "id": "516276493", "name": "Reset Data", "client": "resetdata", "label": "Reset Data", "expected": "daily", "alerts": true, "consumers": ["resetdata"] },
+        { "id": "318963196", "name": "STT GDC Web All", "client": "stt", "label": "STT", "expected": "daily", "alerts": true, "consumers": ["stt"] },
+        { "id": "434839993", "name": "STT GDC Web Global", "client": "stt", "label": "STT", "expected": "daily", "alerts": true, "consumers": ["stt"] },
+        { "id": "413451542", "name": "STT GDC Web India", "client": "stt", "label": "STT", "expected": "daily", "alerts": true, "consumers": ["stt"] },
+        { "id": "413487460", "name": "STT GDC Web Indonesia", "client": "stt", "label": "STT", "expected": "daily", "alerts": true, "consumers": ["stt"] },
+        { "id": "434829327", "name": "STT GDC Web Japan", "client": "stt", "label": "STT", "expected": "daily", "alerts": true, "consumers": ["stt"] },
+        { "id": "434854278", "name": "STT GDC Web Korea", "client": "stt", "label": "STT", "expected": "daily", "alerts": true, "consumers": ["stt"] },
+        { "id": "434905821", "name": "STT GDC Web Malaysia", "client": "stt", "label": "STT", "expected": "daily", "alerts": true, "consumers": ["stt"] },
+        { "id": "413491455", "name": "STT GDC Web Philippines", "client": "stt", "label": "STT", "expected": "daily", "alerts": true, "consumers": ["stt"] },
+        { "id": "413490347", "name": "STT GDC Web Singapore", "client": "stt", "label": "STT", "expected": "daily", "alerts": true, "consumers": ["stt"] },
+        { "id": "413495845", "name": "STT GDC Web Thailand", "client": "stt", "label": "STT", "expected": "daily", "alerts": true, "consumers": ["stt"] },
+        { "id": "434852571", "name": "STT GDC Web Vietnam", "client": "stt", "label": "STT", "expected": "daily", "alerts": true, "consumers": ["stt"] },
+        { "id": "551838402", "name": "Geocon landing site", "client": "geocon", "label": "Geocon", "expected": "daily", "alerts": true, "consumers": ["geocon"] },
+        { "id": "550962241", "name": "Geocon brand site", "client": "geocon", "label": "Geocon", "expected": "standby", "alerts": false, "consumers": ["geocon"],
+          "why": "DTS transfer fails on permission, but geocon's GA4 arrives via windsor-ga4-ingest (pinned to this property, fresh). Re-grant Viewer and this becomes the primary path." },
+        { "id": "254028250", "name": "City Perfume", "client": "cityperfume", "label": "City Perfume", "expected": "ended", "alerts": false, "consumers": [],
+          "why": "client offboarded 2026-09-01; dashboards deleted, data retained. Stopped advancing 2026-07-02 and that no longer matters." },
+        { "id": "468621509", "name": "Sophiie", "client": "sophiie", "label": "Sophiie", "expected": "standby", "alerts": false, "consumers": [],
+          "why": "sophiie is a PREVIEW dashboard with no pipeline, dataset or job yet" },
+        { "id": "273098216", "name": "Atlantis Reservations", "client": null, "label": "Unmapped", "expected": "standby", "alerts": false },
+        { "id": "506931798", "name": "ChocolateGrove", "client": null, "label": "Unmapped", "expected": "standby", "alerts": false },
+        { "id": "341832593", "name": "atlantisevents.com", "client": null, "label": "Unmapped", "expected": "standby", "alerts": false },
+        { "id": "341827046", "name": "rsvpvacations.com", "client": null, "label": "Unmapped", "expected": "standby", "alerts": false },
+        { "id": "358885683", "name": "100.digital", "client": null, "label": "Unmapped", "expected": "standby", "alerts": false }
       ]
     }
   ]

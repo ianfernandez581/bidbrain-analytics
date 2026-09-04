@@ -150,6 +150,14 @@ def send_gmail(token_json: str, to: list[str], subject: str, html: str, text: st
         msg = EmailMessage()
         msg["To"] = ", ".join(to)
         msg["Subject"] = subject
+        # Declare this as machine-generated (RFC 3834). Without it the message looks like a
+        # person hand-sending templated HTML to another domain, which is close to the shape of
+        # bulk mail - the first test send landed in spam. This does not on its own guarantee
+        # inbox placement (see README: each recipient still needs one "never send to spam"
+        # filter), but it is the correct declaration and it stops the other half of the
+        # problem: an out-of-office auto-reply bouncing back at an alert address.
+        msg["Auto-Submitted"] = "auto-generated"
+        msg["X-Auto-Response-Suppress"] = "All"
         msg.set_content(text)
         msg.add_alternative(html, subtype="html")
         raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()

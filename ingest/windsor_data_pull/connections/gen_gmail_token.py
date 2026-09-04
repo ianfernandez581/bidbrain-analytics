@@ -1,4 +1,4 @@
-"""One-time, LOCAL: mint the Gmail SEND token the connections probe alerts with.
+r"""One-time, LOCAL: mint the Gmail SEND token the connections probe alerts with.
 
 Run this as the mailbox the alerts should come FROM (ian@100.digital, or a shared
 alerts@ mailbox). Steps:
@@ -22,14 +22,33 @@ alerts@ mailbox). Steps:
 
 Never commit token.json or client_secret.json (gitignored here).
 """
+import sys
+from pathlib import Path
+
 from google_auth_oauthlib.flow import InstalledAppFlow
 
 SCOPES = ["https://www.googleapis.com/auth/gmail.send"]
 
+# Anchor both files to THIS folder, never the working directory. Run from the repo root
+# (which is how every other script here is invoked) and a bare relative path would miss
+# client_secret.json AND write token.json to the repo root - outside the .gitignore beside
+# this file that is the only thing stopping a live credential being committed.
+HERE = Path(__file__).resolve().parent
+CLIENT_SECRET = HERE / "client_secret.json"
+TOKEN = HERE / "token.json"
+
 if __name__ == "__main__":
-    flow = InstalledAppFlow.from_client_secrets_file("client_secret.json", SCOPES)
+    if not CLIENT_SECRET.exists():
+        sys.exit(f"ERROR: {CLIENT_SECRET} not found.\n"
+                 "Create an OAuth client ID (type: Desktop app) at\n"
+                 "  https://console.cloud.google.com/apis/credentials?project=bidbrain-analytics\n"
+                 f"and save its JSON as:\n  {CLIENT_SECRET}\n"
+                 "See this file's header for the full runbook.")
+    flow = InstalledAppFlow.from_client_secrets_file(str(CLIENT_SECRET), SCOPES)
     creds = flow.run_local_server(port=0, prompt="consent", access_type="offline")
-    with open("token.json", "w", encoding="utf-8") as f:
-        f.write(creds.to_json())
-    print("Wrote token.json (scope: gmail.send). Next: upload it to Secret Manager as "
-          "'windsor-alerts-gmail-oauth', then delete token.json + client_secret.json.")
+    TOKEN.write_text(creds.to_json(), encoding="utf-8")
+    print(f"\nWrote {TOKEN}\n"
+          "  scope: gmail.send only - this token CANNOT read the mailbox.\n\n"
+          "Next, upload it and delete BOTH local files (they are live credentials):\n"
+          f'  gcloud secrets create windsor-alerts-gmail-oauth --project bidbrain-analytics --data-file="{TOKEN}"\n'
+          f'  del "{TOKEN}" "{CLIENT_SECRET}"\n')
