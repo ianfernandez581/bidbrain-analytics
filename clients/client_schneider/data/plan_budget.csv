@@ -9,7 +9,7 @@ digital_power,,,,
 eae,10900.0,ex_fees,,
 eba,32500.0,ex_fees,2026-05-25,2026-08-31
 ecocare,,,,
-ecoconsult,30000.0,ex_fees,,
+ecoconsult,30000.0,ex_fees,,2027-02-28
 ent_it,100000.0,ex_fees,2026-04-15,2026-09-30
 global_rebrand,,,2026-07-01,2026-12-11
 heavy,67195.0,ex_fees,2026-06-01,2026-12-11
@@ -17,9 +17,9 @@ ia_services,8750.0,ex_fees,2026-03-09,2026-06-01
 impact_maker,,,,
 ind_edge,49596.0,ex_fees,,
 iof,,,,
-mcset,70000.0,ex_fees,,
+mcset,70000.0,ex_fees,,2027-02-28
 mea_seg,,,,
-microgrid,,,,
+microgrid,,,,2026-10-18
 modernisation,,,,
 nel,35000.0,ex_fees,2026-06-06,2026-09-10
 pac_hybrid_it,,,,
