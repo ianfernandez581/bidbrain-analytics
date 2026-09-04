@@ -7,7 +7,8 @@
 -- the status verifier) and are materialised into client_cloudflare.seed_* tables by definitions_seed.py.
 -- Editing them is a one-place change (definitions.json) that reloads the seed tables — this view's
 -- structure never changes. The 13 IDs: 6 El* + 2 N* (2026-06-10) + 4 P* Modernize (2026-06-17)
--- + 1 W* (701RG00001W1FQRYA3, 2026-07-10 — Q3 ANZ VSRM Lead Magnet, Tier 3; PUBLISHER/OFFER 'Unknown').
+-- + 1 W* (701RG00001W1FQRYA3, 2026-07-10 — the Q3 VRSM Lead Magnet campaign, Tier 3, every APAC
+-- market incl. Korea; PUBLISHER 'VRSM Lead Magnet' since 2026-09-04, was 'Unknown').
 -- The 4 P* campaigns are Q2-ONLY since 2026-08-05: their leads created on/after 2026-07-01 are
 -- excluded (replacement leads were polluting Q3 - see the WHERE clause + definitions.json).
 --
@@ -18,18 +19,83 @@
 --           Salesforce; values A-MAM-2 / A-MAM-3 — only A-MAM-3 has data today) on the 3 Final
 --           Funnel campaigns, for NON-Korea leads. ASSET-based, not geographic, so evaluated
 --           BEFORE geography and pulls those leads out of every market (the overlap is intentional).
---   * KR  = Korea ('Korea, Republic of') leads in the 6 ORIGINAL El* CS campaigns ONLY. Dash shows
---           ~144 ACCEPTED; the client reports 164 DELIVERED (all statuses) -- the ~20 gap is
---           delivered-vs-accepted, not a match bug (see the reconciliation note by the KR arm below).
---           Korea leads from the other 6 campaigns fall through to OTHER (NOT a chip -> off the dash).
+--   * KR  = Korea ('Korea, Republic of') leads in the Core DG CS campaigns: the 6 ORIGINAL El*
+--           campaigns (3 Roverpath + 3 Final Funnel) PLUS, since 2026-09-04, the Q3 VRSM Lead
+--           Magnet campaign (701RG00001W1FQRYA3). Seed-driven (seed_kr_campaign_ids). Korea leads
+--           on the 2 N* + 4 P* (Connectivity Cloud / Modernize) campaigns still fall through to
+--           OTHER (NOT a chip -> off the dash) - that was the 2026-07-02 client decision and it
+--           stands; VRSM was simply added to the allowlist AFTER that decision (2026-07-10) and
+--           never added here, so its 10 accepted Korean leads were dropped from the headline while
+--           the Pacing detail section (sql/16, campaign-name scope) counted them - the 1,650 vs
+--           1,661 the client reported on 2026-09-04.
 --   * The geographic markets are the COARSE 7: ANZ (AU+NZ), ASEAN (SG/MY/ID/TH/VN/PH),
 --           SAARC (IN), GCR (CN/TW/HK), JP -- matching the paid-media L3 grain 1:1.
 -- TEST leads on Transmission emails are excluded in the WHERE (see below).
 -- The status dashboard reproduces KR / RIG straight from Snowflake (status_dashboard/job/main.py).
 -- This applies to CS LEADS ONLY — paid-media (TTD) KR/RIG market buckets are unaffected.
+--
+-- DAY IS CLAMPED TO THE QUARTER THE CAMPAIGN IS NAMED FOR (2026-09-04). A lead cannot belong to a
+-- `2026_Q3_*` campaign and be dated in Q2: Salesforce's created date (DAY) is the lead RECORD's
+-- date, and a record that pre-dates its campaign's flight (re-attached, or created ahead of the
+-- Integrate push) sat OUTSIDE the dashboard's Q3 date window while the Pacing detail section
+-- (sql/16, which scopes by campaign name and clamps pre-anchor leads into week 1) counted it. One
+-- such lead on 2026-09-04 - a Roverpath Korea lead dated 2026-06-01 on a Q3 campaign - was the
+-- last lead of the 1,650 vs 1,661 gap. Same rule as sql/16's GREATEST(..., anchor) clamp, applied
+-- at the quarter grain: DAY = MAX(created date, first day of the named quarter). The raw date is
+-- kept beside it as DAY_CREATED so the clamp is auditable (`WHERE DAY <> DAY_CREATED`).
+--   * Generic, not a Q3 literal: the quarter is parsed from the `YYYY_Qn_` prefix that sql/16
+--     also keys on. A name without that prefix (a brief-number prefix, an older convention)
+--     clamps nothing and keeps today's behaviour.
+--   * It also moves 13 `2026_Q2_*` leads dated in March 2026 (7 accepted / 6 rejected) INTO Q2 -
+--     a Q2 campaign lead is a Q2 lead by the same rule. Q2 headline / QoQ figures move by that
+--     much; the status-dash CS checks do not (they count the whole universe with no date filter).
+--   * The WHERE below (Q2-only cap) tests the RAW date on purpose - the status verifier mirrors
+--     that WHERE character-for-character and knows nothing about the clamp.
 CREATE OR REPLACE VIEW `client_cloudflare.salesforce_leads_live` AS
+WITH src AS (
+    SELECT
+        *,
+        -- First day of the quarter the campaign NAME belongs to (NULL when the name carries no
+        -- `YYYY_Qn_` prefix). Anchored regex, so a brief-number prefix simply disables the clamp.
+        DATE(
+            CAST(REGEXP_EXTRACT(CAMPAIGN, r'^([0-9]{4})_Q[1-4]_') AS INT64),
+            (CAST(REGEXP_EXTRACT(CAMPAIGN, r'^[0-9]{4}_Q([1-4])_') AS INT64) - 1) * 3 + 1,
+            1) AS QUARTER_START
+    FROM `bidbrain-analytics.raw_snowflake.salesforce_cs_apac_all`
+    -- The 13-campaign filter now comes from the seed table (loaded from definitions.json).
+    WHERE CAMPAIGN_ID IN (SELECT campaign_id FROM `bidbrain-analytics.client_cloudflare.seed_cs_campaign_ids`)
+      -- Exclude Transmission TEST leads (2026-07-07, per the Jade call): the vendors were sent
+      -- >=2 test leads each, all on Transmission emails (Nabeel/Shalvi/Jade). They inflate the
+      -- rejection rate and every count, so drop any lead sent from a Transmission email DOMAIN.
+      --
+      -- EXACT DOMAIN LIST, never LIKE '%transmission%' (fixed 2026-08-27). The substring also matched
+      -- REAL companies whose domain merely ends in the word: allisontransmission.com (Allison
+      -- Transmission, 10 leads) and dhoottransmission.com (Dhoot Transmission, 1). None is in scope
+      -- today, so tightening this moved no figure - but the day one of them submits on an in-scope
+      -- campaign the substring would silently delete a genuine client lead, and silence is the failure
+      -- mode this repo cannot afford. An exact list fails the other way: a NEW Transmission domain
+      -- leaks test leads back in, which shows up as counts going UP and gets noticed. Add it here.
+      -- (This is the same trap the note in sql/16 already warned about for Advantest Corporation.)
+      AND LOWER(IFNULL(SPLIT(EMAIL, '@')[SAFE_OFFSET(1)], '')) NOT IN
+          ('transmissionagency.com', 'transmission.com')
+      -- Q2-ONLY campaigns (2026-08-05, client request): the 4 P* Surround-ABM/Modernize campaigns are
+      -- Q2 campaigns that still receive REPLACEMENT leads for rejected Q2 leads; the replacements
+      -- carry Q3 created dates (DAY) and were surfacing on the Q3 side of the dashboard. Their leads
+      -- count ONLY when created before Q3 - on/after the cutoff they are excluded EVERYWHERE (Q3 view,
+      -- QoQ, pacing). The ids stay in seed_cs_campaign_ids so Q2 history is untouched. Seed-driven ids
+      -- (seed_cs_q2_only_campaign_ids <- definitions.json cs_q2_only_campaigns); the 2026-07-01 cutoff
+      -- is mirrored from definitions.json (low-churn literal, like the geographic CASE arms - change
+      -- both together). The status verifier applies the SAME cap, built from the same file.
+      -- RAW DAY here, deliberately - see the clamp note in the header.
+      AND NOT (DAY >= DATE '2026-07-01'
+               AND CAMPAIGN_ID IN (SELECT campaign_id FROM `bidbrain-analytics.client_cloudflare.seed_cs_q2_only_campaign_ids`))
+)
 SELECT
-    DT_CREATED, DT_UPDATED, DT_FILENAME, DAY, FIRST_NAME, LAST_NAME, EMAIL,
+    DT_CREATED, DT_UPDATED, DT_FILENAME,
+    -- Clamped date (see header). GREATEST() would return NULL if QUARTER_START were NULL, so guard it.
+    IF(QUARTER_START IS NOT NULL AND DAY < QUARTER_START, QUARTER_START, DAY) AS DAY,
+    DAY AS DAY_CREATED,
+    FIRST_NAME, LAST_NAME, EMAIL,
     COMPANY_NAME, JOB_TITLE, JOB_FUNCTION, JOB_LEVEL, OPT_IN, ASSET_1, ASSET_2,
     CAMPAIGN, PHONE, INDUSTRY_NAME, WEBSITE, STATE, REGION, COUNTRY_NAME,
     ANNUAL_REVENUE_, CAMPAIGN_ID, LEADS, LEAD_ID_SF, STATUS, LEAD_STATUS,
@@ -39,11 +105,11 @@ SELECT
         WHEN UPPER(TRIM(COUNTRY_NAME)) <> 'KOREA, REPUBLIC OF'
              AND ASSET_2 IN (SELECT asset_2 FROM `bidbrain-analytics.client_cloudflare.seed_rig_assets`)
              AND CAMPAIGN_ID IN (SELECT campaign_id FROM `bidbrain-analytics.client_cloudflare.seed_rig_campaign_ids`) THEN 'RIG'
-        -- KR = Korea leads in the 6 ORIGINAL El* CS campaigns ONLY (3 Roverpath + 3 Final Funnel
-        -- Lead-Gen). 2026-07-02: reverted the 2026-06-25 "all Korea in the 12 campaigns" rule at the
-        -- client's request -- Korea now counts ONLY these 6. Korea leads from the other 6 campaigns
-        -- (Connectivity Cloud / Modernize Security / Modernize Applications) fall through to OTHER.
-        -- Seed-driven: seed_kr_campaign_ids.
+        -- KR = Korea leads in the Core DG CS campaigns: the 6 ORIGINAL El* campaigns (3 Roverpath +
+        -- 3 Final Funnel Lead-Gen) + the Q3 VRSM Lead Magnet campaign (added 2026-09-04 - see the
+        -- header). 2026-07-02: reverted the 2026-06-25 "all Korea in the 12 campaigns" rule at the
+        -- client's request -- Korea leads from the N*/P* campaigns (Connectivity Cloud / Modernize
+        -- Security / Modernize Applications) fall through to OTHER. Seed-driven: seed_kr_campaign_ids.
         -- Reconciliation note (2026-07-07, Jade call): the dash KR bucket shows ~144 ACCEPTED Korea
         -- leads; Nabeel reports 164 DELIVERED (101 Final Funnel + 63 Roverpath). The ~20 gap is almost
         -- certainly delivered(all statuses) vs accepted, NOT a country-name bug -- so the exact match is
@@ -61,7 +127,7 @@ SELECT
         WHEN UPPER(TRIM(COUNTRY_NAME)) = 'INDIA'                                           THEN 'SAARC'
         WHEN UPPER(TRIM(COUNTRY_NAME)) IN ('CHINA', 'MAINLAND CHINA', 'TAIWAN', 'HONG KONG') THEN 'GCR'
         WHEN UPPER(TRIM(COUNTRY_NAME)) = 'JAPAN'                                           THEN 'JP'
-        -- Residual: holds Korea leads outside the 6 KR campaigns plus any brand-new/unmapped country.
+        -- Residual: holds Korea leads outside the KR campaigns plus any brand-new/unmapped country.
         -- OTHER is NOT a market chip, so these are excluded from the dash (its totals sum over the 7
         -- chips); the status dashboard reports the OTHER count.
         ELSE 'OTHER'
@@ -69,12 +135,16 @@ SELECT
     CASE
         WHEN CAMPAIGN_ID IN ('701RG00001ElJZzYAN', '701RG00001ElTu3YAF', '701RG00001ElVXdYAN') THEN 'Roverpath'
         WHEN CAMPAIGN_ID IN ('701RG00001ElUoXYAV', '701RG00001ElUa0YAF', '701RG00001ElNYkYAN') THEN 'Final Funnel'
+        -- The Q3 VRSM Lead Magnet campaign (the 13th ID). Spelled VRSM as on the client's sheet and
+        -- in the targets seed; the Salesforce campaign NAME spells it 'VSRM' (sql/16 aliases it).
+        WHEN CAMPAIGN_ID = '701RG00001W1FQRYA3' THEN 'VRSM Lead Magnet'
         ELSE 'Unknown'
     END AS PUBLISHER,
     CASE
         WHEN CAMPAIGN_ID IN ('701RG00001ElJZzYAN', '701RG00001ElUoXYAV') THEN 'Precision MQL'
         WHEN CAMPAIGN_ID IN ('701RG00001ElTu3YAF', '701RG00001ElUa0YAF') THEN 'Pulse Survey'
         WHEN CAMPAIGN_ID IN ('701RG00001ElVXdYAN', '701RG00001ElNYkYAN') THEN 'Qualification Questions'
+        WHEN CAMPAIGN_ID = '701RG00001W1FQRYA3' THEN 'Lead Magnet'
         ELSE 'Unknown'
     END AS OFFER_TYPE,
     CASE
@@ -84,32 +154,7 @@ SELECT
         WHEN CAMPAIGN_ID = '701RG00001ElUoXYAV' THEN 'Final Funnel - Precision MQL'
         WHEN CAMPAIGN_ID = '701RG00001ElUa0YAF' THEN 'Final Funnel - Pulse Survey'
         WHEN CAMPAIGN_ID = '701RG00001ElNYkYAN' THEN 'Final Funnel - Qualification Questions'
+        WHEN CAMPAIGN_ID = '701RG00001W1FQRYA3' THEN 'VRSM Lead Magnet - Lead Magnet'
         ELSE 'Unknown'
     END AS PUBLISHER_OFFER
-FROM `bidbrain-analytics.raw_snowflake.salesforce_cs_apac_all`
--- The 13-campaign filter now comes from the seed table (loaded from definitions.json).
-WHERE CAMPAIGN_ID IN (SELECT campaign_id FROM `bidbrain-analytics.client_cloudflare.seed_cs_campaign_ids`)
-  -- Exclude Transmission TEST leads (2026-07-07, per the Jade call): the vendors were sent
-  -- >=2 test leads each, all on Transmission emails (Nabeel/Shalvi/Jade). They inflate the
-  -- rejection rate and every count, so drop any lead sent from a Transmission email DOMAIN.
-  --
-  -- EXACT DOMAIN LIST, never LIKE '%transmission%' (fixed 2026-08-27). The substring also matched
-  -- REAL companies whose domain merely ends in the word: allisontransmission.com (Allison
-  -- Transmission, 10 leads) and dhoottransmission.com (Dhoot Transmission, 1). None is in scope
-  -- today, so tightening this moved no figure - but the day one of them submits on an in-scope
-  -- campaign the substring would silently delete a genuine client lead, and silence is the failure
-  -- mode this repo cannot afford. An exact list fails the other way: a NEW Transmission domain
-  -- leaks test leads back in, which shows up as counts going UP and gets noticed. Add it here.
-  -- (This is the same trap the note in sql/16 already warned about for Advantest Corporation.)
-  AND LOWER(IFNULL(SPLIT(EMAIL, '@')[SAFE_OFFSET(1)], '')) NOT IN
-      ('transmissionagency.com', 'transmission.com')
-  -- Q2-ONLY campaigns (2026-08-05, client request): the 4 P* Surround-ABM/Modernize campaigns are
-  -- Q2 campaigns that still receive REPLACEMENT leads for rejected Q2 leads; the replacements
-  -- carry Q3 created dates (DAY) and were surfacing on the Q3 side of the dashboard. Their leads
-  -- count ONLY when created before Q3 - on/after the cutoff they are excluded EVERYWHERE (Q3 view,
-  -- QoQ, pacing). The ids stay in seed_cs_campaign_ids so Q2 history is untouched. Seed-driven ids
-  -- (seed_cs_q2_only_campaign_ids <- definitions.json cs_q2_only_campaigns); the 2026-07-01 cutoff
-  -- is mirrored from definitions.json (low-churn literal, like the geographic CASE arms - change
-  -- both together). The status verifier applies the SAME cap, built from the same file.
-  AND NOT (DAY >= DATE '2026-07-01'
-           AND CAMPAIGN_ID IN (SELECT campaign_id FROM `bidbrain-analytics.client_cloudflare.seed_cs_q2_only_campaign_ids`));
+FROM src;

@@ -476,9 +476,32 @@ dropdown. It is a second dimension: `BOOK` in `sql/16` -> `sql/17`'s join key ->
 **Books are never summed, and there is deliberately NO "all campaigns" option.** Only Core DG has
 a seeded target sheet (APAC 2,290 / EMEA 830); an all-books selection would divide combined
 delivery by one book's target and report a pacing figure that is wrong in the *flattering*
-direction. The **Delivery by publisher** table is the cross-book view instead - it spans every
-book in the theatre, nothing is paced across books, and `Target` prints "no target" rather than 0
-(a 0 reads as a target of zero and would make Pacing look infinitely ahead).
+direction. `Target` prints "no target" rather than 0 where a book has no sheet (a 0 reads as a
+target of zero and would make Pacing look infinitely ahead).
+
+**The Delivery by publisher table FOLLOWS the Campaign picker (2026-09-04, John: "I thought we
+agreed we would move DemandAI and Interlink as these are DNB campaigns only in Australia").**
+From 2026-08-27 to 09-04 it was the one cross-book panel - it spanned every book in the theatre
+so the regional publishers had somewhere to appear at all - which put DemandAI and Interlink in
+the Core DG view under a REGIONAL badge, and its caption read "every campaign in APAC, not just
+the one selected above". The badge made the tagging right and the scope wrong. It now reads the
+same book-scoped rows as the band above it (`cfg.rows`, not the removed `cfg.allRows`), so Core DG
+lists Roverpath / VRSM Lead Magnet / Final Funnel and Regional lists DemandAI / Interlink - **the
+regional publishers are scoped, not hidden** (Lydia's ask still stands; they render in full with
+the picker on Regional, and the footnote drops its "internal allocation" sentence there because
+no publisher in that book carries a target). Per-publisher figures are unchanged by construction:
+the same `book x vendor` aggregate, filtered. Verified in a headless render of the built page
+against the live payload: Core DG APAC 852 + 400 + 409 = 1,661 accepted, Regional DemandAI 71
+delivered / 62 accepted, Interlink 1 delivered / 45 pending review; EMEA rows and figures
+identical (only its caption changed - it no longer claims to span every campaign, and it does not
+mention the Campaign picker there because a single-book theatre hides it).
+**Sweep result, same day:** every other panel in the Pacing detail section and the CS Comparison
+tab already read `cspdRows()` / `cspdResolveScope()` (book-scoped). The only theatre-wide readers
+left are the picker's own book list, the dev-only targets-staleness check (`weeksAll`, a fact about
+the seed), and the market CHIP roster (`cspdAllMarkets()`, a roster not a figure). The legacy APJ
+CS panels above the section (KPI strip, region cards, weekly chart - `sql/10`) are not book-aware
+at all: the 13-ID allowlist makes them Core DG by construction, so they do not move when the
+picker is set to Regional. That is the documented two-model split, not a scope leak.
 
 **The Core DG numbers did not move, and that was the acceptance test.** APAC Core DG
 2,290 / 1,708 / 1,460 / 248 and EMEA 830 / 306 / 265 / 41 are identical before and after,
@@ -636,13 +659,13 @@ the headline. Each pass swept what the ticket named. When you next change a basi
 figure in that card - including the ones that state no target at all, because a headline in the
 wrong unit is what the reader paces by eye.
 
-**One pre-existing gap this surfaced but did NOT touch:** on APJ the region cards and KPI strip read
-the LEGACY `pacing` model (`sql/10`, campaign-ID allowlist, and its "accepted" is
-`Accepted|Replied|Unresponsive`) while the Pacing detail band reads `cs_pacing` (`sql/16`,
-campaign-NAME scope, `LEAD_STATUS = 'Accepted'` only). At the Q3 default that is **1,650 vs 1,661**
-- an 11-lead, 0.7% gap between two panels on one screen. Both agree on the 2,290 target. It is the
-documented two-model split, and closing it means widening `sql/10`, which would move live APJ
-headline numbers and desync the status-dash checks - so it stays a known gap, not a silent one.
+**The two-model gap on APJ is CLOSED (2026-09-04, client report: "publisher table RP+VRSM+FF =
+1,661, top says 1,650, Pacing detail says 1,661").** The region cards and KPI strip read the LEGACY
+`pacing` model (`sql/10`, campaign-ID allowlist, COUNTRY_NAME markets) while the Pacing detail band
+reads `cs_pacing` (`sql/16`, campaign-NAME scope). The 11 leads were two defects, both on the legacy
+side, plus one latent one on the v2 side - see "Headline vs Pacing detail: the 1,650 / 1,661 fix"
+under Gotchas for what moved and how to re-verify. Both models are now expected to agree on the
+APAC Core DG accepted total at the Q3 default; a future gap is a bug, not a documented split.
 
 **The per-publisher targets are an INTERNAL ALLOCATION - now APJ-ONLY** (the EMEA Roverpath/
 Final Funnel 1:1 rows described below were REMOVED 2026-08-31 - superseded Stream 1 scope, see
@@ -805,14 +828,68 @@ cards unchanged.
   rejected lead from **Advantest Corporation** (`advantest.com`) carries `test` in its company
   name and its domain. Nothing in `status_dashboard` verifies `16_*`, so a future divergence here
   is invisible to the accuracy monitor - keep the two predicates in sync by hand.
-- **The two models still classify ~15 Korean leads differently, and that is the legacy model's
-  doing.** After the test-lead fix both hold the SAME lead universe (1,450 accepted / 246 rejected
-  at 2026-08-27, all markets). But `pacing_model`'s KR arm is campaign-scoped to the 6 `El*`
-  campaigns, so Korean leads outside those 6 fall to its `OTHER` ELSE arm - and `OTHER` is not a
-  market chip, so the KPI strip drops them (9 accepted / 6 rejected). `16_*` reads the market off
-  the campaign region segment and books them under Korea. The strip therefore reads ~15 leads
-  light against the band. Fixing it means widening the legacy KR scope, which moves live APAC
-  numbers and the status-dash checks - a deliberate piece of work, not a tweak.
+- **Headline vs Pacing detail: the 1,650 / 1,661 fix (2026-09-04).** The client summed Roverpath +
+  VRSM + Final Funnel in *Delivery by publisher* (1,661), matched the Pacing detail band (1,661),
+  and found the KPI strip 11 short (1,650). Three causes, three fixes, all in one change:
+  1. **10 leads - VRSM's Korean leads fell to `OTHER`.** `sql/10`'s KR arm is campaign-scoped
+     (client decision 2026-07-02: Korea counts only on the Core DG campaigns, not the N*/P*
+     Modernize ones). The Q3 **VRSM Lead Magnet** campaign (`701RG00001W1FQRYA3`) joined the
+     13-ID allowlist on 2026-07-10 - AFTER that decision - and was never added to
+     `segments.KR`, so its Korean leads (10 accepted at 09-04) landed in `OTHER`, which is not a
+     chip, and vanished from every headline figure while `sql/16` (market from the campaign
+     name) booked them under Korea. Fixed in `definitions.json` (`segments.KR.campaign_ids`, now
+     7) -> `definitions_seed.py` -> `seed_kr_campaign_ids`; the status verifier builds its KR /
+     OTHER checks from the same file (LIVE copy `gs://bidbrain-analytics-status-dash/definitions/
+     cloudflare.json`, uploaded in the same change), so they moved together. The same campaign
+     also now reads `PUBLISHER = 'VRSM Lead Magnet'` in `sql/10` instead of `'Unknown'`.
+  2. **1 lead - a Q3-campaign lead dated 2026-06-01.** The KPI strip is a DATE window (Q3 =
+     from 07-01) over Salesforce's created date; the band is campaign-scoped and clamps a
+     pre-anchor lead into week 1. A Roverpath Korea lead on a `2026_Q3_*` campaign carried a
+     June created date, so one side counted it and the other did not. `sql/10` now clamps `DAY`
+     to the first day of the quarter the campaign is NAMED for (raw date kept as
+     `DAY_CREATED`) - the same rule as `sql/16`'s `GREATEST(..., anchor)`, at quarter grain.
+     **Side effect, deliberate:** 13 `2026_Q2_*` leads dated March 2026 (7 accepted / 6
+     rejected) moved INTO Q2, so the Q2 headline and the QoQ tab's Q2 column rose by that much.
+  3. **Latent - the accepted bucket differed.** `sql/16` counted bare `Accepted`; the strip,
+     `sql/15` and the verifier use the client's bucket `Accepted|Replied|Unresponsive`. Zero
+     leads in scope carry the other two statuses today, so nothing moved, but the day one does
+     the two panels would have split again. `sql/16` now uses the client bucket (and widens
+     `IS_DELIVERED` with it so the rates still sum to 100%).
+  Found in the same pass and fixed alongside - then hardened the same day on John's report
+  (see the next gotcha): **64 EMEA Acquisition leads were sitting on the APJ lane.**
+  **Re-verify** (both should print the same number):
+  ```sql
+  SELECT COUNT(*) FROM `bidbrain-analytics.client_cloudflare.salesforce_leads_live`
+  WHERE DAY >= DATE '2026-07-01' AND LEAD_STATUS IN ('Accepted','Replied','Unresponsive') AND REGION_GRP <> 'OTHER';
+  SELECT SUM(IS_ACCEPTED) FROM `bidbrain-analytics.client_cloudflare.stg_cs_leads_v2`
+  WHERE THEATRE = 'APAC' AND BOOK = 'Core DG';
+  ```
+  If they differ, diff by `CAMPAIGN_ID`: the remaining legitimate differences are RIG (asset-based,
+  hidden under Q3) and anything `sql/10` routes to `OTHER` (a new country, or Korea on an N*/P*
+  campaign).
+- **EMEA Acquisition leads were counted as APJ - theatre is now resolved by CAMPAIGN_ID, never
+  defaulted (2026-09-04, John).** Two Acquisition `VER-FINANCE` campaigns created 2026-09-02 were
+  named `2026_Q3_CEERI_ACQUISITION_...` (52 leads / 48 accepted) and `2026_Q3_DACH_ACQUISITION_...`
+  (12 / 11) - no `EMEA-` prefix - and `sql/16`'s theatre rule was `IF(token LIKE 'EMEA%', 'EMEA',
+  'APAC')`, so they defaulted into APJ: an Acquisition row in the APJ publisher table, a "64 leads
+  matched no market rule" warning, and a 59-accepted hole in EMEA Acquisition's CEERI/DACH pacing.
+  **What was implemented (the stronger option):** `sql/16` now resolves THEATRE in three tiers -
+  (a) a per-`CAMPAIGN_ID` VOTE built from the data every run (`id_theatre` / `id_resolved` CTEs:
+  count the id's leads whose name is unambiguous - an `EMEA-` prefix or a canonical APAC token -
+  and resolve when one side has >= 80%; Acquisition's single id `701RG00001e1aegYAA` votes 917:0
+  EMEA across its 27 name variants), (b) the NAME only when the id has no vote (a resolved market
+  implies its theatre; an `EMEA-` prefix implies EMEA), (c) otherwise **`UNRESOLVED`** - on
+  NEITHER lane, counted, WARNed by the job and shown in **Admin View** (`cspdUnresolved` card,
+  from `cs_pacing.unresolved`) as a count of unmatched campaigns. MARKET still comes from the
+  name (an id spans every market of its theatre), the market CASE accepts EMEA tokens with or
+  without the prefix, and a name market from the WRONG theatre for the id becomes `UNMAPPED` on
+  the id's lane with `REGION_CONFLICT=1` (zero today). Verified 2026-09-04: every id in the
+  mirror votes 100% one way; Acquisition gone from APJ; EMEA Acquisition 981 leads / 879 accepted
+  (CEERI 52/48, DACH 12/11 included); APJ Core DG accepted 1,720 -> 1,661 (-59 exactly); Roverpath
+  852 / VRSM 400 / Final Funnel 409 unchanged; `region_source` census {id: all, name: 0, none: 0};
+  grand total EMEA + APJ + Regional conserved. The 64 leads carry TAL `VER-FINANCE`, which has NO
+  target of its own: the seed has no programme dimension, so they pace inside Acquisition's
+  per-market weekly targets (which the plan's BFSI block is summed into - see "Streams 2&3").
 - **Weekly buckets will NOT match the client's sheet, and that is understood and accepted.**
   The sheet is dated when Nabeel delivers leads to Integrate; Salesforce dates them on lead
   creation. Quarter totals reconcile exactly, weekly splits do not (EMEA returns 114 / 120 for
@@ -1220,19 +1297,19 @@ quoting *delivered*; frame it that way rather than changing the KR logic. Also t
 country variants (`LIKE '%KOREA%'`) — if that adds ~20 *accepted*, the fix is a broadened match (apply
 it in BOTH `sql/10` and the status check's KR arm to stay in sync).
 
-- **Korea Leads (KR)** — Country `'Korea, Republic of'` leads in the **6 ORIGINAL El\* CS campaigns
-  ONLY** (3 Roverpath + 3 Final Funnel Lead-Gen; seed-driven via `seed_kr_campaign_ids`). ~**164** leads.
-  **2026-07-02:** reverted the 2026-06-25 "ALL Korea in the 12 campaigns" rule at the client's request —
-  Korea now counts only these 6. Korea leads from the other 6 campaigns (Connectivity Cloud / Modernize
-  Security / Modernize Applications, ~55 live 2026-07-02) fall through to `OTHER`. (Total Korea in the 12
-  CS campaigns = 219: 164 in the 6 → KR, 55 outside → OTHER.)
+- **Korea Leads (KR)** — Country `'Korea, Republic of'` leads in the **Core DG CS campaigns**: the
+  **6 ORIGINAL El\* campaigns** (3 Roverpath + 3 Final Funnel Lead-Gen) **+ the Q3 VRSM Lead Magnet
+  campaign** `701RG00001W1FQRYA3` (added 2026-09-04 - see the 1,650 / 1,661 gotcha; seed-driven via
+  `seed_kr_campaign_ids`, 7 IDs). **2026-07-02:** reverted the 2026-06-25 "ALL Korea in the 12
+  campaigns" rule at the client's request. Korea leads from the N\*/P\* campaigns (Connectivity Cloud /
+  Modernize Security / Modernize Applications, ~55 live 2026-07-02) fall through to `OTHER`.
 - **RIG Leads (RIG)** — **NON-Korea AND** `ASSET_2` `IN ('A-MAM-2','A-MAM-3')` (the gaming-vertical
   *Modernize Applications* asset — only `A-MAM-3` has data) **AND** the **3 Final Funnel** campaigns.
   Asset-based, evaluated **before** geography, so it spans every country. Live count **180** (167 accepted).
 
 The geographic markets are pure `COUNTRY_NAME` maps, **case-normalised** (`UPPER(TRIM(COUNTRY_NAME))`)
 so mis-cased countries (`japan`, `Hong kong`, `india`) route to JP / GCR-HK / SAARC instead of falling
-to a residual. The `ELSE 'OTHER'` arm holds Korea leads outside the 6 KR campaigns (~55) plus any
+to a residual. The `ELSE 'OTHER'` arm holds Korea leads outside the KR campaigns (~55) plus any
 brand-new/unmapped country. `OTHER` is **not one of the 11 chips**, so those leads are excluded from the
 dash — the headline CS totals sum over the chips, so there is no total-vs-sum drift on screen (this
 matches the pre-2026-06-25 behaviour; the ~55 leftover Korea leads just aren't counted anywhere on the
@@ -1769,6 +1846,14 @@ opening the form is a targeting problem, opening and abandoning is a form proble
   },
   "cs_pacing": {
     "row_count": 0,
+    // Region-resolution guard (2026-09-04): campaigns sql/16 could not place in a theatre from
+    // CAMPAIGN_ID or name, or whose name market belongs to a different theatre than the id.
+    // Those leads are on NEITHER lane; this is what makes them visible (Admin View card
+    // `cspdUnresolved`). leads=0 -> card hidden. region_source = census of how every lead was
+    // placed ({id, name, none}) - the job prints it every run.
+    "unresolved": { "leads": 0, "accepted": 0, "campaigns": 0,
+                    "items": [ { "campaign","campaign_id","theatre","market","reason","leads","accepted" } ] },
+    "region_source": { "id": 0, "name": 0, "none": 0 },
     "period_label": "Q3",     // the quarter the TARGETS SEED covers; drives the section's own
                               // captions + its "<period> to date" chip, NOT the date picker
     "reasons": [],            // rejection reasons: NO live source yet (manual at the Integrate

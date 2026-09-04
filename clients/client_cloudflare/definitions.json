@@ -6,7 +6,7 @@
   "source_table_snowflake": "APAC_ALL_PLATFORM.PUBLIC.\"Salesforce_CS_APAC_ALL\"",
   "mirror_table_bigquery": "bidbrain-analytics.raw_snowflake.salesforce_cs_apac_all",
 
-  "last_edited_by": "2026-08-05: added cs_q2_only_campaigns - the 4 P* ABM/Modernize Q2 campaigns still receive REPLACEMENT leads with Q3 created dates; their leads now count only when created before 2026-07-01 so replacements stop surfacing on the Q3 side (client request via Transmission). Both sides (sql/10 + the status verifier) apply the same cap (Ian).",
+  "last_edited_by": "2026-09-04: added the Q3 VRSM Lead Magnet campaign (701RG00001W1FQRYA3) to segments.KR so its Korean leads count in the KR chip instead of the OTHER residual - closes the 1,650 vs 1,661 headline-vs-Pacing-detail gap the client reported (Charles). 2026-08-05: added cs_q2_only_campaigns - the 4 P* ABM/Modernize Q2 campaigns still receive REPLACEMENT leads with Q3 created dates; their leads now count only when created before 2026-07-01 so replacements stop surfacing on the Q3 side (client request via Transmission). Both sides (sql/10 + the status verifier) apply the same cap (Ian).",
   "last_edited_at": "2026-08-05",
 
   "_seed_spec": [
@@ -53,14 +53,14 @@
   },
 
   "segments": {
-    "_note": "Evaluated BEFORE the geographic_regions buckets: RIG first, then KR. RIG = the Modernize-Applications gaming asset on the 3 Final Funnel campaigns, non-Korea (~172, asset-based so it spans countries). KR (2026-07-02) = Korea leads in the 6 ORIGINAL El* CS campaigns ONLY (3 Roverpath + 3 Final Funnel Lead-Gen, ~164) — reverts the 2026-06-25 'all Korea in the 12 campaigns' rule at the client's request. Korea leads from the other 6 campaigns (Connectivity Cloud / Modernize Security / Modernize Applications) now fall through to the OTHER residual (see status_buckets._note).",
+    "_note": "Evaluated BEFORE the geographic_regions buckets: RIG first, then KR. RIG = the Modernize-Applications gaming asset on the 3 Final Funnel campaigns, non-Korea (~172, asset-based so it spans countries). KR = Korea leads in the Core DG CS campaigns: the 6 ORIGINAL El* campaigns (3 Roverpath + 3 Final Funnel Lead-Gen; 2026-07-02, reverting the 2026-06-25 'all Korea in the 12 campaigns' rule at the client's request) + the Q3 VRSM Lead Magnet campaign (2026-09-04). Korea leads from the N*/P* campaigns (Connectivity Cloud / Modernize Security / Modernize Applications) fall through to the OTHER residual (see status_buckets._note).",
     "RIG": {
       "exclude_country": "Korea, Republic of",
       "asset_2": ["A-MAM-2", "A-MAM-3"],
       "campaign_ids": ["701RG00001ElUoXYAV", "701RG00001ElUa0YAF", "701RG00001ElNYkYAN"]
     },
     "KR": {
-      "_note": "2026-07-02: Korea leads AND one of the 6 original El* CS campaigns only (client request). campaign_ids = the 3 Roverpath + 3 Final Funnel Lead-Gen campaigns. Korea leads outside these 6 land in OTHER (not a market chip).",
+      "_note": "Korea leads AND one of the Core DG CS campaigns: the 6 original El* campaigns (3 Roverpath + 3 Final Funnel Lead-Gen, client request 2026-07-02) PLUS the Q3 VRSM Lead Magnet campaign 701RG00001W1FQRYA3 (added 2026-09-04 - it joined cs_campaigns on 2026-07-10, AFTER the 07-02 decision, and was never added here, so its 10 accepted Korean leads fell to OTHER and were dropped from the headline while the Pacing detail section counted them under Korea: the client-reported 1,650 vs 1,661). Korea leads on the N*/P* campaigns still land in OTHER (not a market chip).",
       "country": "Korea, Republic of",
       "campaign_ids": [
         "701RG00001ElJZzYAN",
@@ -68,7 +68,8 @@
         "701RG00001ElVXdYAN",
         "701RG00001ElUoXYAV",
         "701RG00001ElUa0YAF",
-        "701RG00001ElNYkYAN"
+        "701RG00001ElNYkYAN",
+        "701RG00001W1FQRYA3"
       ]
     }
   },
@@ -89,7 +90,7 @@
   "market_chips": ["AU", "NZ", "SIM", "ROA", "SAARC", "GCR-CN", "GCR-TW", "GCR-HK", "KR", "RIG", "JP"],
 
   "status_buckets": {
-    "_note": "Cloudflare's CS map (OPPOSITE of mongodb): Accepted = Accepted + Replied + Unresponsive. Since 2026-07-02 a residual 'OTHER' bucket can be non-empty again (it holds Korea leads outside the 6 KR campaigns — see segments.KR). OTHER is NOT one of the 11 market_chips, so those leads are excluded from the dashboard (its totals sum over the chips), matching pre-2026-06-25 behaviour. The status verifier's residual check reports the OTHER count instead of asserting it is 0.",
+    "_note": "Cloudflare's CS map (OPPOSITE of mongodb): Accepted = Accepted + Replied + Unresponsive. Since 2026-07-02 a residual 'OTHER' bucket can be non-empty again (it holds Korea leads outside the KR campaigns — see segments.KR). OTHER is NOT one of the 11 market_chips, so those leads are excluded from the dashboard (its totals sum over the chips), matching pre-2026-06-25 behaviour. The status verifier's residual check reports the OTHER count instead of asserting it is 0.",
     "accepted": ["Accepted", "Replied", "Unresponsive"],
     "rejected": ["Rejected"],
     "new": ["New"]

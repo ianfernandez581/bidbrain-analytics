@@ -177,6 +177,21 @@ def main():
                    f" SUM(COSTS) AS SPEND_USD, SUM(IMPRESSIONS) AS IMPS, SUM(CLICKS) AS CLICKS,"
                    f" SUM(CONVERSIONS) AS CONVERSIONS FROM {t('stg_google_ads')} GROUP BY 1")
     csp = rows(bq, f"SELECT * FROM {t('cs_pacing_v2')} ORDER BY THEATRE, BOOK, VENDOR, MARKET_SEQ, WEEK_START")
+    # REGION-RESOLUTION GUARD (2026-09-04). sql/16 places each lead's theatre from its
+    # CAMPAIGN_ID first and its name second, and never defaults: a lead neither rule can place
+    # is THEATRE='UNRESOLVED', and a name whose market belongs to the OTHER theatre than its id
+    # is REGION_CONFLICT=1. Both are counted here per campaign NAME, WARNed below, and shipped
+    # as cs_pacing.unresolved for the dashboard's Admin View card - so the next mis-named
+    # campaign is a visible count, not 64 leads quietly sitting in the wrong lane (which is
+    # what the 2026-09-02 Acquisition VER-FINANCE campaigns did under the old prefix default).
+    unres = rows(bq, f"""
+        SELECT CAMPAIGN, CAMPAIGN_ID, THEATRE, MARKET,
+               IF(THEATRE = 'UNRESOLVED', 'unresolved', 'conflict') AS reason,
+               COUNT(*) AS leads, SUM(IS_ACCEPTED) AS accepted
+        FROM {t('stg_cs_leads_v2')}
+        WHERE THEATRE = 'UNRESOLVED' OR REGION_CONFLICT = 1
+        GROUP BY 1, 2, 3, 4, 5 ORDER BY leads DESC""")
+    region_src = rows(bq, f"SELECT REGION_SOURCE, COUNT(*) AS n FROM {t('stg_cs_leads_v2')} GROUP BY 1")
     # CS COMPARISON panels (2026-09-02). Finer read of the SAME stg_cs_leads_v2 rows than
     # cs_pacing_v2: it keeps COUNTRY, ASSET and DAY, which the Comparison tab needs and the
     # week-grain pacing view aggregates away. Carries NO targets - those ship on cs_pacing at
@@ -320,6 +335,10 @@ def main():
                 print(f"WARNING cs_pacing {th} / {book}: {a['rev']} lead(s) matched no market "
                       f"rule (MARKET='UNMAPPED'). The dashboard surfaces this, but it means a "
                       f"campaign-name region token is new or misspelt.")
+            if th == "UNRESOLVED":
+                print(f"WARNING cs_pacing: {a['del']} delivered lead(s) could not be placed in a "
+                      f"theatre by CAMPAIGN_ID or by name (sql/16 REGION_SOURCE='none'). They are "
+                      f"on NEITHER lane - see cs_pacing.unresolved and the Admin View card.")
             # 'Unclassified' is the deliberate safe residual in sql/16's BOOK CASE - a
             # programme token nobody has mapped yet. Folding it into Core DG would inflate
             # delivery against a FIXED seeded target, so it lands here instead and says so.
@@ -330,8 +349,38 @@ def main():
                       f"selectable on the dashboard, but they are not in anyone's pacing. "
                       f"Map the programme to 'Core DG' or 'Regional' and re-apply views.")
 
+    src_census = {r.get("REGION_SOURCE"): int(jval(r.get("n")) or 0) for r in region_src}
+    print(f"cs_pacing region resolution: {src_census} (id = placed by CAMPAIGN_ID vote, "
+          f"name = by campaign-name token, none = UNRESOLVED)")
+    unresolved_items = [{
+        "campaign":    r.get("CAMPAIGN"),
+        "campaign_id": r.get("CAMPAIGN_ID"),
+        "theatre":     r.get("THEATRE"),
+        "market":      r.get("MARKET"),
+        "reason":      r.get("reason"),
+        "leads":       int(jval(r.get("leads")) or 0),
+        "accepted":    int(jval(r.get("accepted")) or 0),
+    } for r in unres]
+    for it in unresolved_items:
+        print(f"WARNING cs_pacing region guard [{it['reason']}]: {it['leads']} lead(s) "
+              f"({it['accepted']} accepted) on '{it['campaign']}' (id {it['campaign_id']}) - "
+              + ("no theatre could be resolved from the id or the name."
+                 if it['reason'] == 'unresolved' else
+                 f"name market belongs to a different theatre than the id resolved ({it['theatre']}); "
+                 f"booked as UNMAPPED on that lane."))
+
     cs_pacing_payload = {
         "row_count": len(csp),
+        # Region-resolution guard (2026-09-04): campaigns no rule could place, or whose name
+        # and id disagree. Rendered ONLY in the dashboard's Admin View (`cspdUnresolved`);
+        # empty = every lead has a lane. `region_source` is the census the audit line prints.
+        "unresolved": {
+            "leads":     sum(it["leads"] for it in unresolved_items),
+            "accepted":  sum(it["accepted"] for it in unresolved_items),
+            "campaigns": len({it["campaign"] for it in unresolved_items}),
+            "items":     unresolved_items,
+        },
+        "region_source": src_census,
         # The quarter these targets were loaded for. Drives the section's own captions and
         # its "<period> to date" chip, INDEPENDENTLY of the date picker - the section is
         # anchored to the targets seed, not to the selected range.
