@@ -14,6 +14,22 @@ GREENLIGHT_BASE_URL, scoped to this stage only; Brain/plan-reader stay on the
 anthropic-api-key secret), grid-core/.env locally. See `expected/README.md`.
 First campaign: Schneider NEL Job 2053.
 
+**Connections (Windsor connector health): `src/connections/connections.js`** - a nav tab
+(after Greenlight, always on) that renders `windsor_connections.json`, written HOURLY by the
+`windsor-connections-probe` Cloud Run job (`ingest/windsor_data_pull/connections/`, its README
+is the spec). Per Windsor datasource x account: probe verdict (granted / not granted / error),
+newest day in BigQuery, a state (ok / frozen / quiet / not_granted / error / idle), "since", and
+the next step; a **Grant horizon** (last re-auth -> estimated token expiry per connector, labelled
+an estimate because Windsor publishes none); the alert-email log; and a **Probe now** button.
+The server only relays the JSON (`GET /api/connections`, 60s cache, from
+`GRID_CONNECTIONS_BUCKET` = the status bucket, or `data/windsor_connections.json` locally) and
+starts the job (`POST /api/connections/probe` -> Cloud Run Admin API via `GRID_CONNECTIONS_JOB`,
+or `GRID_CONNECTIONS_PROBE_CMD` locally) - EVERY verdict is decided by the probe so the tab and
+the emails always agree. The nav badge counts only `alerts:true` reds (accounts a dashboard
+actually reads); idle rows are hidden behind "Show idle"; the 23 unmapped Transmission LinkedIn
+ids and the 20 unpulled GA4 properties collapse to one row each. Deploy: `deploy_grid.ps1`
+asserts the bucket objectViewer + job run.invoker grants and both env vars.
+
 **ONE SPINE (Phase 1, 2026-07-22):** Pulse and Central read the live
 SQLite `campaigns` table (via `GET /api/central/campaigns`) and compute every
 derived number with **`src/central/calc.js`** — the single formula engine. The old

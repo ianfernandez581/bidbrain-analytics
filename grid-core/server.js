@@ -198,6 +198,10 @@ const server = http.createServer(async (req, res) => {
     // probe answers false and every other greenlight route 404s. Auth is the
     // Grid's own model (platform proxy + Cloud Run IAM) - no auth code here,
     // same as every other tab. See expected/README.md.
+    // ---- Connections tab (Windsor connector health) ----
+    if (p === '/api/connections' && req.method === 'GET') return connectionsGet(res);
+    if (p === '/api/connections/probe' && req.method === 'POST') return connectionsProbe(res);
+
     if (p === '/api/greenlight/enabled' && req.method === 'GET') return send(res, 200, { enabled: GREENLIGHT_ENABLED });
     if (p.startsWith('/api/greenlight/')) {
       if (!GREENLIGHT_ENABLED) return send(res, 404, { error: 'not found' });
@@ -807,6 +811,91 @@ function unwatchedGet(res) {
     try { return send(res, 200, JSON.parse(txt)); }
     catch (e) { return send(res, 500, { error: 'unwatched.json is not valid JSON: ' + e.message }); }
   });
+}
+
+// ---------------------------------------------------------------------------
+// Connections tab: serve windsor_connections.json, written hourly by the
+// windsor-connections-probe Cloud Run job (ingest/windsor_data_pull/connections/).
+// The server only RELAYS the JSON - every verdict in it was decided by the probe,
+// so the tab and the alert emails always agree.
+//   GRID_CONNECTIONS_BUCKET  GCS bucket holding the object (prod: the status bucket).
+//   GRID_CONNECTIONS_OBJECT  object name (default windsor_connections.json).
+//   GRID_CONNECTIONS_LOCAL   local file path used when no bucket is set (dev), else
+//                            data/windsor_connections.json. Absent everywhere =>
+//                            {never_run:true} - an explicit state, never an implied zero.
+//   GRID_CONNECTIONS_JOB     Cloud Run job name for "Probe now" (prod). Locally,
+//   GRID_CONNECTIONS_PROBE_CMD may hold a shell command to run the probe instead.
+// Cached for 60s so a room full of open tabs is one GCS read a minute; the object
+// itself only changes hourly.
+const CONN_BUCKET = process.env.GRID_CONNECTIONS_BUCKET || '';
+const CONN_OBJECT = process.env.GRID_CONNECTIONS_OBJECT || 'windsor_connections.json';
+const CONN_LOCAL  = process.env.GRID_CONNECTIONS_LOCAL || path.join(ROOT, 'data', 'windsor_connections.json');
+const CONN_JOB    = process.env.GRID_CONNECTIONS_JOB || '';
+const CONN_REGION = process.env.GRID_CONNECTIONS_REGION || 'australia-southeast1';
+const CONN_PROJECT = process.env.GOOGLE_CLOUD_PROJECT || 'bidbrain-analytics';
+const CONN_TTL_MS = 60 * 1000;
+const CONN = { doc: null, at: 0, err: null, probing: false };
+
+async function readConnectionsDoc() {
+  if (CONN_BUCKET) {
+    const { Storage } = require('@google-cloud/storage');
+    const file = new Storage().bucket(CONN_BUCKET).file(CONN_OBJECT);
+    const [exists] = await file.exists();
+    if (!exists) return { never_run: true, source: `gs://${CONN_BUCKET}/${CONN_OBJECT}` };
+    const [buf] = await file.download();
+    const doc = JSON.parse(buf.toString('utf8'));
+    doc.source = `gs://${CONN_BUCKET}/${CONN_OBJECT}`;
+    return doc;
+  }
+  if (!fs.existsSync(CONN_LOCAL)) return { never_run: true, source: CONN_LOCAL };
+  const doc = JSON.parse(fs.readFileSync(CONN_LOCAL, 'utf8'));
+  doc.source = CONN_LOCAL;
+  return doc;
+}
+
+async function connectionsGet(res) {
+  const fresh = CONN.doc && (Date.now() - CONN.at) < CONN_TTL_MS;
+  if (!fresh) {
+    try { CONN.doc = await readConnectionsDoc(); CONN.at = Date.now(); CONN.err = null; }
+    catch (e) {
+      CONN.err = e.message;
+      console.error('[CONNECTIONS] read failed:', e.message);
+      if (!CONN.doc) return send(res, 502, { error: 'could not read windsor_connections.json: ' + e.message });
+    }
+  }
+  const out = Object.assign({}, CONN.doc, { served_at: new Date().toISOString(), read_error: CONN.err, probe_available: !!(CONN_JOB || process.env.GRID_CONNECTIONS_PROBE_CMD) });
+  return send(res, 200, out);
+}
+
+// "Probe now": run the Cloud Run job (prod) or a local command (dev). Returns 202 straight
+// away - the tab polls GET until generated_at moves. The probe takes ~1-2 minutes, well past
+// the platform proxy's 30s per-request cap, which is why this can never be synchronous.
+async function connectionsProbe(res) {
+  if (CONN.probing) return send(res, 202, { ok: true, running: true, note: 'a probe is already running' });
+  const cmd = process.env.GRID_CONNECTIONS_PROBE_CMD;
+  if (cmd) {
+    CONN.probing = true;
+    const { exec } = require('child_process');
+    exec(cmd, { cwd: ROOT, timeout: 10 * 60 * 1000 }, (err, so, se) => {
+      CONN.probing = false; CONN.at = 0;
+      if (err) console.error('[CONNECTIONS] local probe failed:', err.message, (se || '').slice(-400));
+      else console.log('[CONNECTIONS] local probe finished:', (so || '').trim().split('\n').slice(-2).join(' | '));
+    });
+    return send(res, 202, { ok: true, running: true, mode: 'local' });
+  }
+  if (!CONN_JOB) return send(res, 501, { error: 'Probe now is not wired here: set GRID_CONNECTIONS_JOB (Cloud Run job name) or GRID_CONNECTIONS_PROBE_CMD (local command).' });
+  try {
+    const { GoogleAuth } = require('google-auth-library');
+    const auth = new GoogleAuth({ scopes: ['https://www.googleapis.com/auth/cloud-platform'] });
+    const client = await auth.getClient();
+    const url = `https://run.googleapis.com/v2/projects/${CONN_PROJECT}/locations/${CONN_REGION}/jobs/${CONN_JOB}:run`;
+    const r = await client.request({ url, method: 'POST', data: {} });
+    CONN.probing = true; setTimeout(() => { CONN.probing = false; CONN.at = 0; }, 4 * 60 * 1000).unref();
+    return send(res, 202, { ok: true, running: true, mode: 'cloud-run', execution: r.data && r.data.metadata && r.data.metadata.name });
+  } catch (e) {
+    console.error('[CONNECTIONS] job run failed:', e.message);
+    return send(res, 502, { error: 'could not start the probe job: ' + e.message });
+  }
 }
 
 function serveStatic(res, p) {
