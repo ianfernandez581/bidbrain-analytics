@@ -45,7 +45,8 @@
   var SEV = { not_granted: 0, error: 1, frozen: 2, quiet: 3, ok: 4, idle: 5 };
 
   var CSS = [
-    '#view-connections{padding:2px 0 44px}',
+    '#view-connections{max-width:1360px;margin:0 auto;padding:2px 30px 44px}',
+    '@media(max-width:900px){#view-connections{padding:2px 16px 40px}}',
     '#view-connections .cx-hero{display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap;padding:4px 0 8px}',
     '#view-connections .cx-eyebrow{font-family:"Space Grotesk";font-size:11px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--brand)}',
     '#view-connections .cx-hero h2{font-family:"Space Grotesk";font-size:23px;font-weight:600;letter-spacing:-.5px;margin:6px 0 4px;color:var(--ink)}',
@@ -149,6 +150,65 @@
     '#view-connections .cx-empty{padding:40px 18px;text-align:center;color:var(--ink-3);font-size:13px}',
     '#view-connections .cx-never{padding:34px 22px;text-align:center}',
     '#view-connections .cx-never h3{font-family:"Space Grotesk";font-size:16px;margin:0 0 8px;color:var(--ink)}',
+    // ---- feed rollup ----
+    '#view-connections .cx-roll-h{display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding:15px 18px 0}',
+    '#view-connections .cx-roll-h h3{font-family:"Space Grotesk";font-size:15px;font-weight:600;margin:0;color:var(--ink)}',
+    '#view-connections .cx-roll-h .hint{font-size:11px;color:var(--ink-3)}',
+    '#view-connections tr.cx-frow{cursor:pointer}',
+    '#view-connections tr.cx-frow:hover td{background:var(--panel-2)}',
+    '#view-connections tr.cx-frow:focus-visible{outline:2px solid var(--brand);outline-offset:-2px}',
+    '#view-connections tr.cx-frow .fn{display:flex;align-items:center;gap:9px;font-weight:600;color:var(--ink)}',
+    '#view-connections tr.cx-frow .fcar{color:var(--ink-3);font-size:9px;width:9px;display:inline-block;transition:transform .13s ease,color .13s ease}',
+    '#view-connections tr.cx-frow.open .fcar{transform:rotate(90deg)}',
+    '#view-connections tr.cx-frow:hover .fcar{color:var(--brand)}',
+    '#view-connections .cx-mono.sm{width:24px;height:24px;font-size:9.5px;border-radius:7px}',
+    '#view-connections tr.cx-frow .fsub{display:block;margin-left:42px;font-size:10.5px;color:var(--ink-3);font-weight:500}',
+    '#view-connections .fh{display:flex;align-items:center;gap:9px;min-width:140px;max-width:200px}',
+    '#view-connections .fbar{flex:1;height:6px;border-radius:3px;background:var(--grp);overflow:hidden;min-width:64px}',
+    '#view-connections .fbar i{display:block;height:100%;border-radius:3px;background:var(--ok)}',
+    '#view-connections .fbar.bad i{background:var(--bad)}',
+    '#view-connections .ft{font-size:11px;color:var(--ink-3);font-variant-numeric:tabular-nums;white-space:nowrap}',
+    '#view-connections .fdim{font-size:11px;color:var(--ink-3)}',
+    '#view-connections .fday{font-variant-numeric:tabular-nums}',
+    '#view-connections .fsub2{display:block;font-size:10.5px;color:var(--ink-3);font-variant-numeric:tabular-nums}',
+    '#view-connections tr.cx-fdet>td{padding:0;background:var(--panel-2);border-bottom:1px solid var(--line)}',
+    '#view-connections tr.cx-fdet .cx-sec{margin:0}',
+    // ---- problem cards ----
+    '#view-connections .cx-prob{display:grid;grid-template-columns:4px 1fr;background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);overflow:hidden;margin-bottom:13px}',
+    '#view-connections .cx-prob .pstripe{background:var(--bad)}',
+    '#view-connections .cx-prob.muted .pstripe{background:var(--ink-3)}',
+    '#view-connections .cx-prob .pin{min-width:0}',
+    '#view-connections .cx-prob .ph{padding:15px 20px 0}',
+    '#view-connections .cx-prob .pk{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:6px}',
+    '#view-connections .cx-prob .pmute{font-size:9.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);background:var(--grp);padding:3px 8px;border-radius:5px}',
+    '#view-connections .cx-prob .plede{font-family:"Space Grotesk";font-size:16.5px;font-weight:600;line-height:1.3;letter-spacing:-.2px;color:var(--ink);text-wrap:balance}',
+    '#view-connections .cx-prob.muted .plede{color:var(--ink-2)}',
+    '#view-connections .cx-prob .psub{font-size:11.5px;color:var(--ink-3);margin-top:4px}',
+    '#view-connections .cx-prob .pstrip{display:flex;flex-wrap:wrap;gap:0 24px;padding:13px 20px 0}',
+    '#view-connections .cx-prob .pm{display:flex;flex-direction:column;gap:1px;padding:2px 0}',
+    '#view-connections .cx-prob .pl,#view-connections .cx-prob .pl2{font-size:9.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3)}',
+    '#view-connections .cx-prob .pv{font-size:13px;font-weight:600;font-variant-numeric:tabular-nums;color:var(--ink)}',
+    '#view-connections .cx-prob .pv.dim{font-weight:500;font-size:12.5px;color:var(--ink-3)}',
+    '#view-connections .cx-prob .ptbl{padding:12px 20px 0;display:flex;flex-direction:column;gap:3px}',
+    '#view-connections .cx-prob .ptbl code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px;color:var(--ink-2);background:var(--grp);border-radius:5px;padding:3px 7px;align-self:flex-start;overflow-wrap:anywhere}',
+    '#view-connections .cx-prob .ptodo{margin-top:14px;padding:14px 20px;border-top:1px solid var(--line-2);background:var(--panel-2)}',
+    '#view-connections .cx-prob .pl2{font-family:"Space Grotesk";font-size:11px;color:var(--ink-2);margin-bottom:5px}',
+    '#view-connections .cx-prob .ptodo p{margin:0;font-size:12.5px;color:var(--ink-2);line-height:1.55}',
+    '#view-connections .cx-prob .pgo{display:inline-block;margin-top:10px;font-size:12px;font-weight:600;color:var(--brand-ink);text-decoration:none;border-bottom:1px solid var(--brand);padding-bottom:1px}',
+    '#view-connections .cx-prob .pgo:hover{color:var(--ink);border-bottom-color:var(--ink)}',
+    '@media(min-width:1080px){#view-connections .cx-prob .pin{display:grid;grid-template-columns:minmax(0,1fr) minmax(300px,35%);grid-template-areas:"h t" "s t" "b t";align-content:start}#view-connections .cx-prob .ph{grid-area:h}#view-connections .cx-prob .pstrip{grid-area:s}#view-connections .cx-prob .ptbl{grid-area:b;padding-bottom:17px}#view-connections .cx-prob .ptodo{grid-area:t;margin-top:0;border-top:0;border-left:1px solid var(--line-2);display:flex;flex-direction:column;justify-content:center;padding:18px 22px}#view-connections .cx-prob .plede{max-width:33ch}#view-connections .cx-prob .ptodo p{max-width:44ch}}',
+    // ---- hover: one vocabulary, deliberately quiet. Geometry uses translate, never the
+    // transform shorthand - the caret and chevrons already set transform:rotate().
+    '#view-connections .cx-scard,#view-connections .cx-prob{transition:translate .14s ease,box-shadow .14s ease,border-color .14s ease}',
+    '#view-connections .cx-scard:hover{translate:0 -1px}',
+    '#view-connections .cx-prob:hover{translate:0 -1px;box-shadow:0 2px 4px rgba(0,0,0,.05),0 16px 34px -20px rgba(0,0,0,.35)}',
+    '#view-connections .cx-hz{padding:7px 10px;margin:-7px -10px;border-radius:10px;transition:background .13s ease}',
+    '#view-connections .cx-hz:hover{background:var(--panel-2)}',
+    '#view-connections table tbody tr td{transition:background .12s ease}',
+    '#view-connections .cx-pill,#view-connections .cx-link,#view-connections .cx-sync{transition:color .13s ease,background .13s ease,border-color .13s ease,box-shadow .13s ease}',
+    '#view-connections code{transition:background .13s ease,color .13s ease}',
+    '#view-connections code:hover{background:color-mix(in oklab,var(--brand) 12%,var(--grp));color:var(--ink)}',
+    '@media(prefers-reduced-motion:reduce){#view-connections *{transition:none!important}#view-connections .cx-scard:hover,#view-connections .cx-prob:hover{translate:none!important}}',
     '#view-connections .cx-never p{margin:0 auto;max-width:62ch;font-size:12.5px;color:var(--ink-2);line-height:1.55}',
     '#view-connections .cx-never code{display:inline-block;margin-top:12px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11.5px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 12px;color:var(--ink)}',
     '#view-connections .cx-note{display:flex;gap:8px;align-items:flex-start;font-size:11.5px;color:var(--ink-2);line-height:1.5;padding:0 18px 14px}',
@@ -170,6 +230,10 @@
   function mono(label) { var w = String(label || '?').replace(/[^A-Za-z0-9 ]/g, ' ').trim().split(/\s+/); return (w.length > 1 ? w[0][0] + w[1][0] : (w[0] || '?').slice(0, 2)).toUpperCase(); }
   // the Grid's shared per-client hue (src/brain/client-colors.js) so a client is the same colour here as on Brain
   function clientColor(name) { try { if (name && window.BrainColors && window.BrainColors.getClientColor) return window.BrainColors.getClientColor(String(name).toLowerCase()).fg; } catch (e) { } return 'var(--ink-3)'; }
+  var RED = { not_granted: 1, frozen: 1, error: 1 };
+  // which feed rows are expanded. Feeds holding something red open on their own, so a
+  // problem is never one click away from being seen.
+  S.openFeed = S.openFeed || {};
   function stateOf(s) { return STATE[s] || STATE.error; }
   function isIdle(a) { return a.state === 'idle'; }
 
@@ -215,7 +279,9 @@
     return '<div class="cx-hero"><div>'
       + '<div class="cx-eyebrow">Connections</div>'
       + '<h2>Windsor connections</h2>'
-      + '<p>Every Windsor account we ingest, probed hourly against the connector itself and against the newest day it landed in BigQuery. A grant that lapses never fails a job - the loader stays green while one account survives - so this is the per-account view. Red and amber here email ' + (to ? esc(to) : 'the team') + ' the moment a state changes.</p>'
+      // 55 words down to 20. The recipient list was printed here AND in cx-probed on the
+      // right, so it comes out; what survives is the one fact that justifies a per-account view.
+      + '<p>Every account we ingest, checked hourly. A lapsed grant never fails a job, so each is watched on its own.</p>'
       + '</div><div class="cx-right">'
       + '<span class="cx-mail' + (mailOn ? '' : ' off') + '" title="' + (mailOn ? 'State changes are emailed to ' + esc(to) : 'Email alerts are not configured - the probe logs alerts but cannot send them yet') + '"><span class="md"></span>Email alerts <b>' + (mailOn ? 'on' : 'off') + '</b></span>'
       + '<div class="cx-probed">' + (probed ? 'Last probe <b>' + esc(ago(probed)) + '</b><br>' + esc(fmtWhen(probed)) + ' · hourly' : 'Never probed') + '</div>'
@@ -365,6 +431,116 @@
     return h + '</tbody></table></div></div></div>';
   }
 
+
+  /* The lead the tab was missing: what is wrong, said in words, with the fix beside it.
+     "Not granted" is our jargon; someone opening this at 8am needs the fact. Only accounts
+     that can actually page us get a card - a muted one appears, greyed, so a known-and-
+     silenced problem is still visible without competing with a live one. */
+  function ledeFor(ds, a) {
+    var who = a.client_label || a.client || 'An unmapped account';
+    var feed = String(ds.label || '').replace(/ \(.*\)$/, '');
+    if (a.state === 'not_granted' && ds.source === 'dts') return who + "'s " + feed + ' has never delivered any data';
+    if (a.state === 'not_granted') return 'Windsor no longer holds ' + who + "'s " + ds.label + ' account';
+    if (a.state === 'frozen') return ds.label + ' is answering, but ' + who + "'s data has stopped arriving";
+    if (a.state === 'error') return 'Windsor keeps erroring on ' + who + "'s " + ds.label + ' account';
+    return who + ' needs attention on ' + ds.label;
+  }
+  function destFor(ds, a) {
+    if (ds.source === 'dts') return { href: 'https://console.cloud.google.com/bigquery/transfers?project=bidbrain-analytics', text: 'Open BigQuery Data Transfers' };
+    if (a.state === 'not_granted') return { href: ds.reauth_url || 'https://onboard.windsor.ai', text: 'Re-grant in Windsor' };
+    return null;
+  }
+  function problems(doc) {
+    var hits = [];
+    ((doc && doc.datasources) || []).forEach(function (ds) {
+      (ds.accounts || []).forEach(function (a) {
+        if (RED[a.state]) hits.push({ ds: ds, a: a });
+      });
+    });
+    if (!hits.length) return '';
+    hits.sort(function (x, y) { return (y.a.alerts - x.a.alerts) || (SEV[x.a.state] - SEV[y.a.state]); });
+    return hits.map(function (it) {
+      var ds = it.ds, a = it.a, act = !!a.alerts, go = destFor(ds, a);
+      var d = a.data || {};
+      var age = d.days_behind == null ? null
+        : (d.days_behind >= 14 ? Math.floor(d.days_behind / 7) + ' weeks' : d.days_behind + ' days');
+      var fix = a.fix || a.why || '';
+      return '<article class="cx-prob' + (act ? '' : ' muted') + '"><div class="pstripe"></div><div class="pin">'
+        + '<div class="ph"><div class="pk"><span class="cx-verd" style="background:' + stateOf(a.state).soft + ';color:' + stateOf(a.state).c + '">' + stateOf(a.state).lbl + '</span>'
+        + (act ? '' : '<span class="pmute">Known &middot; not alerting</span>') + '</div>'
+        + '<div class="plede">' + esc(ledeFor(ds, a)) + '</div>'
+        + '<div class="psub">' + esc(ds.label) + ' &middot; ' + esc(a.name || a.id) + '</div></div>'
+        + '<div class="pstrip">'
+        + '<div class="pm"><span class="pl">Newest data</span><span class="pv' + (d.newest_day ? '' : ' dim') + '">' + (d.newest_day ? esc(fmtDay(d.newest_day)) : 'none, ever') + '</span></div>'
+        + '<div class="pm"><span class="pl">Behind</span><span class="pv' + (age ? '' : ' dim') + '">' + (age ? esc(age) : 'nothing to measure') + '</span></div>'
+        + '<div class="pm"><span class="pl">Emails</span><span class="pv' + (act ? '' : ' dim') + '">' + (act ? 'on' : 'muted in config') + '</span></div>'
+        + '</div>'
+        + (d.table ? '<div class="ptbl"><span class="pl">Table measured</span><code>' + esc(d.table) + '</code></div>' : '')
+        + '<div class="ptodo"><div class="pl2">What to do</div><p>' + esc(fix) + '</p>'
+        + (go ? '<a class="pgo" href="' + esc(go.href) + '" target="_blank" rel="noopener">' + esc(go.text) + ' &rarr;</a>' : '')
+        + '</div></div></article>';
+    }).join('');
+  }
+
+
+  /* One row per feed: worst state, how many of its watched accounts are live, the furthest
+     any has fallen behind, and when its grant is due. Expanding a row drops that feed's
+     full card in underneath. */
+  function feedRow(ds, doc) {
+    var accs = ds.accounts || [];
+    var shown = accs.filter(function (a) { return passes(ds, a); });
+    // during a search, a feed with no matching account is not worth a row
+    if (!shown.length && (S.filter.q || S.filter.state)) return '';
+    var worst = 'idle';
+    accs.forEach(function (a) { if (SEV[a.state] < SEV[worst]) worst = a.state; });
+    var live = accs.filter(function (a) { return a.state === 'ok'; }).length;
+    var watched = accs.filter(function (a) { return a.state !== 'idle'; }).length;
+    // Idle accounts are SUPPOSED to be stale - an offboarded client or a retired seat sits
+    // months behind by design. Counting them made a healthy feed report 125 d behind, which
+    // reads as a fault. Only accounts we actually watch can be "behind".
+    var behinds = accs.filter(function (a) { return a.state !== 'idle'; })
+      .map(function (a) { return (a.data || {}).days_behind; })
+      .filter(function (v) { return v != null; });
+    var worstBehind = behinds.length ? Math.max.apply(null, behinds) : null;
+    var pct = watched ? Math.round(live / watched * 100) : 100;
+    var g = ds.grant || {};
+    var due = g.expiry_estimate;
+    var dueD = due ? daysUntil(due) : null;
+    var sv = stateOf(worst);
+    var hasRed = accs.some(function (a) { return RED[a.state] && a.alerts; });
+    var key = 'f:' + ds.ds;
+    if (S.openFeed[key] == null && hasRed) S.openFeed[key] = true;
+    var open = !!S.openFeed[key];
+    var h = '<tr class="cx-frow' + (open ? ' open' : '') + '" data-feed="' + esc(key) + '" tabindex="0" aria-expanded="' + open + '">'
+      + '<td><span class="fn"><span class="fcar">&#9654;</span><span class="cx-mono sm">' + esc(mono(ds.label)) + '</span>'
+      + esc(ds.label) + '</span><span class="fsub">'
+      + (ds.source === 'dts' ? 'native BigQuery transfer' : 'Windsor connector') + ' &middot; ' + accs.length + ' accounts</span></td>'
+      + '<td><span class="cx-verd" style="background:' + sv.soft + ';color:' + sv.c + '"><span class="cx-dot" style="background:' + sv.c + ';width:7px;height:7px"></span>' + sv.lbl + '</span></td>'
+      + '<td><span class="fh"><span class="fbar' + (pct < 100 ? ' bad' : '') + '"><i style="width:' + pct + '%"></i></span>'
+      + '<span class="ft">' + live + '/' + watched + '</span></span></td>'
+      + '<td class="r">' + (worstBehind == null ? '<span class="fdim">no data</span>'
+          : '<span class="cx-behind' + (worstBehind <= 1 ? ' b0' : worstBehind <= 3 ? ' b1' : ' b2') + '">' + worstBehind + ' d</span>') + '</td>'
+      + '<td>' + (due ? '<span class="fday">' + esc(fmtDay(due)) + '</span><span class="fsub2">'
+          + (dueD != null ? (dueD < 0 ? 'overdue' : 'in ' + dueD + ' d') : '') + '</span>'
+          : '<span class="fdim">no clock</span>') + '</td></tr>';
+    if (open) {
+      var body = dsSection(ds);
+      h += '<tr class="cx-fdet"><td colspan="5">' + (body ||
+        '<div class="cx-empty" style="padding:18px">No accounts match the current filters.</div>') + '</td></tr>';
+    }
+    return h;
+  }
+
+  function feedRollup(doc) {
+    var rows = ((doc && doc.datasources) || []).map(function (ds) { return feedRow(ds, doc); }).join('');
+    if (!rows) return '';
+    return '<div class="cx-card cx-roll"><div class="cx-roll-h"><h3>All feeds</h3>'
+      + '<span class="hint">click a feed for its accounts and loader</span></div>'
+      + '<div class="cx-tbl-wrap"><table class="cx cx-fr"><thead><tr><th>Feed</th><th>Worst state</th>'
+      + '<th>Accounts live</th><th class="r">Furthest behind</th><th>Re-auth due</th></tr></thead>'
+      + '<tbody>' + rows + '</tbody></table></div></div>';
+  }
+
   function alertLog(doc) {
     var al = (doc && doc.alerts) || {}; var hist = al.history || [];
     var h = '<div class="cx-card"><div class="cx-card-h"><h3>Alerts sent</h3><span class="meta">' + (al.enabled ? 'to ' + esc((al.recipients || []).join(', ')) : 'email not configured - alerts are logged only') + '</span></div>'
@@ -397,9 +573,8 @@
     var doc = S.doc;
     if (!doc || doc.never_run) return never(mount);
     var all = accounts(doc); var shown = all.filter(function (x) { return passes(x.ds, x.a); });
-    var h = hero(doc) + summary(doc) + filterBar(doc, shown.length, all.length) + horizon(doc);
-    var secs = (doc.datasources || []).map(dsSection).join('');
-    h += secs || '<div class="cx-card"><div class="cx-empty">No accounts match the current filters.</div></div>';
+    var h = hero(doc) + summary(doc) + problems(doc) + filterBar(doc, shown.length, all.length) + horizon(doc);
+    h += feedRollup(doc) || '<div class="cx-card"><div class="cx-empty">No accounts match the current filters.</div></div>';
     h += alertLog(doc);
     if (doc.notes && doc.notes.length) { h += '<div class="cx-card" style="padding-top:6px">' + doc.notes.map(function (n) { return '<div class="cx-note" style="padding-top:10px"><span class="nb"></span><span>' + esc(n) + '</span></div>'; }).join('') + '</div>'; }
     mount.innerHTML = h;
@@ -413,6 +588,11 @@
     var idle = mount.querySelector('#cxIdle'); if (idle) idle.addEventListener('click', function () { S.filter.showIdle = !S.filter.showIdle; render(mount); });
     var cl = mount.querySelector('#cxClear'); if (cl) cl.addEventListener('click', function () { S.filter = { state: null, ds: null, q: '', showIdle: false }; S.expanded = {}; render(mount); });
     mount.querySelectorAll('tr.cx-grp').forEach(function (r) { r.addEventListener('click', function () { S.expanded[r.dataset.grp] = true; render(mount); }); });
+    mount.querySelectorAll('tr.cx-frow').forEach(function (r) {
+      function tog() { S.openFeed[r.dataset.feed] = !(r.getAttribute('aria-expanded') === 'true'); render(mount); }
+      r.addEventListener('click', function (e) { if (!e.target.closest('a')) tog(); });
+      r.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); tog(); } });
+    });
     var q = mount.querySelector('#cxQ'); if (q) {
       q.addEventListener('input', function () { S.filter.q = q.value.toLowerCase().trim(); var pos = q.selectionStart; render(mount); var nq = mount.querySelector('#cxQ'); if (nq) { nq.focus(); try { nq.setSelectionRange(pos, pos); } catch (e) { } } });
     }
