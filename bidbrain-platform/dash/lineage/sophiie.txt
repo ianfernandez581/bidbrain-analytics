@@ -24,10 +24,16 @@ audience tiers plus a retargeting ad group, Australia only, judged on the platfo
 
 Flight **2026-09-03 -> 2026-10-03**, budget **A$10,000**.
 
-**Status (2026-09-05): the pipeline is BUILT and the BigQuery views + seeds are DEPLOYED, but the
-advertiser is not yet visible to the Windsor Trade Desk connector**, so `client_sophiie.fact` is
-empty and the dashboard still serves its baked-in `dash/placeholder.json` behind the sample-data
-banner. Nothing else is blocking. See **GO-LIVE** at the bottom for the exact remaining steps.
+**Status (2026-09-05): LIVE on real data.** First delivery landed 2026-09-04 (55,348 impressions,
+100 clicks, A$337.46, 0 attributed sign-ups) and the dashboard is serving it - the sample banner has
+cleared itself. The portal tile is `active`.
+
+**There was never a grant problem.** Windsor grants the SEAT (`tradedesk__569`, "100% Digital"), not
+individual advertisers, and it has held that seat since 2026-08-25. The mirror looked empty only
+because the scheduled ingest walks back from *yesterday*, and its 2026-09-04 21:50 UTC run therefore
+reached 09-03 - one day before this campaign's first delivery. A forced range run brought it straight
+in. If this dashboard ever looks empty again, check `MAX(metric_date)` for the advertiser BEFORE
+concluding anything about grants.
 
 The skin is unique in the estate: the **"Chronicle - marble"** treatment over the **three-layer
 aurora**, and it is the only ANIMATED dashboard here. Every design note below still applies
@@ -457,6 +463,41 @@ and labelled the first bucket by its ISO Monday, **three days before the campaig
 hero trend has always done this via `syncGrainDefault()`; the Paid Media charts did not.
 The **wear-out table stays weekly on purpose** - week-over-week CTR decay is what it measures, and it
 has its own honest empty state ("needs 2+ weeks at 5,000+ impressions").
+
+### What the first real data changed (2026-09-05)
+
+Four things only real delivery could have surfaced. All are fixed; they are recorded because each is
+a class of defect, not a one-off.
+
+- **`TIER2-QUOTELED`, not `TIER2-QUOTED`.** The tier map guessed the spelling and the real ad group
+  fell through to the `INITCAP` fallback, rendering as "Tier2 Quoteled". Both spellings are now
+  mapped. The fallback is what made this visible rather than silent - do not replace it with a
+  real-value `ELSE`.
+- **The projection was computed over the elapsed flight, not the delivering window.** The flight
+  opens 09-03; delivery began 09-04. Averaging A$337 across 3 elapsed days projected **A$3,487** of a
+  A$10,000 flight - a 65% underspend warning about a campaign running at a rate that lands on budget
+  (**A$9,786**). Fixed per md/AGENTS.md ("PACE AGAINST THE BUDGET THAT CAN ACTUALLY SPEND"), and the
+  card now NAMES its basis on screen. Note the one deliberate difference from geocon's reference
+  impl: `run_days` is measured across the REPORTED window (first..last delivery), not
+  `today - first_delivery`, because The Trade Desk refuses same-day data - counting to today would
+  halve the run rate on every single run of a day-behind feed.
+- **The vs-target deltas had no thin-volume guard on the ad-group table.** Retargeting delivered 245
+  impressions and 5 clicks on day one and rendered **"+1261% vs CTR target" in confident green**,
+  beside Tier 1's +6% off 22,068 impressions. `lowConfidence()` already existed and was applied to
+  the creative table only. The number is still shown - what is withheld is the VERDICT COLOUR, since
+  the colour is what turns a ratio into a claim.
+- **Creative names shared a 23-character prefix.** Every creative is
+  `SOPHIIE_2026-Q3_TTD_AU_<tier>_<concept>_<size>`; the name cell ellipsises at ~285px, so six
+  creatives in an ad group all rendered as `SOPHIIE_2026-Q3_TTD_AU_TIER1-CALLHEAVY_C...` -
+  indistinguishable. `computeCreativePrefix()` strips the LONGEST COMMON PREFIX of the creatives
+  currently on screen, trimmed to a token boundary; the full name stays in a `title`. It is computed,
+  never hardcoded, so a rename or a second campaign shrinks the prefix instead of hiding something
+  real (93% of each name now visible, up from 56%).
+
+Reconciliation at go-live was EXACT at every stage - raw advertiser -> `stg_ttd` -> `fact` ->
+`sophiie.json` -> rendered table all agree on 55,348 impressions / 100 clicks / A$337.46, per ad
+group as well as in total. Viewability reads 72% (30,451 viewed / 42,368 tracked, a 76.5% sample) -
+`viewed/tracked`, never `viewed/impressions`.
 
 ## GO-LIVE
 
