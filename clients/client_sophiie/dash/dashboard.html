@@ -1091,6 +1091,32 @@ const ROWS=()=>DATA.rows||[];
 function rowsInRange(){return ROWS().filter(r=>inRange(r.date));}
 function scoped(){const st=STATE.stage;return rowsInRange().filter(r=>st==='all'||(r.stage||'Unclassified')===st);}
 function searched(rows){const q=STATE.search.toLowerCase();if(!q)return rows;return rows.filter(r=>[r.campaign,r.ad_group,r.creative,r.tier].join(' ').toLowerCase().includes(q));}
+// CREATIVE NAMES SHARE A PREFIX THAT CARRIES NO INFORMATION HERE. Every creative on this campaign is
+// named SOPHIIE_2026-Q3_TTD_AU_<tier>_<concept>_<size> - 55 characters of which the first 23 are
+// identical on every row, and the distinguishing part (concept + size) is at the END. The name cell
+// truncates with an ellipsis at ~285px, so six creatives in one ad group all rendered as
+// "SOPHIIE_2026-Q3_TTD_AU_TIER1-CALLHEAVY_C..." - visually identical and useless to rank by.
+//
+// The prefix is COMPUTED, never hardcoded: the longest common prefix across the creatives currently
+// on screen, trimmed back to a token (_ or -) boundary. That is self-adjusting - if a second
+// campaign or a rename makes the names diverge, the common prefix shrinks and less is stripped, so
+// this can never hide something that actually distinguishes two creatives (md/AGENTS.md, "names are
+// NOT stable keys" - a hardcoded 'SOPHIIE_2026-Q3_TTD_AU_' would silently stop matching next
+// quarter). Guarded so it only fires when there is a real shared prefix and something is left over,
+// and every render site keeps the FULL name in a title attribute.
+let CREATIVE_PREFIX='';
+function computeCreativePrefix(names){
+  const ns=[...new Set(names.filter(Boolean).map(String))];
+  if(ns.length<2){CREATIVE_PREFIX='';return;}
+  let p=ns[0];
+  for(const nm of ns.slice(1)){let i=0;while(i<p.length&&i<nm.length&&p[i]===nm[i])i++;p=p.slice(0,i);if(!p)break;}
+  const cut=Math.max(p.lastIndexOf('_'),p.lastIndexOf('-'));
+  p=cut>0?p.slice(0,cut+1):'';
+  // only worth stripping if it is substantial AND every name keeps a usable remainder
+  CREATIVE_PREFIX=(p.length>=8&&ns.every(nm=>nm.length-p.length>=4))?p:'';
+}
+function prettyCreative(v){const t=String(v==null?'-':v);
+  return (CREATIVE_PREFIX&&t.startsWith(CREATIVE_PREFIX))?t.slice(CREATIVE_PREFIX.length):t;}
 function lowConfidence(r){if(n(r.impressions)<5000)return{low:true,why:'under 5k impressions'};return{low:false,why:''};}
 
 // WHAT THE PLATFORM ACTUALLY REPORTS. `hasAny` is the one test the panels branch on, so a metric the
@@ -1330,6 +1356,7 @@ if (window.Chart) Chart.register({
 
 // ================================= RENDER =================================
 function render(){
+  computeCreativePrefix(ROWS().map(r=>r.creative));
   // Each step is isolated: a single renderer throwing must NOT blank every chart after it (Chart.js
   // draws share one animation loop, so one uncaught throw in a draw callback can take down the whole
   // page). Wrapping per-step keeps the rest of the dashboard alive and logs the offender.
@@ -1471,8 +1498,21 @@ function renderPacing(){
     :ratio>RATIO_HI?['bad','Over pace']
     :ratio<RATIO_LO?['warn','Under pace']
     :['good','On pace'];
-  const projNote=(budget&&projected)?` title="Projected to finish at ${money(projected)} of a ${money(budget)} budget - within ${Math.round(LAND_TOL*100)}% counts as on pace."`:'';
-  $('paceSummary').innerHTML=[`<span class="status ${verdict[0]}">${verdict[1]}</span>`,`<span class="pillc"${projNote}>Projected ${money(projected)}</span>`,`<span class="pillc">Day ${int(f.days_elapsed)} of ${int(f.days_total)}</span>`].join('');
+  // NAME THE PROJECTION'S BASIS ON SCREEN (md/AGENTS.md). When a campaign starts late the job
+  // projects from the DELIVERING window rather than the elapsed flight - the two answer very
+  // differently (A$9,786 vs A$3,487 here on day 3), so a bare "Projected" figure leaves the reader
+  // to assume the wrong one. A projection off a single delivering day is also genuinely fragile,
+  // and saying so is cheaper than being quietly wrong.
+  const runDays=n(f.delivering_days);
+  const lateStart=f.pace_basis==='delivering_window';
+  const basisTip=lateStart
+    ? `Projected from the ${runDays} day${runDays===1?'':'s'} that actually delivered (first delivery ${fmtDate(f.first_delivery)}), not the ${int(f.days_elapsed)} elapsed flight days - the campaign started after the flight opened, and averaging over the dead days understates it.`
+    : `Projected from the elapsed flight (${int(f.days_elapsed)} of ${int(f.days_total)} days).`;
+  const projNote=(budget&&projected)?` title="Projected to finish at ${money(projected)} of a ${money(budget)} budget - within ${Math.round(LAND_TOL*100)}% counts as on pace. ${basisTip}"`:` title="${basisTip}"`;
+  const basisChip=lateStart
+    ? `<span class="pillc" title="${basisTip}">from ${runDays} delivering day${runDays===1?'':'s'}${runDays===1?' - early, treat as indicative':''}</span>`
+    : '';
+  $('paceSummary').innerHTML=[`<span class="status ${verdict[0]}">${verdict[1]}</span>`,`<span class="pillc"${projNote}>Projected ${money(projected)}</span>`,basisChip,`<span class="pillc">Day ${int(f.days_elapsed)} of ${int(f.days_total)}</span>`].filter(Boolean).join('');
 }
 // Goal progress is FULL-FLIGHT (independent of the date/stage filter, like pacing).
 function renderGoalProgress(){
@@ -1615,19 +1655,28 @@ function renderNote(){
 // "vs <target>" sub-line, rendered ONLY when a target is actually seeded - a column of "vs -" is
 // noise, and inventing a benchmark to compare against is worse.
 function vsLine(target,fmt,note){return target!=null?`<div class="vs">vs ${fmt(target)}${note||''}</div>`:'';}
-function deltaCell(actual,target,lowerIsBetter){if(actual==null||target==null||!target)return '<span class="muted-text">-</span>';const d=actual/target-1;const good=lowerIsBetter?d<=0:d>=0;const cls=good?'good-text':(Math.abs(d)<=0.15?'warn-text':'bad-text');return `<span class="${cls}">${d>=0?'+':''}${(d*100).toFixed(0)}%</span>`;}
+// `thin` = too little volume for the delta to mean anything. The NUMBER is never hidden - what is
+// withheld is the VERDICT COLOUR, because green is what turns a ratio into a claim. On day one
+// Retargeting read "+1261% vs CTR target" in confident green off 245 impressions and 5 clicks,
+// beside Tier 1's +6% off 22,068 - the same visual authority for two figures that deserve nothing
+// like the same confidence. Same reasoning as the cloudflare creative-efficiency tables in
+// md/AGENTS.md: a verdict that cannot be supported should not be dressed as one.
+function deltaCell(actual,target,lowerIsBetter,thin){if(actual==null||target==null||!target)return '<span class="muted-text">-</span>';const d=actual/target-1;const txt=`${d>=0?'+':''}${(d*100).toFixed(0)}%`;
+  if(thin)return `<span class="muted-text" title="Too little volume to judge - shown for completeness, not as a verdict.">${txt}</span>`;
+  const good=lowerIsBetter?d<=0:d>=0;const cls=good?'good-text':(Math.abs(d)<=0.15?'warn-text':'bad-text');return `<span class="${cls}">${txt}</span>`;}
 function renderBenchTable(){
   const rows=byAdGroup(searched(scoped()));const cT=bench('ctr'),cpcT=bench('cpc'),cpaT=bench('cpa');
   const h=$('benchHint');
-  if(h)h.innerHTML=`CTR / CPC / cost per sign-up per ad group, each against the campaign's own Trade Desk KPI target (green = beating target). A <b>-</b> in the CPA column means that ad group has no attributed sign-up yet, which is not the same as a bad CPA.`;
-  const body=rows.map(r=>`<tr>
-    <td class="name-cell">${safeName(r.ad_group)}<div class="tiny">${safeName(r.tier)}</div></td>
+  if(h)h.innerHTML=`CTR / CPC / cost per sign-up per ad group, each against the campaign's own Trade Desk KPI target (green = beating target). A <b>-</b> in the CPA column means that ad group has no attributed sign-up yet, which is not the same as a bad CPA. A row marked <b>&#9888; thin</b> has under 5,000 impressions - its vs-target figures are shown uncoloured, because at that volume they are noise rather than a verdict.`;
+  const body=rows.map(r=>{const lc=lowConfidence(r);const warn=lc.low?` <span class="warn-chip" title="Low confidence: ${lc.why} - the vs-target figures on this row are not a verdict">&#9888; thin</span>`:'';
+    return `<tr>
+    <td class="name-cell">${safeName(r.ad_group)}${warn}<div class="tiny">${safeName(r.tier)}</div></td>
     <td><span class="pillc"><span class="dot" style="background:${stageColor(r.stage)}"></span>${safeName(r.stage)}</span></td>
     <td class="num">${money(r.spend)}</td><td class="num">${compact(r.impressions)}</td>
-    <td class="num">${pctr(r.ctr)}${vsLine(cT,v=>pctr(v))}</td><td class="num">${deltaCell(r.ctr,cT,false)}</td>
-    <td class="num">${r.cpc!=null?money(r.cpc,2):'-'}${vsLine(cpcT,v=>money(v,2))}</td><td class="num">${deltaCell(r.cpc,cpcT,true)}</td>
+    <td class="num">${pctr(r.ctr)}${vsLine(cT,v=>pctr(v))}</td><td class="num">${deltaCell(r.ctr,cT,false,lc.low)}</td>
+    <td class="num">${r.cpc!=null?money(r.cpc,2):'-'}${vsLine(cpcT,v=>money(v,2))}</td><td class="num">${deltaCell(r.cpc,cpcT,true,lc.low)}</td>
     <td class="num">${int(r.signups)}</td>
-    <td class="num">${r.cpa!=null?money(r.cpa,2):'<span class="muted-text">-</span>'}${vsLine(cpaT,v=>money(v,0))}</td><td class="num">${deltaCell(r.cpa,cpaT,true)}</td></tr>`).join('');
+    <td class="num">${r.cpa!=null?money(r.cpa,2):'<span class="muted-text">-</span>'}${vsLine(cpaT,v=>money(v,0))}</td><td class="num">${deltaCell(r.cpa,cpaT,true,lc.low)}</td></tr>`;}).join('');
   const tot=agg(searched(scoped()));
   const foot=`<tr class="total"><td>Total</td><td></td><td class="num">${money(tot.spend)}</td><td class="num">${compact(tot.impressions)}</td><td class="num">${pctr(tot.ctr)}</td><td class="num">${deltaCell(tot.ctr,cT,false)}</td><td class="num">${tot.cpc!=null?money(tot.cpc,2):'-'}</td><td class="num">${deltaCell(tot.cpc,cpcT,true)}</td><td class="num">${int(tot.signups)}</td><td class="num">${tot.cpa!=null?money(tot.cpa,2):'-'}</td><td class="num">${deltaCell(tot.cpa,cpaT,true)}</td></tr>`;
   $('benchTable').querySelector('tbody').innerHTML=(body||`<tr><td colspan="11" style="text-align:center;color:var(--muted2);padding:24px">No rows for the current filters.</td></tr>`)+(body?foot:'');
@@ -1765,7 +1814,7 @@ function readFor(r){const ctrT=bench('ctr'),cpcT=bench('cpc'),cpaT=bench('cpa');
 function renderTables(){
   const rows=byCreative(searched(scoped()));
   $('adTable').querySelector('tbody').innerHTML=rows.length?rows.map(r=>{const[clsv,read]=readFor(r);const lc=lowConfidence(r);const warn=lc.low?` <span class="warn-chip" title="Low confidence: ${lc.why}">&#9888; thin</span>`:'';
-    return `<tr><td class="name-cell">${safeName(r.creative)}${warn}</td><td class="name-cell">${multiLabel(r.ad_group,r.ad_group_n,'ad group')}</td><td><span class="pillc"><span class="dot" style="background:${stageColor(r.stage)}"></span>${safeName(r.stage)}</span>${r.stage_n>1?` <span class="muted-text" title="This creative also ran in ${r.stage_n-1} other funnel stage${r.stage_n-1>1?'s':''}">+${r.stage_n-1}</span>`:''}</td><td>${safeName(r.ad_format)}</td><td class="num">${money(r.spend)}</td><td class="num">${compact(r.impressions)}</td><td class="num">${int(r.clicks)}</td><td class="num">${pctr(r.ctr)}</td><td class="num">${r.cpc!=null?money(r.cpc,2):'<span class="muted-text">-</span>'}</td><td class="num">${int(r.signups)}</td><td class="${clsv}">${read}</td></tr>`;}).join('')
+    return `<tr><td class="name-cell" title="${safeName(r.creative)}">${safeName(prettyCreative(r.creative))}${warn}</td><td class="name-cell">${multiLabel(r.ad_group,r.ad_group_n,'ad group')}</td><td><span class="pillc"><span class="dot" style="background:${stageColor(r.stage)}"></span>${safeName(r.stage)}</span>${r.stage_n>1?` <span class="muted-text" title="This creative also ran in ${r.stage_n-1} other funnel stage${r.stage_n-1>1?'s':''}">+${r.stage_n-1}</span>`:''}</td><td>${safeName(r.ad_format)}</td><td class="num">${money(r.spend)}</td><td class="num">${compact(r.impressions)}</td><td class="num">${int(r.clicks)}</td><td class="num">${pctr(r.ctr)}</td><td class="num">${r.cpc!=null?money(r.cpc,2):'<span class="muted-text">-</span>'}</td><td class="num">${int(r.signups)}</td><td class="${clsv}">${read}</td></tr>`;}).join('')
     :`<tr><td colspan="11" style="text-align:center;color:var(--muted2);padding:28px">No creatives match the current filters.</td></tr>`;
 }
 // The ad group named beside a creative is resolved ONCE, over the selected range, and both creative
@@ -1780,7 +1829,7 @@ function renderFatigue(){
   const agMap=creativeAdGroupLabels();
   const rows=fatigueOf(scoped()).sort((a,b)=>{const af=a.flag==='FADING'?0:1,bf=b.flag==='FADING'?0:1;return af-bf||n(a.ctr_wow)-n(b.ctr_wow);}).slice(0,12);
   $('fatigueTable').querySelector('tbody').innerHTML=rows.length?rows.map(r=>{const clsv=r.flag==='FADING'?'bad-text':'good-text';const cw=nullable(r.ctr_wow);
-    return `<tr><td class="name-cell">${safeName(r.creative)}<div class="tiny">${(ag=>multiLabel(ag.value,ag.count,'ad group'))(agMap.get(r.key)||{value:r.ad_group,count:r.ad_group_n})}</div></td><td class="num">${compact(r.impressions)}</td><td class="num">${pctr(r.ctr)}</td><td class="num ${cw<0?'bad-text':'good-text'}">${cw==null?'-':(cw>0?'+':'')+(cw*100).toFixed(2)+'pp'}</td><td class="${clsv}">${safeName(r.flag)}</td></tr>`;}).join('')
+    return `<tr><td class="name-cell" title="${safeName(r.creative)}">${safeName(prettyCreative(r.creative))}<div class="tiny">${(ag=>multiLabel(ag.value,ag.count,'ad group'))(agMap.get(r.key)||{value:r.ad_group,count:r.ad_group_n})}</div></td><td class="num">${compact(r.impressions)}</td><td class="num">${pctr(r.ctr)}</td><td class="num ${cw<0?'bad-text':'good-text'}">${cw==null?'-':(cw>0?'+':'')+(cw*100).toFixed(2)+'pp'}</td><td class="${clsv}">${safeName(r.flag)}</td></tr>`;}).join('')
     :'<tr><td colspan="5" style="text-align:center;color:var(--muted2);padding:28px">No weekly wear-out signal yet (needs 2+ weeks at 5,000+ impressions).</td></tr>';
 }
 function renderBurn(){
@@ -1793,15 +1842,15 @@ let CC_LIST=[];
 function renderCreative(){
   CC_LIST=byCreative(searched(scoped())).filter(a=>n(a.spend)>0).slice(0,10);
   $('creativeGrid').innerHTML=CC_LIST.length?CC_LIST.map((r,i)=>{
-    const head=safeName(r.creative);
+    const head=safeName(prettyCreative(r.creative));const full=safeName(r.creative);
     return `<div class="ccard clickable" onclick="openCreative(${i})"><div class="cc-fallback"><div class="cc-fb-mark" role="img" aria-label="Sophiie AI"></div><div class="cc-fb-h">${head}</div></div>
-      <div class="cc-b"><div class="cc-title">${head}</div><div class="cc-copy">${multiLabel(r.ad_group,r.ad_group_n,'ad group')}${r.ad_format?` · ${safeName(r.ad_format)}`:''}</div>
+      <div class="cc-b"><div class="cc-title" title="${full}">${head}</div><div class="cc-copy">${multiLabel(r.ad_group,r.ad_group_n,'ad group')}${r.ad_format?` · ${safeName(r.ad_format)}`:''}</div>
       <div class="cc-m"><span><b>${money(r.spend)}</b> spend</span><span><b>${compact(r.impressions)}</b> imps</span><span>CTR <b>${pctr(r.ctr)}</b></span><span>CPC <b>${r.cpc!=null?money(r.cpc,2):'-'}</b></span></div></div></div>`;
   }).join(''):'<div class="muted-text" style="padding:24px">No creatives with spend in this range.</div>';
 }
-function openCreative(i){const r=CC_LIST[i];if(!r)return;const head=safeName(r.creative);
+function openCreative(i){const r=CC_LIST[i];if(!r)return;const head=safeName(prettyCreative(r.creative));const full=safeName(r.creative);
   $('ccModalBody').innerHTML=`<div class="ccm-media"><div class="cc-fallback" style="border-radius:12px;min-height:240px"><div class="cc-fb-mark" role="img" aria-label="Sophiie AI"></div><div class="cc-fb-h">${head}</div></div></div>
-    <div class="ccm-info"><h3>${head}</h3><p class="ccm-body">${multiLabel(r.ad_group,r.ad_group_n,'ad group')} · <span class="pillc"><span class="dot" style="background:${stageColor(r.stage)}"></span>${safeName(r.stage)}</span>${r.ad_format?` · ${safeName(r.ad_format)}`:''}${r.tier?` · ${safeName(r.tier)}`:''}</p>
+    <div class="ccm-info"><h3 title="${full}">${head}</h3><p class="ccm-body">${multiLabel(r.ad_group,r.ad_group_n,'ad group')} · <span class="pillc"><span class="dot" style="background:${stageColor(r.stage)}"></span>${safeName(r.stage)}</span>${r.ad_format?` · ${safeName(r.ad_format)}`:''}${r.tier?` · ${safeName(r.tier)}`:''}</p>
     <div class="ccm-metrics"><span>Spend <b>${money(r.spend)}</b></span><span>Impressions <b>${compact(r.impressions)}</b></span><span>CPM <b>${r.cpm!=null?money(r.cpm,2):'-'}</b></span><span>Clicks <b>${int(r.clicks)}</b></span><span>CTR <b>${pctr(r.ctr)}</b></span><span>CPC <b>${r.cpc!=null?money(r.cpc,2):'-'}</b></span><span>Sign-ups <b>${int(r.signups)}</b></span>${n(r.video_starts)?`<span>Video completion <b>${r.vcr!=null?pctWhole(r.vcr):'-'}</b></span>`:''}</div></div>`;
   $('ccModal').classList.add('on');
 }

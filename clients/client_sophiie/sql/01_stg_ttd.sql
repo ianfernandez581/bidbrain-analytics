@@ -67,7 +67,12 @@ SELECT
   -- grouping downstream keys on ad_group_id, never on this label.
   CASE
     WHEN _tier = 'TIER1-CALLHEAVY' THEN 'Tier 1 - call heavy'
-    WHEN _tier = 'TIER2-QUOTED'    THEN 'Tier 2 - quoted'
+    -- The live ad group is TIER2-QUOTELED (verified against real delivery 2026-09-04); TIER2-QUOTED
+    -- was the assumed spelling and is kept as an alias so a rename either way still resolves. An
+    -- unmapped tier is NOT an error - it falls through to the INITCAP fallback below and rendered as
+    -- 'Tier2 Quoteled', which is how this was caught. Cosmetic only: every grouping keys on
+    -- ad_group_id, never on this label.
+    WHEN _tier IN ('TIER2-QUOTELED', 'TIER2-QUOTED') THEN 'Tier 2 - quote led'
     WHEN _tier = 'TIER3-PROJECT'   THEN 'Tier 3 - project work'
     WHEN _tier = 'RETARGETING'     THEN 'Retargeting'
     ELSE INITCAP(REPLACE(REPLACE(_tier, '-', ' '), '_', ' '))

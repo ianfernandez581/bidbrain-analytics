@@ -145,7 +145,33 @@ def build_env(bq, observed):
             days_elapsed = max(0, days_elapsed)
     daily_pace = benchmarks["daily_pace"] or (budget / days_total if (budget and days_total) else None)
     pace_expected = (daily_pace * days_elapsed) if (daily_pace and days_elapsed) else None
-    projected_spend = (spend_total / days_elapsed * days_total) if (days_elapsed and days_total) else None
+
+    # PROJECTION RUNS ON THE DELIVERING WINDOW, NOT THE ELAPSED FLIGHT (md/AGENTS.md, "PACE AGAINST
+    # THE BUDGET THAT CAN ACTUALLY SPEND"; reference impl clients/client_geocon/job/main.py).
+    #
+    # The seeded flight opens 2026-09-03 but the campaign's first delivery was 2026-09-04. Averaging
+    # A$337 over 3 elapsed days projected A$3,487 of a A$10,000 flight - a 65% underspend warning
+    # about a campaign that is in fact running at a rate which lands on budget. A projection that
+    # contradicts the campaign's own run rate is worse than none: it argues for topping up a line
+    # that needs nothing.
+    #
+    # `run_days` is measured across the REPORTED window (first..last delivery inclusive), NOT
+    # `today - first_delivery` as geocon does. That difference matters here because The Trade Desk
+    # refuses same-day data, so this feed is structurally a day behind: counting to `today` would
+    # divide one day of spend across two days and halve the rate every single run.
+    dates_with_delivery = sorted({r["date"] for r in fact
+                                  if r.get("date") and (num(r.get("spend")) or 0) > 0})
+    first_delivery = dates_with_delivery[0] if dates_with_delivery else None
+    last_delivery = dates_with_delivery[-1] if dates_with_delivery else None
+    run_days = ((last_delivery - first_delivery).days + 1) if first_delivery else None
+    days_remaining = max(0, days_total - days_elapsed) if (days_total and days_elapsed) else None
+    if run_days and days_remaining is not None and days_elapsed and run_days < days_elapsed:
+        # Late start (or a gap): project the OBSERVED daily rate across the days still to run.
+        projected_spend = spend_total + (spend_total / run_days) * days_remaining
+        pace_basis = "delivering_window"
+    else:
+        projected_spend = (spend_total / days_elapsed * days_total) if (days_elapsed and days_total) else None
+        pace_basis = "elapsed_flight"
 
     dates = [r["date"] for r in fact if r.get("date")]
     flight = {
@@ -153,6 +179,12 @@ def build_env(bq, observed):
         "budget": budget, "days_total": days_total, "days_elapsed": days_elapsed,
         "daily_pace": daily_pace, "pace_expected": pace_expected,
         "projected_spend": projected_spend, "spend_to_date": round(spend_total, 2),
+        # What the projection was computed FROM, so the dashboard can say so on screen instead of
+        # leaving the reader to assume it is the elapsed flight (md/AGENTS.md: name the basis).
+        "pace_basis": pace_basis,
+        "delivering_days": run_days,
+        "first_delivery": iso(first_delivery),
+        "last_delivery": iso(last_delivery),
         "impressions_to_date": imps_total,
         "clicks_to_date": clicks_total,
         "signups_to_date": round(signups_total, 1),
