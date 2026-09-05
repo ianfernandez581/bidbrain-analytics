@@ -1,17 +1,21 @@
-r"""Generate dash/placeholder.json - a Sophiie AI-shaped SAMPLE payload for the preview dashboard.
+r"""Generate dash/placeholder.json - a Sophiie AI-shaped SAMPLE payload for the dashboard.
 
-Sophiie AI's campaigns are still being BUILT, so there is no Windsor/BigQuery data for this client
-and, by design, no sql/ views and no export job in this folder yet.
+The Trade Desk campaign SOPHIIE_2026-Q3_TTD_AU_DISPLAY_PROSPECTING is LIVE, but its advertiser
+(gjcl0pp) is not yet shared with our Windsor Trade Desk connector, so raw_windsor.perf_the_trade_desk
+holds no Sophiie rows and client_sophiie.fact is empty. The export job REFUSES to publish an empty
+fact, so dash/main.py keeps serving this payload until the grant lands - at which point the first
+*/10 tick publishes the real sophiie.json, the banner clears itself, and nothing here is read again.
+See clients/client_sophiie/README.md -> "GO-LIVE".
 
-TODO(sophiie): when the campaigns launch and the pipeline is built, this payload is the SHAPE that
-job/main.py must emit from BigQuery (meta / flight / benchmarks / targets / rows[] / breakdowns[]) -
-it is the data contract, written down as a working example. Every number here is synthetic and
-deterministic. The single tell is `meta.placeholder = true`, which dashboard.html renders behind a
-loud "sample data" banner and which main.py's /data.json serves ONLY until a real sophiie.json
-exists in the bucket - at which point the banner clears itself with no code change and no redeploy.
+This file is therefore two things at once:
+  1. the SAMPLE the client sees behind a loud "sample data" banner (meta.placeholder = true), and
+  2. the written-down DATA CONTRACT - the exact shape job/main.py emits from BigQuery
+     (meta / flight / benchmarks / targets / rows[]).
 
-Benchmarks + targets are read from the committed targets/*.csv so the sample can never contradict
-the seed the export job will use for real. Re-run after editing those CSVs:
+Every number here is synthetic and deterministic (random.seed(42)), but the STRUCTURE is real: the
+one live campaign, its four real ad groups, the real flight window, and the real KPI targets read
+straight from the committed targets/*.csv so the sample can never contradict the seed the export job
+uses. Re-run after editing those CSVs:
 
     .\.venv\Scripts\python.exe clients\client_sophiie\gen_placeholder.py
 """
@@ -27,230 +31,182 @@ TARGETS_DIR = os.path.join(HERE, "targets")
 
 random.seed(42)  # deterministic: re-running yields the identical file (clean diffs)
 
-# --- flight window ---------------------------------------------------------------------------
-# Deliberately a CURRENT, MID-FLIGHT window so every pacing card reads "in progress". The Bell
-# Shakespeare / Next Smile placeholders were seeded with a window that has since ended, which makes
-# each pacing card read "flight over" - md/AGENTS.md lists that as one of their go-live blockers, so
-# it is not worth inheriting. Re-seed these to the real flight the moment the media plan lands
-# (targets/targets.csv is the source; these three constants must match it).
-FLIGHT_START = date(2026, 8, 3)
-FLIGHT_END = date(2026, 10, 26)
-DATA_THROUGH = date(2026, 8, 17)         # rows run start..DATA_THROUGH (15 of 85 days elapsed)
+# --- flight window ----------------------------------------------------------------------------
+# The REAL flight, matching targets/targets.csv + targets/budget.csv. DATA_THROUGH is deliberately a
+# few days in, so every pacing card reads "in progress" rather than "flight over" - a placeholder
+# seeded with an expired window makes every pacing card look failed (that is a live go-live blocker
+# on two other preview clients; md/AGENTS.md).
+FLIGHT_START = date(2026, 9, 3)
+FLIGHT_END = date(2026, 10, 3)
+DATA_THROUGH = date(2026, 9, 12)
 DAYS_TOTAL = (FLIGHT_END - FLIGHT_START).days + 1
 DAYS_ELAPSED = (DATA_THROUGH - FLIGHT_START).days + 1
 
-# --- campaign / adset / ad tree ---------------------------------------------------------------
-# Stage names MUST match dashboard.html STAGE_COLORS: Awareness / Traffic / Conversion / Retargeting.
-# Sophiie sells an AI receptionist + back office to trades and service businesses, so the audience
-# split is by trade vertical rather than by geography, and the conversion is a free-trial start or a
-# demo booking. Campaign naming carries the SOPHIIE_ prefix that prettyCampaign() strips for display.
-CAMPAIGNS = [
-    {"id": "cmp_awareness", "name": "SOPHIIE_Awareness_NeverMissACall", "stage": "Awareness",
-     "weight": 0.26, "cvr": 0.0055, "video": True,
-     "adsets": [("ads_aw_1", "Trades - electrical, plumbing & HVAC"),
-                ("ads_aw_2", "Trades - roofing, carpentry & landscaping")]},
-    {"id": "cmp_traffic", "name": "SOPHIIE_Traffic_HowItWorks", "stage": "Traffic",
-     "weight": 0.24, "cvr": 0.011, "video": False,
-     "adsets": [("ads_tr_1", "Sole traders & 2-5 person crews"),
-                ("ads_tr_2", "Growing service businesses (6-30 staff)")]},
-    {"id": "cmp_trial", "name": "SOPHIIE_Conversion_FreeTrial", "stage": "Conversion",
-     "weight": 0.34, "cvr": 0.030, "video": False,
-     "adsets": [("ads_cv_1", "High-intent - after-hours call handling"),
-                ("ads_cv_2", "Lookalike - existing trial starts")]},
-    {"id": "cmp_retarget", "name": "SOPHIIE_Retargeting_TrialStart", "stage": "Retargeting",
-     "weight": 0.16, "cvr": 0.040, "video": True,
-     "adsets": [("ads_rt_1", "Site visitors - 30 day"),
-                ("ads_rt_2", "Pricing page - abandoned signup")]},
+CAMPAIGN_ID = "5jgf5yn"
+CAMPAIGN_NAME = "SOPHIIE_2026-Q3_TTD_AU_DISPLAY_PROSPECTING"
+
+# --- ad groups --------------------------------------------------------------------------------
+# The REAL four ad groups. `tier` and `stage` are what sql/01_stg_ttd.sql derives from these names,
+# reproduced here so the sample exercises the same parse the live payload will.
+#   share = share of spend | ctr = click-through rate | cvr = clicks -> sign-ups
+# The rates are tuned so the blended result lands JUST INSIDE all three KPI targets: a sample that
+# reads "miles ahead of plan" sets an expectation the real campaign then has to live down, and one
+# that reads "failing" is worse. It should show the vs-target logic in its healthy state.
+AD_GROUPS = [
+    {"id": "ag_t1", "name": "TIER1-CALLHEAVY_AWR", "tier": "Tier 1 - call heavy",
+     "stage": "Awareness", "share": 0.34, "ctr": 0.00152, "cvr": 0.0230},
+    {"id": "ag_t2", "name": "TIER2-QUOTED_AWR", "tier": "Tier 2 - quoted",
+     "stage": "Awareness", "share": 0.26, "ctr": 0.00130, "cvr": 0.0166},
+    {"id": "ag_t3", "name": "TIER3-PROJECT_AWR", "tier": "Tier 3 - project work",
+     "stage": "Awareness", "share": 0.22, "ctr": 0.00108, "cvr": 0.0120},
+    {"id": "ag_rt", "name": "RETARGETING_CONSID", "tier": "Retargeting",
+     "stage": "Consideration", "share": 0.18, "ctr": 0.00245, "cvr": 0.0411},
 ]
 
-# Two ads per ad set. The copy paraphrases Sophiie's OWN public positioning (an AI receptionist that
-# answers calls, books jobs, quotes, invoices and follows up, for trades and service businesses) so
-# the Creative tab reads like the real thing - but it is still SAMPLE copy, not approved ad text.
-AD_COPY = {
-    "Awareness": [("Every missed call is a job someone else wins",
-                   "Sophiie answers your phone 24/7, books the job and follows up - so nothing slips while you're on the tools."),
-                  ("The back office that never clocks off",
-                   "An AI receptionist built for trades and service businesses: calls answered, jobs booked, quotes out the same day.")],
-    "Traffic": [("See exactly how Sophiie handles a call",
-                 "Hear a real call flow end to end - answered, qualified, booked into your calendar, and confirmed with the customer."),
-                ("What Sophiie does after the phone call",
-                 "Quotes, invoices, scheduling and follow-ups, handled for you. See the whole workflow in two minutes.")],
-    "Conversion": [("Try Sophiie free",
-                    "Set up in minutes, keep your existing number, and see how many calls you were missing. No lock-in contract."),
-                   ("Book a 15-minute demo",
-                    "We'll walk through your call volume, your booking process and what Sophiie would pick up for you.")],
-    "Retargeting": [("Still sending calls to voicemail after hours?",
-                     "Pick up where you left off - your free trial takes a few minutes to switch on."),
-                    ("Your trial is a few clicks away",
-                     "Keep your number, keep your workflow. Sophiie just stops the calls going to voicemail.")],
-}
-DEST = "https://sophiie.ai/"
+# Display banner inventory. The Trade Desk reports creative NAME + AD FORMAT (never an image URL),
+# which is why the Creative tab renders branded tiles rather than thumbnails.
+CREATIVES = [
+    ("cr_300x250_a", "Sophiie_NeverMissACall_300x250", "300x250"),
+    ("cr_300x250_b", "Sophiie_AfterHours_300x250", "300x250"),
+    ("cr_728x90_a", "Sophiie_NeverMissACall_728x90", "728x90"),
+    ("cr_320x50_a", "Sophiie_BookedWhileYouWork_320x50", "320x50"),
+    ("cr_160x600_a", "Sophiie_QuoteFollowUp_160x600", "160x600"),
+    ("cr_970x250_a", "Sophiie_AIReceptionist_970x250", "970x250"),
+]
+
+# --- targets: read from the committed CSVs so the sample can never contradict the seed ----------
+def read_targets():
+    out = {}
+    with open(os.path.join(TARGETS_DIR, "targets.csv"), newline="", encoding="utf-8") as f:
+        for row in csv.DictReader(f):
+            raw = row["value"]
+            try:
+                val = float(raw)
+            except (TypeError, ValueError):
+                val = raw
+            out[row["key"]] = {"value": val, "status": row["status"]}
+    return out
 
 
-def day_factor(i):
-    """Mild ramp + weekly seasonality so trend lines look organic (not flat)."""
-    ramp = 0.86 + 0.010 * i
-    dow = (FLIGHT_START + timedelta(days=i)).weekday()
-    # Tradies book and browse early morning and at the weekend, so this is a FLATTER week than a
-    # B2B office curve - weekends dip, but nothing like the ~0.6 of a corporate audience.
-    week = 1.08 if dow < 5 else 0.86
-    return ramp * week
+TARGETS = read_targets()
+
+
+def tval(key, default=None):
+    v = (TARGETS.get(key) or {}).get("value")
+    return v if isinstance(v, (int, float)) else default
+
+
+BUDGET = tval("flight_budget_aud", 10000.0)
+CPA_T = tval("cpa_target_aud", 150.0)
+CPC_T = tval("cpc_target_aud", 3.0)
+CTR_T = tval("ctr_target", 0.0015)
+CPM_T = tval("cpm_target_aud", 4.5)
+
+# Sample delivery is paced just under plan - a placeholder that reads "miles ahead" is as unhelpful
+# as one that reads "failing". Daily spend wobbles +/-18% around the even pace.
+DAILY_PACE = BUDGET / DAYS_TOTAL
 
 
 def build_rows():
     rows = []
-    dates = [FLIGHT_START + timedelta(days=i) for i in range(DAYS_ELAPSED)]
-    daily_pace = read_targets_value("daily_pace_aud") or 214.0
-    for c in CAMPAIGNS:
-        ad_share = c["weight"] / (len(c["adsets"]) * 2)      # split evenly across the 4 ads
-        for (aset_id, aset_name) in c["adsets"]:
-            for k in range(2):
-                ad_id = f"{aset_id}_ad{k+1}"
-                title, body = AD_COPY[c["stage"]][k]
-                objective = {"Awareness": "OUTCOME_AWARENESS", "Traffic": "OUTCOME_TRAFFIC",
-                             "Conversion": "OUTCOME_LEADS", "Retargeting": "OUTCOME_LEADS"}[c["stage"]]
-                for i, d in enumerate(dates):
-                    jitter = random.uniform(0.85, 1.18)
-                    spend = round(daily_pace * ad_share * day_factor(i) * jitter, 2)
-                    cpm = random.uniform(7.0, 11.5)
-                    impressions = int(spend / cpm * 1000)
-                    ctr = random.uniform(0.009, 0.018)
-                    link_clicks = int(impressions * ctr)
-                    clicks = int(link_clicks * random.uniform(1.15, 1.4))
-                    freq = random.uniform(1.4, 2.4)
-                    reach = int(impressions / freq)
-                    lpv = int(link_clicks * random.uniform(0.62, 0.82))
-                    # Stochastic rounding. A per-ad-day expected value sits under 1 for the upper
-                    # funnel, and int(round(..)) would floor almost every row to zero - collapsing
-                    # the whole funnel. Carrying the fraction as a probability keeps the TOTAL
-                    # faithful to cvr while leaving each row integral.
-                    exact = lpv * c["cvr"] * random.uniform(0.7, 1.4)
-                    leads = int(exact) + (1 if random.random() < (exact - int(exact)) else 0)
-                    lw = int(round(leads * 0.72))            # website trial-start form
-                    lof = leads - lw                         # Meta lead form
-                    if c["video"]:
-                        v3 = int(impressions * random.uniform(0.22, 0.34))
-                        vc = int(v3 * random.uniform(0.10, 0.22))
-                        tp = int(v3 * random.uniform(0.25, 0.40))
-                    else:
-                        v3 = vc = tp = 0
-                    rows.append({
-                        "date": d.isoformat(),
-                        "campaign_id": c["id"], "campaign": c["name"],
-                        "adset_id": aset_id, "adset": aset_name,
-                        "ad_id": ad_id, "ad": title[:38],
-                        "stage": c["stage"],
-                        "creative_id": f"cr_{ad_id}", "creative_title": title, "creative_body": body,
-                        "creative_thumbnail_url": None,      # None -> branded fallback tile (no broken CDN img)
-                        "destination_url": DEST,
-                        "spend": spend, "impressions": impressions, "reach": reach,
-                        "clicks": clicks, "link_clicks": link_clicks, "lpv": lpv, "leads": leads,
-                        "video_3s_views": v3, "video_completes": vc, "thruplays": tp,
-                        "leads_website": lw, "leads_onfacebook": lof,
-                        "objective": objective, "effective_status": "ACTIVE",
-                    })
-    return rows
-
-
-def build_breakdowns():
-    out = []
-    dates = [FLIGHT_START + timedelta(days=i) for i in range(DAYS_ELAPSED)]
-    # Trades skew: strongly male, concentrated 25-54 (business owners and operators).
-    ages = ["18-24", "25-34", "35-44", "45-54", "55-64", "65+"]
-    age_w = [0.06, 0.26, 0.30, 0.23, 0.11, 0.04]
-    placements = [("Facebook Feed", 0.32), ("Instagram Feed", 0.20), ("Facebook Reels", 0.16),
-                  ("Instagram Reels", 0.15), ("Instagram Stories", 0.11), ("Audience Network", 0.06)]
-    for d in dates:
-        day_imp = int(random.uniform(38000, 58000))
-        for age, w in zip(ages, age_w):
-            for gender, gw in (("male", 0.78), ("female", 0.22)):
-                imp = int(day_imp * w * gw)
-                out.append({
-                    "date": d.isoformat(), "breakdown": "age_gender", "seg1": age, "seg2": gender,
-                    "impressions": imp, "reach": int(imp / 1.8),
-                    "clicks": int(imp * 0.015), "link_clicks": int(imp * 0.012),
-                    "spend": round(imp / 1000 * 8.6, 2), "leads": int(imp * 0.0006),
+    day = FLIGHT_START
+    while day <= DATA_THROUGH:
+        # a slow ramp over the first three days, as The Trade Desk's pacing algorithm learns
+        ramp = min(1.0, 0.45 + 0.28 * (day - FLIGHT_START).days)
+        day_spend = DAILY_PACE * ramp * random.uniform(0.82, 1.18)
+        for ag in AD_GROUPS:
+            ag_spend = day_spend * ag["share"]
+            # CPM wobbles around the derived target; impressions follow from spend and CPM
+            cpm = CPM_T * random.uniform(0.86, 1.24)
+            imps = int(ag_spend / cpm * 1000)
+            clicks = int(round(imps * ag["ctr"] * random.uniform(0.8, 1.25)))
+            # split the day across 2-3 creatives so the creative tab has something to rank
+            picks = random.sample(CREATIVES, random.choice([2, 3]))
+            weights = [random.uniform(0.6, 1.4) for _ in picks]
+            wsum = sum(weights) or 1.0
+            for (cid, cname, fmt), w in zip(picks, weights):
+                share = w / wsum
+                c_imps = int(imps * share)
+                if c_imps <= 0:
+                    continue
+                c_clicks = int(round(clicks * share))
+                # Sign-ups are drawn HERE, at creative grain, not apportioned from an ad-group
+                # total: at these counts, rounding a shared total loses ~40% of them.
+                c_sign = sum(1 for _ in range(c_clicks) if random.random() < ag["cvr"])
+                # post-view carries most of the credit on a display buy, as it does in reality
+                pc = int(round(c_sign * 0.35))
+                rows.append({
+                    "date": day.isoformat(),
+                    "campaign_id": CAMPAIGN_ID, "campaign": CAMPAIGN_NAME,
+                    "ad_group_id": ag["id"], "ad_group": ag["name"],
+                    "tier": ag["tier"], "market": "Australia",
+                    "creative_id": cid, "creative": cname, "ad_format": fmt,
+                    "stage": ag["stage"],
+                    "spend": round(ag_spend * share, 2),
+                    "impressions": c_imps,
+                    "clicks": c_clicks,
+                    # Banner buy: The Trade Desk reports the video columns as zeros, and the
+                    # dashboard hides the video card when nothing is non-zero anywhere.
+                    "video_starts": 0, "video_25": 0, "video_50": 0, "video_75": 0,
+                    "video_completes": 0,
+                    "pv_conv": c_sign - pc, "pc_conv": pc,
+                    # Viewability measurement is not enabled on these ad groups, so BOTH sides are
+                    # null - which the dashboard must render as "not measured", never as 0% viewable.
+                    "vw_viewed": None, "vw_tracked": None,
                 })
-        for name, w in placements:
-            imp = int(day_imp * w)
-            out.append({
-                "date": d.isoformat(), "breakdown": "placement", "seg1": name, "seg2": None,
-                "impressions": imp, "reach": int(imp / 1.8),
-                "clicks": int(imp * 0.015), "link_clicks": int(imp * 0.012),
-                "spend": round(imp / 1000 * 8.6, 2), "leads": int(imp * 0.0005),
-            })
-    return out
-
-
-def read_targets():
-    """Mirror what seed_static.py will do: targets.csv -> {key:{value,status}}, numerics parsed."""
-    targets = {}
-    with open(os.path.join(TARGETS_DIR, "targets.csv"), newline="", encoding="utf-8") as f:
-        for r in csv.DictReader(f):
-            raw = r["value"]
-            try:
-                val = float(raw)
-                if val.is_integer():
-                    val = int(val)
-            except ValueError:
-                val = raw
-            targets[r["key"]] = {"value": val, "status": r["status"]}
-    return targets
-
-
-_TARGETS = read_targets()
-
-
-def read_targets_value(key):
-    v = _TARGETS.get(key, {}).get("value")
-    return float(v) if isinstance(v, (int, float)) else None
+        day += timedelta(days=1)
+    return rows
 
 
 def main():
     rows = build_rows()
-    targets = _TARGETS
-    tv = read_targets_value
-
-    # benchmarks[] is the flat, dashboard-facing view of targets[]. NOTE the deliberate rename:
-    # the template this was cloned from called the lead goal `monthly_lead_target` while every
-    # consumer (the KPI sub-label AND the cumulative "on track to goal?" chart) treats it as a
-    # WHOLE-FLIGHT number. Here it is `flight_lead_target`, which is what it actually means.
-    benchmarks = {
-        "cpl": tv("cpl_target_aud"), "cpl_stretch": tv("cpl_stretch_aud"),
-        "ctr": tv("ctr_target"), "cpm": tv("cpm_target_aud"), "cpc": tv("cpc_target_aud"),
-        "cost_per_lpv": tv("cost_per_lpv_target_aud"), "lead_target": tv("flight_lead_target"),
-        "qualified_lead_target": tv("qualified_lead_target"), "daily_pace": tv("daily_pace_aud"),
-        "flight_budget": tv("flight_budget_aud"),
-    }
-    spend_total = round(sum(r["spend"] for r in rows), 2)
-    leads_total = sum(r["leads"] for r in rows)
-    budget = benchmarks["flight_budget"] or 18000.0
-    daily_pace = benchmarks["daily_pace"] or (budget / DAYS_TOTAL)
-    flight = {
-        "start": FLIGHT_START.isoformat(), "end": FLIGHT_END.isoformat(),
-        "budget": budget, "days_total": DAYS_TOTAL, "days_elapsed": DAYS_ELAPSED,
-        "daily_pace": daily_pace, "pace_expected": round(daily_pace * DAYS_ELAPSED, 2),
-        "projected_spend": round(spend_total / DAYS_ELAPSED * DAYS_TOTAL, 2),
-        "spend_to_date": spend_total, "leads_to_date": leads_total,
-    }
+    spend = sum(r["spend"] for r in rows)
+    imps = sum(r["impressions"] for r in rows)
+    clicks = sum(r["clicks"] for r in rows)
+    signups = sum(r["pv_conv"] + r["pc_conv"] for r in rows)
+    pace_expected = DAILY_PACE * DAYS_ELAPSED
     env = {
         "meta": {
-            "client": "sophiie", "title": "Sophiie AI", "currency": "AUD",
-            "placeholder": True,                    # <- the ONLY tell; dashboard shows the sample banner
-            "lead_source_label": "Sample", "channel": "Meta (Facebook + Instagram)",
-            "last_updated": DATA_THROUGH.isoformat() + "T08:00:00Z",
-            "data_through": DATA_THROUGH.isoformat() + "T08:00:00Z",
-            "date_min": rows[0]["date"], "date_max": DATA_THROUGH.isoformat(),
+            "client": "sophiie",
+            "title": "Sophiie AI",
+            "currency": "AUD",
+            "action_source_label": "Sign up · TTD-attributed",
+            "channel": "The Trade Desk (programmatic display)",
+            # THE ONLY TELL. Real payloads have no such key, so the banner clears itself.
+            "placeholder": True,
+            "last_updated": f"{DATA_THROUGH.isoformat()}T21:40:00Z",
+            "data_through": f"{DATA_THROUGH.isoformat()}T21:40:00Z",
+            "date_min": rows[0]["date"], "date_max": rows[-1]["date"],
             "row_count": len(rows),
+            "conversion_slots": ["click_conversion_01", "view_through_conversion_01"],
         },
-        "flight": flight, "benchmarks": benchmarks, "targets": targets,
-        "rows": rows, "breakdowns": build_breakdowns(),
+        "flight": {
+            "start": FLIGHT_START.isoformat(), "end": FLIGHT_END.isoformat(),
+            "budget": BUDGET, "days_total": DAYS_TOTAL, "days_elapsed": DAYS_ELAPSED,
+            "daily_pace": round(DAILY_PACE, 2), "pace_expected": round(pace_expected, 2),
+            "projected_spend": round(spend / DAYS_ELAPSED * DAYS_TOTAL, 2),
+            "spend_to_date": round(spend, 2),
+            "impressions_to_date": imps, "clicks_to_date": clicks,
+            "signups_to_date": signups,
+            "vw_viewed_to_date": 0, "vw_tracked_to_date": 0,
+        },
+        "benchmarks": {
+            "cpa": CPA_T, "cpc": CPC_T, "ctr": CTR_T, "cpm": CPM_T,
+            "impressions_target": tval("impressions_target"),
+            "signups_target": tval("signups_target"),
+            "daily_pace": tval("daily_pace_aud"),
+            "flight_budget": BUDGET,
+        },
+        "targets": TARGETS,
+        "rows": rows,
     }
     with open(OUT, "w", encoding="utf-8") as f:
-        json.dump(env, f, separators=(",", ":"))
+        json.dump(env, f)
     print(f"wrote {OUT}")
-    print(f"  {len(rows)} rows | {leads_total} sample enquiries | ${spend_total:,.0f} spend "
-          f"| {DAYS_ELAPSED}/{DAYS_TOTAL} days | {len(env['breakdowns'])} breakdown rows")
+    print(f"  {len(rows)} rows | {imps:,} imps | {clicks:,} clicks | {signups} sign-ups | "
+          f"${spend:,.2f} spend")
+    print(f"  CTR {clicks/imps:.4%} (target {CTR_T:.2%}) | CPC ${spend/clicks:,.2f} "
+          f"(target ${CPC_T:,.2f}) | CPA ${spend/signups:,.2f} (target ${CPA_T:,.0f})")
 
 
 if __name__ == "__main__":

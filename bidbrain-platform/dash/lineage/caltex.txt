@@ -19,6 +19,24 @@
 > `job/main.py` also REFUSES to upload an empty fact, so a premature run can never blank the
 > dashboard. Runbook: [`dash/LIVE_URL.md`](dash/LIVE_URL.md).
 
+## SITE VISITS ARE OFF THE DASHBOARD (client request, 2026-08-18) — read this first
+
+The client asked for **site visits removed from the dashboard**, so every client-facing site-visit
+surface is gone: the north-star KPI tile, the hero-trend line, the attention funnel's third step,
+the "post-view vs post-click" donut **and its whole card**, the `Site visits` column on the funnel-
+stage / ad-group / creative tables, the goal-panel bar, the creative-modal `Actions` figure, the
+`site_visits` and `pv_conv`/`pc_conv` CSV columns, and the AI-deck payload + `report.py` prompts
+(so the deck can no longer cite an outcome the dashboard does not show). `renderActionSplit()` is
+deleted. The "how to read this" note now says plainly that **no on-site outcome is reported here**.
+
+**This is an instruction, not a measurement judgement.** Everything below about what the pixel does
+and does not measure still stands and is still the reference for the applications question — but do
+NOT re-add the metric to the UI just because the conversion slots are populated. Re-adding it is a
+UI-only change (`dash/dashboard.html` + `dash/report.py`) because **the data path is deliberately
+untouched**: `sql/01_stg_ttd.sql` still sums the slots, `sql/02_fact.sql` still carries them,
+`job/main.py` still emits `pv_conv`/`pc_conv` on `rows[]` plus `actions_to_date` and
+`action_source_label` in `meta`, and the status-dash accuracy checks are unaffected.
+
 ## What the conversion pixel can and cannot measure (read before promising numbers)
 
 **Site visits became measurable on 2026-08-10**, when the client attached the URL-scoped
@@ -115,6 +133,63 @@ the apply page, and today nothing is.
 2026-08-10**; (2) get the pixel onto `oa.starcard.com.au` → `7y9naeh` starts counting → attach it
 too; (3) confirm the post-view / post-click attribution windows. The duplicate-pair caveat above was
 checked against the first real totals — see the slot-layout note in `sql/01_stg_ttd.sql`.
+
+## Geo: REAL states (QLD / WA / SA), not the ad-group label (added 2026-08-12)
+
+The client asked to see **South Australia**. It turned out SA was **already delivering** - it was
+just invisible, because every "market" on this dashboard was parsed out of the ad-group NAME
+(`"Tactic | Market"`), which reads `QLD+WA` on all three ad groups and can never show a third state.
+
+**Whole flight (2026-07-28 -> 08-16), from The Trade Desk's own region data (re-pulled 2026-08-18):**
+
+| State | Impressions | Share | Clicks | CTR | Spend |
+|---|---|---|---|---|---|
+| QLD | 120,718 | 58.7% | 88 | 0.073% | A$1,843.16 |
+| WA | 76,286 | 37.1% | 67 | 0.088% | A$1,100.50 |
+| **SA** | **8,721** | **4.2%** | **6** | 0.069% | A$162.60 |
+
+205,725 impressions / 161 clicks - **reconciles exactly** to `stg_ttd`, to `rows[]` and to
+`flight.impressions_to_date`. Re-check that after any re-pull: a geo split that does not sum to the
+headline is worse than no split. (Earlier snapshot, to 08-11: QLD 100,463 / WA 63,508 / SA 3,067 =
+167,038 imps / 119 clicks.)
+
+> **Worth raising with the client:** the campaign is *bought* as QLD+WA (campaign name, media plan
+> and ad-group labels all say so), yet SA is now **4.2% of impressions and growing** (1.8% on
+> 08-11 -> 4.2% on 08-16). It is no longer a zero-value slice - SA has earned 6 clicks at a CTR
+> comparable to WA and QLD, so the earlier "SA earns 0 clicks" note is DEAD; do not repeat it.
+> Either SA was added to targeting deliberately (which the ask implies) or it is a growing
+> targeting leak. The dashboard shows it either way; the buying label was hiding it.
+
+**The card now labels its own coverage** (2026-08-18): because this pull is manual it can trail the
+main feed, and an unlabelled trailing chart silently contradicts the KPIs above it (on 2026-08-18 it
+ran to 08-11 while delivery ran to 08-16). `renderMarkets()` prints the geo feed's last day and, when
+that is behind `meta.date_max`, an explicit note naming both dates plus the unsplit impressions. It
+compares against `date_max`, NOT today, so the normal 1-day TTD lag never reads as a fault.
+
+### How it works, and why it is a separate lane
+
+`ingest/ttd_geo_pull.py` -> `raw_windsor.caltex_ttd_geo` -> `sql/06_geo.sql` -> job `geo[]` ->
+the **States reached** card. The ad-group `market` stays as the BUYING label; this is the DELIVERY
+truth.
+
+**The shared `perf_the_trade_desk` deliberately does NOT carry `region`.** Adding it multiplies the
+grain ~29x (measured: 50 -> 1,462 rows for one seat over three days) and that table feeds FIVE TTD
+clients. So this uses an isolated caltex-only table - the same reasoning as
+`client_geocon/ingest/meta_breakdown_pull.py`.
+
+### Refreshing it (MANUAL - not scheduled, not gated)
+
+```powershell
+$env:WINDSOR_API_KEY = (gcloud secrets versions access latest --secret=windsor-api-key).Trim()
+.\.venv\Scripts\python.exe clients\client_caltex\ingest\ttd_geo_pull.py 2026-07-28 <today-1> out.ndjson
+bq load --replace --source_format=NEWLINE_DELIMITED_JSON raw_windsor.caltex_ttd_geo out.ndjson `
+  "date:DATE,campaign:STRING,ad_group_name:STRING,region:STRING,state:STRING,impressions:INTEGER,clicks:INTEGER,spend:FLOAT"
+gcloud run jobs execute caltex-export --region australia-southeast1 --update-env-vars FORCE_REBUILD=1 --wait
+```
+
+The pull is CHUNKED (3 days) because `region` makes a whole-flight request time out. Because it is
+manual, the geo card can lag the main feed; the export tolerates a missing/stale table rather than
+failing. **Schedule it** (scheduler.ps1) once the client relies on this day to day.
 
 ## Funnel stage is HARD-CODED to Awareness (2026-07-31)
 
@@ -240,18 +315,24 @@ are never stored, always recomputed from summed components, so any sub-range is 
 
 ## Honesty rules baked in
 
-- **Site visits = TTD-attributed visits to the Star Card LANDING PAGE** (post-view + post-click),
-  summed from Windsor's anonymous conversion slots and fed by the URL-scoped `Landing Page Visit`
-  tracker. NOT all site traffic, and NOT applications. `conversion_touch_*` (total pixel fires,
-  mostly not ad-attributed) is never used. Post-view dominating is *normal* for display and the UI
-  says so.
+- **No on-site outcome is reported to the client at all** (since 2026-08-18 — see the top of this
+  file). The dashboard's measured story is delivery + engagement: impressions, CPM, clicks, CTR,
+  CPC, spend vs pace. Applications were never measurable; site visits are no longer shown.
+  `conversion_touch_*` (total pixel fires, mostly not ad-attributed) is never used, then or now.
 - **Conversion-slot caveat:** once Caltex pixels actually fire, verify the slot layout — TTD can
   export one tracker as a duplicate column pair (VMCH's did; see `sql/01_stg_ttd.sql` header).
 - **No reach/frequency** exists in the Windsor TTD feed → creative wear-out is read from weekly
   **CTR decay** (≥5k impressions/week), not frequency.
-- **Targets marked `PENDING`** (all of them today, incl. the flight window 2026-07-14→09-30 and
-  the A$30k budget — placeholders) render with a "pending" marker so nobody mistakes an
-  assumption for an agreed KPI. Update `targets/*.csv` when the signed media plan arrives.
+- **A `DERIVED` target is OURS, and the UI now says so** (2026-08-18). `targets/targets.csv` carries
+  a `status` per target: `HARD` = the signed media plan (budget, flight, impressions 475k, CPM
+  A$25.86, CTR 0.30%), `SOFT` = a plan RANGE (`impressions_target_high`), `UNMEASURED` = committed
+  but not measurable here (viewability, sign-ups), and **`DERIVED` = inferred by us**
+  (`cpc_target_aud` A$10, `daily_pace_aud`). The plan never commits a CPC, so the dashboard used to
+  show a red Δ against a benchmark the client never agreed to - exactly the kind of false alarm that
+  starts a bad conversation. `targetDerived()` + `DERIVED_NOTE` in `dash/dashboard.html` now label it
+  ("our estimate, not a plan target" on the KPI tile, "est." in the ad-group table, and a line in the
+  "how to read this" note). **Any new DERIVED target must be labelled the same way.**
+  (`PENDING` is still handled by `targetPending()`; nothing carries that status today.)
 
 ## The dashboard (`dash/dashboard.html`)
 
@@ -290,12 +371,29 @@ gcloud run jobs execute caltex-export --region australia-southeast1 --update-env
 watermark) and rebuilds only when it advanced. Seed changes (targets/budget) and view-only edits
 need `FORCE_REBUILD=1`.
 
+**Before reporting a "stuck" dashboard, work out what day it CAN show** (this was mis-read as a
+stall on 2026-08-18, when the pipeline was healthy). The cap is **yesterday UTC**, and Sydney runs
+10-11 hours ahead, so between Sydney midnight and ~14:45 AEST the freshest possible day is
+**Sydney-yesterday-minus-one**. Worked example, 2026-08-18 07:50 AEST = 2026-08-17 21:50 UTC: the
+newest publishable day was **08-16**, and the dashboard reading 08-15 was ONE export tick behind, not
+broken. Two things make that last tick lag: the 21:35 UTC loader stamps `ingested_at` at the start of
+its run but the MERGE only commits at the end (measured 21:35:09 stamped vs `__TABLES__.last_modified`
+21:47:55), so the export tick that fires in between correctly sees nothing new and the next one
+rebuilds. Diagnose with `MAX(metric_date)` on `raw_windsor.perf_the_trade_desk` for advertiser
+`0lw3hp6` + `_freshness.json` before touching anything; force with `FORCE_REBUILD=1` if you cannot
+wait 10 minutes.
+
 **Expected lag is 1 day, never 0** — TTD refuses same-day dates, and the shared loader caps every
-pull at yesterday UTC. Since 2026-08-07 `windsor-tradedesk-ingest` runs **twice daily**
-(`35 1,21 * * *` UTC): the 01:35 UTC (= 11:35 AEST) run lands Sydney-yesterday data by ~midday
-Sydney, so the dashboard shows through yesterday instead of 2 days back. The newest day can still
-firm up slightly on the next 21:35 UTC re-pull (MERGE is idempotent). Client comms precedent: the
-lag was explained to Tilly (Caltex) 2026-08-07 as a TTD platform limit.
+pull at yesterday UTC. `windsor-tradedesk-ingest` runs **twice daily** (`35 4,21 * * *` UTC): the
+04:35 UTC (= 14:35 AEST) run lands Sydney-yesterday data by ~14:45 Sydney, so the dashboard shows
+through yesterday from mid-afternoon instead of 2 days back. (That run sat at 01:35 UTC from
+2026-08-07 to 2026-09-01 — moved because Windsor's TTD endpoint is degraded ~00:00-03:30 UTC every
+night while TTD finalises the prior day, so it failed or limped for weeks and the dashboard ran 2
+days behind through Sydney business hours; that is the gap Ben flagged on 08-31. If the 04:35 run
+proves too early for TTD's publish time it loads nothing and the 21:35 run covers it — slide the
+hour in `scripts/deploy_ingest_jobs.ps1` if that keeps happening.) The newest day can still firm
+up slightly on the next 21:35 UTC re-pull (MERGE is idempotent). Client comms precedent: the lag
+was explained to Tilly (Caltex) 2026-08-07 as a TTD platform limit.
 
 ## Coordinates
 
@@ -377,3 +475,24 @@ lag was explained to Tilly (Caltex) 2026-08-07 as a TTD platform limit.
 -- 04_budget: Caltex media-plan budget / flight window. Source of truth is the
 -- VERSION-CONTROLLED committed CSV targets/budget.csv, loaded to client_caltex.seed_budget
 -- by seed_static.py. To change: edit budget.csv -> seed_static.py -> export FORCE_REBUILD=1.
+
+### 06_geo.sql
+-- 06_geo: REAL delivery by Australian state, from the caltex-only geo table.
+--
+-- WHY THIS IS A SEPARATE LANE. Everywhere else on this dashboard "market" is parsed out of the
+-- ad-group NAME ("Tactic | Market"), so every row reads 'QLD+WA' - one lump that can never show a
+-- third state no matter where the ads actually served. Probing Windsor's TTD `region` field on
+-- 2026-08-12 showed the campaign IS delivering into SOUTH AUSTRALIA while the ad group still says
+-- QLD+WA. This view is the honest geo answer; the ad-group `market` stays as the BUYING label.
+--
+-- SOURCE is raw_windsor.caltex_ttd_geo, an ISOLATED caltex-only table written by
+-- clients/client_caltex/ingest/ttd_geo_pull.py. The shared perf_the_trade_desk deliberately does
+-- NOT carry `region`: it multiplies the grain ~29x (measured 50 -> 1,462 rows for one seat over
+-- three days) and that table feeds FIVE TTD clients. Same isolation as the geocon breakdown table.
+--
+-- RECONCILIATION (2026-08-12, whole flight 07-28..08-11): QLD 100,463 + WA 63,508 + SA 3,067 =
+-- 167,038 impressions, EXACTLY the 167,038 in stg_ttd. Re-check this after any re-pull - a geo
+-- split that does not sum to the headline is worse than no geo split at all.
+--
+-- NOT GATED: the pull is manual (like geocon's breakdowns), so this view can lag the main feed.
+-- The dashboard labels it with its own max date rather than the campaign's.

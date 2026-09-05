@@ -7,15 +7,13 @@ targeted upsert against the live registry JSON in GCS: it attaches the `sophiie`
 re-run. (config.py is still the source of truth in code; this just makes the change show up on the
 running site now, the same way the admin UI would.)
 
-The constants below are the desired STATE. Sophiie AI's Meta campaigns are still being BUILT, so
-STATUS is "coming_soon" with the placeholder NOTE — the tile renders with the greyed COMING SOON chip
-and the "Dashboard isn't live yet - the structure is ready." blurb, exactly like Geyer Valmont, Bell
-Shakespeare and Next Smile Australia, and a super admin can still open the deployed preview via
-"Open preview →".
+The constants below are the desired STATE. FLIPPED LIVE on 2026-09-05: STATUS is "active", the
+placeholder NOTE is cleared and the campaign row names the live Trade Desk buy, so the tile renders
+as a normal openable client tile on the 100% Digital portal rather than a greyed COMING SOON chip.
+The same change is made in config.py, so a future full re-seed cannot revert it.
 
-To flip it LIVE once the pipeline is connected: set STATUS = "active", NOTE = "" and the campaign
-tuple's status to "active", then re-run. Make the SAME change in config.py so a future re-seed does
-not revert it. (That is precisely how set_caltex_tile.py went from placeholder to live on 2026-07-30.)
+To put it BACK to a preview: set STATUS = "coming_soon", restore a NOTE, set the campaign tuple's
+status to "coming_soon", and re-run - in both this file and config.py.
 
 Run against the live registry as an account with write access to the platform bucket
 (ian@100.digital) — NOT charles@ (no perms). PowerShell:
@@ -26,12 +24,11 @@ Run against the live registry as an account with write access to the platform bu
 
 Without --yes it prints what it WOULD do and the current sophiie state, then exits (dry run).
 
-NOTE — client ACCESS is separate from this tile. The registry keeps no dashboard password for
-sophiie yet (`password_hash` is empty). While the tile is coming_soon that is correct: only a super
-admin should be opening the preview. When it goes live, either set the Sophiie AI dashboard password
-in the SUPER-ADMIN console (it reveals + rotates) or grant their Google/Microsoft email to this
-dashboard in that console's sign-in access panel. Agency-level access (the 100% Digital password)
-would expose every other 100% Digital client, so don't hand that out.
+NOTE — client ACCESS is separate from this tile, and the tile going ACTIVE does not by itself let
+the client in. Set the Sophiie AI dashboard password in the SUPER-ADMIN console (it reveals and
+rotates the `sophiie-dash-password` secret), or grant their Google/Microsoft email to this dashboard
+in that console's sign-in access panel. Do NOT hand out the 100% Digital agency password: it opens
+every other 100% Digital client.
 """
 import sys
 
@@ -40,10 +37,10 @@ from store import Store, _BACKEND
 AGENCY = "x100-digital"
 KEY = "sophiie"
 NAME = "Sophiie AI"
-STATUS = "coming_soon"          # greyed COMING SOON chip. ("active" = openable tile.)
+STATUS = "active"               # openable client tile. ("coming_soon" = greyed COMING SOON chip.)
 URL = "https://sophiie-dash-516554645957.australia-southeast1.run.app/"
-NOTE = "Dashboard isn't live yet - the structure is ready."
-CAMPAIGN = ("Demand & Qualified Leads", "/paid-media", "coming_soon")
+NOTE = ""
+CAMPAIGN = ("Trade Desk Display", "/paid-media", "active")
 
 
 def main(write: bool):
@@ -64,17 +61,17 @@ def main(write: bool):
         return
     st.upsert_client(agency_slug=AGENCY, key=KEY, name=NAME, slug="sophiie-ai", status=STATUS, url=URL, note=NOTE)
     st.set_campaign(KEY, 0, *CAMPAIGN)     # index 0 -> replace-or-append (idempotent)
-    # `show_pending_row` is NOT one of upsert_client's fields (it is only copied by a full re-seed
-    # from config.py), so set it directly here — otherwise the Data Accuracy tab would show no row at
-    # all for this client rather than the greyed "awaiting connection" one that config.py asks for.
+    # `show_pending_row` gave the Data Accuracy tab a greyed "awaiting connection" row while this
+    # client had no pipeline. It has one now, so the flag is CLEARED here (upsert_client does not
+    # own the field, and a stale True would keep printing "awaiting connection" over real checks).
     doc = st._load()
-    doc["clients"][KEY]["show_pending_row"] = True
+    doc["clients"][KEY].pop("show_pending_row", None)
     st._save(doc)
     c = st.get_client(KEY)
     ag = st.get_agency(AGENCY)
     print(f"\nDONE. sophiie -> status={c['status']} | campaigns={c.get('campaigns')} "
           f"| in {AGENCY}={KEY in ag.get('client_keys', [])}")
-    print("The Sophiie AI tile now shows on the 100% Digital portal with the preview treatment.")
+    print("The Sophiie AI tile is now ACTIVE on the 100% Digital portal.")
 
 
 if __name__ == "__main__":

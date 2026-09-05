@@ -11,14 +11,25 @@
 > serve it from a password-gated web app.
 
 **Plain English:** HireRight runs paid media across three platforms — **DV360** (programmatic display),
-**The Trade Desk** (programmatic air-cover) and **LinkedIn** (paid social). This is a generic delivery
-dashboard: spend, impressions, clicks, conversions and efficiency in one view. There is **no GA4 /
-website side** (HireRight's GA4 property can't be identified) and **no media plan / targets / seeds** —
-it renders fully from delivery alone.
+**The Trade Desk** (programmatic air-cover) and **LinkedIn** (paid social). This is a delivery
+dashboard: spend, impressions, clicks, outcomes and efficiency in one view. There is **no GA4 /
+website side** (HireRight's GA4 property can't be identified). A **pacing lane exists but is dormant** —
+`targets/media_plan.csv` is committed and wired end to end, and stays hidden until a signed plan is
+seeded into it (see [`targets/README.md`](targets/README.md)).
+
+**Agency: Transmission** (since 2026-08-24). All three feeds have always come off Transmission's
+Snowflake share; HireRight was simply the one live dashboard sitting in no agency in the platform
+registry, so Transmission's own login could not see it. Now attached — see "Portal access" below.
 
 **Status:** 🟢 Deployed & live (password-gated). Stood up via
 [`deploy_hireright.ps1`](deploy_hireright.ps1); verified serving HTTP 200 (login) and `/data.json`
 (401-gated / 200-after-login) on **2026-06-04**. See [`dash/LIVE_URL.md`](dash/LIVE_URL.md).
+
+> ⚠️ **DV360 has been frozen upstream since 2026-07-01.** Transmission's `DV360 - APAC` Snowflake feed
+> has delivered nothing since then, with live campaigns still running; our mirror matches their source
+> exactly, so this is genuinely their connector and cannot be fixed from our side (read-only roles).
+> It also affects `stt` and `schneider`. The dashboard now **detects this itself** and prints a named
+> warning rather than presenting two-month-old totals as current — see "Stalled-feed detection".
 
 ---
 
@@ -37,9 +48,12 @@ There are **no** Google Ads / Reddit / Salesforce / GA4 views — HireRight has 
 Confirmed against the raw layer at build time (window **2025-10-25 → 2026-06-02**): DV360 ≈ **$14.9k** /
 15 country markets, LinkedIn ≈ **$22.6k**, TradeDesk ≈ A$6.8k → **~$4.4k** — combined **~$42k** USD.
 
-**FX:** the single constant `FX_AUD_USD = 0.65` (a placeholder — editable) is applied where each AUD
-source is staged (`sql/03_stg_tradedesk.sql`, and the `_AUD` guard in `sql/02_stg_linkedin.sql`) and
-surfaced as `fx_aud_usd` in `sql/05_kpi.sql`. Only TradeDesk is actually converted today.
+**FX:** the rate lives in exactly one place — **`sql/00_fx.sql`** (`aud_usd = 0.65`). Every AUD source
+CROSS JOINs that single row, and `sql/05_kpi.sql` reads the value it *surfaces* as `fx_aud_usd` from the
+same row, so the rate printed on screen can never disagree with the rate the spend was converted at. Only
+TradeDesk is actually converted today. **The 0.65 is an unconfirmed placeholder** carried over from the
+original brief — nobody has checked it against what HireRight is invoiced at. Confirm the basis (spot /
+booked / month-average) with Transmission before this dashboard is used as a billing reference.
 
 ---
 
@@ -54,12 +68,22 @@ Three filters at the top:
 - **Market** — DV360 country names + `'Global'`, **all selected by default**. Scopes the **by-market**
   charts only (DV360 has real countries; TradeDesk + LinkedIn are `'Global'` air-cover).
 
-1. **Overview** — KPI tiles (spend, impressions, clicks, blended CTR, CPM, CPC, conversions); a monthly
-   hero (spend by platform stacked + clicks line); a spend-mix doughnut; spend-by-platform; spend-by-market.
-2. **Paid Media** — monthly delivery by platform; a platform comparison table (DV360 / TradeDesk /
-   LinkedIn + Combined: spend, impressions, clicks, CTR, CPM, CPC); DV360 spend & impressions by country;
-   a top-campaigns-by-spend table (all platforms); a LinkedIn creative-mix doughnut; and a LinkedIn
-   engagement funnel (impressions → clicks → video views → VCR = completions ÷ starts → lead-form opens → leads).
+1. **Overview** — KPI tiles (spend, impressions, clicks, blended CTR, CPM, CPC, **LinkedIn leads**,
+   **attributed conversions** — the last two auto-hide when their platform isn't selected); the **pacing**
+   card (hidden until a plan is seeded); a monthly hero (spend by platform stacked + clicks line); a
+   spend-mix doughnut; **efficiency over time** (CTR / CPM / CPC per platform, Month/Week); spend-by-market;
+   and **spend-by-region** (auto-hides when the data resolves to one region).
+2. **Paid Media** — monthly delivery by platform; a spend-share doughnut; **cumulative spend** (the burn
+   curve, per platform); **platform mix over time** (100% stacked, auto-hides below two platforms); a
+   platform comparison table; DV360 spend & impressions by country; **campaign efficiency** (spend vs CTR
+   bubble, sized by impressions, against a blended-CTR reference line); a top-campaigns-by-spend table;
+   a LinkedIn creative-mix doughnut; and a LinkedIn engagement funnel (impressions → clicks → video views
+   → VCR = completions ÷ starts → lead-form opens → leads).
+
+**The two outcome measures are never added together.** "LinkedIn leads" are lead-gen form submissions;
+"attributed conversions" are DV360 + TradeDesk post-click **and post-view** counts that are not
+de-duplicated across the two platforms. Until 2026-08-24 these were summed into a single "Conversions"
+tile captioned *"DV360 + TradeDesk + LinkedIn leads"* — see "What changed" below.
 
 ---
 
@@ -80,7 +104,8 @@ The job is read-only on BigQuery — it only `SELECT`s the views and writes JSON
 | What to change | Edit | Stage |
 |---|---|---|
 | HireRight's filter | `sql/01_stg_dv360.sql` · `02_stg_linkedin.sql` · `03_stg_tradedesk.sql` | 2 |
-| FX rate `0.65` | the constant in `sql/02,03` and `sql/05_kpi.sql` | 2 |
+| FX rate `0.65` | **`sql/00_fx.sql` only** (one row; every consumer joins it) | 2 |
+| Media-plan targets / pacing | `targets/media_plan.csv` → `seed_static.py` (see `targets/README.md`) | 2 |
 | Roll-ups / new metrics | the relevant `sql/*.sql` view | 2 |
 | JSON shape | `job/main.py` (the `env = {...}` dict) | 2 |
 | Charts / tabs / branding | `dash/dashboard.html` | 3 |
@@ -109,11 +134,21 @@ self-gating cadence. After that:
 gcloud run jobs execute hireright-export --region australia-southeast1 --wait    # views -> hireright.json
 ```
 
-**② You edited a view (`sql/*.sql`)** — apply, then re-run the job:
+**② You edited a view (`sql/*.sql`) or `targets/media_plan.csv`** — seed, apply, then force the job.
+The easy way is [`sql/deploy_views_hireright.ps1`](sql/deploy_views_hireright.ps1), which does all three:
 ```powershell
-.\.venv\Scripts\python.exe client_hireright\create_views.py
-gcloud run jobs execute hireright-export --region australia-southeast1 --wait
+.\clients\client_hireright\sql\deploy_views_hireright.ps1
 ```
+By hand — **seeds first**, because `sql/18_targets` is a view over `seed_media_plan` and BigQuery
+validates a view's query at CREATE time:
+```powershell
+.\.venv\Scripts\python.exe clients\client_hireright\seed_static.py
+.\.venv\Scripts\python.exe clients\client_hireright\create_views.py
+gcloud run jobs execute hireright-export --region australia-southeast1 `
+  --update-env-vars FORCE_REBUILD=1 --wait
+```
+The **`FORCE_REBUILD=1` is required**: the freshness gate watches the three raw Snowflake tables, so a
+view or seed change is invisible to it and would sit unpublished until the next upstream change.
 
 **③ You edited `job/main.py`** (the JSON shape) — build, deploy, run:
 ```powershell
@@ -142,17 +177,110 @@ The service goes live as soon as the new revision is ready; it reads whatever JS
 | | |
 |---|---|
 | GCP project / region | `bidbrain-analytics` / `australia-southeast1` |
-| BigQuery dataset | `client_hireright` (16 views) |
+| BigQuery dataset | `client_hireright` (21 views + 1 seed table `seed_media_plan`) |
 | Data bucket / object | `bidbrain-analytics-hireright-dash` / `hireright.json` |
 | Export job | `hireright-export` (runtime SA `hireright-dash-job@…`, read-only BigQuery + bucket write) |
 | Web service | `hireright-dash` → see [`dash/LIVE_URL.md`](dash/LIVE_URL.md) (runtime SA `hireright-dash-web@…`) |
 | Secrets | `hireright-dash-password` · `hireright-dash-session-key` |
 | Refresh | Cloud Scheduler `hireright-export-daily` — `*/10` UTC, **self-gating** (rebuilds within ~10 min of new upstream data; most ticks no-op) |
 | Access path | via the platform front-door — `https://dashboards.bidbrain.ai/d/hireright/` (no per-client subdomain; see `dash/LIVE_URL.md`) |
+| Agency | **Transmission** (attached 2026-08-24 via `bidbrain-platform/dash/set_hireright_tile.py`) |
+
+## Portal access (Transmission)
+
+HireRight was the only live dashboard in `config.UNASSIGNED_CLIENTS`, so it never appeared on any agency
+portal. Two things were needed, because `config.py` only **seeds** the registry — the running site reads a
+JSON blob in GCS:
+
+1. **Code** (done): `hireright` added to `CLIENTS` and to the Transmission agency's client list in
+   [`bidbrain-platform/dash/config.py`](../../bidbrain-platform/dash/config.py); `UNASSIGNED_CLIENTS` is now empty.
+2. **Live registry** (needs running as `ian@100.digital`):
+   ```powershell
+   $env:CLOUDSDK_CORE_ACCOUNT="ian@100.digital"
+   $env:GCS_BUCKET="bidbrain-analytics-platform-dash"
+   .\.venv\Scripts\python.exe bidbrain-platform\dash\set_hireright_tile.py          # dry run
+   .\.venv\Scripts\python.exe bidbrain-platform\dash\set_hireright_tile.py --yes    # write
+   ```
+   Then redeploy the platform: `bidbrain-platform/dash/deploy_dash_platform.ps1`.
+
+> This grants the **Transmission agency login** sight of HireRight. It does not create a HireRight client
+> login. Never hand the agency password to the client — it opens every other Transmission client
+> (Cloudflare, MongoDB, Schneider ×3, PropTrack, STT). For HireRight's own people, set their dashboard
+> password or grant their Google/Microsoft email in the super-admin console.
+
+---
+
+## Campaign status: CONCLUDED (verified 2026-08-24)
+
+**All HireRight campaigns have finished.** Verified directly against the raw layer, and the
+distinction that matters is between *our pipeline being broken* and *the campaign being over*:
+
+| Platform | HireRight's last delivery | The feed's last row (any client) | Verdict |
+|---|---|---|---|
+| DV360 | 2026-01-30 | 2026-07-01 | Campaign ended **206 days ago** |
+| Trade Desk | 2026-06-22 | 2026-08-22 | **Feed is live** - campaign ended 63 days ago |
+| LinkedIn | 2026-04-17 | 2026-08-23 | **Feed is live** - campaign ended 129 days ago |
+
+Trade Desk and LinkedIn are both delivering current data for other clients, so nothing is broken -
+HireRight simply stopped running. **The separate `DV360 - APAC` outage (frozen 2026-07-01) is
+irrelevant to this client**: HireRight's DV360 line ended five months before that freeze. It still
+affects `stt` and `schneider`; it does not affect anything on this dashboard.
+
+Final figures: **US$41,994** across 28 campaigns, 2,329,328 impressions, 2,941 clicks, 62 Trade Desk
+attributed conversions, 0 LinkedIn leads. Reconciles to Snowflake with **zero delta** on all 12
+status-pipeline accuracy checks.
+
+## Stalled-feed detection
+
+The three feeds do not run concurrently and one can stop arriving while the others keep updating. When
+that happens every whole-flight total still **includes** the stalled platform's historical delivery, so
+the page looks healthy and stale numbers read as current. `stalledFeeds()` in `dash/dashboard.html`
+compares each platform's last delivery day against the most recent day seen anywhere in the payload and
+names any platform more than **14 days** behind, with the date and the gap, in an amber block on the
+Overview note. It is computed from the payload rather than hardcoding any particular outage, so it
+will catch the next one too. The export job prints the same three windows in its log every run.
+
+**CONCLUDED beats STALLED.** If nothing has delivered on *any* platform for over 30 days
+(`CONCLUDED_DAYS`), the campaign is finished and the dashboard says so plainly - "This campaign has
+concluded, these are final figures" - in a neutral panel. It does **not** show the amber
+"a feed has stopped updating / check with your agency" warning, which would be both wrong and
+alarming on a completed campaign. That is HireRight's current state. The stall warning is reserved
+for the genuine case: one platform falling behind while the others are still reporting.
+
+---
+
+## What changed on 2026-08-24
+
+A correctness + build-out pass, ahead of handing the dashboard to Transmission:
+
+- **The blended "Conversions" KPI is gone.** It summed DV360 Floodlight + TradeDesk click+view +
+  LinkedIn LEADS — three different definitions — into one tile captioned *"DV360 + TradeDesk + LinkedIn
+  leads"*. Post-view display conversions are not submitted lead forms, and the DV360/TTD tags are not
+  de-duplicated against each other. Now two labelled measures: `li_leads` and `ad_attr_conv`. The
+  status-pipeline check that verified the blend was split the same way.
+- **Campaign names are normalised** (`brief` prefix stripped into its own column) — the repo-wide
+  "campaign names are NOT stable keys" rule. Without it, the day Transmission prefixes a HireRight
+  campaign every per-campaign aggregate silently splits in half.
+- **FX lives in one place** (`sql/00_fx.sql`) instead of the literal `0.65` typed into four files.
+- **Real geo.** Full ISO country map + a `region` rollup, replacing a map that folded five European
+  countries into one "Europe" market while leaving every other country individual.
+- **`sql/17_scope_audit`** makes the three name-based source filters legible, logged every run, with a
+  WARNING when a source matches more than one entity (a silent scope widening pushes numbers *up*, which
+  reads as performance rather than as a bug).
+- **The job refuses to publish an empty fact** (the `client_caltex` pattern) — a broken filter now fails
+  the run and leaves the last good JSON in place, instead of overwriting it with an all-zero dashboard.
+- **Pacing wired end to end but dormant** (`targets/`), plus five new charts and the stalled-feed warning.
+
+**Still open — needs Transmission / the client:** the signed media plan (`targets/README.md` lists the
+three questions), confirmation of the FX basis, the DV360 feed outage, and whether a GA4 property exists.
+
+---
 
 ## Files
 
-- [`sql/`](sql/README.md) — the 16 BigQuery views (filter + model); `create_views.py` applies them.
+- [`sql/`](sql/README.md) — the 21 BigQuery views (filter + model); `create_views.py` applies them.
+- [`targets/`](targets/README.md) — the committed media-plan CSV that drives pacing (**currently empty**);
+  `seed_static.py` loads it. **Run it before `create_views.py`** — `sql/18_targets` is a view over the seed.
 - [`job/`](job/README.md) — the export job (stage 2): views → `hireright.json`.
 - [`dash/`](dash/README.md) — the web app (stage 3): password gate + `dashboard.html`.
 - [`INTAKE.md`](INTAKE.md) — the resolved build slice (filters, currency, platforms).
@@ -166,34 +294,83 @@ The service goes live as soon as the new revision is ready; it reads whatever JS
 
 ## BigQuery views (sql/) - each header documents what the view computes and its raw sources
 
+### 00_fx.sql
+-- HireRight - the ONE FX constant, in ONE place.
+--
+-- Reporting currency is USD. Two of the three feeds bill in AUD (TradeDesk always;
+-- LinkedIn only on an `*_AUD` account), so both need the same rate applied.
+--
+-- WHY THIS VIEW EXISTS: the rate used to be the literal 0.65 written out FOUR times -
+-- in 01_stg_dv360, 02_stg_linkedin, 03_stg_tradedesk and again in 05_kpi (where it is
+-- surfaced to the dashboard as `fx_aud_usd`). Nothing tied those four together, so
+-- editing three of them and missing the fourth would leave the dashboard PRINTING one
+-- rate while the spend column was converted at another - a wrong number that looks
+-- entirely self-consistent. Every consumer now CROSS JOINs this single row instead.
+--
+-- Changing the rate = editing the literal below, re-applying views, then a forced job
+-- run (the freshness gate does not watch views):
+--     gcloud run jobs execute hireright-export --region australia-southeast1 \
+--       --update-env-vars FORCE_REBUILD=1 --wait
+--
+-- PROVENANCE: 0.65 is a PLACEHOLDER carried over from the original build brief - it is
+-- not a booked rate and nobody has confirmed it against what HireRight is actually
+-- invoiced at. It is surfaced in the UI so the client can see what was used. Confirm
+-- the correct basis with Transmission (spot vs booked vs month-average) before this
+-- dashboard is treated as a billing reference.
+
 ### 01_stg_dv360.sql
 -- HireRight - staged DV360 programmatic display. The ONLY source with real geo.
 --
 -- The HireRight DV360 filter lives here once: ADVERTISER_NAME contains "HireRight"
 -- (case-insensitive). BigQuery has no ILIKE, so the brief's `ILIKE '%HireRight%'`
 -- is expressed as LOWER(...) LIKE '%hireright%' (same intent, valid Standard SQL).
+-- That is a SUBSTRING match on a name, so it would also sweep in a second HireRight
+-- advertiser if Transmission ever creates one - `scope_audit` (17) lists every
+-- distinct advertiser this matches so a silent widening is visible, not guessed at.
 --
 -- Reporting currency = USD. DV360 rows are already USD, but the CASE keeps the
--- AUD->USD conversion robust at the shared FX constant if an AUD row ever appears:
---     FX_AUD_USD = 0.65   (placeholder - editable; reused in stg_tradedesk / stg_linkedin)
+-- AUD->USD conversion robust at the shared rate if an AUD row ever appears. The rate
+-- comes from the single-row `fx` view (00_fx.sql) - never re-type the literal here.
 --
 -- Spend = REVENUE_ADV_CURRENCY (advertiser-billed cost incl. media + fees - what
 -- HireRight actually paid, the figure stakeholders expect, not the bare MEDIA_COST).
--- COUNTRY_NAME is a 2-letter code -> mapped to a friendly name where known, else the
--- raw code is kept (raw codes are acceptable for a baseline). CAMPAIGN_NAME is carried
--- so the dashboard's Campaign filter can slice DV360 delivery client-side.
+--
+-- CAMPAIGN NAMES ARE NOT STABLE KEYS (repo-wide rule, AGENTS.md): Transmission is
+-- progressively prefixing campaign names with the brief number (`2265_...`). Every
+-- roll-up here groups by campaign, so the day a prefix lands the SAME campaign would
+-- appear under two names and each aggregate would split in half. `campaign_name` is
+-- therefore the NORMALISED name (prefix stripped once) and the prefix is kept as its
+-- own `brief` column, so nothing is lost and nothing splits.
+--
+-- GEO: COUNTRY_NAME is a 2-letter ISO code. It is mapped to a friendly country name
+-- AND rolled up to a region. The previous version folded NL/DE/SE/DK/NO into a single
+-- 'Europe' market while leaving every other country individual - which meant the
+-- market list mixed countries with a continent and European delivery could not be
+-- read per country. Country and region are now separate columns: no information is
+-- discarded, and the dashboard can group either way. An unmapped code keeps its raw
+-- 2-letter form (visible as odd, rather than silently absorbed into a default).
 
 ### 02_stg_linkedin.sql
--- HireRight - staged LinkedIn Ads (paid social / air-cover). Audience is global
--- (NAM/EMEA/APAC combined) with no usable geo, so market is a flat 'Global'.
+-- HireRight - staged LinkedIn Ads (paid social). The account's audience is global
+-- (NAM/EMEA/APAC combined) with no country column in the feed, so `market` is a flat
+-- 'Global'. That is a REAL limitation of the source, not a parsing shortcut: do not
+-- invent a market by reading the campaign name without first checking the actual
+-- names (`SELECT DISTINCT campaign_name FROM stg_linkedin`) - a guessed geo token is
+-- worse than an honest 'Global'.
 --
 -- The HireRight LinkedIn filter lives here once: ACCOUNT_NAME starts with "HireRight"
 -- (case-insensitive). BigQuery has no ILIKE, so the brief's `ILIKE 'HireRight%'` is
--- expressed as LOWER(...) LIKE 'hireright%'. LinkedIn has NO currency column; the
--- account is _USD, so spend is USD as-is. The brief's AUD guard
--- (`LIKE '%\_AUD' ESCAPE '\'`) - invalid in BigQuery - is expressed as
--- ENDS_WITH(ACCOUNT_NAME, '_AUD') at the shared FX constant (FX_AUD_USD = 0.65,
--- see stg_dv360 header). cost_usd holds USD.
+-- expressed as LOWER(...) LIKE 'hireright%'. `scope_audit` (17) lists every distinct
+-- account this matches, so a second HireRight account cannot join in unnoticed.
+--
+-- CURRENCY: LinkedIn has NO currency column in the mirror - the ACCOUNT NAME is the
+-- only signal, so an `*_AUD` account is converted at the shared rate and everything
+-- else is taken as USD. That is an assumption riding on a naming convention; if a
+-- third currency ever appears it will be silently reported as USD. `scope_audit`
+-- surfaces the account names so that assumption stays checkable.
+--
+-- CAMPAIGN NAMES ARE NOT STABLE KEYS (repo-wide rule): the brief-number prefix is
+-- stripped into its own `brief` column - see 01_stg_dv360's header for why.
 --
 -- CREATIVE_TYPE is labelled for the creative-mix chart: 'STANDARD' = single image,
 -- NULL/'' = video / other, anything else passes through. VIDEO_* and the lead-gen
@@ -201,38 +378,75 @@ The service goes live as soon as the new revision is ready; it reads whatever JS
 
 ### 03_stg_tradedesk.sql
 -- HireRight - staged The Trade Desk (programmatic air-cover). Campaign names are
--- persona / TAL, not geo, so market is a flat 'Global'.
+-- persona / TAL, not geo, and the mirror carries no region column, so `market` is a
+-- flat 'Global' (same honesty caveat as stg_linkedin - do not invent geo from a name
+-- you have not looked at).
 --
 -- The HireRight TradeDesk filter lives here once: ADVERTISER_NAME = 'HireRight'
--- (exact match - valid as-is in BigQuery). The mirror has BOTH an IMPRESSIONS and a
--- legacy IMPRESSION column, so impressions are COALESCE(IMPRESSIONS, IMPRESSION).
+-- (exact match - valid as-is in BigQuery, and the only one of the three filters that
+-- is not a substring match). The mirror has BOTH an IMPRESSIONS and a legacy
+-- IMPRESSION column, so impressions are COALESCE(IMPRESSIONS, IMPRESSION).
 --
 -- TradeDesk is billed in AUD, so spend is converted to the USD reporting currency at
--- the shared FX constant (FX_AUD_USD = 0.65 - see stg_dv360 header). The CASE keeps
--- it robust if a USD row ever appears.
+-- the shared rate from the `fx` view (00_fx.sql). The CASE keeps it robust if a USD
+-- row ever appears.
+--
+-- CAMPAIGN NAMES ARE NOT STABLE KEYS (repo-wide rule): the brief-number prefix is
+-- stripped into its own `brief` column - see 01_stg_dv360's header for why.
 
 ### 04_stg_ad_delivery.sql
 -- HireRight - unified ad-delivery base (the single source for the Campaign filter
 -- and every campaign-grained roll-up). One long-format row per platform x campaign x
 -- day, folding DV360, TradeDesk and LinkedIn into the SAME shape so ad_campaigns /
--- ad_campaign_monthly / ad_campaign_weekly / ad_campaign_market are built once on top.
--- Mirrors client_STT/sql/03c_stg_ad_delivery.sql.
+-- ad_campaign_monthly / ad_campaign_weekly / ad_campaign_daily / ad_campaign_market
+-- are built once on top. Mirrors client_STT/sql/03c_stg_ad_delivery.sql.
 --
--- spend_usd is USD for all three (each stg_* view already converted to USD).
--- market: DV360 carries real geo (country); TradeDesk + LinkedIn are 'Global'
--- air-cover. creative_type is LinkedIn-only (NULL elsewhere). conversions = the
--- platform's native conversion metric (DV360 CONVERSIONS_TOTAL, TradeDesk
--- click+view conversions, LinkedIn LEADS - its closest conversion).
+-- spend_usd is USD for all three (each stg_* view already converted at the shared rate).
+-- market: DV360 carries real geo (country + region); TradeDesk + LinkedIn are 'Global'
+-- air-cover. creative_type is LinkedIn-only (NULL elsewhere).
+--
+-- ============================================================================
+-- WHY THERE IS NO SINGLE `conversions` COLUMN HERE ANY MORE (fixed 2026-08-24)
+-- ============================================================================
+-- This view used to emit ONE `conversions` column built as:
+--     DV360 CONVERSIONS_TOTAL  UNION  TTD TOTAL_CLICK_PLUS_VIEW_CONVERSIONS
+--                              UNION  LinkedIn LEADS
+-- and `kpi.ad_conv` added all three together into a headline "Conversions" tile
+-- captioned "DV360 + TradeDesk + LinkedIn leads". Those are three DIFFERENT things:
+--
+--   * DV360  CONVERSIONS_TOTAL              - Floodlight, post-click + post-view
+--   * TTD    TOTAL_CLICK_PLUS_VIEW_CONVS    - TTD pixel, post-click + post-view
+--   * LI     LEADS                          - a human completing a lead-gen FORM
+--
+-- Adding a view-through display conversion to a submitted lead form produces a number
+-- that means nothing and reads as an outcome count - the client would reasonably take
+-- it for "leads generated" and it is mostly ad-served impressions that were never
+-- clicked. It also double-counts: the DV360 and TTD tags can both fire on the same
+-- site action for the same user, and nothing deduplicates them.
+--
+-- So the two kinds are carried SEPARATELY and never summed:
 
 ### 05_kpi.sql
 -- HireRight - headline KPI row (single row the dashboard reads for the FX rate,
 -- the reporting window and the whole-flight per-platform / blended totals).
 --
 -- Pure paid-media delivery (no GA4 / website side). Reporting currency = USD; each
--- stg_* view already converted its spend, so the totals just sum. FX_AUD_USD (0.65)
--- is surfaced as fx_aud_usd. The window is the data span across all three platforms
--- (no fixed campaign start - see the brief: "the window is the data span"). ad_* =
--- DV360 + TradeDesk + LinkedIn combined.
+-- stg_* view already converted its spend at the shared rate, so the totals just sum.
+-- fx_aud_usd is read from the `fx` view (00_fx.sql) rather than re-typed, so what the
+-- dashboard PRINTS as the rate is guaranteed to be the rate the spend was converted at.
+--
+-- The window is the data span across all three platforms (no fixed campaign start -
+-- see the brief: "the window is the data span"). Per-platform windows are carried
+-- separately because the three feeds do NOT run concurrently, and a platform whose
+-- feed has stopped must be readable as stopped.
+--
+-- OUTCOMES ARE NOT BLENDED. `ad_conv` (DV360 + TTD + LinkedIn leads summed) has been
+-- REMOVED - it added post-view display conversions to submitted lead forms. See the
+-- long note in 04_stg_ad_delivery.sql. What replaces it:
+--   li_leads      - LinkedIn lead-gen form submissions (a real outcome)
+--   ad_attr_conv  - DV360 + TTD attributed (post-click + post-view) conversions,
+--                   NOT deduplicated between the two platforms
+-- Any consumer wanting a single number must choose one of these and label it.
 
 ### 06_monthly.sql
 -- HireRight - monthly delivery trend (one row per month over the data span): the
@@ -255,6 +469,14 @@ The service goes live as soon as the new revision is ready; it reads whatever JS
 -- selected campaigns client-side to rescale every ad-delivery figure.
 -- (Delivering filter is an outer WHERE, not HAVING, so the SUM aliases below don't
 -- get re-aggregated - BigQuery resolves HAVING against SELECT aliases.)
+--
+-- `campaign` is the NORMALISED name (brief-number prefix stripped in the stg_* views),
+-- so a campaign that gets prefixed mid-flight stays ONE row here instead of splitting
+-- into two. `brief` is carried as MAX() - it is NULL until the prefix appears and then
+-- constant, so MAX picks up the number without splitting the group.
+--
+-- Outcomes are kept apart, never summed: `leads` (LinkedIn lead-gen forms) vs
+-- `attr_conv` (DV360 + TTD post-click/post-view attributed). See 04_stg_ad_delivery.
 
 ### 09_ad_campaign_monthly.sql
 -- HireRight - ad delivery by campaign x month, for the Campaign-filtered monthly
@@ -270,9 +492,17 @@ The service goes live as soon as the new revision is ready; it reads whatever JS
 ### 11_ad_campaign_market.sql
 -- HireRight - ad delivery by campaign x market, for the Market filter + the
 -- by-market charts (Overview spend-by-market bar across all platforms, and the Paid
--- Media spend & impressions by country for DV360). market is DV360's real country
--- for DV360 rows and 'Global' for TradeDesk + LinkedIn air-cover. The dashboard sums
--- the selected campaigns (and markets) per platform/market. Delivering rows only.
+-- Media spend & impressions by country for DV360). market is DV360's real country for
+-- DV360 rows and 'Global' for TradeDesk + LinkedIn air-cover; `region` is the rollup
+-- (DV360 real region, 'Global' elsewhere) so the dashboard can group either way.
+-- The dashboard sums the selected campaigns (and markets) per platform/market.
+-- Delivering rows only.
+--
+-- READ THE MARKET FILTER HONESTLY: only DV360 carries real geo. Two of the three
+-- platforms are a single 'Global' bucket, so narrowing to a country silently reduces
+-- the view to DV360 alone. With the DV360 feed stalled upstream (frozen 2026-07-01 at
+-- Transmission), a country selection currently resolves to NO CURRENT DELIVERY at all.
+-- The dashboard says so next to the filter rather than drawing a confident empty chart.
 
 ### 12_li_creative.sql
 -- HireRight - LinkedIn delivery by creative type (whole flight). Carries the full
@@ -307,3 +537,71 @@ The service goes live as soon as the new revision is ready; it reads whatever JS
 -- dashboard sums the selected campaigns per day/platform. day key is an ISO
 -- 'YYYY-MM-DD' string to match the dashboard's inRangeDay helper / adDailyMap.
 -- Delivering rows only (outer WHERE, not HAVING - see 08).
+
+### 17_scope_audit.sql
+-- HireRight - SCOPE AUDIT. One row per (source, matched entity) that this client's
+-- three filters currently sweep in, with its volume and window.
+--
+-- WHY: two of the three filters are SUBSTRING / prefix matches on a human-typed name -
+--     DV360     LOWER(ADVERTISER_NAME) LIKE '%hireright%'
+--     LinkedIn  LOWER(ACCOUNT_NAME)    LIKE 'hireright%'
+--     TradeDesk ADVERTISER_NAME = 'HireRight'          (exact - the safe one)
+-- so a second HireRight advertiser, a renamed account, or a test/staging entity would
+-- start contributing to every KPI on the dashboard with nothing on screen changing.
+-- The failure is silent and in the WRONG direction: numbers go UP, which looks like
+-- performance rather than a bug.
+--
+-- This view does not filter anything - it makes the current scope legible. The export
+-- job prints it as a WARNING line every run, so widening shows up in the job log, and
+-- it gives the status pipeline something to check that is NOT a mirror of the view's
+-- own parse (the repo rule against circular accuracy checks - see AGENTS.md).
+--
+-- currency_forms is the tell for the LinkedIn currency assumption: LinkedIn has no
+-- currency column, so `*_AUD` in the ACCOUNT NAME is the only signal and anything else
+-- is taken as USD. More than one distinct form here means that assumption needs review.
+
+### 18_targets.sql
+-- HireRight - media-plan targets. A thin view over the committed-CSV seed table
+-- `seed_media_plan` (targets/media_plan.csv -> seed_static.py), per the repo-wide
+-- committed-CSV->BQ standard.
+--
+-- ORDER OF OPERATIONS: seed_static.py MUST run before create_views.py the first time.
+-- BigQuery validates a view's query when it is created, so this file fails with
+-- "Not found: Table ... seed_media_plan" if the seed has never been loaded. Both
+-- deploy scripts do the seed first; if you hit that error, that is the reason.
+--
+-- EVERY TARGET COLUMN IS NULLABLE AND NULL IS MEANINGFUL: it means "the plan does not
+-- commit to this metric", which is NOT a target of zero. Consumers must branch on NULL
+-- and omit the metric, never render a 0% attainment against it - a red miss on a KPI
+-- the client never bought is worse than showing nothing (the client_caltex lesson:
+-- targets we derived ourselves have to be labelled or dropped).
+--
+-- The CSV is currently all-blank (HireRight has no signed plan in this repo), so
+-- `pacing.has_targets` is FALSE and the dashboard hides its pacing section entirely.
+
+### 19_pacing.sql
+-- HireRight - pacing: planned vs delivered, per platform. One row per platform that
+-- either has a plan line or has delivered, so a platform running WITHOUT a plan line
+-- is visible (as target NULL) rather than silently missing.
+--
+-- THREE THINGS THIS VIEW IS CAREFUL ABOUT
+--
+-- 1. NULL target != zero target. A blank cell in the media plan means the plan does
+--    not commit to that metric. Every `*_pct` below is NULL when its target is NULL,
+--    so the dashboard can omit the metric instead of drawing a 0% miss against a KPI
+--    nobody bought.
+--
+-- 2. "Pace to date" is NOT the same as "% of target". A flight that is 40% elapsed and
+--    has delivered 38% of its impressions is ON pace, even though attainment reads 38%.
+--    Both are emitted: `*_pct` (of the whole commitment) and `*_pace` (against the even
+--    flight pace to date). Reporting only the first makes every live campaign look like
+--    it is failing. Repo precedent: client_schneider's scorecard, which had to have this
+--    distinction spelled out in a column tooltip.
+--
+-- 3. Flight dates may be absent. An unsigned plan has no dates, so the flight falls back
+--    to OBSERVED first/last delivery and `flight_source` says which it is. The dashboard
+--    must print "live since" for an observed flight, never "flight" - claiming a booked
+--    window that does not exist is the kind of thing a client notices.
+--
+-- `has_targets` is carried on every row so a single read tells the job whether ANY real
+-- commitment exists; when it is FALSE the dashboard hides the whole pacing section.

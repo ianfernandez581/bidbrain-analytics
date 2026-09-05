@@ -1589,7 +1589,11 @@ def deploy_definitions(client):
 # geyervalmont, sophiie) is deliberately ABSENT, and gets added here as one line the moment its
 # `<c>-export` job is deployed. That is step 8 of each client README's FLIPPING PREVIEW -> LIVE.
 _SYNC_EXPORT_JOBS = ["mongodb-export", "cloudflare-export", "stt-export",
-                     "hireright-export", "schneider-export", "proptrack-export"]
+                     "hireright-export", "schneider-export", "proptrack-export",
+                     # sophiie-export joined on the 2026-09-05 go-live. A job name that does NOT
+                     # exist 404s on the Run Admin API and puts this button in a permanent red
+                     # failure, so only ever add a client here AFTER its export job is deployed.
+                     "sophiie-export"]
 
 
 @app.post("/sync-all")
