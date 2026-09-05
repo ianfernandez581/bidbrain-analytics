@@ -45,12 +45,15 @@ gcloud run jobs deploy $JOB --image $IMG --region $REGION --service-account $JOB
 # grant; caltex was added to the list when it went live (2026-07-30); and again with
 # schneidersecpwr (2026-08-17) - the run exited 1 on a 403 for its bucket and no status.json was
 # written until it was added here.
+# It happened a FOURTH time with sophiie (2026-09-05): adding a client to BQ_CLIENTS in job/main.py
+# without adding it HERE 403s, and that 403 aborts the WHOLE BigQuery accuracy section for EVERY
+# client, not just the new one. THE TWO LISTS MUST MOVE IN THE SAME CHANGE.
 Write-Host "Granting the status SA read on the raw BQ layer + every monitored client bucket ..."
 gcloud projects add-iam-policy-binding $PROJECT --member "serviceAccount:$JOB_SA" `
   --role roles/bigquery.jobUser   --condition=None --quiet | Out-Null
 gcloud projects add-iam-policy-binding $PROJECT --member "serviceAccount:$JOB_SA" `
   --role roles/bigquery.dataViewer --condition=None --quiet | Out-Null
-foreach ($c in @("cityperfume","resetdata","tlm","geocon","vmch","caltex","schneiderlqai","schneidersecpwr")) {
+foreach ($c in @("cityperfume","resetdata","tlm","geocon","vmch","caltex","schneiderlqai","schneidersecpwr","sophiie")) {
   gcloud storage buckets add-iam-policy-binding "gs://bidbrain-analytics-$c-dash" `
     --member "serviceAccount:$JOB_SA" --role roles/storage.objectViewer --quiet | Out-Null
 }

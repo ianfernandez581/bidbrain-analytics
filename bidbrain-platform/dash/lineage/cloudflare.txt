@@ -35,7 +35,7 @@ same Flask password gate MongoDB uses.
 | Path | What it is |
 |---|---|
 | [`job/`](job/README.md) | **Export Job** (`cloudflare-export`): reads the BigQuery views → writes `cloudflare.json`. **No Snowflake** (BQ-only, like MongoDB). [Guide →](job/README.md) |
-| [`dash/`](dash/README.md) | **Web App** (`cloudflare-dash`): password gate + serves `dashboard.html` + proxies `/data.json`. [Guide →](dash/README.md) |
+| [`dash/`](dash/README.md) | **Web App** (`cloudflare-dash`): password gate + serves `dashboard.html` + proxies `/data.json`. Also carries its **own Feedback pill for DIRECT logins** (the front-door injects one only for sessions that come through it, and Cloudflare's people mostly hit the `…run.app` URL) — needs the one-time `dash/enable_feedback_cloudflare.ps1`. [Guide →](dash/README.md) |
 | [`sql/`](sql/README.md) | The BigQuery **model** views — staging (`stg_*`) → `paid_media_model`/`pacing_model`/etc. — over `raw_snowflake.*` + the `seed_*` static tables. [Guide →](sql/README.md) |
 | [`create_views.py`](create_views.py) | Applies every `sql/*.sql` view (runner; `NN_` prefix = dependency order). |
 | `data/` | Local CSV snapshots of the three STATIC Snowflake tables (pacing targets, account tiers, LINE JP). **Gitignored** (`clients/*/data/`) — `TIERS` is sensitive client ABM data — so it's NOT in the repo; regenerate with `pull_static.py`. The live seeds persist in BigQuery (`seed_*`). |
@@ -47,6 +47,1075 @@ same Flask password gate MongoDB uses.
 > There is **no** one-shot `deploy_cloudflare.ps1` for this client — it was stood
 > up via the manual order in [One-time replicate / deploy order](#one-time-replicate--deploy-order)
 > below. (Only STT has a one-shot stand-up script, `clients/client_STT/deploy_stt.ps1`.)
+
+## Google Ads — the 5th paid channel (added 2026-08-11)
+
+Transmission connected the **`Cloudflare APAC`** Google Ads account (`ACCOUNT_ID 3034487647`) into
+`raw_snowflake.google_ads_apac` around **2026-07-22**. It feeds **Q3 Core DG (brief 2479)**.
+
+**Live today — two campaigns** (figures at 2026-08-20):
+
+| Campaign | Type | Market / lane | Delivery |
+|---|---|---|---|
+| `CF_JP_Q3_TOFU_YouTube_VideoViews_Prospecting` (`24037386856`) | YouTube VideoViews, awareness | **JP** · `CORE_DG` | 275,598 imps · 145 clicks · **US$1,220.40** · 176,429 video views (07-22 →) |
+| `CF_JP_Q3_Leadgen_PMax_Mythos_RMKT_LP` | **Performance Max**, lead-gen remarketing | **JP** · `CORE_DG` | 118,136 imps · 3,818 clicks · **US$635.14** · **24 conversions** (08-06 →) |
+
+Currency is **USD** — already the reporting currency, so there is **no FX step**.
+The account-scoped filter is what let the second campaign appear with no code change to the
+`WHERE` clause, exactly as designed. Its name carries a `_JP_` token, so it resolved to JP
+rather than falling into the `UNMAPPED` bucket that no market chip shows.
+
+**Files:** `sql/04b_stg_google_ads.sql` (new staging view) → a `google_ads` arm in
+[`sql/05_paid_media_model.sql`](sql/05_paid_media_model.sql) and
+[`sql/06_paid_creatives_model.sql`](sql/06_paid_creatives_model.sql) → dashboard `PM_CHANS` entry +
+`PM_GA`/`.pill.ga` colour + a `ga_market_day` array in `adaptPayload`.
+**`job/main.py` needed NO change** — it emits generic `rows[]` keyed by `channel`, so a new channel
+flows through on its own. That property is worth preserving.
+
+### Scoped by ACCOUNT, not campaign name — deliberately
+The media sheet lists **two** Google Ads lines against 2479 (Awareness from 15-Jul, Lead Generation
+from 17-Jul) but **only Awareness is connected**. Filtering on `ACCOUNT_NAME = 'Cloudflare APAC'`
+means the Lead Generation campaign starts reporting the moment Transmission connects it, with **no
+code change here**. It also avoids the repo-wide "campaign names are NOT stable keys" trap — these
+names do **not** follow the `CLOUD_ACQ_` convention every other channel uses, so a name filter would
+be both fragile and wrong.
+
+### Both original gaps closed 2026-08-20 — and what it cost (read before touching this channel)
+Transmission (Ankit) shipped both asks in one change to the shared `Google Ads - APAC` export.
+Neither arrived in the shape we expected.
+
+**1. The Lead Generation campaign is connected — by flattening the whole table's grain.**
+It is a **Performance Max** campaign, which reports nothing at ad-group level, so the export moved
+from AD GROUP to **CAMPAIGN** level and **`AD_GROUP_NAME` was dropped**. Because the mirror is a
+`SELECT *` WRITE_TRUNCATE copy, the new schema landed unannounced on the next `*/10` tick and
+`stg_google_ads` — and through it `paid_media_model`, `paid_creatives_model` and **every
+`cloudflare-export` run** — failed for ~19 hours (08-19 13:10 UTC → 08-20 08:46 UTC). The dashboard
+did not error; it silently served its last good JSON, which is the failure mode to watch for.
+STT reads the same mirror but not the ad group, so it was unaffected.
+- The grain is now `DAY × CAMPAIGN × NETWORK` and **`NETWORK` is carried as a real dimension** —
+  it is the only sub-campaign cut left, and for PMax it is the useful one (all 24 conversions are
+  **DISCOVER**; CONTENT has produced none on US$110).
+- **The `TOFU | Persona` vs `TOFU | Custom Intent` split is gone for good**, including from
+  history — the truncate rewrote the past too. `paid_creatives_model` now labels Google Ads rows
+  `<Network> (network)` so a placement is never read as a creative name.
+- Delivery reconciled across the change with **no loss**: the Awareness campaign's 07-22 → 08-08
+  window reads 172,332 imps / 90 clicks / $764.83 against the 172,396 / 90 / $765.16 recorded at
+  build time — a 0.04% Google restatement.
+
+**2. The video columns arrived as RATES, and two of the five are dead.**
+`VIDEO_PLAYED_TO_50` / `_75` and `VIEW_RATE_IN_STREAM` / `TRUEVIEW_VIEW_RATE` are FLOAT rates in
+0..1, all denominated in impressions. **A rate must never reach a fact table that gets `SUM()`ed**,
+so `stg_google_ads` multiplies each back out to a COUNT at source-row grain. Downstream rollups are
+then exact and the rate is re-derived from the totals.
+- `VIDEO_PLAYED_TO_25_` is **100% NULL** — and note the **stray trailing underscore** in the column
+  name, itself a source-side bug.
+- `VIDEO_PLAYED_TO_100` is **literally 0.0 on every row**. It cannot be real when 67% of
+  impressions reach the 75% quartile. **Neither is referenced**, and the UI says so — carrying
+  them would draw a 0% completion rate that reads as a failed campaign.
+- **Still no native view COUNT and no working completion metric.** Worth asking for both.
+
+**What the dashboard now shows** (`renderGaVideoNote()` → `#gaVideoBlock`, Paid Media tab, under
+the benchmark table, auto-hidden when the lane has no video in range): a **4-tile KPI strip**
+(video views · view rate · cost per view · watched-to-75%) over a **horizontal completion funnel**
+(video impressions → watched 50% → watched 75%). It was shipped as a paragraph first and rejected
+on sight - the client reads this tab in tiles and charts, and a wall of prose under a table of
+numbers does not get read. Current figures: **193,625 video views at a 62.6% view rate and $0.0096
+CPV**. The funnel deliberately renders **only the stages the feed reports** (`.filter(v => v > 0)`)
+- a zero bar for the two dead quartiles would read as a failed campaign rather than missing data.
+The view rate is measured against `VIDEO_IMPS` — impressions on video-capable placements only. This
+matters: dividing by total Google Ads impressions charges the ~69k Discover and search impressions
+against the rate and understates it by ~13 points (49.2% vs 62.6%). The network dimension is
+collapsed by `paid_media_model`'s `GROUP BY`, so that denominator has to travel as its own measure.
+**This is the number that retires the "0.05% CTR" problem** — CTR was never the lens for a video
+buy, and `PM_CHANS[].note` now says to judge it on view rate and CPV.
+
+**There is NO creative-level Google Ads data - anywhere (checked 2026-08-20).** All three
+possible sources were queried, so do not re-investigate this without new access:
+| Source | Verdict |
+|---|---|
+| `raw_snowflake.google_ads_apac` | Campaign grain since 08-20. No ad / asset / creative column. |
+| `raw_google_ads.*` (native DTS, MCC `3451896252`) | Carries only customers `2617916504`, `1054407474`, `1869745895`. Account `3034487647` is **not linked**. |
+| `raw_windsor.perf_google_ads` | Schema has **no creative field at all**, and holds only City Perfume + Reset Data. |
+
+So `paid_creatives_model` shows **campaign × network** - the finest grain that exists - labelled
+`<campaign> - <Network>`. Network *alone* was wrong: it merged the TOFU VideoViews buy and PMax's
+YouTube placements into a single "Youtube" row, which are not the same thing. The 1,000-impression
+floor (`CREATIVE_MIN_IMPS`) already drops the 1-11 impression Search / Search Partners / Mixed rows,
+so the finer grain cannot pollute the top-by-CTR ranking. **To get real creatives, Transmission must
+add ad / asset-level columns** (ad name + asset for PMax, video asset for the YouTube buy). Until
+then this is the floor, not a design choice - do not substitute anything that merely looks like a
+creative name.
+
+**Conversions are NOT leads.** The PMax campaign's 24 platform conversions are carried as their own
+`conversions` field and rendered in the benchmark table's Leads cell as `24 platform conv.`, the
+same labelled treatment TTD's "no pixel" gets. They are deliberately **not** folded into `LEADS`:
+that column holds LinkedIn lead-gen and Salesforce CS leads, and mixing a platform conversion in
+would move a client-facing lead total and the Total row with it.
+
+### The market bug this shipped with, and the rule that came out of it
+The first deploy put this campaign in **SAARC**, not JP. Cause: **`_` is a single-character WILDCARD
+in SQL `LIKE`**, so the India arm's `LIKE '%_in_%'` matched the `t-in-g` inside `..._Prospecting`,
+and it sat above the JP arm. Both Google Ads arms now use the boundary-anchored
+`REGEXP_CONTAINS(LOWER(x), r'(^|[ _-])jp([ _-]|$)')` form; `apac-xx` variants stay plain
+`CONTAINS_SUBSTR` (a hyphen is not a wildcard). **Never match a 2-3 letter market token with `LIKE`.**
+See the repo-wide note in `md/AGENTS.md`.
+**Hardened 2026-08-15:** the pre-existing `'%_jp_%'` / `'%_kr_%'` arms in the LinkedIn arms of
+`paid_media_model` / `paid_creatives_model` now use the same boundary-anchored form. They only
+survived because the `apac-xx` arms above them fire first on every current LinkedIn name.
+**Verified a strict no-op** — channel × market × imps × spend identical before and after across all
+five channels (LinkedIn has no JP/KR delivery today, so this is forward protection only). **No
+`LIKE '%_xx_%'` market token remains in live code in this client.**
+
+## Channel filter chips (Paid Media tab, 2026-08-15)
+A resetdata-style coloured chip row above the Markets chips: `renderPaidChannelChips()` /
+`togglePaidChannel()`, with `deliveredChans()` (delivery in the date range + lane) as the roster and
+`activeChans()` = roster ∩ selection. Everything channel-shaped already read `activeChans()`, so one
+click removes a channel from the KPIs, charts, tables, creatives and footer at once.
+- **Only channels WITH DELIVERY are rendered** (client, 2026-08-15) — nothing greyed out. Reddit and
+  LINE are Q2-only buys, so under a Q3 view they are simply absent. Never advertise a channel this
+  lane/range does not have.
+- The **last channel cannot be unticked** (no blank tab), and the whole row **hides itself when only
+  one channel is left** — a lone chip you can't untick is clutter, not a control.
+- "Everything ticked" is stored as the **empty set**, so a channel added later can never be silently
+  excluded, and the reset compares against the DELIVERED roster (not all of `PM_CHANS`) or you could
+  never return to the all-selected state under a range where some channels never ran.
+
+## The motion layer (2026-08-20) - aesthetics only, and how to tune it
+
+> **This dashboard is NOT on the shared BB MOTION KIT, on purpose.** The kit
+> (`scripts/motion_kit/`, applied to every other dashboard on 2026-08-20) is the portable, subtler
+> subset of what is described below - one interaction vocabulary, a CSS-only wash, the same reveal
+> engine, no canvas. This layer is richer and signed off as-is, so `apply_motion_kit.py` skips
+> `cloudflare` and there is no marker block here. **Do not "unify" the two**: a kit run would
+> replace the retuned aurora, the sweep bands, the KPI sheen and the travelling masthead rail with
+> three drifting orbs. Fixes that belong to BOTH have to be made twice, deliberately.
+
+Everything in this section is presentation. It changes how the dashboard ARRIVES, never what it
+says: the whole layer can be deleted and every number, chart, filter and CSV is identical. Two
+mechanisms touch rendered output and both restore it exactly - the bar reveal stashes the inline
+`width` and puts the same string back, and the KPI count-up writes the ORIGINAL text on its final
+frame. Verified by rendering the dashboard with and without the layer and diffing every tab's
+text plus every bar width: identical across all four tabs.
+
+**Where it lives** - three insertions in `dash/dashboard.html`, all marked:
+- CSS: the `PREMIUM MOTION LAYER` block, deliberately the LAST thing in `<style>` so it wins the
+  cascade over the rules it re-times.
+- DOM: the `ANIMATED AURORA` layers right after `<body>`, plus `.topbar .rail`.
+- JS: the `PREMIUM MOTION ENGINE` IIFE (`window.bbMotion`) just before `boot()`, plus a short
+  `MOTION` block in the `Chart.defaults` section.
+
+**The aurora** is one `<canvas>` (`#bbAurora`) carrying the swaying curtains AND the slanted sweep
+bands, over four CSS orbs, under one static scrim (vignette + film grain). Dials, in the order you
+should reach for them: `time +=` in `frame()` (how alive), the strip `opacity` in `build()` (how
+present), `SCALE` (backing-store resolution), the orb alphas in the CSS.
+
+**Performance is the whole design constraint here, and it is counter-intuitive.** Measured in a
+software-rendered browser (no GPU - which is what a locked-down corporate laptop gives you):
+- `filter: blur(18px)` on the full-viewport canvas: **61fps -> 3fps on its own.** A full-screen
+  blur is re-applied every frame the canvas paints. It is gone; the softening now comes free from
+  drawing the canvas at 28% scale and letting the compositor upscale it.
+- three 170%-wide diagonal bands as DOM layers, animating opacity + transform: **half the frame
+  rate** (25 -> 51fps when frozen). They are now drawn INSIDE the canvas - same shapes, one
+  moving layer instead of four.
+- `mix-blend-mode` on the full-screen grain forces the whole stack underneath, canvas included,
+  to re-composite every frame. Dropped; 3% plain opacity looks the same.
+- `blur(130px)` on the orbs was redundant - a radial gradient that fades to transparent is
+  already soft.
+The rule that falls out: **the cost is the NUMBER and SIZE of animated full-screen layers, not the
+drawing inside them.** One low-res canvas is nearly free; four window-sized CSS layers are not.
+
+**The reveal system** tags surfaces with `[data-bb-reveal]` and adds `.bb-in` on first
+intersection. Two things there are load-bearing:
+- `threshold: 0`, never a fraction. Threshold is the share of the ELEMENT that is visible, so a
+  card taller than the viewport (the 1,000-row lead table) can never reach 6% and would sit at
+  opacity 0 forever.
+- the **watchdog** (`sweepStuck`): a second after any scan, anything still unrevealed but inside
+  the viewport is shown unconditionally. Hiding content until an observer says so means a missed
+  callback hides DATA - the animation is worth losing, the number is not. If it ever fires it is
+  papering over a bug, and the dashboard still reads.
+Re-scanning is driven by a `MutationObserver` on `<body>` (childList, rAF-coalesced) rather than by
+editing 40 render functions, so anything a filter change re-renders animates in the same way.
+
+**Type**: Inter is now actually LOADED (Google Fonts). The stack always named it but nothing
+shipped it, so Windows rendered Segoe UI and macOS SF - the same dashboard in two typefaces.
+
+**The login page** (`dash/main.py` `LOGIN_HTML`) was re-skinned to match: same dark base, same
+warm aurora, same button/press/focus vocabulary. Its aurora is CSS-only - no canvas, no
+requestAnimationFrame - because a login screen should not run an animation loop.
+
+
+## EMEA top-of-tab summary sections (2026-08-27)
+
+The **KPI strip**, **Leads vs target / Progress** and the **By-region summary** now render on
+Core DG EMEA. They were APJ-only because they read the legacy `pacing.rows` model
+(`salesforce_leads_live`), which holds **zero EMEA rows**. They are now fed from `cs_pacing`
+instead - the same payload branch the Pacing detail section below them already used. **The legacy
+model was NOT backfilled**: widening it would move live APAC numbers and desync the status-dash
+checks. Code lives in the `BB:EMEATOP` block in `dash/dashboard.html`.
+
+**They call the SAME four render functions as APJ** (`renderKPIs` / `renderLeadsTarget` /
+`renderProgress` / `renderRegionGrid`), fed an agg-shaped object by `cspdTopAgg()`. That is the
+whole design: a basis cannot drift between theatres if there is one implementation. All four pace
+on **accepted / target**, which is what the client's sheet does (deficit = Planned - Accepted).
+
+**Every target comparison on this tab is now ACCEPTED / target, on all three lanes** (Core DG APJ,
+Core DG EMEA, Regional) - see "One basis for every pacing figure" below. An earlier version of this
+paragraph said the Pacing detail band was "a different component" that answers a different question
+and should not be harmonised; that was already contradicted 260 lines further down by the 08-27 fix
+to `cspd_w_pace`, and the contradiction is most of why the by-market chart kept a delivered basis
+for another week. **DELIVERED survives only as a delivery COUNT and as the acceptance/rejection
+rate denominator.** If you add a panel that puts an actual next to a target, it uses accepted.
+
+Verified 2026-08-27: accepted 265, delivered 306, rejected 41, unprocessed 253, flight target 830,
+target due to date 192 -> **31.9% of plan against 23.1% time elapsed, 138.0% leads pacing**. The
+pacing-versus-time comparison is the point of the section: a bare 31.9% reads as underperformance.
+
+### Three things to keep right
+
+- **The in-progress week is DAY-PRORATED, and it has to be.** Targets are seeded weekly, elapsed
+  time is continuous, so counting a whole week's target the moment that week opens makes pacing
+  lurch with no change on the ground - EMEA would fall from 138% to 103.5% between Thu 27 and Fri
+  28 Aug. Each week contributes `target x (its days elapsed / 7)`, giving 131.8% on the 28th.
+  **The legacy APAC model never had this bug** because its targets are seeded PER DAY
+  (`ALLOCATED_TARGET`, ~4,400 rows a quarter); `cspdTopAgg()` reproduces that from weekly rows.
+  **Testing trap:** on the last day of a week, days-elapsed and completed-weeks agree by
+  coincidence (21 of 91 days = exactly 3 weeks on 27 Aug 2026), so a proration bug is invisible
+  that day. Test a mid-week date - `scripts`-free harness in the git history, or simulate `Date`.
+- **The flight is DERIVED FROM THE TARGET WEEKS, never from a stated end date.** Three sources
+  disagree: 13 Friday-anchored weeks from 07 Aug -> **5 Nov**; the EMEA sheet's overall tab ->
+  31 Oct; its Roverpath tab -> 30 Sep. Week 13 *starts* 30 Oct, so a 31 Oct end would make it a
+  two-day week. `cspdFlight()` takes first week start -> last week start + 6 days = 91 days.
+  **Confirm the real end date with Jade**; a correction arrives as CSV rows and needs no code.
+- **EMEA is labelled "Flight", never "Q3".** 310 of its 830 (37%) falls in October, which is Q4,
+  and drawing a time-elapsed bar against a calendar quarter it is not being bought in would be a
+  straight misstatement. `periodLabel()`/`toDateWord()` are lane-aware and return
+  `qtrLabel()`/`'QTD'` unchanged on APAC, so **every APJ caption is byte-identical**.
+
+- **`cspdResolveScope()` must run before ANY read of `cspdRows()` (fixed 2026-08-28).** `CSPD`
+  starts `{ book: null }` - the payload decides which books exist, so the selection is resolved on
+  first read, not at boot. That resolution used to be a SIDE EFFECT of `cspdCfg()`, which only
+  runs inside `renderCsPacingDetail()`. `cspdTopAgg()` runs *before* that in `renderAll()`
+  (deliberately - `renderCsPacingDetail()`'s tail is `applyRegionPanelScope()` and must go last),
+  so on the first paint `cspdBookOf(r) === null` matched nothing and **the entire EMEA top band
+  rendered zeros off 0 of 169 rows** while the Pacing detail below it rendered correctly, because
+  that section resolves the book itself. The theatre filter was never the problem: step 1 returned
+  169 rows, the book step dropped all 169. It is now resolved in one function both callers hit -
+  reordering the calls would only have traded this bug for the panel-scope one. **A third reader
+  of `cspdRows()` must call `cspdResolveScope()` first too.**
+  **The test that missed it** stubbed `CSPD = { book: 'Core DG' }` - it pre-set the exact state
+  that breaks. When a bug depends on initialisation order, the harness has to start from the
+  declaration in the file, not from a convenient value.
+- **`cfg.period_label` is lane-aware, so the whole Pacing detail section follows.** It resolves to
+  `Flight` off-theatre and to the payload's own label on APAC, which is what stops EMEA captions
+  reading "whole Q3" / "265 of 830 Q3 target" for a flight that is 37% Q4.
+
+**The five composition donuts render on EMEA since 2026-09-05** (client: "these updates we are
+doing for APJ do it on EMEA too, just make sure no data will spill onto each other") - see
+"Composition donuts on EMEA" below. **Still hidden on EMEA:** Best performing assets, the
+leads-trend and the lead-detail table. They need lead-GRAIN rows that the v2 model deliberately
+does not ship. `CSPD_ANY_THEATRE_BLOCKS` is the list that decides what renders off-theatre -
+**adding an id there without repointing its data source at a v2 view renders an EMPTY panel under
+an EMEA heading**, which is what it prevents.
+
+### Composition donuts on EMEA (2026-09-05)
+
+The APJ donuts aggregate the LEGACY lead rows in the browser (`aggregate()` over
+`salesforce_leads_live`, APAC-only by its 13-ID allowlist). EMEA had no lead-grain rows in the
+payload at all, so the five cards were hidden. Now:
+
+| | |
+|---|---|
+| Lead grain | `sql/16_stg_cs_leads_v2.sql` - **+`JOB_FUNCTION`, `JOB_LEVEL`, `JOB_TITLE`** (passthrough) |
+| Composition grain | `sql/19_cs_composition_v2.sql` -> `cs_composition_v2` (theatre x book x vendor x market x **dim x value**, LONG format, campaign to date) |
+| Payload branch | `job/main.py` -> `cs_composition` (`{theatre, book, vendor, market, dim, value, accepted, unprocessed}`) |
+| Frontend | `cscxDims()` -> `renderCompositionDonuts()` -> the SAME `donut()` APJ uses |
+
+**Why long format and no day:** five dimensions in one block, one reader; a wide row per lead would
+ship a job TITLE against a market at lead grain for no gain. The EMEA CS tab has no date control
+(the top band is campaign-to-date), so the donuts are campaign-to-date too, like the band they sit
+under. `DIM` values are the dashboard's own keys (`solutions / countries / jobFunc / jobLevel /
+jobTitle`), so the reader is a lookup, not a translation table. Blank -> `Unknown`, the same label
+`aggregate()`'s `lbl()` gives a blank on APJ, which is what lets every dimension sum to the same
+total.
+
+**No-spill guarantee, in three layers.** (1) The view carries `THEATRE`, and both theatres are in
+it on purpose (the `18_*` reasoning) - a view silently holding one theatre is a trap the day APJ
+migrates. (2) The dashboard filters it through **`cspdScopeOk()`** - the ONE predicate behind
+`cspdRows()` (theatre + book + publisher + L3 market), factored out for exactly this - so the same
+test that admits a pacing row to the band admits a composition row to the ring. APJ never reads
+`cs_composition` (it keeps `aggregate()`), EMEA never reads the legacy rows. (3) The job asserts,
+per (theatre, book), that **each of the five dimensions sums to `cs_pacing`'s accepted total** and
+WARNs by name if not; the dashboard draws an `Unaccounted` slice on any shortfall. Verified in
+BigQuery on apply: APAC Core DG 1,661 x 5, APAC Regional 63 x 5, EMEA Core DG 1,834 x 5, all `ties
+= true`; and in the headless render the APAC and EMEA Country rings share no label.
+
+**Scope is by campaign ID against an explicit allowlist, never by name prefix (2026-09-05, client
+rule).** `definitions.json` -> `cs_emea_campaigns` -> `seed_cs_emea_campaign_ids`, read by `sql/16`
+as the FIRST theatre rule (`REGION_SOURCE='allowlist'`), with the id vote and the per-lead name token
+kept below it as fallbacks that never default a theatre. Five IDs, one per EMEA publisher
+(Acquisition `701RG00001e1aegYAA`, Pipeline360 `701RG00001ddoNpYAI`, Roverpath `701RG00001cj4ibYAA`,
+Final Funnel `701RG00001ciw9zYAA`, Inbox Insight `701RG00001e0CoAYAU`); every EMEA sub-region is a
+campaign NAME under the same id, so a new region needs no edit and a new publisher does. **The sweep
+for un-prefixed EMEA campaigns found TWO names, both on Acquisition's id:** `2026_Q3_CEERI_ACQUISITION_
+VER-FINANCE_...` (52 rows) and `2026_Q3_DACH_ACQUISITION_VER-FINANCE_...` (12 rows) - a `LIKE
+'EMEA-%'` filter would have put all 64 in APAC. They were already placed correctly by the id vote (the
+same id carries 25 prefixed names); the allowlist makes that placement explicit and the job WARNs by
+name on any EMEA lead it did not place. **Render-time assertions** (`assertDimsSumTo`, `cscxDims`'s
+spill counter, `assertTheatreIsolation` once per payload) log to `console.error` with a `[cs-isolation]`
+prefix and to `window.BB_ISOLATION_LOG`; the job mirrors the market check (`CS_THEATRE_MARKETS`)
+before the block ships. The two DATA objects are different and never shared: APJ reads the legacy
+lead rows (`rawRows` -> `aggregate()`), EMEA reads `cs_composition`; the LAYOUT code
+(`renderCompositionDonuts` -> `donut` -> `dlLegend`) is the one shared piece.
+
+**Ring total on EMEA = `cspdTopAgg().accepted`** (+ New in Admin View), i.e. the KPI strip's own
+figure for the same scope - the two tie or the ring says so. An older JSON with no
+`cs_composition` block hides both donut rows (`renderCompositionV2`) rather than drawing five
+empty rings. The five call sites (ids, fold limits, lane counts) live in ONE function,
+`renderCompositionDonuts()`, so the theatres cannot drift onto different charts.
+
+**The scrolling legend (2026-09-05)** replaced the Chart.js legend on all five donuts, both
+theatres: `plugins.legend.display=false` and `dlLegend()` draws a horizontal chip lane under the
+ring (swatch / label / count, sorted descending, edge fades only on the side with more content,
+hover a chip to isolate its slice, hover a SLICE to isolate AND scroll its chip into view, wheel
+scrolls the lane but only preventDefaults while there is room, thin themed scrollbar,
+`prefers-reduced-motion` turns the smooth scroll off). Card height is fixed by CSS (`.dl-ring`
+172px + one or two lanes) whatever the category count - Country used to wrap its legend and
+Professional demographic's legend overflowed the card. **Folds:** Country and Job function no
+longer fold (every value gets a slice - which also removes the collision between Salesforce's
+REAL `Other` job function, 128 leads, and the `Other (n more)` fold chip); only Professional
+demographic folds (top 24 titles, two lanes). **Click-to-toggle survived:** a chip click calls
+`chart.toggleDataVisibility(i)`, the same state the native legend drove, so `bbDonutCenter`
+(vendored, untouched) keeps subtracting a hidden slice from the centre total. The AI deck
+(`buildDeckPayload` -> `_bbTop(agg.*)`) and the CSV export read the AGGREGATE, never the legend
+DOM, so they always carry the full set. Class prefix is `dl-` because `.chip` is the market chip.
+Reference prototype the build was matched to: `donut-legend-scroller.html` (Build A, single lane;
+Build C, two lanes) - not committed.
+
+**Scope = theatre + book + publisher (`cspdRows()`), the same as the band below**, so the two can
+never disagree - that disagreement is what this work existed to fix. Because the book/publisher
+pickers sit further down the page, the strip carries a caption (`#csTopScope`) naming the scope,
+the flight window and the days elapsed. A figure that moves with an off-screen control is worse
+than no figure.
+
+## CS Comparison on Core DG EMEA (2026-09-02, client request)
+
+The **CS Comparison** tab now renders on the EMEA lane. It compares **market vs market inside one
+period** - it is not a period comparison and it reads nothing from paid media. That matters,
+because it had been gated on `emeaHasPaid() && emeaHasPriorQuarter()`: **two conditions the tab
+never uses**. EMEA has neither, so a tab that could have been filled since 06 Aug stayed dark. The
+gate is now `emeaHasCompare()` - does the payload carry Comparison rows for this theatre.
+
+Code lives in the **`BB:EMEACOMPARE`** block in `dash/dashboard.html`, and it follows `BB:EMEATOP`
+exactly: `cscAgg()` builds an **agg-shaped object** off the new `cs_compare` branch and hands it to
+`renderComparePanel()`, which stays the **single** implementation for both theatres. A basis cannot
+drift between theatres if there is one renderer. The legacy `salesforce_leads_live` model is
+**untouched** - it is APJ-only by construction (campaign-ID allowlist, zero EMEA rows), and widening
+it would move live APJ numbers and desync the status-dash accuracy checks.
+
+### What was already there, and what actually had to be built
+
+The market split needed **no work at all**, contrary to how this looks from Snowflake: every EMEA
+campaign is named `EMEA-<region>` and `sql/16_stg_cs_leads_v2` has mapped six of them
+(UKI / DACH / SEUR / NEUR / CEERI / MEA) since 2026-08-24. **Do not write a `COUNTRY_NAME` -> market
+CASE for EMEA** - the campaign name already carries it, and a country-derived mapping would be a
+second, disagreeing definition of the same dimension.
+
+What was missing was **grain**. `17_cs_pacing_v2` aggregates to week x market x vendor, and the
+panels need three things it throws away: **COUNTRY** (the drill-down; EMEA spans 33 countries, UKI
+alone 13), **ASSET** (the "Best performing assets" list) and **DAY** (the tab is date-range driven,
+and a range that cuts mid-week cannot be honoured from week buckets). So:
+
+| | |
+|---|---|
+| Lead grain | `sql/16_stg_cs_leads_v2.sql` - **+`ASSET_1`, `ASSET_2`, `SERVICE`** |
+| Comparison grain | `sql/18_cs_compare_v2.sql` -> `cs_compare_v2` (day x market x country x asset) |
+| Payload branch | `job/main.py` -> `cs_compare` (~314 KB, 1,017 rows both theatres) |
+| Frontend | `BB:EMEACOMPARE` + a theatre branch in `renderComparePanel` / `populateRegionSelects` |
+
+`cs_compare_v2` carries **no targets**: those already ship on `cs_pacing` at their own grain, and a
+second copy of a number that must agree is how two panels end up disagreeing. It covers **both
+theatres** on purpose - only EMEA reads it today, but a view that silently held one theatre would be
+its own trap the day APJ is migrated onto it.
+
+### Four things to keep right
+
+1. **Targets are MARKET grain, so they are not paced against under a country drill-down** (or a
+   single publisher - the same rule `cspdResolveScope()` already applies). The plan has no country
+   dimension, so a country's share of a market target is an allocation we invented. `hasTargets`
+   goes false, the KPI prints `-` and **the target series is dropped from both charts** rather than
+   drawn as a zero bar - a zero-high "target" beside real delivery reads as a plan that was missed.
+2. **The weekly target is prorated** (`weekDueFraction`, shared with the Pacing detail band), or the
+   figure lurches a full week's worth the moment a week opens. **Test mid-week**: on the last day of
+   a week, prorated and whole-completed-weeks give the same answer by coincidence. EMEA's plan is
+   heavily back-loaded (65/week for three weeks, then ~1,260/week from 28 Aug), so at 34 days
+   elapsed only 1,805 of 12,058 is due - that is correct, not a proration bug.
+3. **`resolveAssetSolutions` moved to module scope** when this became its second caller. It is one
+   definition on purpose: the solution COLOUR MAP keys on those exact strings, so two copies would
+   eventually give one asset two colours on two tabs.
+4. **`SERVICE`'s CASE is a second copy of the one in `sql/13_pacing_model.sql`** and the two must
+   move together. Not shared yet because `sql/13` sits on the live APJ path and factoring it out
+   would put every headline APJ number through a new join for a cosmetic label. **Follow-up**: hoist
+   both onto a shared campaign -> solution view, the way `04b_campaign_program` was done on
+   schneider.
+
+### Verified 2026-09-02
+
+`cs_compare` reconciles **exactly** to `cs_pacing` - the same lead universe, independently
+aggregated - on both theatres and on every market:
+
+| | UKI | DACH | SEUR | NEUR | CEERI | MEA |
+|---|---|---|---|---|---|---|
+| Accepted | 240 | 169 | 181 | 170 | 126 | 192 |
+| Rejected | 51 | 32 | 24 | 24 | 12 | 26 |
+| Acceptance | 82.5% | 84.1% | 88.3% | 87.6% | 91.3% | 88.1% |
+| Countries | 13 | 5 | 6 | 7 | 11 | 7 |
+
+Theatre totals: EMEA 1,078 accepted / 169 rejected, APAC 1,724 / 313 - **zero delta against
+`cs_pacing` on both**.
+
+**EMEA assets are almost entirely the file-slug naming convention** (`26Q3_EBOOK_accelerating-ai-
+adoption-with-sase`), with one short code (`A-MSM-11`) leading. They render through
+`prettyAssetName()`'s fallback, which is the point of that fallback - an unmapped variant looks
+unfamiliar rather than looking broken. Fold a new one into `ASSET_ALIASES` when it earns a name.
+
+### The date control is now PER TAB on this lane
+
+`PROGRAMS.core_emea.dateControl` was `false` because nothing EMEA rendered responded to the range.
+The Comparison tab does, so it is now `['compare']` and `applyDateControl()` resolves it per tab -
+the picker appears on Comparison and nowhere else on the lane. Add a tab key there the day another
+EMEA tab gains range-driven content; `true` shows it everywhere.
+
+## Pacing detail + Core DG EMEA (2026-08-24)
+
+A **Pacing detail** section on the Content Syndication tab, directly under "Pacing - target vs
+actual", and **`core_emea` promoted from a disabled placeholder to a live lane** - which brings
+**EMEA** onto this dashboard for the first time. Client-approved layout; built from
+`cloudflare_cs_build.sql` (Transmission's Snowflake DDL) as the logic reference.
+
+**EMEA is reached through the topbar lane dropdown ("Core DG EMEA"), not its own control.** An
+APAC/EMEA toggle was built beside the date picker first and **removed the same day** (client
+request): the lane dropdown already existed, already gated tabs per lane (`PROGRAMS[...].tabs`
+-> `applyLaneTabs`) and already had a `core_emea` entry, so a second control meant two ways to
+say the same thing - and two things that could disagree. `currentLane` is now the single source
+of truth; `laneTheatre()` derives the theatre from it and `cspdTheatre()` is the only reader.
+Adding a third theatre is a `PROGRAMS` entry + an `<option>` + CSV rows.
+
+**Where each piece lives**
+
+| piece | file |
+|---|---|
+| Targets (committed CSV -> BQ) | `targets/cs_targets_q3.csv` -> `seed_cs_targets_q3` (`seed_static.py`) |
+| Lead grain, name-scoped | `sql/16_stg_cs_leads_v2.sql` -> `stg_cs_leads_v2` |
+| Book x week x market x vendor | `sql/17_cs_pacing_v2.sql` -> `cs_pacing_v2` |
+| Payload branch | `job/main.py` -> `cs_pacing` (+ a per-theatre-x-book audit line every run) |
+| UI | `dash/dashboard.html` -> `#cspdSection`, `renderCsPacingDetail()`, `PROGRAMS.core_emea`, `laneTheatre()` |
+| Campaign (book) picker + publisher table | `dash/dashboard.html` -> `cspdRenderBookSel()`, `cspdRenderVendorTable()`, `#cspdVendorCard` |
+
+**It runs in BigQuery, not Snowflake, on purpose.** The build script creates views in
+`CLOUDFLARE_SANDBOX.CS_REPORTING`, but our pipeline role there is **read-only** (same reason
+the KR campaign-scope fix still isn't applied), and the base table is *already* in the shared
+mirror and *already* in this client's freshness gate. So the logic is ported 1:1 into
+`client_cloudflare` views and the targets became a committed CSV, per the repo's
+committed-CSV->BQ standard. No ingest change, no gate change, and the targets are
+version-controlled instead of living in DDL nobody here can re-run.
+
+**It cannot move an existing number.** `sql/10_salesforce_leads_live` is untouched. `16`/`17`
+are a parallel read of the same mirror, `cs_pacing` is a separate payload branch, and the whole
+section hides itself when that branch is absent - so an older `cloudflare.json` renders exactly
+as it did before. Verified: 600 inserted lines, 0 removed.
+
+**Reconciliation** (2026-08-24, matches the client's pacing sheet exactly):
+
+| | Target | Delivered | Accepted | Rejected | Needs review |
+|---|---|---|---|---|---|
+| EMEA | 830 | 234 | 208 | 26 | 0 |
+| APAC | 2,290 | 1,591 | 1,365 | 226 | 0 |
+
+APAC delivery runs **ahead** of the sheet because this is live off Salesforce and the sheet is
+a snapshot. That is expected.
+
+### Regional campaigns + publishers (2026-08-27, Lydia's request)
+
+> *"For Content Syndication, please add regional campaigns/publishers to the pacing dashboard
+> i.e. DemandAI, Interlink and SitPub."*
+
+**DemandAI and Interlink were being DROPPED, not just hidden.** `16_stg_cs_leads_v2` excluded
+`SEG_PROGRAM = 'ANZ DnB'` outright, and their Salesforce campaign IDs
+(`701RG00001aeA3kYAE` / `701RG00001aetXiYAI`) are not in the 13-ID allowlist behind
+`10_salesforce_leads_live` either - so they appeared **nowhere on the dashboard at all**.
+They are now in scope as their own **BOOK**, and the section gained a **Campaign picker** and a
+**Delivery by publisher** table.
+
+**`BOOK` is a plan, not a region - keep the two apart.** ANZ DnB runs in ANZ, i.e. inside APAC,
+on the same Monday week anchor, so modelling it as a third *theatre* (which the old code comment
+suggested) would have been a lie about the region and would have forced it into the topbar lane
+dropdown. It is a second dimension: `BOOK` in `sql/16` -> `sql/17`'s join key -> the seed CSV ->
+`cs_pacing.rows[].book` -> the picker.
+
+**Books are never summed, and there is deliberately NO "all campaigns" option.** Only Core DG has
+a seeded target sheet (APAC 2,290 / EMEA 830); an all-books selection would divide combined
+delivery by one book's target and report a pacing figure that is wrong in the *flattering*
+direction. `Target` prints "no target" rather than 0 where a book has no sheet (a 0 reads as a
+target of zero and would make Pacing look infinitely ahead).
+
+**The Delivery by publisher table FOLLOWS the Campaign picker (2026-09-04, John: "I thought we
+agreed we would move DemandAI and Interlink as these are DNB campaigns only in Australia").**
+From 2026-08-27 to 09-04 it was the one cross-book panel - it spanned every book in the theatre
+so the regional publishers had somewhere to appear at all - which put DemandAI and Interlink in
+the Core DG view under a REGIONAL badge, and its caption read "every campaign in APAC, not just
+the one selected above". The badge made the tagging right and the scope wrong. It now reads the
+same book-scoped rows as the band above it (`cfg.rows`, not the removed `cfg.allRows`), so Core DG
+lists Roverpath / VRSM Lead Magnet / Final Funnel and Regional lists DemandAI / Interlink - **the
+regional publishers are scoped, not hidden** (Lydia's ask still stands; they render in full with
+the picker on Regional, and the footnote drops its "internal allocation" sentence there because
+no publisher in that book carries a target). Per-publisher figures are unchanged by construction:
+the same `book x vendor` aggregate, filtered. Verified in a headless render of the built page
+against the live payload: Core DG APAC 852 + 400 + 409 = 1,661 accepted, Regional DemandAI 71
+delivered / 62 accepted, Interlink 1 delivered / 45 pending review; EMEA rows and figures
+identical (only its caption changed - it no longer claims to span every campaign, and it does not
+mention the Campaign picker there because a single-book theatre hides it).
+**Sweep result, same day:** every other panel in the Pacing detail section and the CS Comparison
+tab already read `cspdRows()` / `cspdResolveScope()` (book-scoped). The only theatre-wide readers
+left are the picker's own book list, the dev-only targets-staleness check (`weeksAll`, a fact about
+the seed), and the market CHIP roster (`cspdAllMarkets()`, a roster not a figure). The legacy APJ
+CS panels above the section (KPI strip, region cards, weekly chart - `sql/10`) are not book-aware
+at all: the 13-ID allowlist makes them Core DG by construction, so they do not move when the
+picker is set to Regional. That is the documented two-model split, not a scope leak.
+
+**The Core DG numbers did not move, and that was the acceptance test.** APAC Core DG
+2,290 / 1,708 / 1,460 / 248 and EMEA 830 / 306 / 265 / 41 are identical before and after,
+verified in BigQuery and in a headless render of the built page. Regional adds 72 delivered /
+63 accepted / 9 rejected alongside them.
+
+**`SitPub` does not exist in the Salesforce feed under any spelling** (checked every campaign
+name in `salesforce_cs_apac_all`, all quarters, for `PUB|SIT|SITU|REGISTER`; the only hits are
+the `ACQUISITION` token, which contains "sit"). Nothing was invented for it. Vendors are
+discovered from the data, so it appears on its own the day its first lead lands - exactly as
+Pipeline360 and Inbox Insight did.
+
+**Publisher display names are now aliased in `sql/16`** (`DEMANDAI` -> `DemandAI`,
+`INTERLINK` -> `Interlink`, `PIPELINE360` -> `Pipeline360`, `INBOXINSIGHT` -> `Inbox Insight`).
+Salesforce carries recent publishers in SHOUTY caps and older ones in title case. **`Roverpath`,
+`Final Funnel` and the `VSRM` -> `VRSM Lead Magnet` alias are load-bearing**, not cosmetic: they
+are the join keys for the seeded targets. Unmapped spellings fall through unchanged.
+
+**The `Unclassified` book is the safe residual, not dead code.** The programme list in `sql/16`'s
+`BOOK` CASE is explicit, because this feed churns fast - `GENERAL`, `VER-RETAIL` and `EXP` all
+appeared inside one week in Aug 2026. A ninth programme lands in `Unclassified`, is counted, is
+selectable, and is WARNed about by name in the job log; it is never folded into Core DG, where it
+would inflate delivery against a fixed target. Mapping it is one line in that CASE.
+
+**~~Still deliberately out of scope: `SEG_PROGRAM = 'EXP'` and `VENDOR = 'ACQUISITION'`.~~ DEAD -
+both exclusions were REMOVED 2026-08-31 and both of this note's premises were wrong.** Jade
+confirmed Acquisition IS a CS partner (streams 2&3 of the "Q3 EMEA Content Syndication" plan, CPL
+$32, with seeded weekly targets), and CF1 EXP is a bought line on the same plan; the extra
+`EXP` segment sits AFTER the three segments the view parses, so region and vendor were never
+shifted. Its 482 rows were all `New` when the exclusion was written and were mostly DELIVERED by
+08-31 (EXP UKI alone 60 accepted / 17 rejected), so by then the exclusion was hiding real delivery
+from the pacing figures. `sql/16_stg_cs_leads_v2.sql` carries the live reasoning - kept here only
+so the old instruction cannot be followed by mistake.
+
+**A count-up race in the motion layer was fixed here too** (`countUp` in `dash/dashboard.html`).
+The last frame of the 780ms animation wrote back the string captured when it STARTED, so a figure
+re-rendered inside that window - scroll the section into view, then immediately change the
+campaign, publisher or week - was overwritten with the *previous scope's* number and stayed there
+until the next render. Each frame now bails if anything else has written to the element, so the
+render function always wins. **The same bug is in `scripts/motion_kit/kit_js.tpl` line ~48** and
+therefore in every kit-injected dashboard; fixing it there is a separate estate-wide re-inject.
+
+### Weekly pacing + what the publisher targets actually are (2026-08-27)
+
+**`cspd_w_pace` paces on ACCEPTED, not delivered.** It used to divide DELIVERED by target while
+the Lead deficit tile *in the same card* measured ACCEPTED against the same target, so the two
+openly contradicted each other - EMEA w/c 08-21 read "112.5% - 72 vs 64 target" (ahead) beside
+"Lead deficit 7 - accepted leads behind target" (behind). Accepted is what the plan is bought in
+and what every other pacing figure on the tab already used (the campaign-to-date band, the
+publisher table, the deficit tile). The caption now names the metric - "57 accepted vs 64 target" -
+so nobody re-derives it. (The `Delivered` tile it used to sit beside became an **Accepted** tile on
+2026-09-04 - see "The weekly card's headline is accepted" below - so the whole card now reads in
+one unit.)
+
+Two weeks change verdict, and **both flips move INTO agreement with their own deficit tile**:
+EMEA 08-21 112.5% -> 89.1% (deficit 7) and APJ 07-27 105.6% -> 90.0% (deficit 18). Every other
+week keeps its verdict and just drops by that week's rejection rate. **Nothing that reconciles to
+the client's sheet moves**: the campaign-to-date band (APJ 1,450 of 2,290 / 63.3%), the top KPI
+strip and every delivered/accepted/rejected count are untouched. Only this one tile.
+
+> **This change fixed the TILE and left the CHART below it on delivered** - closed 2026-09-03, see
+> "One basis for every pacing figure". The lesson is worth more than the fix: the note above says
+> "Only this one tile" as reassurance about blast radius, and it was accurate, but *"which other
+> panel on this card compares an actual to the same target?"* was never asked. Sweep the whole card,
+> not the one element in the ticket.
+
+### One basis for every pacing figure (2026-09-03, Jade)
+
+**Client decision, via the Internal Notes widget: "for the weekly lead pacing, instead of
+'delivered' we should show accepted".** Reported after Jade queried the KR/JP region cards in
+Teams; the cards were already accepted-based, and the panel actually disagreeing with them was the
+**by-market chart** - the last target comparison on the tab still measuring DELIVERED
+(accepted + rejected).
+
+**One change: `cspdRenderMarketChart()` aggregates `accepted` instead of `delivered`** (frontend
+only - the payload, the views and the counts all already carried both). The card is retitled
+*Accepted vs target by market* (*Accepted by market* on a book with no target sheet, e.g. Regional)
+and its caption now names the basis.
+
+How badly the two disagreed, on one card, for the same week: at w/c 31 Aug the weekly tile read
+**169 accepted vs 98 due** while the chart underneath it totalled **211 against a 171 target**.
+Jade's w/c 24 Aug example was the same shape - 174 vs a 173 target looked exactly on plan, when the
+week had delivered 136 accepted against 173.
+
+**It was NOT counting unreviewed leads** (the standing suspicion, ruled out): w/c 24 Aug is
+136 accepted + 38 rejected = 174 delivered, and its 64 pending sit in the UNMAPPED bucket the chart
+already excludes. `IS_DELIVERED` in `sql/16` has always been `Accepted|Rejected` only.
+
+Values that move, all three lanes (Core DG APJ, Core DG EMEA, Regional - one component serves them
+all, so a single edit covers all three). Every week drops by exactly its own rejected count:
+
+| lane / selection | target | before (delivered) | after (accepted) |
+|---|---|---|---|
+| APJ Core DG, w/c 31 Aug | 171 | 211 | **169** |
+| APJ Core DG, w/c 24 Aug (Jade's) | 173 | 174 | **136** |
+| APJ Core DG, Q3 to date | 1,599 | 1,965 | **1,661** |
+| EMEA Core DG, w/c 28 Aug | 1,268 | 208 | **185** |
+| EMEA Core DG, Flight to date | 1,986 | 1,247 | **1,078** |
+| Regional (ANZ DnB), w/c 3 Aug | no target | 71 | **62** |
+
+**Left alone deliberately:** the campaign-to-date band's `Delivered` tile and the publisher
+table's Delivered column (delivery counts, not pacing; the WEEKLY card's Delivered tile went on
+2026-09-04, see the next section); the acceptance and rejection RATES (accepted + rejected is the
+correct reviewed-lead denominator - it is what makes the two sum to 100%); the by-region cards and
+the KPI strip (already accepted); `cspdDefaultWeek()` / the `qtd` cut-off / the `noDeliveryYet`
+guard, which test `delivered > 0` to mean *"has this week been reviewed at all"* - a reviewed-ness
+test, not a pacing basis, and the caption already says "no processed delivery yet".
+
+`sql/17_cs_pacing_v2.sql`'s **`WEEKLY_PACING`** column moved to `ACCEPTED / TARGET` in the same
+change. It divided DELIVERED by TARGET while `LEAD_DEFICIT`, three lines below it in the same
+`SELECT`, measured ACCEPTED - so one column called w/c 24 Aug 100.6% of plan and its neighbour
+called it 37 short. Neither column reaches the dashboard (`job/main.py` carries only the counts),
+so this is purely for anyone querying the view directly - which is exactly who a disagreeing basis
+misleads. **Needs `sql/deploy_views_cloudflare.ps1`; the dashboard change needs
+`dash/deploy_dash_cloudflare.ps1`. No job or payload change, so no forced run is required and the
+status-dash accuracy checks (which compare the JSON to BigQuery counts) cannot move.**
+
+**Verified by internal consistency, not against fixed numbers** (this data moved twice on the day):
+a headless render of the real `cloudflare.json` across all 3 lanes x every delivering week x the
+cumulative chip (19 scenarios) confirms only the market chart's title, caption and series changed -
+band, weekly tile, weekly chart, rejection chart and row sums byte-identical - and 16 assertions
+pass: the chart's accepted total equals the accepted the pacing tile prints for the same selection;
+accepted + rejected = delivered and accepted + rejected + pending = total leads (checked against
+the independent `cs_compare` block) every week; weekly accepted sums to the band's Accepted tile
+(APJ 1,661 / EMEA 1,078 / Regional 63) and to the EMEA region cards; target sums by market equal
+target sums by publisher (APJ 2,290, EMEA 12,058); and monthly totals equal weekly totals.
+
+### The weekly card's headline is accepted (2026-09-04, Jade)
+
+**Same client instruction, one panel further.** The 09-03 change put every target COMPARISON on
+accepted; what it left behind was the weekly card's own headline TILE, still labelled `Delivered`.
+So the card read `Delivered 174` in its largest figure, immediately left of a pacing tile whose
+caption said `136 accepted vs 173 target` - the exact pair of numbers Jade's example was about, on
+one card, in two units. A reader taking the headline at face value re-derives the delivered-vs-
+target comparison the 09-03 fix removed from the chart.
+
+**`cspd_w_del` -> `cspd_w_acc`, printing `w.accepted`.** The delivery count is NOT dropped: it
+moves to the tile's `.cnt` sub-line as *"N delivered (reviewed)"*, which also keeps the
+acceptance/rejection-rate denominator on screen next to the rates themselves. The id was renamed
+rather than left pointing at a different measure - an id that says `del` while holding accepted is
+how the next person re-introduces the bug.
+
+**Frontend only, one file.** No `sql/`, no `job/main.py`, no payload key - `accepted` and
+`delivered` have both been in `cs_pacing` since the section was built, and `cspdSum()` already
+returned both. Needs `dash/deploy_dash_cloudflare.ps1` only; no forced job run, and the status-dash
+accuracy checks cannot move.
+
+**Still `Delivered`, still correctly so:** the campaign-to-date band at the top of the section
+(which pairs Delivered WITH Accepted, so neither can be mistaken for the other) and the publisher
+table's Delivered column. Both are delivery counts that nothing paces against.
+
+**The transferable half** is the repo-wide rule this section already carries one level up: a basis
+is a property of the CARD. 08-27 fixed the tile and left the chart; 09-03 fixed the chart and left
+the headline. Each pass swept what the ticket named. When you next change a basis, enumerate every
+figure in that card - including the ones that state no target at all, because a headline in the
+wrong unit is what the reader paces by eye.
+
+**The two-model gap on APJ is CLOSED (2026-09-04, client report: "publisher table RP+VRSM+FF =
+1,661, top says 1,650, Pacing detail says 1,661").** The region cards and KPI strip read the LEGACY
+`pacing` model (`sql/10`, campaign-ID allowlist, COUNTRY_NAME markets) while the Pacing detail band
+reads `cs_pacing` (`sql/16`, campaign-NAME scope). The 11 leads were two defects, both on the legacy
+side, plus one latent one on the v2 side - see "Headline vs Pacing detail: the 1,650 / 1,661 fix"
+under Gotchas for what moved and how to re-verify. Both models are now expected to agree on the
+APAC Core DG accepted total at the Q3 default; a future gap is a bug, not a documented split.
+
+**The per-publisher targets are an INTERNAL ALLOCATION - now APJ-ONLY** (the EMEA Roverpath/
+Final Funnel 1:1 rows described below were REMOVED 2026-08-31 - superseded Stream 1 scope, see
+the streams 2&3 block; **the EMEA vendors seeded 2026-08-31 are CLIENT-SET**). Cloudflare's Core DG
+plan sets targets per MARKET per WEEK and has no publisher dimension at all - the supplied sheet
+(`raw files/CF_FY26 Q3_Core DG Lead Pacing...csv`) is Week / Date / Region / Country and never
+names a vendor. The split in `targets/cs_targets_q3.csv` was applied when the seed was built:
+
+| theatre | split | evidence |
+|---|---|---|
+| EMEA | flat **1:1** | all 78 market x week cells IDENTICAL for Roverpath and Final Funnel; 830 -> 415 / 415 |
+| APAC | flat **2:1:1** | every market (ANZ 470/238/235, ASEAN 209/106/104, Japan 122/62/60 ...), rolling up to the client's market totals EXACTLY - 943/419/220/309/244/155 = 2,290 |
+
+So the MARKET, WEEK and THEATRE totals are client-set and reconcile to their sheet; the
+per-publisher slice is ours. **APJ's 2:1:1 has exactly the same status as EMEA's 1:1** - APJ's
+64.9% / 63.1% / 60.5% are no more client-set than EMEA's 39.8% / 24.1%.
+
+**The decision (client, 2026-08-27) was to KEEP the percentages and label them**, not blank them:
+the allocation is how the book is actually run, so the figure is useful as long as nobody reads it
+as a commitment. The footnote under *Delivery by publisher* leads with "Publisher targets are an
+internal allocation of the market plan, not a client-set target. Publisher pacing is indicative."
+on **both** theatres, then keeps the existing "no lead target is loaded for X, Y" sentence.
+
+**`CSPD_PUBLISHER_TARGETS_ARE_REAL` is deliberately `true`.** It means "the UI may pace against the
+seeded publisher target". Setting it `false` makes every target-shaped figure fall back to its
+existing no-target copy wherever a single publisher is selected - the band, the weekly tile, the
+market chart and the table together, so they cannot disagree. That path is wired and tested; it is
+one line if the labelling ever proves not to be enough. **The suppression must stay all-or-nothing:
+fixing only the table would leave it reading "no target" under a band still showing 63.1%.**
+
+### Streams 2&3 targets + Acquisition (2026-08-31, per Jade)
+
+`targets/cs_targets_q3.csv` carries the EMEA Core DG flight target of **12,058**, all from the
+APPROVED "Media Plan 29-07-26" tab (the tab's own header total): **Pipeline360 3,039 + Inbox
+Insight 2,714 + Acquisition 3,740** (174 rows, per-publisher, client-set) **+ the IDE Lite
+line 2,565 split Roverpath 1,666 / Final Funnel 899** (156 rows). The plan's own notes say
+"IDE Lite is Rover Path and Final Funnel", but the client has NOT confirmed the split - the
+loaded ratio is delivery-to-date (271:148 at 2026-08-31, per Calvin, INTERIM), generated by
+the committed **`targets/build_ide_lite_split.py`** (change `IDE_LITE_SPLIT`, rerun, reseed,
+force the job when Jade answers - one line) and labelled interim in the publisher-table
+footnote. History: the total briefly read 10,323 (a stale 830 Roverpath/FF allocation from the
+SUPERSEDED "Media Plan 28-07-26 - Stream 1" scope sat under the 174 rows - removed
+2026-08-31), then briefly 9,493 with no IDE Lite at all, which KILLED weekly pacing: all
+delivery to date sits in weeks 1-3 and only IDE Lite carries week 1-3 targets. Only IDE Lite's
+line spans all 13 weeks - streams 2&3 targets start at plan week 4/5 by design. Source:
+the client's own **"Cloudflare EMEA - Q3 Content Syndication Pacing.xlsx"**, sheet
+`Media Plan 29-07-26`, columns **X-AJ** (per publisher x region x week, six campaign blocks:
+CF1 ACQ / CF1 EXP / Modernize Security / Retail / BFSI / Closed Lost, DT+ST lines summed).
+**These are CLIENT-SET per-publisher targets**, unlike the Stream 1 / APJ allocation above -
+the *Delivery by publisher* footnote now says so per vendor (`CSPD_CLIENT_SET_VENDORS` in
+`renderCsPacingDetail`'s note block).
+
+- **Week mapping: each plan week maps to the Friday bucket that CONTAINS its Monday** (W1 =
+  Mon 08-03 -> Fri 07-31 ... W13 -> Fri 10-23), and sql/16's EMEA anchor is **2026-07-31** to
+  match. Mapping the Monday to the FOLLOWING Friday instead (the original by-number mapping)
+  ran a full bucket late: plan W4's targets sat in the 08/28 bucket while ALL of that week's
+  delivery (dated 08-24..08-30) lands in 08/21 - flight-to-date target read 192 instead of
+  ~720 (fixed 2026-08-31, Calvin). Both anchors are Fridays, so the remap moved NO lead dated
+  on/after 08-07; only leads dated 07-31..08-06 shift into their true 07-31 bucket. Weekly
+  buckets still smear the plan's Monday weeks by 3 days; quarter totals reconcile exactly.
+- **The seed's TARGET is INT64 and the plan's weeklies are fractional** (32.22/wk etc.) - each
+  plan LINE was rounded week-by-week with cumulative rounding so every line total, and so every
+  vendor total, matches the sheet EXACTLY. Rebuild script: the conversion lives in the git
+  history of this change; re-runs must re-assert vendor totals 3,039 / 2,714 / 3,740.
+- **`sql/16` scope changes with it**: the 2026-08-27 exclusions of `SEG_PROGRAM='EXP'` and
+  `VENDOR='ACQUISITION'` are REMOVED (Jade confirmed Acquisition is a real streams-2&3 partner;
+  its 482 rows had become 475 DELIVERED, and CF1 EXP is a bought line on the same plan).
+  `ACQUISITION` -> 'Acquisition' joined the vendor alias map; `EXP` joined the Core DG book
+  list. **Verified 2026-08-31: all five APAC vendor rows byte-identical before/after; admitted
+  exactly Acquisition's 482 leads + Pipeline360's 56 EXP leads (both named in advance -
+  the md/AGENTS.md scope-fix rule).**
+- **Expect the vendors' early delivery to sit in week 08/21 with no target** - the plan's first
+  counted weeks are W4/W5 (08-24 / 08-31 Mondays) and the partners front-loaded ~650 leads just
+  before that. The FULL OUTER JOIN shows both sides; it is the plan's own schedule, not a bug.
+
+### Current state (recorded 2026-08-31, verification pass)
+
+**Deployed:** `cloudflare-dash-00146-cwt` (dash), `cloudflare-export` image from `bd27b7d`
+(carries `ga_campaigns`). Batch commits: `bd27b7d` + `a1b66ca` on the dev branch; the
+2026-08-31 verification pass (EMEA 9,493 correction, config lock) is the commit after those.
+Deployed artifacts == committed files, verified by hash at each push.
+
+**Live from the 2026-08-31 batches:** EMEA flight target 12,058 (streams 2&3 client-set 9,493
++ IDE Lite 2,565 interim-split across Roverpath/Final Funnel; the superseded 830 removed),
+the **cspd weekly pacing chart** (`#cspdWeeklyChart`, target vs accepted per week, both
+theatres), Acquisition + EXP in scope, Google Ads plan benchmarks + CPC actual-only + PMax
+strip, canonical solution labels, creative names decoded to asset names, Google Ads creatives
+restored to the creative tables/switcher, section-header wrap fix, exact-domain test-lead
+filter (sql/10/14/16).
+
+**TEMPORARY (2026-09-01, Ian, for the client WIP meeting):** the By-region summary cards HIDE
+the Flight Target row on the EMEA lane (`showFlight` in `renderRegionGrid`) - the whole-flight
+number dwarfed the other bars. The value stays in "Leads vs target" above; Ian is raising the
+presentation with John. Restore = flip `showFlight` (hint text follows automatically). APJ
+cards unchanged.
+
+**Blocked - do not build until the owner moves:**
+- One-solution-per-asset: mechanism WIRED, `ASSET_SOLUTION_MODE='stacked'` deliberately -
+  waiting on the CLIENT's rule via Jade (highest volume / original solution / master mapping).
+- IDE Lite split ratio: INTERIM (delivery-to-date 271:148) - waiting on JADE's confirmed
+  Roverpath/Final Funnel split; one-line change in `targets/build_ide_lite_split.py`.
+- Asset table layout rework: waiting on JADE's spec.
+- Channel/TTD chart fix: waiting on the SCREENSHOT of what's wrong.
+- PMax benchmarks: NONE exist in the Q3 workbook - the strip says so; nothing to grade until
+  the client supplies one.
+- Asset codes `A-MSM-10` / `A-MSM-11` / `G-MSM-2`: unresolved in `ASSET_NAMES` - waiting on
+  titles from the client; they render as `concept ...` meanwhile.
+- Snowflake `V_SALESFORCE_CS_APAC_CLOUDFLARE`: PARKED - corrected DDL is committed at
+  `snowflake_v_salesforce_cs_apac_cloudflare.sql`, needs a manual ACCOUNTADMIN paste (Calvin),
+  and NOTHING in our pipeline reads it.
+
+### 2026-08-31 batch (Calvin's EDA list)
+
+- **Solution labels are the client's canonical forms** - `sql/13`'s SERVICE CASE emits
+  `Modernize Security` / `Modernize Network` / `Modernize Applications` (was `Modernized X`).
+  The match was always SUBSTRING, so both campaign-name vintages were already folded into one
+  row - only the labels moved; per-solution totals are byte-identical. The assets chart's
+  `solColors` map keys on these exact strings (legacy spellings kept as fallbacks) - rename
+  together. A POSITIONAL solution parse (which mis-files 333 EMEA EXP leads under 'CF1' and
+  splits the Modernize(d) pair 970/684) exists only in Snowflake-side EDA, never in this model.
+- **Google Ads creatives were silently ABSENT from the Top/Bottom creative tables** from the
+  channel's launch (2026-08-11) until 2026-08-31: the creatives feed says `'Google Ads'` while
+  `activeChans()` keys say `'GoogleAds'`, and the unnormalised compare dropped every row - and
+  kept the channel out of the CHANNEL switcher. `creativeChanKey()` normalises both spots;
+  `CH_LABEL`/`creativePill` know the channel now. Same class as the ASSET_ALIASES lesson: two
+  spellings of one key, and the miss is silent.
+- **PMax strip** (`#gaPmaxBlock`, `renderGaPmaxNote`) under the video block: platform
+  conversions, cost per conversion, and Google's 50-conversion validity bar, whole-flight from
+  the new `paid_media.ga_campaigns` payload branch (job queries `stg_google_ads` at campaign
+  grain; spend grossed by `bbApplySpendMult` like every money field). The Q3 benchmark workbook
+  covers NO PMax metric - its $411 cybersecurity CPL is for qualified leads - so cost per
+  conversion renders as an ACTUAL with that stated, never a vs-zero grade.
+- **Creative names decode to CS ASSET names** (2026-08-31, client approved): a `[GA]-XXX-n` or
+  bare short-code token in a creative name resolves through `ASSET_NAMES` and LEADS the row's
+  label (prettyCreative), so the creative tables and the CS assets chart speak one language.
+  Raw name stays in the row tooltip; an unmapped code keeps the old 'concept XXX-n' render
+  (never blank/Unknown). Unresolved at 2026-08-31: A-MSM-10, A-MSM-11, G-MSM-2 - add them to
+  ASSET_NAMES when the client supplies titles. Google Ads rows skip prettyCreative entirely
+  (their label is already 'campaign - Network').
+- **One-solution-per-asset resolver is WIRED but OFF** (`ASSET_SOLUTION_MODE = 'stacked'` +
+  `ASSET_SOLUTION_OVERRIDES` next to the assetAgg build): 'dominant' collapses each asset's
+  bar to its highest-lead solution, 'override' consults the client's master mapping first.
+  Waiting on Jade's rule - flipping it is a one-word edit + dash redeploy; totals never move.
+- **Section header rows (`.section`) wrap** (`flex-wrap:wrap`, and the creative CHANNEL seg is
+  `flex:0 0 auto`): on a narrow window the right-pinned seg used to run past the page edge and
+  its last button clipped mid-word ("Trade..." - client screenshot). Verified 700-1500px: no
+  clipped control, no body horizontal scroll, on every tab and lane.
+- **`snowflake_v_salesforce_cs_apac_cloudflare.sql`** is the corrected DDL for Calvin's broken
+  Snowflake EDA view (base table gained LEAD_STATUS_SF; `t.*` returned 29 cols vs 28 declared).
+  Nothing in our pipeline reads it. Needs ACCOUNTADMIN to apply - see the file header.
+
+### Gotchas - read before editing
+
+- **The Transmission test-lead filter must stay identical in `sql/10` and `sql/16` (fixed
+  2026-08-27).** `sql/16` shipped without it, so the Pacing detail band counted 12 test leads as
+  APAC delivery (10 accepted / 2 rejected) and 1 more sat unprocessed on EMEA - which is why the
+  APJ KPI strip (reads `10_*`) and the Pacing detail band (reads `16_*`) printed different totals
+  on the same screen. Both now use `LOWER(SPLIT(EMAIL,'@')[SAFE_OFFSET(1)]) NOT LIKE
+  '%transmission%'`. **Filter on the email DOMAIN, never on the string `test`**: a genuine
+  rejected lead from **Advantest Corporation** (`advantest.com`) carries `test` in its company
+  name and its domain. Nothing in `status_dashboard` verifies `16_*`, so a future divergence here
+  is invisible to the accuracy monitor - keep the two predicates in sync by hand.
+- **Headline vs Pacing detail: the 1,650 / 1,661 fix (2026-09-04).** The client summed Roverpath +
+  VRSM + Final Funnel in *Delivery by publisher* (1,661), matched the Pacing detail band (1,661),
+  and found the KPI strip 11 short (1,650). Three causes, three fixes, all in one change:
+  1. **10 leads - VRSM's Korean leads fell to `OTHER`.** `sql/10`'s KR arm is campaign-scoped
+     (client decision 2026-07-02: Korea counts only on the Core DG campaigns, not the N*/P*
+     Modernize ones). The Q3 **VRSM Lead Magnet** campaign (`701RG00001W1FQRYA3`) joined the
+     13-ID allowlist on 2026-07-10 - AFTER that decision - and was never added to
+     `segments.KR`, so its Korean leads (10 accepted at 09-04) landed in `OTHER`, which is not a
+     chip, and vanished from every headline figure while `sql/16` (market from the campaign
+     name) booked them under Korea. Fixed in `definitions.json` (`segments.KR.campaign_ids`, now
+     7) -> `definitions_seed.py` -> `seed_kr_campaign_ids`; the status verifier builds its KR /
+     OTHER checks from the same file (LIVE copy `gs://bidbrain-analytics-status-dash/definitions/
+     cloudflare.json`, uploaded in the same change), so they moved together. The same campaign
+     also now reads `PUBLISHER = 'VRSM Lead Magnet'` in `sql/10` instead of `'Unknown'`.
+  2. **1 lead - a Q3-campaign lead dated 2026-06-01.** The KPI strip is a DATE window (Q3 =
+     from 07-01) over Salesforce's created date; the band is campaign-scoped and clamps a
+     pre-anchor lead into week 1. A Roverpath Korea lead on a `2026_Q3_*` campaign carried a
+     June created date, so one side counted it and the other did not. `sql/10` now clamps `DAY`
+     to the first day of the quarter the campaign is NAMED for (raw date kept as
+     `DAY_CREATED`) - the same rule as `sql/16`'s `GREATEST(..., anchor)`, at quarter grain.
+     **Side effect, deliberate:** 13 `2026_Q2_*` leads dated March 2026 (7 accepted / 6
+     rejected) moved INTO Q2, so the Q2 headline and the QoQ tab's Q2 column rose by that much.
+  3. **Latent - the accepted bucket differed.** `sql/16` counted bare `Accepted`; the strip,
+     `sql/15` and the verifier use the client's bucket `Accepted|Replied|Unresponsive`. Zero
+     leads in scope carry the other two statuses today, so nothing moved, but the day one does
+     the two panels would have split again. `sql/16` now uses the client bucket (and widens
+     `IS_DELIVERED` with it so the rates still sum to 100%).
+  Found in the same pass and fixed alongside - then hardened the same day on John's report
+  (see the next gotcha): **64 EMEA Acquisition leads were sitting on the APJ lane.**
+  **Re-verify** (both should print the same number):
+  ```sql
+  SELECT COUNT(*) FROM `bidbrain-analytics.client_cloudflare.salesforce_leads_live`
+  WHERE DAY >= DATE '2026-07-01' AND LEAD_STATUS IN ('Accepted','Replied','Unresponsive') AND REGION_GRP <> 'OTHER';
+  SELECT SUM(IS_ACCEPTED) FROM `bidbrain-analytics.client_cloudflare.stg_cs_leads_v2`
+  WHERE THEATRE = 'APAC' AND BOOK = 'Core DG';
+  ```
+  If they differ, diff by `CAMPAIGN_ID`: the remaining legitimate differences are RIG (asset-based,
+  hidden under Q3) and anything `sql/10` routes to `OTHER` (a new country, or Korea on an N*/P*
+  campaign).
+- **EMEA Acquisition leads were counted as APJ - theatre is now resolved by CAMPAIGN_ID, never
+  defaulted (2026-09-04, John).** Two Acquisition `VER-FINANCE` campaigns created 2026-09-02 were
+  named `2026_Q3_CEERI_ACQUISITION_...` (52 leads / 48 accepted) and `2026_Q3_DACH_ACQUISITION_...`
+  (12 / 11) - no `EMEA-` prefix - and `sql/16`'s theatre rule was `IF(token LIKE 'EMEA%', 'EMEA',
+  'APAC')`, so they defaulted into APJ: an Acquisition row in the APJ publisher table, a "64 leads
+  matched no market rule" warning, and a 59-accepted hole in EMEA Acquisition's CEERI/DACH pacing.
+  **What was implemented (the stronger option):** `sql/16` now resolves THEATRE in three tiers -
+  (a) a per-`CAMPAIGN_ID` VOTE built from the data every run (`id_theatre` / `id_resolved` CTEs:
+  count the id's leads whose name is unambiguous - an `EMEA-` prefix or a canonical APAC token -
+  and resolve when one side has >= 80%; Acquisition's single id `701RG00001e1aegYAA` votes 917:0
+  EMEA across its 27 name variants), (b) the NAME only when the id has no vote (a resolved market
+  implies its theatre; an `EMEA-` prefix implies EMEA), (c) otherwise **`UNRESOLVED`** - on
+  NEITHER lane, counted, WARNed by the job and shown in **Admin View** (`cspdUnresolved` card,
+  from `cs_pacing.unresolved`) as a count of unmatched campaigns. MARKET still comes from the
+  name (an id spans every market of its theatre), the market CASE accepts EMEA tokens with or
+  without the prefix, and a name market from the WRONG theatre for the id becomes `UNMAPPED` on
+  the id's lane with `REGION_CONFLICT=1` (zero today). Verified 2026-09-04: every id in the
+  mirror votes 100% one way; Acquisition gone from APJ; EMEA Acquisition 981 leads / 879 accepted
+  (CEERI 52/48, DACH 12/11 included); APJ Core DG accepted 1,720 -> 1,661 (-59 exactly); Roverpath
+  852 / VRSM 400 / Final Funnel 409 unchanged; `region_source` census {id: all, name: 0, none: 0};
+  grand total EMEA + APJ + Regional conserved. The 64 leads carry TAL `VER-FINANCE`, which has NO
+  target of its own: the seed has no programme dimension, so they pace inside Acquisition's
+  per-market weekly targets (which the plan's BFSI block is summed into - see "Streams 2&3").
+- **Composition donuts undercounted - the top-N slice dropped the tail (2026-09-05, Nabeel).** The
+  five CS donuts (Solutions / Country / Job function / Job level / Professional demographic) read
+  the same 1,661 accepted leads, but Country printed 1,539 and Job function 1,657. `donut()` did
+  `data.slice(0, limit)` and appended an "Other" slice ONLY when a total was passed - which only
+  the job-title chart did - so Country drew 10 of 14 countries (New Zealand 40 / Thailand 37 /
+  Philippines 35 / Viet Nam 10 dropped = 122) and Job function 8 of 12 (Finance/Procurement,
+  DevOps, Press/Media, Developer, 1 each = 4). Solutions and Job level only reconciled because
+  they have fewer values than the limit. The centre label (`bbDonutCenter`, vendored) sums the
+  VISIBLE slices, so a truncated ring printed a truncated total and concealed itself. Now: (1)
+  `donut()` folds everything past the limit into ONE visible **"Other (n more)"** slice built
+  from the data - labelled with the count of folded VALUES because JOB_FUNCTION carries a REAL
+  Salesforce value called "Other" (128 leads), and a bare "Other" fold would have drawn two
+  legend entries with one name; (2) every donut is passed the scoped total
+  (`agg.breakdownTotal`) and draws any shortfall as an **"Unaccounted"** slice + a console
+  warning, so a future drop is visible rather than absorbed; (3) `aggregate()` labels a blank
+  dimension **"Unknown"** instead of letting `groupCount()` skip the row (zero blanks in scope
+  today). The AI-deck payload had the same blind spot, worse - `_bbTop` was a bare `slice(0,8)`
+  (8 of 14 countries, 1,423 of 1,661) - so it now folds its tail the same way and ships
+  `dims_total`. **Not changed, on purpose:** the lowercase **"C-level"** slice (13 accepted, all on
+  the VRSM Lead Magnet ANZ campaign) and the country casing variants are REAL upstream values -
+  the raw mirror carries them and nothing in the pipeline rewrites the column. Folding them in
+  the frontend would hide a publisher-feed defect that also reaches the CSV and the deck; if the
+  client wants them merged, it belongs in `sql/10` beside the country map's `UPPER(TRIM())`,
+  with the status-check updated in the same change. **Manager is absent for a legitimate
+  reason:** the only Q3 Manager leads in the allowlist sit on a Q2-only campaign (capped) and
+  are Rejected/New, so they are outside an accepted-only ring either way. Verified headless
+  against the live payload: all five rings sum to 1,661 at the Q3 default; Country shows 10 +
+  "Other (4 more)" 122, Job function 8 + "Other (4 more)" 4, job titles 10 + "Other (139 more)"
+  842. Frontend only - `dash/deploy_dash_cloudflare.ps1`.
+- **APJ TTD target is recognised at WEEK CLOSE (2026-09-05, client instruction via Nabeel).** The
+  "Leads vs target" card's TTD Target, the KPI strip's "Current pacing", the per-market TTD bars
+  in the region grid, the Comparison tab's "QTD Target" bar and the AI deck's `ttd_target` /
+  `vs_ttd_pct` all read `aggregate().ttdTarget`. It used to be `DAY <= now` over `pacing.rows`,
+  which was START-of-week in effect: `sql/13_pacing_model` puts a cell's weekly target either
+  on its accepted leads' own dates or, with no lead yet, on a placeholder dated the week's
+  MONDAY, so the whole week counted the moment it opened (Fri 4 Sep read 1,599 = plan weeks 1-9
+  INCLUDING the week in progress, 103.9% pacing). Now a week's target joins the denominator only
+  once the FOLLOWING Monday has arrived (`weekClosed()` in `aggregate()`), applied to every week
+  of the quarter so a closed quarter (Q2) is unchanged and there is no discontinuity. Same day
+  after the change: TTD 1,428 (8 weeks to Sun 30 Aug), current pacing 116.3%; Q3 target 2,290,
+  QTD accepted 1,661 and overall 72.5% untouched. The card carries a methodology line naming the
+  basis ("recognised at week close: the N plan weeks completed to <date>; the week in progress
+  is not yet included") and the deck payload carries `ttd_basis`. **This is a deliberate,
+  client-directed EXCEPTION to the repo-wide "prorate a weekly target" rule** (md/AGENTS.md).
+  **EMEA follows the SAME rule since the same day (client: "this should apply to EMEA too"):**
+  `weekDueFraction()` now returns 1 for a closed plan week and 0 otherwise (it prorated before),
+  so `cspdTopAgg` / `cscAgg` / the per-market "Due to date" bars all moved with no per-site edit;
+  the prorated "Incl. week in progress" KPI, Leads-vs-target row and Progress row were REMOVED
+  and EMEA's top cards now carry APJ's labels (Current pacing = vs weeks closed, Overall pacing =
+  vs the full flight target) plus the same methodology line; the Pacing detail weekly tile shows
+  '-' with "week in progress, day d of 7 - the week target is recognised at week close" for the
+  in-progress week and sums CLOSED weeks only under "to date". Do not restore proration on
+  either lane without the client. **Pacing chart bar width is ONE shared constant (2026-09-05):**
+  `PACING_BARS` (Chart.js defaults, no cap - APJ was the reference) is spread into every dataset
+  of the "Pacing - target vs actual" chart by BOTH renderers (`renderWeekly` and
+  `cspdRenderWeeklyChart` when it draws into `weeklyChart`); EMEA's datasets used to hard-cap at
+  `maxBarThickness 22` and drew 22px columns beside APJ's 34.5px (week) / 149.5px (month). The APJ
+  Pacing-detail "Weekly pacing" card keeps its own `CSPD_DETAIL_BARS` cap - a different, taller
+  card. Both lanes have 13 week columns, but at Month grain APJ has 3 and EMEA 4 (flight to late
+  Oct), so identical config still gives EMEA ~25% narrower month bars; matching pixels there would
+  need a fixed barThickness and was rejected. **The Pacing detail card opens on the most recent
+  COMPLETED week (2026-09-05, client):** `cspdDefaultWeek()` used to take the latest week with
+  delivery, which is always the week in progress, and under week-close recognition that week shows
+  '-' for Weekly pacing and Lead deficit - a default view of dashes. It now takes the latest week
+  for which `cspdWeekClosed()` is true (the ONE closed-week predicate, also read by
+  `weekDueFraction()`, so the selector and the target rule can never disagree), falling back to the
+  week in progress ONLY when no plan week has closed yet - and `cspdWeekStatus()` labels the card
+  "No completed week yet - week of dd/mm in progress, day d of 7" in that case, never silently. The
+  card label is now "Week of 08/24 - last completed week" / "Week of 08/31 - in progress, day 5 of
+  7" instead of the bare "Selected week", and the two chart notes carry the same status. A completed
+  week with zero delivery still wins over an older delivering week. The in-progress week stays
+  selectable and keeps its '-' tiles + notes. Every tile in the card is built from one week slice,
+  so accepted / delivered / rejections / pacing / deficit always describe the same week. Two facts
+  worth knowing when someone compares TTD% to Time%: time elapsed is measured over the CALENDAR
+  quarter (1 Jul - 30 Sep) while the plan's 13 weeks run Mon 6 Jul - Sun 4 Oct, and the weekly
+  targets are a mild front-loaded curve (182 -> 169 -> 176, total 2,290), so the two
+  percentages are not directly comparable under ANY recognition rule. The weekly pacing chart
+  plots each week's own target and is unaffected; the lead CSV export carries no target.
+- **Weekly buckets will NOT match the client's sheet, and that is understood and accepted.**
+  The sheet is dated when Nabeel delivers leads to Integrate; Salesforce dates them on lead
+  creation. Quarter totals reconcile exactly, weekly splits do not (EMEA returns 114 / 120 for
+  weeks 1-2 where the sheet shows 79 / 155 - our 120 is confirmed correct for our definition).
+  **Do not try to reconcile this in code.** It resolves only when delivery dates arrive via the
+  Integrate export.
+- **The week math deviates from the Snowflake original deliberately** (negative `MOD` + a
+  pre-anchor clamp). Full reasoning in `sql/README.md` -> "16 + 17". Removing the clamp makes
+  the weekly figures silently stop summing to the campaign-to-date total.
+- **`applyRegionPanelScope()` must stay the LAST thing `renderCsPacingDetail()` does.** It is
+  the tail of `renderAll()`, and several blocks on that tab set their own `display` during that
+  pass - `renderLeadDetail()` re-shows the dev-only **per-lead PII table** every time. Scoping
+  before the repaint left that table visible under EMEA showing APAC leads. Running it last
+  also covers the date-picker path (`applyDateRange` -> `renderAll`).
+- **Under EMEA the rest of the CS tab is HIDDEN, not empty-stated**, because
+  `salesforce_leads_live` is APAC-only (5,873 rows, zero EMEA) and every KPI/donut/chart above
+  the section reads it. `CSPD_LEGACY_THEATRE` is the one constant to revisit if that view is
+  ever widened. The date-range banner is suppressed there too - nothing visible responds to it -
+  and `PROGRAMS.core_emea.note` is what tells the reader why the tab is short.
+- **A theatre change must call `renderAll()`, and `switchDashboard` does.** `switchTab()` does
+  NOT re-render `main` (it only toggles panels - the CS tab is otherwise built once at boot and
+  on a date change), so without that call the section would keep the previous theatre's numbers.
+  It fires unconditionally on a theatre change, not just when `main` is the active tab, or
+  `panel-main` would be left stashed in the wrong hide/show state for later.
+- **Vendors are DISCOVERED from the data, never listed in code.** Pipeline360 and Inbox Insight
+  showed up on their own and now have rows in the publisher table with no delivery yet. They have
+  no targets either, so they appear with delivery and no pacing. **That is correct - do not
+  suppress them**, and do not make `17_*`'s FULL OUTER JOIN an inner join. The same is true of
+  BOOKS: the campaign picker is built from the payload, and it HIDES ITSELF when a theatre has
+  only one book (which is why EMEA gains no control it cannot use).
+- **Market display order is data** (`MARKET_SEQ` in the targets CSV), not code. Same for the
+  week grid and the quarter total. Nothing in the component is hardcoded to 8 markets or a
+  Jul-Sep window - that is what lets EMEA (6 markets, 13 Friday-anchored weeks from 2026-08-07)
+  and APAC (8 markets, Monday-anchored from 2026-07-06) share one component. **A third theatre
+  is a third set of CSV rows and no new component code.**
+- **The targets seed is the only non-live input.** Admin View shows a warning when the latest
+  `WEEK_START` with a target falls behind the current week - last quarter this failed silently
+  and the pacing model returned zero targets for seven weeks before anyone noticed. Re-seed
+  each quarter: edit the CSV -> `seed_static.py` -> forced job run.
+- **Absolute values only.** The relative view was removed at the client's request (2026-08-20,
+  dashboard-wide) and must not come back here.
+- **Rejection reasons have no live source.** The panel renders only when `cs_pacing.reasons` is
+  non-empty and hides cleanly otherwise. Do not populate it with anything that isn't real.
+- **`switchDashboard` re-syncs the `<select>`.** It is normally the thing that called it, but
+  this dropdown is the region control now: a programmatic call that left it reading "Core DG
+  APJ" while the page rendered EMEA would misstate which theatre the numbers belong to.
+- **The shared date picker is HIDDEN on this lane** (`PROGRAMS.core_emea.dateControl:false`).
+  Everything range-driven on the CS tab is APAC-scoped and therefore hidden under EMEA, and the
+  one section that does render has its own week selector - so the picker changed nothing on
+  screen. A visible control that does nothing is worse than no control. Flip the flag the day
+  EMEA gains range-driven content.
+- **`seed_static.py` now SKIPS a gitignored CSV that is absent** (`data/tiers.csv`,
+  `data/line_cf.csv` on a fresh checkout) with a warning, instead of aborting the whole run -
+  and it leaves that seed's existing BigQuery table alone rather than truncating it to empty.
+  A missing file under the version-controlled `targets/` dir is still a hard error, because
+  that one IS a real problem. Before this, seeding the committed CS targets on a clean checkout
+  was impossible without first running `pull_static.py` (which needs the Snowflake key).
+
+### Redeploy
+
+Seeds load BEFORE views (`sql/17` reads the seed), and a seed/view change is invisible to the
+freshness gate:
+
+```powershell
+.\.venv\Scripts\python.exe clients\client_cloudflare\seed_static.py
+.\.venv\Scripts\python.exe clients\client_cloudflare\create_views.py
+gcloud run jobs execute cloudflare-export --region australia-southeast1 --update-env-vars FORCE_REBUILD=1 --wait
+.\clients\client_cloudflare\dash\deploy_dash_cloudflare.ps1
+```
 
 ## BigQuery owns the model (was the Snowflake-modelled exception)
 
@@ -224,6 +1293,14 @@ columns in `sql/13` (they had silently gone to zero under the 11-chip codes).
   rate 14.1% -> the true 12.2%; `reviewed` 142 -> 139). Accepted was unaffected (no test lead is Accepted),
   which is why only the one check went red. **Any new CS lane must carry this filter** — the status dash's
   CF1 checks had it on the source side from day one and are what caught the gap. Keep the two identical.
+- **EMEA followed on 2026-09-05 (Ian: "remove pending review value for client view on EMEA").** From
+  2026-08-31 to 09-05 the EMEA lane showed the top-strip "Pending review" tile and the per-market
+  Pending review row to the CLIENT (Calvin: hiding them understated the publishers). Both are now
+  Admin View only on BOTH lanes (`show = devMode` in `renderKPIs`, `showPending = devMode` in
+  `renderRegionGrid`) - one basis for the whole card, not one tile. The publisher table's own
+  *Pending review* COLUMN (Pacing detail) stays client-visible on both lanes: it is what answers the
+  understatement, and it was not part of the instruction. Admin View wording still differs per lane
+  (EMEA "Pending review", APJ "Unprocessed (New)").
 - **Unprocessed / New leads removed from the dashboard.** They're our internal backlog, not shown to
   Cloudflare. Acceptance & rejection rate now use **reviewed = accepted + rejected** as the denominator
   (so acc% + rej% = 100%); the unprocessed pacing bar, the "pending triage" note, the Comparison-tab
@@ -297,6 +1374,55 @@ View, default = `DEV_ALLOWED`) drives the Source-ID controls, the admin-only tab
 unprocessed/lead-table rendering (`applyViewMode()` reflects the mode; `aggregate()` is the single
 choke point). `setAdminView()` flips it.
 
+### "Best performing assets" - one bar per asset, labelled by NAME (2026-08-26, client request)
+
+Jade flagged the chart's labels as "gone wonky". Two separate defects, both visible on the same
+screenshot, and the second was distorting the ranking rather than just the axis:
+
+**1. Salesforce carries TWO asset-naming conventions at once.** Every asset has a short code
+(`A-MAT-2`). Since **2026-07-07** the feed ALSO carries the file-slug form of the SAME asset
+(`26Q2_REPORT_2026-app-innovation-report_v1`) - **308 leads across 14 slugs, 13 of which duplicate a
+code already in the feed**. So one asset drew two bars, split its own lead count between them, and
+put a 45-character filename on the x-axis at 45 degrees.
+
+**2. The chart keyed on `asset || service`, so an asset that ran on two solution campaigns drew a
+second bar under the IDENTICAL label** (that is the repeated `A-MAT-2` on Jade's screenshot).
+`SERVICE` is parsed from `CAMPAIGN` in `sql/13_pacing_model.sql`, not from the asset, so it is a
+property of the campaign the asset ran on - and the chart was ALREADY built to stack by solution
+(`stack:'one'`), so that split belonged inside one bar.
+
+**What the client was actually looking at (Q3 to 2026-08-25, accepted, all visible markets):** the
+true top asset - *2026 Cloudflare APAC App Innovation Report* - has **299 leads** but was scattered
+across four bars (146 + 89 + 8 under `A-MAT-2`, 55 + 1 under the slug) and so never appeared as
+number one. *Coffee shop networking* is **128**, shown as 51. The chart's headline bar read 165.
+
+**The fix (all in `dash/dashboard.html`, frontend only - no view, job or payload change):**
+- `ASSET_ALIASES` folds each slug onto its short code. **Add a row here when a new slug appears.** An
+  unmapped slug is NOT lost - it keeps its own bar, and `prettyAssetName()` renders it as prose
+  (`[Ebook] Accelerating AI adoption with SASE`) instead of as a filename, so this can never look
+  broken again while we wait to map it.
+- `aggregate()` keys the asset map on `assetId(ASSET_1)` alone and carries a `services[]` breakdown
+  per asset, so there is **one row per asset** and the solution split stacks inside its bar.
+- The chart is **horizontal** (`indexAxis:'y'`). That is what buys the real fix: a 12-item x-axis has
+  no room for a title, which is why the label was the cryptic CODE in the first place. Reading down a
+  left-hand axis, the label can be the asset NAME, at a fixed width, with the code kept in the
+  tooltip. Tick length FOLLOWS THE CARD WIDTH (`w/16`, capped 16-38 chars) so at the 900px breakpoint,
+  where the 2-up grid collapses, the label clips itself instead of squeezing the plot.
+- Tooltip is `interaction:{mode:'index', axis:'y'}` - **`axis:'y'` is required on a horizontal bar**
+  or hovering picks one segment instead of the whole asset - and titles off `rows[dataIndex].id`,
+  never `items[0].label`, because two long names can truncate to the same string.
+- The comparison panels (`renderCompareAssets`) now print the NAME too, plus the leading solution.
+- Both charts on that grid row share `.chart-wrap.xtall` (364px); giving only the assets card the
+  taller wrap left ~90px of dead space under its sibling, since grid items stretch.
+
+**Verified** against BigQuery for the default (Q3) window: all 12 bars reconcile exactly -
+299 / 174 / 134 / 128 / 108 / 103 / 75 / 73 / 46 / 42 / 36 / 30.
+
+**Open:** `A-MSM-11` (73 leads) and `A-CCT-5` (30) are not in the Q2 asset list, so they still render
+as their bare code. Two slugs have no short-code twin and are shown prettified:
+`26Q2_EBOOK_accelerating-ai-adoption-with-sase_v1` and `25Q2_SOL-BR_GartnerMQSV-SASE_M_v1_en-US`.
+Ask Transmission for the titles and add them to `ASSET_NAMES`.
+
 ### Spreadsheet-style tables (sort + search, 2026-07-10)
 
 Every data table is **sortable** (the vendored `bb-sortable` engine - click a header) **and searchable**:
@@ -336,19 +1462,19 @@ quoting *delivered*; frame it that way rather than changing the KR logic. Also t
 country variants (`LIKE '%KOREA%'`) — if that adds ~20 *accepted*, the fix is a broadened match (apply
 it in BOTH `sql/10` and the status check's KR arm to stay in sync).
 
-- **Korea Leads (KR)** — Country `'Korea, Republic of'` leads in the **6 ORIGINAL El\* CS campaigns
-  ONLY** (3 Roverpath + 3 Final Funnel Lead-Gen; seed-driven via `seed_kr_campaign_ids`). ~**164** leads.
-  **2026-07-02:** reverted the 2026-06-25 "ALL Korea in the 12 campaigns" rule at the client's request —
-  Korea now counts only these 6. Korea leads from the other 6 campaigns (Connectivity Cloud / Modernize
-  Security / Modernize Applications, ~55 live 2026-07-02) fall through to `OTHER`. (Total Korea in the 12
-  CS campaigns = 219: 164 in the 6 → KR, 55 outside → OTHER.)
+- **Korea Leads (KR)** — Country `'Korea, Republic of'` leads in the **Core DG CS campaigns**: the
+  **6 ORIGINAL El\* campaigns** (3 Roverpath + 3 Final Funnel Lead-Gen) **+ the Q3 VRSM Lead Magnet
+  campaign** `701RG00001W1FQRYA3` (added 2026-09-04 - see the 1,650 / 1,661 gotcha; seed-driven via
+  `seed_kr_campaign_ids`, 7 IDs). **2026-07-02:** reverted the 2026-06-25 "ALL Korea in the 12
+  campaigns" rule at the client's request. Korea leads from the N\*/P\* campaigns (Connectivity Cloud /
+  Modernize Security / Modernize Applications, ~55 live 2026-07-02) fall through to `OTHER`.
 - **RIG Leads (RIG)** — **NON-Korea AND** `ASSET_2` `IN ('A-MAM-2','A-MAM-3')` (the gaming-vertical
   *Modernize Applications* asset — only `A-MAM-3` has data) **AND** the **3 Final Funnel** campaigns.
   Asset-based, evaluated **before** geography, so it spans every country. Live count **180** (167 accepted).
 
 The geographic markets are pure `COUNTRY_NAME` maps, **case-normalised** (`UPPER(TRIM(COUNTRY_NAME))`)
 so mis-cased countries (`japan`, `Hong kong`, `india`) route to JP / GCR-HK / SAARC instead of falling
-to a residual. The `ELSE 'OTHER'` arm holds Korea leads outside the 6 KR campaigns (~55) plus any
+to a residual. The `ELSE 'OTHER'` arm holds Korea leads outside the KR campaigns (~55) plus any
 brand-new/unmapped country. `OTHER` is **not one of the 11 chips**, so those leads are excluded from the
 dash — the headline CS totals sum over the chips, so there is no total-vs-sum drift on screen (this
 matches the pre-2026-06-25 behaviour; the ~55 leftover Korea leads just aren't counted anywhere on the
@@ -420,412 +1546,7 @@ glow, near-white text on dark surfaces. Changes, all in `dash/dashboard.html`:
   work than the Schneider one:
   - **`Chart.defaults`** are set once, before any chart is built (`color`, `borderColor`,
     `scale.grid.color`, `scale.ticks.color`, legend label colour, tooltip bg/border/text). Chart.js
-    defaults ticks and legends to `#666` and grid to near-black - invisible here. Doing it globally
-    means **no chart can be left reading dark-on-dark**, including ones that never passed a colour.
-  - Palette constants re-tuned: `PM_INK` (was `#1B2834` navy - would have vanished) → warm light;
-    `PM_LINE`/`LINE` → `rgba(255,255,255,.09)`; `PM_LI` `#0A66C2`→`#3B93E8`, `PM_PURPLE`→`#B98AE8`,
-    `PM_RD`/`PM_LN` brightened; `TARGET`/`PM_TARGET` → `#8A7263`; the 12-colour categorical `colors`
-    array lost its three near-blacks; donut `borderColor:'#fff'` → the surface colour.
-
-**No data, metric, chart, table or filter was added, removed or rewired** - shell, tokens and chart
-colours only. Verified against the pre-re-skin file: **24 chart canvases before and after, all 163
-element ids intact.** Gotchas worth knowing:
-
-- `.dash-select` must keep a **SOLID** background: Chrome/Windows paints the native `<option>` list
-  from the select's own background, so a translucent one renders white text on a near-white popup -
-  invisible options, on the primary nav control. `option` colours are set explicitly for both the
-  topbar select and the white-row dev select.
-- The date picker's popover **anchors right** now (`.control-right .dp-pop{left:auto;right:0}`) - it
-  sits on the right of the control bar, and left-anchored it opened off-screen.
-- `#cmpTabs` (the CF1 campaign view's tab bar) reuses `.tabs`/`.tab` but sits **directly on the
-  canvas** - single-campaign views have no control bar - so it takes the on-canvas colours. Without
-  that override its ink text was unreadable on the orange.
-- `switchDashboard()` hides `#controlBar` (not `.tabs`) for single-campaign views, since the shared
-  date control lives in the bar too - hiding only the tabs would leave an empty glass strip.
-
-### Lane dropdown: "Core DG APJ" + an EMEA placeholder (2026-08-05)
-
-The topbar dropdown's first entry was renamed **"Core Demand Generation" → "Core DG APJ"** (client
-request, JM) ahead of **Core DG EMEA** launching the week of 2026-08-05. The `<option>` **value is
-still `core`** — only the label changed — so `switchDashboard()`, `activeTab`, every core-tab render
-path and the whole payload are untouched by the rename. Two display strings follow it: the AI deck's
-`context.campaign` in `buildDeckPayload()` and the Stage-A `business_model` brief in `dash/report.py`.
-`campaign_key` stays `core_demand_gen` (the stable identifier `/report` summaries carry, so cached
-decks don't orphan).
-
-**Core DG EMEA sits in the dropdown DISABLED** — `<option value="core_emea" disabled>Core DG EMEA -
-coming soon</option>`. It is a deliberate placeholder, not a wired lane: `switchDashboard()` sends any
-non-`core` value to `renderCampaign()`, which would find no `COMBINED.campaigns.core_emea` and render
-its empty *"No data / No delivery rows for this campaign group yet"* state — that reads as **broken**
-rather than **pending**, so the option is greyed until there is real data behind it.
-
-#### Adding Core DG EMEA
-
-EMEA is a **second regional lane of the same programme**, not a single-campaign view, so it needs its
-own model + payload branch rather than a `campaigns[]` entry:
-
-1. **Data layer** — EMEA rows have to arrive in `raw_snowflake.*` (paid) and the Salesforce CS feed.
-   Confirm the campaign-name/market tokens EMEA uses before writing any parse (APJ's markets are the
-   7 APAC groups; EMEA will carry its own set) and add its CS campaign IDs to `definitions.json`.
-2. **Model** — either add a `REGION` column through `paid_media_model` / `pacing_model` and split in
-   the job, or clone the `sql/` chain per region. Prefer the column: one set of views, one gate.
-3. **Payload** — emit an EMEA branch (e.g. `paid_media_emea` / `pacing_emea`, or a `region` key on
-   the existing rows) from `job/main.py`, and extend the data-contract table below.
-4. **Frontend** — drop `disabled`, then give `switchDashboard()` a branch that repoints the core
-   panels at the EMEA payload (its `ALL_MARKETS`, targets and `PACING_PLANS` all differ from APJ's).
-   `QUARTERS`/`activeChans()` need no change - both are region-agnostic.
-5. Rebuild with `FORCE_REBUILD=1` (view/seed changes are invisible to the freshness gate) and
-   redeploy the dash service.
-
-### Quarter selection — opens on the CURRENT quarter, picked in the calendar (2026-08-05)
-
-**The dashboard opens on the quarter today falls in — Q3 (Jul 1 – Sep 30) as of 2026-08-05** — and
-the quarter is chosen **in the date-range calendar**, whose first two presets are `Q3 (Jul-Sep)` /
-`Q2 (Apr-Jun)`. **The topbar Q2/Q3 chip pair is GONE** (client request 2026-08-05: a row of quarter
-buttons doesn't scale as quarters accumulate) — one control, not two.
-
-- `QUARTERS` (now declared **above** the `DateRange` IIFE) is the single source of truth for every
-  quarter span, and the calendar's quarter presets are **generated from it** (`QUARTER_ORDER`,
-  newest first) — the old duplicate hardcoded `q2`/`q3` preset dates are gone. **Add a quarter to
-  `QUARTERS` and it appears in the calendar automatically**; nothing else to touch.
-- The quarter presets are listed **first** deliberately: `detectPreset()` returns the first matching
-  preset, so the picker button reads "Q3 (Jul-Sep)" instead of the identical-but-vaguer
-  "This quarter" (both produce the same range while Q3 is current).
-- The default comes from **`currentQuarterKey()`** (the quarter containing today, pinned to the
-  nearest one outside the defined set), so it **rolls forward on its own** — no annual edit. It
-  falls back to the full data window if that quarter has no data yet.
-- The **date range stays the single source of truth**; the selected quarter is *derived* from it by
-  **`syncQuarterFromRange()`** (was `syncQuarterChips`; `toggleQuarter`/`renderQuarterChips` were
-  deleted with the chips). A custom calendar range resolves to **no** quarter and `qtrLabel()`
-  captions read a neutral "Quarter". The **Q2+Q3 union** (`[Apr 1, dataMax]`, labelled "Q2-Q3") is
-  still reachable by selecting a spanning range.
-- The `.qtr-filter`/`.qtr-group`/`.qtr-chip` **CSS stays** — the Client/Admin view toggle reuses it.
-
-**RIG drops out of the MARKETS filter under Q3** (client request 2026-07-09 — "remove the RIG filter
-option when Q3 is toggled"): the Core DG Q3 plan carries **no RIG line**, so `visibleMarkets()` hides
-the RIG chip AND excludes RIG from the data (`matchMarket` + the by-region grid) when Q3 is the active
-quarter (Q3 selected, not Q2). RIG stays under Q2 and the Q2+Q3 union (both have RIG Q2 data). In
-practice Q3 has zero RIG rows anyway, so this only removes an irrelevant chip — no headline number
-changes. (The CS Comparison tab's A/B region dropdowns are NOT yet quarter-scoped, so they still list
-RIG; low priority.)
-
-**RIG is now Q3-hidden EVERYWHERE, not just the CS Overview (2026-08-05** — client: "RIG shouldn't be
-detailed in the market focus for Q3"**)**: (1) the **Paid Media tab** got the same quarter gate —
-`paidRigHidden()`/`paidVisibleMarkets()` mirror `visibleMarkets()`, so under a Q3-only selection the
-RIG chip, its market-table/chart rows, its KPI contribution (`passesAll`) and its whole-flight
-creative rows all drop out; `syncQuarterFromRange()` re-chips the paid tab too. This also killed the
-phantom **$0.00 RIG row** the client saw under Q3: TTD's `ALL` token remaps to RIG and ~6 imps /
-$0.002 of trailing post-Q2 `ALL` rows kept the row alive (`spendByMarket()` only drops EXACT-zero
-markets). (2) the **QoQ tab's "Accepted leads by market" grid** drops the RIG row unconditionally
-(that tab is Q3-vs-Q2 by construction; a RIG row read as a false collapse — Q2 74 leads vs a Q3 that
-was never booked). RIG leads still count inside the QoQ status totals; only the market detail row is
-gone. RIG still shows under Q2 / Q2-Q3 / custom ranges on the paid tab, and the deck payload stays
-whole-flight all-markets (RIG's Q2 data belongs there). If a REAL `ALL`-market campaign ever runs in
-Q3, un-gate `paidRigHidden()` and give it its own token — the data is only hidden, never discarded.
-
-The selection is **global** — it drives Paid Media, Content Syndication and CS Comparison alike (the
-QoQ tab is Q3-vs-Q2 by construction and ignores the range). Implemented entirely in
-`dash/dashboard.html` (`QUARTERS`/`QUARTER_ORDER`/`quarterSpan`/`currentQuarterKey`/
-`syncQuarterFromRange`/`visibleMarkets` + the generated quarter presets); no data-layer change.
-**Because the default is now Q3, the RIG market chip is hidden on load** (see above) — expected, not
-a bug.
-
-**Q3 targets/pacing are loaded (2026-07-09).** The Q3 target rows are in `seed_real_targets`, so the
-Q3 view now shows real target KPIs + the two pacing cards (`renderLeadsTarget`, `renderProgress`). The
-target-less placeholder (target KPIs `—`, *"Targets & pacing not set for the selected period yet —
-showing actuals only"*) still fires automatically for any span with no `ALLOCATED_TARGET` rows (e.g.
-a custom range past Q3, or RIG under Q3 — the Core DG plan has no RIG line). To reload targets: edit
-`targets/real_targets.csv` → `seed_static.py` (or the targeted `bq load`) → job `FORCE_REBUILD=1`; the
-pacing UI reflects it on the next build (the service serves the bucket live, so **no dashboard redeploy
-is needed** unless `dashboard.html` itself changed).
-
-**Target KPIs + the "Pacing - target vs actual" chart are QUARTER-ANCHORED, not range-clamped
-(2026-07-09).** The shared date range clamps to the last day that has data, so for an in-progress
-quarter (Q3, data only to ~week 1) a range-clamped target/pacing would show only the elapsed weeks
-(the "Q3 Target = 182 instead of 2290" / "Q3 pacing chart shows only week 1" bugs). Fix: `aggregate()`
-computes the target over the full selected-quarter span via `pacingWindow()`/`quarterTargets` (headline
-`q2Target`, `ttdTarget`, `regionRows`), and a dedicated **`pacingDaily`** series (also full-quarter)
-backs `renderWeekly` so Q3 shows every one of its 13 plan weeks like Q2 shows 12. Actuals still appear
-only where leads exist (future weeks carry target + 0 actual; a small pre-plan-week bucket holds any
-leads that arrived before the plan's first Monday). The daily accepted-leads line (`renderDaily`) and
-the CS Comparison panels still read the in-range `dailyFull`/`weekly`. **The pacing chart deviates from
-the repo-wide chart-toggle defaults** (CLAUDE.md): it defaults to **Absolute** (not Relative) and has
-**Month/Week only** (no Day grain) - client request 2026-07-09.
-
-### Budget pacing by channel (2026-07-20)
-
-A **pacing section sits directly under the "Channel performance vs media plan benchmarks" table** on the
-Paid Media tab - one horizontal bar per channel that ran in the **selected quarter** (it **follows
-`selQuarters`**, itself derived from the calendar range). Each bar's **orange fill = billed spend within that quarter**, a
-**dashed vertical marker = where spend should be today to finish the quarter on budget** (budget x fraction
-of the quarter elapsed; a *complete* quarter pins the marker at 100%, so the bar reads as final delivery vs
-budget), and the figure on the right is the **$ gap to pace** (behind / on / ahead). Frontend-only
-(`renderPacing()` + the `.pace-*` CSS in `dash/dashboard.html`) - no data-contract or job change; it reads
-the existing `paid_media.rows[]`. Re-renders on every quarter change (`applyDateRange → renderPaidMediaAll`).
-
-- **Quarter-driven** (`PACING_PLANS` keyed by `Q2`/`Q3`; a custom calendar range that resolves to no
-  quarter shows every quarter). **Q3** shows **TTD + LinkedIn** only (Reddit was dropped in Q3, LINE isn't a Q3 platform);
-  **Q2** shows **all four** (TTD, LinkedIn, Reddit, LINE). "today" = the browser clock clamped to the
-  flight. The section is deliberately **independent of the date-range picker and market chips**
-  (whole-quarter, all-market) - filtering the dashboard does not move it.
-- **Budgets are a hardcoded editable knob** `PACING_PLANS` in `dash/dashboard.html` (same pattern as
-  mongodb's `MARGIN_TARGET` / the `CF1_CS_TARGET`); NOT in the pipeline - edit the const and redeploy the
-  dash service (no job/view rebuild).
-  - **Q3: TTD $47,624.56 / LinkedIn $61,022.44** - media-plan platform budgets from
-    `targets/real_targets Q3.csv` ("Program total (APAC + JP)").
-  - **Q2: every channel uses `useActual:true`** - Q2 has NO committed spend budget in the repo, so the
-    budget IS the actual Q2 spend (each bar reads 100% delivered, $0 gap - a placeholder). Swap a channel's
-    `useActual` for a `budget` number once the real Q2 figure is known, and its bar shows real over/under.
-- **Multiplier-aware:** the budget is grossed by the same per-channel client-billed spend multiplier as
-  spend (`bbMultFor`), so the pacing % is invariant to raw (direct) vs billed (front-door) access - it
-  reconciles with the (also-grossed) spend column in the table above it.
-
-### Paid Media shows only the channels that RAN in the selection (2026-08-05)
-
-Client request alongside the Q3 default: **a channel with no activity in the selected period must not
-appear at all** - Reddit and LINE are Q2-only, and under Q3 they were drawing empty zero rows,
-zero-width donut slices and flat zero trend lines that read like under-delivery.
-
-**`PM_CHANS` in `dash/dashboard.html` is now the ONE channel roster** (`key` / `label` / `long` /
-`abbr` / `pill` / `color` / `pre` field-prefix / `mkey` market field / `rows()` accessor) and
-**`activeChans()`** filters it to the channels with real delivery (spend **or** impressions **or**
-clicks) inside the applied **date range** - so it follows the calendar, and a channel reappears the
-moment a range covering its flight is selected. Everything channel-shaped renders from it:
-
-| Piece | Behaviour |
-|---|---|
-| Spend KPI caption, blended spend/imps/clicks/CPM/CTR/CPC, "vs plan" CPC caption | live channels only (`renderPaidKPIs`) |
-| "Spend by channel" donut + its hint line | one slice per live channel; hint reads e.g. "Trade Desk + LinkedIn mix." |
-| "Daily spend - all channels stacked" | one stacked series per live channel |
-| Daily efficiency trio (CTR / Clicks / CPC) | one line per live channel - was a hardcoded TTD/LinkedIn/Reddit trio, so **LINE now plots too under Q2** (`channelByGrain` gained the missing `ln_imp`/`ln_clk` sums) |
-| "Channel performance vs media plan benchmarks" table | one row per live channel + an explicit empty-state row |
-| "Market breakdown - …" heading, market stack / bar / table | heading names the live channels; stacked series + market totals sum only over them (`chanTotal`) |
-| Creative channel filter + both creative tables | only live channels are offered and included; a pick that goes inactive falls back to "All channels" |
-| TTD section (heading + "TTD daily" card) | hidden unless TTD delivered |
-| LinkedIn funnel card | hidden unless LinkedIn delivered |
-| Paid footer "Source: …" | lists the live channels |
-
-**"LinkedIn leads vs weekly target" now hides outside its plan window.** `li_weekly`
-(`sql/09_li_weekly_targets.sql`) is the **fixed 13-week Q2 plan** (Mar 30 - Jun 30), so the block
-renders only while the selected range overlaps that window. This also fixes a real defect the Q3
-default would have exposed: `weekIndex()` matched "any date >= the last week start", so **every
-post-Q2 lead was piling into the W13 bar** - it now returns -1 outside `[planStart, planEnd]` (both
-parsed from the plan's own `period` strings).
-
-Market rows follow the same rule (`spendByMarket()` already dropped zero-spend markets). Frontend-only
-- no `sql/`, `job/main.py` or data-contract change.
-
-**Liveness keys on the DATE RANGE ONLY, deliberately not on the market chips.** If it also honoured
-the chips, a channel whose markets all failed to parse would **vanish** from the tab instead of
-showing a visible zero row - precisely the silent row-loss failure mode the [brief-number prefix
-fix](#brief-number-campaign-prefixes-broke-paid-media-market-parsing-fixed-2026-08-04) chased down
-(unmapped `MARKET_L3` passes the model's non-empty guard, then matches no chip, then `passesAll()`
-drops it from every aggregate). A parsing regression must stay loud. It also keeps the channel list
-stable while chips are toggled, instead of channels appearing/disappearing under the cursor.
-
-### Q3 LinkedIn lead-gen commit plan - weekly pacing + benchmark "vs plan" lead columns (2026-08-06)
-
-Client sheet (via JM): Q3 lead-gen is **LinkedIn only** and runs **only in 4 markets** -
-ANZ $18,051 / CPL $301 / 60 leads, ASEAN $10,066 / $126 / 80, SAARC(India) $6,798 / $115 / 59,
-GCR(HK) $2,858 / $260 / 11 = **$37,773 / 210 committed leads**. Frontend-only, all in
-`dash/dashboard.html`:
-
-- **`LI_LEADGEN_PLANS`** is the hardcoded editable knob (same pattern as `PACING_PLANS`); keys match
-  the market chips (SAARC = India, GCR = HK). Edit it + redeploy the dash service to change the plan.
-- **"LinkedIn leads vs weekly target" is now quarter-aware** (`renderWeeklyTarget` dispatches): a
-  range touching Q3 renders the Q3 plan **paced FLAT by day** over Jul 1 - Sep 30 (`liPlanWeeks` -
-  Monday-aligned weeks clamped to the quarter, so the partial first/last weeks get proportionally
-  smaller targets and the cumulative target lands exactly on the commit); otherwise the fixed Q2
-  `li_weekly` path renders unchanged. **Targets follow the market chips** (`liPlanScope`: all chips =
-  210 total; one market selected = that market's commit), actuals follow chips + date range as
-  before. The Q3 block **shows even with zero LinkedIn delivery** (a commit plan with no delivery
-  must read behind, not vanish) - unlike the Q2 path, which still hides via `chanIsActive`.
-- **The "Channel performance vs media plan benchmarks" table gained right-hand `Leads / vs plan /
-  CPL / vs plan` columns** (LinkedIn row only; TTD has no pixel). Leads are graded against the
-  **flat pace-to-date** (commit x fraction of Q3 elapsed, `liQ3PlanCtx`) with the whole-quarter
-  commit in the bench note; CPL vs the blended planning CPL of the selected markets. Renders only
-  under a **pure-Q3 selection** (a quarter commit can't grade Q2 or a custom sub-range - cells fall
-  back to `-`). CAVEAT: actual CPL uses ALL LinkedIn spend (the feed has no campaign-objective
-  split), so it reads conservative vs the lead-gen-line plan CPL - noted in the cell tooltip;
-  splitting lead-gen campaigns out would need a `sql/` change.
-
-## The data contract (`cloudflare.json` -> `/data.json`)
-
-```json
-{
-  "last_updated": "YYYY-MM-DDTHH:MM:SSZ",
-  "data_through": "YYYY-MM-DDTHH:MM:SSZ",
-  "paid_media": {
-    "row_count": 0,
-    "window": { "start": "YYYY-MM-DD", "end": "YYYY-MM-DD", "days": 0 },
-    "all_markets": ["ANZ","ASEAN","SAARC","RIG","KR","JP","GCR"],
-    "rows": [ { "channel","date","week_start","market","imps","clicks","spend_usd",
-                "leads","form_opens","link_clicks","action_clicks","video_starts",
-                "video_completions","spend_jpy","fx_usd_jpy" } ],
-    "creatives": [ { "channel","market","creative","imps","clicks","spend_usd","leads" } ],
-    "benchmarks":        { "<channel>": { "ctr","cpm","cpc" } },
-    "benchmarks_market": { "<market>":  { "ctr","cpm","cpc" } },
-    "li_weekly": [ { "week","period","week_start","target","cum_target" } ]
-  },
-  "pacing": {
-    "row_count": 0,
-    "rows": [ /* every column of V_PACING_FINAL_MODEL, dates as ISO strings */ ]
-  },
-  "campaigns": {
-    "peyc":        { "label","campaign_group","window","totals","daily":[…],"by_campaign":[…] },
-    "cf1_india":   { …same…, "cs": { "target":110,"metric","accepted","rejected","new","total",
-                                      "reviewed","data_through","by_publisher":[…],"by_region":[…],"daily":[…] } },
-    "coles_hyper": { … }
-  },
-  "transmission": {
-    "source_ids": [ { "id","campaign","leads","accepted","rejected","unprocessed","present" } ],
-    "pacing": { "rows":[ {"market","tier","q2","q3","total"} ], "q2_total","q3_total","grand_total" }
-  }
-}
-```
-
-`transmission` (2026-07-10) powers the committed-data tables on the dev-only **"Internal Notes" tab**
-(named "Data from Transmission" until 2026-08-05) - what Transmission
-committed for this dashboard: `source_ids` = the canonical CS Source-ID list that should be present
-(from `seed_cs_campaign_ids` / `definitions.json`) LEFT-JOINed to `salesforce_leads_live` so each ID
-shows what has landed (+ a `present` flag); `pacing` = the target plan they sent (`targets_v2_norm` over
-the committed `real_targets.csv`), per market x tier with a Q2/Q3 split. Built by
-`build_transmission()` in `job/main.py`. See _Dev mode_ above.
-
-`dashboard.html` reads `paid_media` exactly like the old `paid_media.json`
-(`adaptPayload` is unchanged) and `pacing.rows` exactly like the old
-`pacing.json` (`rawRows`). The `paid_media.creatives[]` array (creative-grain
-delivery) powers the "Top & bottom performing creatives" tables — **these rows
-carry NO `date`, so the dashboard filters them by the market chips ONLY, never the
-date range** (`renderCreativeTables` uses `paidMediaActiveMarkets.has(r.market)`, NOT
-`passesAll()`, whose `dateOk(undefined)` would silently blank the tables). Their
-`market` is raw TTD `MARKET_L3` (e.g. `HKTW`, `CN`, `AUNZ`, `SGMYIDPHTH`), so every
-token must be in `PM_MARKET_REMAP` or the row falls outside the 7 L1 buckets and
-drops. `campaigns`
-powers the three single-campaign LinkedIn dashboards selectable in the top-bar
-dropdown (read from the shared `raw_snowflake.linkedin_ads_apac` mirror, not from
-Snowflake directly). **CF1 also carries a content-syndication lane** (`campaigns.cf1_india.cs`,
-from `sql/14_cf1_cs`): "Double Touch MQLs" vs a **110 target** — accepted/rejected, by
-publisher/region, and a cumulative-delivery line keyed on the lead `DAY`. It's the 2 CF1
-CS campaign IDs (vendors→CaptureIQ→Integrate→Salesforce; also in the core 13-ID filter, but
-this is a separate CF1-scoped view). In the UI the CF1 single-campaign view is split into two
-**tabs** (`#cmpTabs`, mirroring the Core dashboard's tab pattern): **LinkedIn Paid Media**
-(`#cmpLI`, default) and **Content Syndication** (`#cmpCS`). `setupCmpTabs()` shows the tab bar
-only when a campaign has a `cs` block — peyc/coles_hyper have none, so they stay a single
-LinkedIn view with no tabs. `switchCmpTab()` toggles the panels and `.resize()`s the charts
-(Chart.js can't size a canvas created while `display:none`). Target is the one knob
-(`CF1_CS_TARGET` in `job/main.py`). `data_through` is the newest source `LAST_ALTERED` (true
-data instant); `last_updated` is the build time. See `dash/DASHBOARD.md`.
-
-**Channel / market labels must match the dashboard:** `benchmarks` keys must be
-`TTD`, `LinkedIn`, `Reddit`, `LINE`; row `channel` must be one of
-`LinkedIn`/`LI`, `TTD`/`TradeDesk`, `Reddit`, `LINE`; markets must be the seven
-in `all_markets`. These come straight from the Snowflake views — if your view
-emits different strings, fix it in `sql/` (the only place that maps them).
-
----
-
-## One-time replicate / deploy order
-
-Prereqs: `gcloud` authenticated; APIs enabled (`run`, `cloudbuild`,
-`artifactregistry`, `bigquery`, `storage`, `secretmanager`); the Artifact
-Registry docker repo `bidbrain` exists; the shared Snowflake key secret
-`snowflake-bq-key` exists (same one MongoDB uses).
-
-```bash
-PROJECT=bidbrain-analytics
-REGION=australia-southeast1
-
-# 1. Private data bucket
-gcloud storage buckets create gs://bidbrain-analytics-cloudflare-dash \
-  --project $PROJECT --location $REGION --uniform-bucket-level-access
-
-# 2. BigQuery dataset
-bq --location=$REGION mk --dataset $PROJECT:client_cloudflare
-
-# 3. Runtime service accounts
-gcloud iam service-accounts create cloudflare-dash-job --project $PROJECT
-gcloud iam service-accounts create cloudflare-dash-web --project $PROJECT
-#   job: read/write its dataset + bucket, read the Snowflake key
-bq update --dataset --source <(echo '{}') $PROJECT:client_cloudflare  # (or grant via IAM policy)
-gcloud projects add-iam-policy-binding $PROJECT \
-  --member="serviceAccount:cloudflare-dash-job@$PROJECT.iam.gserviceaccount.com" \
-  --role="roles/bigquery.jobUser"
-gcloud storage buckets add-iam-policy-binding gs://bidbrain-analytics-cloudflare-dash \
-  --member="serviceAccount:cloudflare-dash-job@$PROJECT.iam.gserviceaccount.com" \
-  --role="roles/storage.objectAdmin"
-#   (also grant cloudflare-dash-job roles/bigquery.dataEditor on the client_cloudflare dataset)
-#   web: read the bucket + its two secrets
-gcloud storage buckets add-iam-policy-binding gs://bidbrain-analytics-cloudflare-dash \
-  --member="serviceAccount:cloudflare-dash-web@$PROJECT.iam.gserviceaccount.com" \
-  --role="roles/storage.objectViewer"
-
-# 4. Secrets
-printf 'choose-a-dashboard-password' | gcloud secrets create cloudflare-dash-password --data-file=- --project $PROJECT
-python -c "import secrets;print(secrets.token_urlsafe(48),end='')" | gcloud secrets create cloudflare-dash-session-key --data-file=- --project $PROJECT
-#   grant both secrets to cloudflare-dash-web (roles/secretmanager.secretAccessor)
-#   (the job is BQ-only now — it does NOT need snowflake-bq-key. pull_static.py does,
-#    but that's a manual one-time local run, not the scheduled job.)
-
-# 5. Seed the static tables into BigQuery. data/ is gitignored, so on a fresh checkout pull
-#    the snapshots first (needs the Snowflake key); then load them to BQ (no Snowflake).
-python clients/client_cloudflare/pull_static.py    # Snowflake -> data/*.csv (skip if data/ already present)
-python clients/client_cloudflare/seed_static.py    # data/*.csv -> client_cloudflare.seed_*
-
-# 6. Apply the BigQuery model views (needs the seeds + raw_snowflake.* mirrors to exist)
-python clients/client_cloudflare/create_views.py
-
-# 7. Run the job — reads the views, produces cloudflare.json in GCS (no Snowflake)
-python clients/client_cloudflare/job/main.py
-
-# 8. Build dashboard.html from your existing index.html (see dash/DASHBOARD.md)
-
-# 9. Deploy the SERVICE — build the image, then deploy as yourself.
-#    (Do NOT `gcloud builds submit --config .../cloudbuild.yaml` from a laptop: it fails
-#     with iam.serviceaccounts.actAs because Cloud Build's SA can't act as the runtime SA.
-#     The cloudbuild.yaml files are for a future push-to-main trigger only.)
-IMG=australia-southeast1-docker.pkg.dev/$PROJECT/bidbrain/cloudflare-dash:$(git rev-parse --short HEAD)
-gcloud builds submit clients/client_cloudflare/dash --tag $IMG --region $REGION
-gcloud run services update cloudflare-dash --image $IMG --region $REGION \
-  --service-account cloudflare-dash-web@$PROJECT.iam.gserviceaccount.com \
-  --set-env-vars=GCS_BUCKET=bidbrain-analytics-cloudflare-dash,DATA_OBJECT=cloudflare.json \
-  --set-secrets=DASH_PASSWORD=cloudflare-dash-password:latest,SESSION_SECRET=cloudflare-dash-session-key:latest \
-  --memory=512Mi
-gcloud run services update cloudflare-dash --region $REGION --no-invoker-iam-check  # org policy: app does its own auth
-
-#10. Deploy the JOB the same way (or just keep running it locally while testing)
-IMG=australia-southeast1-docker.pkg.dev/$PROJECT/bidbrain/cloudflare-export:$(git rev-parse --short HEAD)
-gcloud builds submit clients/client_cloudflare/job --tag $IMG --region $REGION
-gcloud run jobs deploy cloudflare-export --image $IMG --region $REGION \
-  --service-account cloudflare-dash-job@$PROJECT.iam.gserviceaccount.com --memory 1Gi
-```
-
-Then, mirroring MongoDB:
-- **Freshness-gated run** — Cloud Scheduler trigger executing the `cloudflare-export`
-  job every `*/10` (UTC). Run [`scheduler.ps1`](scheduler.ps1). The job is **self-gating**:
-  each tick it cheaply probes `INFORMATION_SCHEMA.TABLES.LAST_ALTERED` for its four upstream
-  Snowflake tables (metadata-only — no warehouse credits) and only does the full rebuild +
-  upload when one advanced, recording a `_freshness.json` watermark in the bucket. So the
-  dashboard refreshes **within ~10 min of new data** instead of at a fixed 22:00 UTC, while
-  most ticks are a ~3s no-op. The payload carries both `last_updated` (build time) and
-  `data_through` (newest source `LAST_ALTERED`). Re-running [`seed_static.py`](seed_static.py)
-  changes a *static* input that the gate doesn't watch, so kick the job once by hand after it
-  (`gcloud run jobs execute cloudflare-export --region australia-southeast1 --wait`). See
-  [`job/README.md`](job/README.md#freshness-gate--why-most-runs-do-nothing-and-thats-the-point).
-- **Access path** — via the platform front-door at `https://dashboards.bidbrain.ai/d/cloudflare/`
-  (one login over all dashboards; the front-door reverse-proxies this service). There is no
-  `cloudflare.bidbrain.ai` subdomain. See `dash/LIVE_URL.md`.
-- **CD (future, not active)** — the per-unit `cloudbuild.yaml` files are wiring
-  for two push-to-`^main$` Cloud Build triggers (included files
-  `clients/client_cloudflare/job/**` and `clients/client_cloudflare/dash/**`). Not enabled yet;
-  redeploys today use the manual build-then-deploy steps above.
-
-## See also
-
-- [Root README](../../README.md) — the whole-platform map, security model, and naming conventions.
-- [`../client_mongodb/`](../client_mongodb/README.md) — the template this client is based on (and diverges from).
-- [`../snowflake_data_pull/`](../../ingest/snowflake_data_pull/README.md) — the shared raw layer this client now reads (`salesforce_cs_apac_all`, `tradedesk_apac_all`, `linkedin_ads_apac`, `reddit_ads_apac_all`), like every other client.
-
+    
 
 ## BigQuery views (sql/) - each header documents what the view computes and its raw sources
 
@@ -846,6 +1567,12 @@ Then, mirroring MongoDB:
 -- STARTS_WITH drops the whole channel to zero. Normalise once here and key the
 -- downstream rules off CAMPAIGN_NAME_NORM so that cannot happen. Same treatment as
 -- stg_tradedesk, where the equivalent break was already live.
+--
+-- PROGRAM (2026-08-14) - the dashboard's lane selector, kept IDENTICAL to
+-- stg_tradedesk's arm so a campaign can never land in two lanes. LinkedIn has no
+-- Surround ABM (brief 2193) delivery today - the brief is TTD-only - but carrying the
+-- same rule here means an ad set that IS renamed into it routes to the right lane
+-- instead of quietly inflating Core DG. Substring match on the RAW name (prefix-proof).
 
 ### 02_stg_reddit.sql
 -- stg_reddit: Cloudflare's Reddit slice of the shared raw mirror.
@@ -883,17 +1610,59 @@ Then, mirroring MongoDB:
 -- from data/line_cf.csv). LINE is a manual upload, not in the raw_snowflake mirror.
 -- The messy source header "Video (100% watched)" was aliased to VIDEO_100_WATCHED at pull.
 
+### 04b_stg_google_ads.sql
+-- stg_google_ads: Cloudflare's Google Ads slice of the shared Snowflake mirror.
+--
+-- Added 2026-08-11 - Google Ads is the FIFTH paid channel on this dashboard (after TTD, LinkedIn,
+-- Reddit and LINE). Transmission connected the `Cloudflare APAC` Google Ads account (ACCOUNT_ID
+-- 3034487647) on ~2026-07-22; it feeds the Q3 Core DG book (brief 2479).
+--
+-- SCOPED BY ACCOUNT, NOT BY CAMPAIGN NAME - deliberately. The media sheet lists TWO Google Ads
+-- lines against brief 2479 (Awareness from 15-Jul and Lead Generation from 17-Jul). The account
+-- filter is what let the Lead Generation campaign start reporting on 2026-08-06 with no change to
+-- this WHERE clause. It also keeps us clear of the repo-wide "campaign names are NOT stable keys"
+-- trap - Google Ads campaign names here do NOT follow the `CLOUD_ACQ_` convention the other
+-- channels use, so a name-based filter would be both fragile and wrong.
+--
+-- ============================================================================================
+-- GRAIN CHANGED 2026-08-20 - AD_GROUP_NAME IS GONE, `NETWORK` ARRIVED
+-- ============================================================================================
+-- Transmission (Ankit) moved the shared `Google Ads - APAC` export from AD GROUP level to
+-- CAMPAIGN level, because the new Lead Generation campaign is **Performance Max** and PMax
+-- reports nothing at ad-group grain. The mirror is a `SELECT *` WRITE_TRUNCATE copy
+-- (ingest/snowflake_data_pull/loader.py), so the new schema landed on the next */10 tick with no
+-- warning and `AD_GROUP_NAME` simply vanished - which broke THIS view, and through it
+-- paid_media_model + paid_creatives_model + every cloudflare-export run, for ~19 hours.
+-- (STT reads the same mirror but not the ad group, so it was unaffected.)
+--
+-- The row grain is now DAY x CAMPAIGN x **NETWORK** (YOUTUBE / DISCOVER / CONTENT / SEARCH /
+-- SEARCH_PARTNERS / MIXED). NETWORK is carried through as a real dimension: it is the only
+-- sub-campaign cut the feed still has, and for the PMax buy it is the genuinely actionable one
+-- (every conversion so far is DISCOVER; CONTENT has produced none).
+-- Delivery reconciled across the grain change with no loss - the Awareness campaign's
+-- 2026-07-22..08-08 window reads 172,332 imps / 90 clicks / $764.83 against the 172,396 / 90 /
+
 ### 05_paid_media_model.sql
 -- paid_media_model: per-channel/market/day paid delivery for the dashboard.
 -- BigQuery port of CLOUDFLARE_SANDBOX.PAID_MEDIA_REPORTING.V_PAID_ADS_FINAL_MODEL:
--- a UNION ALL of the four staging views with market derivation, weekly rollup key,
+-- a UNION ALL of the FIVE staging views with market derivation, weekly rollup key,
 -- and JPY->USD@155 for LINE. Replaces the old thin pass-through of src_paid_media.
+-- (Google Ads joined 2026-08-11 as the fifth channel - Q3 Core DG, brief 2479.)
 -- Snowflake -> BigQuery ports:
 --   DATE_TRUNC('WEEK', d)::DATE  -> DATE_TRUNC(d, WEEK(MONDAY))  (Snowflake weeks start Monday)
 --   ILIKE '%x%'                  -> LOWER(col) LIKE '%x%'
 --   LIKE 'CLOUD\_ACQ\_%' ESCAPE  -> STARTS_WITH(CAMPAIGN_NAME,'CLOUD_ACQ_')
 -- Column/label contract (CHANNEL, MARKET strings) is unchanged from the dashboard's
 -- expectations (TTD/LinkedIn/Reddit/LINE; the 7 L1 markets + raw TTD MARKET_L3).
+--
+-- 2026-08-14 - PROGRAM is the second column of EVERY arm (the union is `SELECT *`, so
+-- position matters). It splits the paid book into the dashboard's two lanes:
+--   CORE_DG      - Core DG APJ (briefs 1160 / 2103 Q2 / 2479 Q3), the default
+--   SURROUND_ABM - Surround ABM (brief 2193, TTD-only; names say Q2, delivery spans Q2+Q3)
+-- The rule lives in stg_tradedesk / stg_linkedin so both are literally the same
+-- expression; Reddit repeats it inline (it has no staging view of its own) and LINE is
+-- a constant (a manual LINE Ad Manager CSV with no campaign names - it is Core DG's JP
+-- channel and there is no Surround ABM LINE buy).
 
 ### 06_paid_creatives_model.sql
 -- paid_creatives_model: per-channel/market/creative delivery over the whole window
@@ -902,12 +1671,37 @@ Then, mirroring MongoDB:
 -- (run against the Snowflake V_STG_* views). Same channel filters + market derivation
 -- as paid_media_model, but grouped by creative instead of date. The dashboard filters
 -- these by market chip only (rows carry no date) and ranks client-side.
+--
+-- 2026-08-14 - carries PROGRAM (CORE_DG / SURROUND_ABM) as column 2 of every arm, matching
+-- paid_media_model, so the creative tables follow the lane selector. Without it the Surround
+-- ABM lane would list Core DG's creatives (these rows have no date, so the quarter/date
+-- filters can't separate them either).
+--
+-- 2026-08-26 - carries FORM_OPENS on the LinkedIn arm, for the "LinkedIn creative lead
+-- efficiency" tables (top 10 by CPL / by click->lead CVR; client request). LEADS was already
+-- here, so CPL and CVR were derivable - but not DIAGNOSABLE: a low CVR because nobody opens
+-- the form is a targeting/creative problem, one where they open and abandon is a form problem,
+-- and without the middle stage the two are indistinguishable. Same stage the channel-level
+-- LinkedIn funnel already shows (LEAD_FORM_OPENS / oneClickLeadFormOpens on datastream 924),
+-- now at creative grain so the funnel's CPL and click->lead rate break down to the row that
+-- earned them. Verified against paid_media_model: LinkedIn ties EXACTLY on all four measures
+-- (590 leads / 6,779 form opens / 21,149 clicks / $153,281.15), so a creative table total can
+-- never disagree with the funnel above it.
+-- NULL, not 0, on the four channels that have no lead form at all - a false zero would read as
+-- "nobody opened the form" rather than "this channel has no form" if the column is ever
+-- surfaced beyond the LinkedIn-only tables (the repo-wide rule; cf. the Google Ads video
+-- columns in paid_media_model).
 
 ### 07_benchmarks_channel.sql
 -- benchmarks_channel: media-plan benchmarks keyed by channel (constants).
 -- Port of CLOUDFLARE_SANDBOX.PAID_MEDIA_REPORTING.V_BENCHMARKS_CHANNEL, which is a
 -- hardcoded literal view -- so it's reproduced verbatim here (no data pull needed).
--- CHANNEL values must match the dashboard: TTD, LinkedIn, Reddit, LINE.
+-- CHANNEL values must match the dashboard: TTD, LinkedIn, Reddit, LINE, GoogleAds.
+-- GoogleAds is NOT in Cloudflare's view (the channel joined in Q3, after the media plan);
+-- its figures are the benchmark POINTS from the client-shared Q3 benchmark workbook
+-- (CF_Q3_July_Channel_Benchmarks_v3.xlsx, Summary sheet): CTR = YouTube in-stream 0.12%
+-- (band 0.07-0.17%), CPM = YouTube Japan USD 4.00 (band 2.70-10.00). That set commits NO
+-- CPC benchmark, so CPC stays NULL - the dashboard renders "-" for it, never "vs $0.00".
 
 ### 08_benchmarks_market.sql
 -- benchmarks_market: media-plan benchmarks keyed by market (constants).
@@ -929,7 +1723,8 @@ Then, mirroring MongoDB:
 -- the status verifier) and are materialised into client_cloudflare.seed_* tables by definitions_seed.py.
 -- Editing them is a one-place change (definitions.json) that reloads the seed tables — this view's
 -- structure never changes. The 13 IDs: 6 El* + 2 N* (2026-06-10) + 4 P* Modernize (2026-06-17)
--- + 1 W* (701RG00001W1FQRYA3, 2026-07-10 — Q3 ANZ VSRM Lead Magnet, Tier 3; PUBLISHER/OFFER 'Unknown').
+-- + 1 W* (701RG00001W1FQRYA3, 2026-07-10 — the Q3 VRSM Lead Magnet campaign, Tier 3, every APAC
+-- market incl. Korea; PUBLISHER 'VRSM Lead Magnet' since 2026-09-04, was 'Unknown').
 -- The 4 P* campaigns are Q2-ONLY since 2026-08-05: their leads created on/after 2026-07-01 are
 -- excluded (replacement leads were polluting Q3 - see the WHERE clause + definitions.json).
 --
@@ -940,15 +1735,15 @@ Then, mirroring MongoDB:
 --           Salesforce; values A-MAM-2 / A-MAM-3 — only A-MAM-3 has data today) on the 3 Final
 --           Funnel campaigns, for NON-Korea leads. ASSET-based, not geographic, so evaluated
 --           BEFORE geography and pulls those leads out of every market (the overlap is intentional).
---   * KR  = Korea ('Korea, Republic of') leads in the 6 ORIGINAL El* CS campaigns ONLY. Dash shows
---           ~144 ACCEPTED; the client reports 164 DELIVERED (all statuses) -- the ~20 gap is
---           delivered-vs-accepted, not a match bug (see the reconciliation note by the KR arm below).
---           Korea leads from the other 6 campaigns fall through to OTHER (NOT a chip -> off the dash).
---   * The geographic markets are the COARSE 7: ANZ (AU+NZ), ASEAN (SG/MY/ID/TH/VN/PH),
---           SAARC (IN), GCR (CN/TW/HK), JP -- matching the paid-media L3 grain 1:1.
--- TEST leads on Transmission emails are excluded in the WHERE (see below).
--- The status dashboard reproduces KR / RIG straight from Snowflake (status_dashboard/job/main.py).
--- This applies to CS LEADS ONLY — paid-media (TTD) KR/RIG market buckets are unaffected.
+--   * KR  = Korea ('Korea, Republic of') leads in the Core DG CS campaigns: the 6 ORIGINAL El*
+--           campaigns (3 Roverpath + 3 Final Funnel) PLUS, since 2026-09-04, the Q3 VRSM Lead
+--           Magnet campaign (701RG00001W1FQRYA3). Seed-driven (seed_kr_campaign_ids). Korea leads
+--           on the 2 N* + 4 P* (Connectivity Cloud / Modernize) campaigns still fall through to
+--           OTHER (NOT a chip -> off the dash) - that was the 2026-07-02 client decision and it
+--           stands; VRSM was simply added to the allowlist AFTER that decision (2026-07-10) and
+--           never added here, so its 10 accepted Korean leads were dropped from the headline while
+--           the Pacing detail section (sql/16, campaign-name scope) counted them - the 1,650 vs
+--           1,661 the client reported on 2026-09-04.
 
 ### 11_tier_mapping_cleaned.sql
 -- tier_mapping_cleaned: account -> tier lookup with a fuzzy join key.
@@ -1010,3 +1805,131 @@ Then, mirroring MongoDB:
 -- COARSE 7 chips as of 2026-07-07, OTHER excluded; accepted = Accepted/Replied/Unresponsive; Transmission
 -- test leads already dropped upstream). Calendar quarters. No Q3 targets loaded yet, so this is
 -- actuals-vs-actuals (no pacing here). Grain: (quarter, market, status_bucket).
+
+### 16_stg_cs_leads_v2.sql
+-- =====================================================================
+-- client_cloudflare.stg_cs_leads_v2
+-- Canonical Content-Syndication lead grain for the "Pacing detail" section.
+-- Grain carries THEATRE (APAC | EMEA) x BOOK (Core DG | Regional) x MARKET x
+-- VENDOR (= publisher). Feeds 17_cs_pacing_v2 ONLY.
+-- =====================================================================
+-- WHY THIS EXISTS ALONGSIDE 10_salesforce_leads_live (which is untouched):
+--   10_* is scoped by a hardcoded campaign-ID allowlist (`seed_cs_campaign_ids`)
+--   and so is APAC-ONLY - verified 2026-08-24: 5,873 rows, ZERO EMEA. Every
+--   headline CS number, donut, QoQ figure and status-dashboard accuracy check on
+--   this client hangs off it, so it is deliberately NOT modified here. This view
+--   is a SECOND, parallel read of the same raw mirror that scopes by CAMPAIGN
+--   NAME instead, which is what brings EMEA in and lets a new vendor appear on
+--   its own rather than silently vanishing until someone edits the allowlist.
+--   Nothing downstream of 10_* reads this view, so it cannot move a live number.
+--
+-- Ported 1:1 from Transmission's CS_REPORTING.V_CS_LEADS_V2 (Snowflake). Our
+-- pipeline role on CLOUDFLARE_SANDBOX is read-only, and the base table is ALREADY
+-- in the shared mirror (raw_snowflake.salesforce_cs_apac_all) and ALREADY in this
+-- client's freshness gate, so the model lives in BigQuery like every other
+-- client_cloudflare view. Reconciled against the client's own pacing sheet on
+-- 2026-08-24: EMEA target 830 / delivered 234 / accepted 208 / rejected 26,
+-- needs_review 0 in both theatres. APAC delivery runs AHEAD of the sheet because
+-- this is live off Salesforce and the sheet is a snapshot.
+--
+-- NOT a pure 1:1 port in three respects, all so this view and 10_salesforce_leads_live
+-- count the SAME leads the same way (the client reads both on one screen):
+--   1. The Transmission TEST-LEAD filter from 10_* is applied here too (2026-08-27).
+--   2. The accepted bucket is the CLIENT's (definitions.json status_buckets: Accepted +
+--      Replied + Unresponsive), not the port's bare 'Accepted' (2026-09-04). No lead in the
+
+### 17_cs_pacing_v2.sql
+-- =====================================================================
+-- client_cloudflare.cs_pacing_v2
+-- book x week x market x vendor, actuals FULL OUTER JOINed to targets.
+-- The single view the export job reads for the "Pacing detail" section.
+-- =====================================================================
+-- Ported from Transmission's CS_REPORTING.V_CS_PACING_V2. Two differences,
+-- both because this runs in BigQuery over a committed seed:
+--
+--   * targets come from client_cloudflare.seed_cs_targets_q3, loaded from the
+--     VERSION-CONTROLLED targets/cs_targets_q3.csv (the repo's committed-CSV->BQ
+--     standard for targets, so anyone who clones can reproduce the table) rather
+--     than from 468 hand-pasted VALUES rows in DDL.
+--   * the seed carries MARKET_SEQ, so the dashboard's market DISPLAY ORDER is
+--     data, not code - re-order the CSV and the chart follows with no deploy.
+--     This is what keeps the component free of a hardcoded market list.
+--
+-- AGGREGATED, and deliberately so: this is counts by week/market/vendor with NO
+-- lead-level columns, so unlike the `pacing` payload branch (which ships the full
+-- lead grain, PII included) this one is safe to render anywhere and adds ~100 KB
+-- to the JSON instead of megabytes.
+--
+-- FULL OUTER JOIN, not LEFT: a future week must show its target with zero
+-- actuals (that is the whole pacing grid), AND an actual with no matching target
+-- must still appear rather than being dropped. Pipeline360 and Inbox Insight have
+-- no targets yet - they will surface with delivery and no pacing, which is
+-- correct. Do not "fix" that by making this an inner join.
+--
+-- BOOK is part of the join key (added 2026-08-27 with the Regional campaigns). The seed
+-- carries it too, so the whole grid stays data-driven. It matters that it is in the KEY:
+-- the Regional book has no targets, and without BOOK on both sides a Regional ANZ actual
+
+### 18_cs_compare_v2.sql
+-- =====================================================================
+-- client_cloudflare.cs_compare_v2
+-- Lead-grain-derived aggregate for the CS COMPARISON tab's side-by-side panels.
+-- Grain: THEATRE x BOOK x VENDOR x MARKET x COUNTRY x DAY x SERVICE x ASSET.
+-- Feeds the export job's `cs_compare` payload block ONLY.
+-- =====================================================================
+-- WHY THIS EXISTS ALONGSIDE 17_cs_pacing_v2:
+--   17_* is aggregated to week x market x vendor, which is everything the "Pacing
+--   detail" band needs. The Comparison panels need three things it threw away:
+--     * COUNTRY  - the panels' optional country drill-down (EMEA spans 47 countries;
+--                  UKI alone has 13).
+--     * ASSET    - the "Best performing assets" list.
+--     * DAY      - the Comparison tab is DATE-RANGE driven, and a range that cuts
+--                  mid-week cannot be honoured from week buckets.
+--   So this is a parallel, finer read of the SAME stg_cs_leads_v2 rows. It carries NO
+--   targets: those already ship on the `cs_pacing` block at their own (market x week)
+--   grain, and duplicating them here would be a second copy of a number that must agree.
+--
+-- WEEK_START IS CARRIED, NOT DERIVED CLIENT-SIDE. The week anchor is theatre-specific
+-- (EMEA commences FRIDAY from 2026-07-31, APAC MONDAY from 2026-07-06) with a pre-anchor
+-- clamp - see 16_stg_cs_leads_v2. Re-deriving that in JS would be a third copy of a rule
+-- that has already been got wrong twice (the negative-MOD and the missing clamp), so the
+-- day rows carry the bucket their own theatre assigned them.
+--
+-- BOTH THEATRES, deliberately. Only EMEA reads it today (the APJ panels still run off the
+-- legacy salesforce_leads_live model, which is untouched), but a view that silently held
+-- one theatre would be its own trap the day APJ is migrated onto it - and it is what lets
+-- anyone reconcile the two models against each other. At 1,213 rows for the full quarter
+-- the whole block is ~120 KB of JSON, so scoping it to EMEA would save nothing worth the
+-- asymmetry.
+
+### 19_cs_composition_v2.sql
+-- =====================================================================
+-- client_cloudflare.cs_composition_v2
+-- The five COMPOSITION DONUTS (Solutions / Country / Job function / Job level /
+-- Professional demographic) for a theatre the legacy model does not cover.
+-- Grain: THEATRE x BOOK x VENDOR x MARKET x DIM x VALUE. LONG format, campaign to date.
+-- Feeds the export job's `cs_composition` payload block ONLY.
+-- =====================================================================
+-- WHY THIS EXISTS (2026-09-05, client: "these updates we are doing for APJ do it on
+-- EMEA too"):
+--   The APJ donuts aggregate the LEGACY lead rows (salesforce_leads_live, APAC-only by its
+--   13-ID allowlist) in the browser. EMEA has no lead-grain rows in the payload at all -
+--   17_cs_pacing_v2 is week x market x vendor and 18_cs_compare_v2 is day x market x
+--   country x asset - so the donut cards were simply HIDDEN off-theatre. This is the
+--   smallest read that fills them: one row per (scope, dimension, value) with the count
+--   of accepted leads, plus the New backlog for the Admin View.
+--
+-- WHY LONG FORMAT, AND WHY NO DAY:
+--   * Five dimensions in one view means one payload block and one dashboard reader; a
+--     wide row per lead would ship PII-adjacent detail (a job TITLE against a market at
+--     lead grain) for no gain. Counts per value are what the ring draws.
+--   * The EMEA CS tab has NO date control (dateControl is per tab on that lane; the top
+--     band is campaign-to-date), so the donuts are campaign-to-date too, exactly like the
+--     band they sit under. Adding DAY would multiply the rows ~60x to honour a filter that
+--     does not exist there.
+--
+-- SCOPE IS THE DASHBOARD'S JOB, NOT THIS VIEW'S: it carries THEATRE, BOOK, VENDOR and
+-- MARKET so cspdScopeOk() - the ONE predicate behind cspdRows() - filters it to exactly
+-- the scope the top band reads. Both theatres are here on purpose (the 18_* reasoning):
+-- a view silently holding one theatre is a trap the day APJ migrates, and the theatre
+-- column is what makes "no data spills between lanes" a filter the dashboard applies and

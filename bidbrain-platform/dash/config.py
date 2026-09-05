@@ -184,20 +184,18 @@ CLIENTS = {
             {"name": "Workplace Design", "path": "/paid-media", "status": "coming_soon"},
         ],
     },
-    # Onboarding: client_sophiie/ is a built, Sophiie AI-branded placeholder dashboard on SAMPLE
-    # data — the estate's only ANIMATED skin (the three-layer aurora borealis background). Sophiie's
-    # Meta campaigns are still being BUILT, so there is deliberately NO sql/ + job/ in that folder
-    # yet and the dashboard serves its baked-in placeholder.json. coming_soon (hidden from clients)
-    # but DEPLOYED, so a super admin can preview it via "Open preview →".
-    # `show_pending_row` also gives it a greyed "awaiting connection" row on the Data Accuracy tab
-    # (geyervalmont is the only other client with the flag) — it still applies: no pipeline yet.
+    # ACTIVE since 2026-09-05. client_sophiie/ is the estate's only ANIMATED skin (the three-layer
+    # aurora background) over the Chronicle-marble treatment, now carrying the LIVE Trade Desk
+    # campaign SOPHIIE_2026-Q3_TTD_AU_DISPLAY_PROSPECTING (advertiser gjcl0pp) - three prospecting
+    # audience tiers plus retargeting, judged on cost per sign-up / cost per click / CTR.
+    # `show_pending_row` was dropped with the flip: that flag exists to give a client with NO
+    # pipeline a greyed "awaiting connection" row on the Data Accuracy tab, and this client now has
+    # a real sql/ + job/ whose freshness the tab reports for itself.
     "sophiie": {
-        "name": "Sophiie AI", "slug": "sophiie-ai", "status": "coming_soon",
-        "url": _runapp("sophiie"),   # deployed preview: super-admin-openable, hidden from clients (coming_soon)
-        "note": "Dashboard isn't live yet - the structure is ready.",
-        "show_pending_row": True,
+        "name": "Sophiie AI", "slug": "sophiie-ai", "status": "active",
+        "url": _runapp("sophiie"),
         "campaigns": [
-            {"name": "Demand & Qualified Leads", "path": "/paid-media", "status": "coming_soon"},
+            {"name": "Trade Desk Display", "path": "/paid-media", "status": "active"},
         ],
     },
     "schneider": {

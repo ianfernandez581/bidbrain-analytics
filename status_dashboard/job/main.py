@@ -1034,8 +1034,8 @@ CLIENTS = [
              "note": "Both channels use CLICKS. vs kpi.ad_clicks."},
         ],
     },
-    # NOT YET MONITORED: bellshakespeare / nextsmile / geyervalmont / sophiie — no data/export pipelines yet; add them here once their export jobs exist.
-    # (sophiie is Meta-sourced, so when it lands it belongs in BQ_CLIENTS below, not in this Snowflake list.)
+    # NOT YET MONITORED: bellshakespeare / nextsmile / geyervalmont — no data/export pipelines yet; add them here once their export jobs exist.
+    # (sophiie moved to BQ_CLIENTS below on 2026-09-05: it is Windsor Trade Desk-sourced, so it belongs in the BigQuery-native list, not this Snowflake one.)
 ]
 
 
@@ -1106,6 +1106,25 @@ _CALTEX_FROM = "FROM `bidbrain-analytics.raw_windsor.perf_the_trade_desk`\n" + _
 def _caltex_conv_sql(kind, alias):
     return (f"WITH b AS (\n  SELECT SAFE.PARSE_JSON(JSON_VALUE(conversions)) AS _c\n  "
             + _CALTEX_FROM.replace("\n", "\n  ") + f"\n)\nSELECT ROUND(SUM({_ttd_slots(kind)}\n     ), 4) AS {alias} FROM b;")
+
+# Sophiie AI: the same Windsor Trade Desk connector as Caltex, one advertiser (gjcl0pp). The
+# advertiser NAME is misspelled "Sohiie AI" on the seat, so the fallback is an EXACT two-value list
+# rather than a LIKE - `_` is a LIKE wildcard and a substring on a partner name is how a genuine
+# advertiser gets silently swept in (md/AGENTS.md). Mirrors clients/client_sophiie/sql/01_stg_ttd.sql.
+#
+# These check the WHOLE ADVERTISER against the dashboard total on purpose. A check that re-derived
+# the ad-group / funnel-stage parse would mirror the view's own logic, go circular, and stay green
+# while a rename silently dropped delivery - the exact failure mode that hid a month of MongoDB
+# delivery. The advertiser total cannot hide a parsing regression.
+_SOPHIIE_WHERE = ("WHERE advertiser_id = 'gjcl0pp'\n"
+                  "   OR LOWER(TRIM(advertiser_name)) IN ('sohiie ai', 'sophiie ai')")
+_SOPHIIE_FROM = "FROM `bidbrain-analytics.raw_windsor.perf_the_trade_desk`\n" + _SOPHIIE_WHERE
+
+
+def _sophiie_conv_sql(kind, alias):
+    return (f"WITH b AS (\n  SELECT SAFE.PARSE_JSON(JSON_VALUE(conversions)) AS _c\n  "
+            + _SOPHIIE_FROM.replace("\n", "\n  ") + f"\n)\nSELECT ROUND(SUM({_ttd_slots(kind)}\n     ), 4) AS {alias} FROM b;")
+
 
 BQ_CLIENTS = [
     {
@@ -1484,6 +1503,47 @@ BQ_CLIENTS = [
             {"label": "Trade Desk · Site visits post-click", "kind": "sum", "group": "Trade Desk (display)",
              "dash": _rows_sum("pc_conv"),
              "sql": _caltex_conv_sql("click_conversion", "post_click"),
+             "note": "Same 12-slot sum for the click-attributed side. vs sum(rows[].pc_conv)."},
+        ],
+    },
+    {
+        "client": "sophiie", "label": "Sophiie AI", "engine": "bq",
+        "ingest_label": "Windsor (Trade Desk) \u2192 raw_windsor.perf_the_trade_desk",
+        "raw_tables": ["raw_windsor.perf_the_trade_desk"],
+        "checks": [
+            # TTD-only, single advertiser (gjcl0pp). rows[] IS the whole flight (no date floor), so
+            # summing it == the raw aggregate. AUD native, no FX. Ratios are never stored, so only
+            # additive components are checked - CPM/CTR/CPC/CPA are recomputed in the browser.
+            {"label": "Trade Desk \u00b7 Impressions", "kind": "sum", "group": "Trade Desk (display)",
+             "dash": _rows_sum("impressions"),
+             "sql": "SELECT SUM(impressions) AS impressions\n" + _SOPHIIE_FROM + ";",
+             "note": "Advertiser filter mirrors sql/01_stg_ttd.sql (id gjcl0pp; the exact-name fallback "
+                     "covers the seat's 'Sohiie AI' misspelling). Deliberately the WHOLE advertiser, not "
+                     "a re-derivation of the ad-group parse, so a naming change cannot hide delivery "
+                     "behind a green check. vs sum(rows[].impressions)."},
+            {"label": "Trade Desk \u00b7 Clicks", "kind": "sum", "group": "Trade Desk (display)",
+             "dash": _rows_sum("clicks"),
+             "sql": "SELECT SUM(clicks) AS clicks\n" + _SOPHIIE_FROM + ";",
+             "note": "vs sum(rows[].clicks)."},
+            {"label": "Trade Desk \u00b7 Spend (AUD, no FX)", "kind": "sum", "group": "Trade Desk (display)",
+             "dash": _rows_sum("spend"),
+             "sql": "SELECT ROUND(SUM(cost), 2) AS spend\n" + _SOPHIIE_FROM + ";",
+             "note": "advertiser_cost_adv_currency, already AUD so no FX. The JSON stores RAW media cost - "
+                     "the client-billed gross-up (BB_SPEND_MULT) is applied in the BROWSER only, so this "
+                     "comparison stays exact. vs sum(rows[].spend)."},
+            {"label": "Trade Desk \u00b7 Sign-ups post-view", "kind": "sum", "group": "Trade Desk (display)",
+             "dash": _rows_sum("pv_conv"),
+             "sql": _sophiie_conv_sql("view_through_conversion", "post_view"),
+             "note": "Conversions The Trade Desk attributed to the campaign's 'Sign up' source, view-through "
+                     "side. All 12 anonymous slots summed, matching stg_ttd. The campaign has TWO conversion "
+                     "sources attached ('Sign up +1') and Windsor exposes no pixel name, so if a SECOND slot "
+                     "starts reporting (the export job WARNs when it does) it must be split out on BOTH "
+                     "sides, never folded in here. If TTD later exports one tracker as a DUPLICATE column "
+                     "pair (the VMCH {01,03,05} case), BOTH sides must switch to one column per pair. "
+                     "vs sum(rows[].pv_conv)."},
+            {"label": "Trade Desk \u00b7 Sign-ups post-click", "kind": "sum", "group": "Trade Desk (display)",
+             "dash": _rows_sum("pc_conv"),
+             "sql": _sophiie_conv_sql("click_conversion", "post_click"),
              "note": "Same 12-slot sum for the click-attributed side. vs sum(rows[].pc_conv)."},
         ],
     },

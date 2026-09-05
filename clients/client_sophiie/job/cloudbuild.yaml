@@ -1,0 +1,41 @@
+# Cloud Build -> Cloud Run CD for the MongoDB export job (a JOB, not a service).
+#
+# Wire a Cloud Build trigger (one-time, see README section 11):
+#   repo:           Bidbrain/bidbrain-analytics
+#   event:          push to ^main$
+#   included files: clients/client_mongodb/job/**       (only redeploy when this unit changes)
+#   config:         clients/client_mongodb/job/cloudbuild.yaml
+#
+# The trigger's service account needs: roles/run.admin, roles/artifactregistry.writer,
+# and roles/iam.serviceAccountUser on _RUNTIME_SA.
+# The daily run is a separate Cloud Scheduler trigger on the job (README section 10 step 7).
+substitutions:
+  _REGION: australia-southeast1
+  _REPO: bidbrain                                                   # Artifact Registry docker repo (create once, see README)
+  _JOB: mongodb-export
+  _RUNTIME_SA: mongodb-dash-job@bidbrain-analytics.iam.gserviceaccount.com
+steps:
+  - id: build
+    name: gcr.io/cloud-builders/docker
+    dir: clients/client_mongodb/job
+    args: ["build", "-t", "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_JOB}:$SHORT_SHA", "."]
+  - id: push
+    name: gcr.io/cloud-builders/docker
+    args: ["push", "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_JOB}:$SHORT_SHA"]
+  - id: deploy
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: gcloud
+    # `run jobs deploy` (NOT `run deploy`) creates-or-updates the Cloud Run Job.
+    args:
+      - run
+      - jobs
+      - deploy
+      - ${_JOB}
+      - --image=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_JOB}:$SHORT_SHA
+      - --region=${_REGION}
+      - --service-account=${_RUNTIME_SA}
+      # No secrets / env vars: this job reads BigQuery views and writes GCS only;
+      # main.py hardcodes project/dataset/bucket and no longer touches Snowflake.
+      - --memory=1Gi
+options:
+  logging: CLOUD_LOGGING_ONLY

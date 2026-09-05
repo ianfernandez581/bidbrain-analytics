@@ -1,0 +1,146 @@
+# Lineage digest for dashboard 'foodbank' (from clients/client_foodbank/)
+# Data contract: sql/<view>.sql (BigQuery view) -> job/main.py (data.json key) -> dashboard.html.
+
+## README.md (data contract, cookbook, gotchas)
+
+# client_foodbank - Foodbank Australia (PITCH PREVIEW, sample data)
+
+A branded, password-gated demo dashboard for **Foodbank Australia** (foodbank.org.au), built for a
+new-business pitch by **Think HQ** (the agency that holds the relationship). It runs on **sample
+data** from one deterministic generator and is presented as a working product: the preview -> live
+flip is a data swap, not a rebuild.
+
+**Status: PREVIEW, DEPLOYED 2026-09-03** to Cloud Run as `foodbank-dash`
+(https://foodbank-dash-p32gk2wuia-ts.a.run.app, password-gated, sample data - see
+`dash/LIVE_URL.md`). Runs locally with one command too. There is no BigQuery dataset, no `sql/`, no
+`job/`, no scheduler and no platform registry entry for this client yet.
+
+Relationship model: the client's brand owns the surface (Foodbank purple / coral / cream / lilac,
+Foodbank lockup); the agency signs it (Think HQ wordmark + attribution line). 100% Digital appears
+nowhere - the seam is kept behind `SHOW_PLATFORM_CREDIT = False` in `dash/main.py`.
+
+Look: a deep plum field (the login's family) with brand purple used as the accent, hairline cards on
+a warm off-white page, Inter for every figure and Poppins for titles only. The first build used the
+bright brand purple as a full canvas with pill controls and was rejected as childish; do not bring
+that back. Tokens live in one `:root` block at the top of `dash/static/css/dashboard.css`.
+
+## Run it
+
+```powershell
+.\clients\client_foodbank\run.ps1
+```
+
+Serves http://127.0.0.1:8080/ on the repo venv. The script regenerates the sample JSON first, then
+starts Flask. Password comes from `FOODBANK_DASH_PASSWORD`; with it unset the app prints its dev
+password to the console on start (never to the page). Equivalent without the wrapper:
+
+```powershell
+.\.venv\Scripts\python.exe clients\client_foodbank\data\generate_sample.py
+.\.venv\Scripts\python.exe clients\client_foodbank\dash\main.py
+```
+
+## File map
+
+| Path | What it is |
+|---|---|
+| `dash/main.py` | Flask: `AGENCY` / `CLIENT` config (the only place either name lives), `DATA_MODE`, the ported password gate, `/data.json`, `/healthz`. |
+| `dash/platform_sso.py` | Vendored SSO verifier every dashboard carries. Inert until `SSO_SECRET` + `CLIENT_KEY` are set. |
+| `design/login_reference.html` | **The approved login screen and the single source of truth for the login view** (countdown + card). Sync the three files below to it by overwriting, never merging. |
+| `dash/templates/login.html` | The login markup, ported from the reference: a real `<form>` posting to the Cloudflare-style `/login` route; a rejected password comes back with the error already visible server-side. |
+| `dash/static/js/login.js` | The reference's countdown (`START = 3_500_000`, `DURATION = 8_000`, `LOOP = false`) and card behaviour (show/hide, error clears on input, shake once on a server-rendered error). |
+| `dash/templates/dashboard.html` | The shell: purple field (topbar + hero), white panel, seven tab sections, footer. Jinja fills names from config. |
+| `dash/static/css/dashboard.css` | Brand tokens, 8pt scale, cards, controls, responsive rules. |
+| `dash/static/js/dashboard.js` | All rendering: filters, aggregation, reach model, Chart.js charts + four small data-only plugins, sortable tables (vendored from resetdata). |
+| `dash/static/img/` | `foodbank-logo.svg` (cream lockup, purple surfaces), `foodbank-logo-purple.png` (white surfaces), `favicon.png`, `thinkhq-logo-{cream,ink,white}.png`. |
+| `data/generate_sample.py` | The seeded generator (`SEED = 20260706`). Asserts every reconciliation invariant and prints the report. |
+| `data/foodbank_sample.json` | Its committed output. Never hand-edit; re-run the generator. |
+| `dash/Dockerfile`, `dash/requirements.txt` | Same image shape as every other client dash (python 3.12-slim + gunicorn). |
+| `deploy/deploy_foodbank.ps1` | One-shot preview standup (mirrors geyervalmont). **Prepared, not run.** |
+| `deploy/deploy_dash_foodbank.ps1` | Redeploy just the service after a UI edit (used for every redeploy so far). |
+| `dash/deploy_dash_foodbank.ps1` | Shim forwarding to the script above, because the ship flow (`Resolve-DeployPlan`) looks for `dash/deploy_dash_<c>.ps1`. Excluded from the image by `dash/.dockerignore`. |
+| `run.ps1` | The one-command local run. |
+| `screens/` | QA screenshots at 1440x900: `00-login.png`, `01-overview.png` ... `07-methodology.png` (+ login at 1280x800 and 390x844). |
+| `BUILD_NOTES.md` | Decisions, deviations from the brief, QA results and the preview -> live checklist. |
+
+## The campaign the data describes
+
+National awareness burst, 8 weeks, Mon 6 Jul to Sun 30 Aug 2026 (complete flight), A$185,000 net
+media across **Meta / YouTube / Programmatic**, six Foodbank regions (NSW-ACT, VIC, QLD, WA, SA-NT,
+TAS). Two moments the charts show: **week 3 (20-26 Jul)** the Hunger Report media moment
+(impressions + site visits spike) and **week 7 (17-23 Aug)** the partner appeal burst (donations +
+sign-ups spike, media flat). Anchor totals: 24.87M impressions, 5.1M de-duplicated reach, 4.9
+frequency, 54,200 site visits, 3,180 report downloads, 1,470 sign-ups, 624 donations at A$46.80.
+
+**Every number is illustrative.** The anchors are plausibility targets for a pitch, not verified
+benchmarks, and the dashboard says so (header chip, footer, Methodology tab).
+
+## What is real vs sample
+
+| Real | Sample |
+|---|---|
+| Brand kit (sampled from foodbank.org.au), logos, Think HQ attribution | Every figure on every tab |
+| Structure: 7 tabs, date range + channel filters, sortable tables | The campaign name, flight, budget and plan |
+| Metric definitions and attribution caveats (Methodology tab) | The two "moments" |
+| Channel model (Meta / YouTube / Programmatic, placements, creative naming convention) | Audience splits, creative results |
+| The password gate and session mechanism | |
+
+## Data contract (what a live job must emit)
+
+`data.json` top-level keys, matched by name in `dashboard.js`: `meta`, `channels[]`, `placements[]`,
+`creatives[]`, `plan`, `facts[]` (date x channel x placement x creative: spend, impressions, clicks,
+video_impressions, video_views, q25..q100, viewable_impressions - NULL where a platform does not
+measure it, never 0), `reach_daily[]`, `reach_model`, `reach_curve[]`, `site_daily[]` (sessions,
+engaged_sessions, engagement_time_sec, downloads, signups, donations, donation_value), `splits`,
+`totals` (a checksum the page reconciles against in the console). `data/generate_sample.py` is the
+contract written down as a working example; its docstring lists each key.
+
+## Flipping preview -> live (three steps)
+
+1. **Build the data path** for the three channels into `raw_windsor` / `raw_snowflake` (Meta via
+   `windsor-meta-ingest`, YouTube via the Google Ads DTS per-client transfer, the DSP via its
+   Windsor/Snowflake mirror), then a `client_foodbank` BigQuery dataset + `sql/` views + a
+   self-gating `job/main.py` (vendor `job/freshness.py`) that emits the contract above to
+   `gs://bidbrain-analytics-foodbank-dash/foodbank.json`.
+2. **Flip `DATA_MODE = "live"`** in `dash/main.py`. That is the only code edit: `/data.json` then reads
+   the bucket object instead of the sample file, and the sample chip, footer tag and methodology
+   note disappear because they all key off that one constant.
+3. **Stand it up**: run `deploy/deploy_foodbank.ps1` (creates bucket, SA, secrets, service), set the
+   client password in the super-admin console, and register a Think HQ agency + Foodbank tile in
+   the platform registry (`bidbrain-platform/dash/config.py`, the Transmission / Cloudflare pattern)
+   so it is reachable at dashboards.bidbrain.ai/d/foodbank/. Then add `foodbank` to
+   `status_dashboard/job/main.py` `BQ_CLIENTS` and update this client's row in `md/AGENTS.md`.
+
+## Clickable metric cards
+
+Cards with a small dot after their label are selectors. On the Overview, any hero figure or
+efficiency cell plots that metric as one line per channel on the daily chart; on Website and
+actions, any card becomes the trend line over the impression bars. Add a metric by adding an entry
+to `OV_METRICS` / `SITE_METRICS` in `dash/static/js/dashboard.js` and passing `{metric, group}` to
+`kpi()`; the registry entry reads one summed bucket, so rates are always parts-over-parts.
+
+## Motion kit
+
+This dashboard is on the shared **BB motion kit** (hover / press / focus vocabulary, ambient wash,
+scroll reveal, KPI count-up, chart replay). Canonical source `scripts/motion_kit/`; palette and
+target in `scripts/apply_motion_kit.py` (`CLIENTS["foodbank"]` + `EXTRA_TARGETS["foodbank"]`, which
+points at `dash/templates/dashboard.html`). Re-apply after a kit change with
+`.\.venv\Scripts\python.exe scripts\apply_motion_kit.py foodbank`; the four marked blocks in the
+template are overwritten on every run, so client-specific rules go in `static/css/dashboard.css`.
+Hooks the kit relies on here: tab panels are `.tabpanel` (never `.tab`, which the kit treats as a
+clickable tab), KPI values carry `.value`, hero figures are `.stat .v`, and `body` carries the page
+colour so the wash shows through the transparent `.panel`.
+
+## Gotchas
+
+- **Chart.js v4 hands back a truthy proxy for a plugin option that was never set.** `if (!opts)
+  return` inside a custom plugin is not a guard. Every plugin here requires an explicit string or
+  array option before it draws; without that, the value-label plugin painted numbers on every chart.
+- Asset URLs are **relative** (`static/...`, `logout`, `data.json`) so the same page works direct
+  and behind the platform proxy at `/d/foodbank/`.
+- `SESSION_COOKIE_SECURE` is on only on Cloud Run (`K_SERVICE`) or with `COOKIE_SECURE=1`; over
+  plain http a Secure cookie is never stored and login would loop.
+- The Docker build context is `dash/` only, so the deploy scripts copy `data/foodbank_sample.json`
+  into `dash/` for the build and remove it afterwards. `main.py` looks in `dash/` first, then `data/`.
+- Only one Think HQ file was supplied (black on white, not transparent). The cream / ink / white
+  wordmarks were derived from it (alpha from luminance, then filled). Fine at <=200px; not for print.
+
