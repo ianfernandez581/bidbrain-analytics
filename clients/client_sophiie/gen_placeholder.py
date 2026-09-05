@@ -32,13 +32,28 @@ TARGETS_DIR = os.path.join(HERE, "targets")
 random.seed(42)  # deterministic: re-running yields the identical file (clean diffs)
 
 # --- flight window ----------------------------------------------------------------------------
-# The REAL flight, matching targets/targets.csv + targets/budget.csv. DATA_THROUGH is deliberately a
-# few days in, so every pacing card reads "in progress" rather than "flight over" - a placeholder
-# seeded with an expired window makes every pacing card look failed (that is a live go-live blocker
-# on two other preview clients; md/AGENTS.md).
+# The REAL flight, matching targets/targets.csv + targets/budget.csv.
+#
+# DATA_THROUGH is DERIVED, never hardcoded. It has to sit a few days into the flight so every pacing
+# card reads "in progress" rather than "flight over" (a placeholder seeded with an EXPIRED window
+# makes every card look failed - a live go-live blocker on two other preview clients; md/AGENTS.md).
+# But a fixed date fails the other way just as badly: this was pinned to 2026-09-12 while the real
+# campaign had been live two days, so the sample showed 10 days and A$3,009 of delivery - a week of
+# it in the FUTURE - on a tile a client can open. Both failures are the same mistake, which is
+# pinning a date at all.
+#
+# So: YESTERDAY - the newest day an ad platform can actually have reported a full day for - capped at
+# the flight end. Only BEFORE the flight opens is there no honest "in progress" state to draw, and
+# only then does it fall back to a synthetic day 3. Do not apply that floor once the flight is
+# running: it pushed DATA_THROUGH to TODAY on day 3, which overstates delivery by a day again.
 FLIGHT_START = date(2026, 9, 3)
 FLIGHT_END = date(2026, 10, 3)
-DATA_THROUGH = date(2026, 9, 12)
+_YESTERDAY = date.today() - timedelta(days=1)
+DATA_THROUGH = (min(FLIGHT_START + timedelta(days=2), FLIGHT_END) if _YESTERDAY < FLIGHT_START
+                else min(_YESTERDAY, FLIGHT_END))
+# Days at the START of the flight that report ZERO attributed sign-ups, then a 4-day ramp to the
+# steady-state CVR. Display attribution simply does not land on day one.
+RAMP_DAYS = 5
 DAYS_TOTAL = (FLIGHT_END - FLIGHT_START).days + 1
 DAYS_ELAPSED = (DATA_THROUGH - FLIGHT_START).days + 1
 
@@ -132,7 +147,19 @@ def build_rows():
                 c_clicks = int(round(clicks * share))
                 # Sign-ups are drawn HERE, at creative grain, not apportioned from an ad-group
                 # total: at these counts, rounding a shared total loses ~40% of them.
-                c_sign = sum(1 for _ in range(c_clicks) if random.random() < ag["cvr"])
+                #
+                # ATTRIBUTION RAMP. A brand-new programmatic display prospecting campaign reports
+                # essentially NO attributed sign-ups in its first days - the pixel has to accumulate
+                # and the attribution windows have to close. Drawing them from day 1 made the sample
+                # claim 6 sign-ups at a A$61 CPA on day 2, i.e. 2.4x BETTER than the A$150 target,
+                # which sets a false expectation on a tile a client can open. It also meant the
+                # sample never exercised the zero-sign-up state - which is the state the dashboard
+                # will ACTUALLY be in on day one (KPIs read "-" and "none attributed yet", and the
+                # goal chart switches itself to cumulative impressions).
+                _dnum = (day - FLIGHT_START).days          # 0 on the first day of the flight
+                _ramp = 0.0 if _dnum < RAMP_DAYS else min(1.0, (_dnum - RAMP_DAYS + 1) / 4.0)
+                c_sign = (sum(1 for _ in range(c_clicks) if random.random() < ag["cvr"] * _ramp)
+                          if _ramp > 0 else 0)
                 # post-view carries most of the credit on a display buy, as it does in reality
                 pc = int(round(c_sign * 0.35))
                 rows.append({
@@ -178,7 +205,11 @@ def main():
             "data_through": f"{DATA_THROUGH.isoformat()}T21:40:00Z",
             "date_min": rows[0]["date"], "date_max": rows[-1]["date"],
             "row_count": len(rows),
-            "conversion_slots": ["click_conversion_01", "view_through_conversion_01"],
+            # Only the slots that ACTUALLY fired, matching what job/main.py emits: an empty list
+            # while nothing has converted. Hardcoding two reporting slots next to zero sign-ups
+            # made the sample contradict itself.
+            "conversion_slots": (["click_conversion_01", "view_through_conversion_01"]
+                                 if signups else []),
         },
         "flight": {
             "start": FLIGHT_START.isoformat(), "end": FLIGHT_END.isoformat(),
@@ -205,8 +236,11 @@ def main():
     print(f"wrote {OUT}")
     print(f"  {len(rows)} rows | {imps:,} imps | {clicks:,} clicks | {signups} sign-ups | "
           f"${spend:,.2f} spend")
+    # CPA is undefined until the first sign-up lands, which is the normal state for the first
+    # RAMP_DAYS of the flight - print a dash rather than dividing by zero.
+    _cpa = f"${spend/signups:,.2f}" if signups else "- (no sign-up attributed yet)"
     print(f"  CTR {clicks/imps:.4%} (target {CTR_T:.2%}) | CPC ${spend/clicks:,.2f} "
-          f"(target ${CPC_T:,.2f}) | CPA ${spend/signups:,.2f} (target ${CPA_T:,.0f})")
+          f"(target ${CPC_T:,.2f}) | CPA {_cpa} (target ${CPA_T:,.0f})")
 
 
 if __name__ == "__main__":
