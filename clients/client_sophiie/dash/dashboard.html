@@ -809,7 +809,6 @@
     <section id="tab-overview" class="tabpane">
       <div class="section first" data-eyebrow="The Trade Desk programmatic display &middot; all figures AUD">
         <h2>Sophiie AI <span class="t2">- sign-ups at an efficient cost</span></h2>
-        <span class="sub" id="introCopy"></span>
       </div>
 
       <div id="ovNorth">
@@ -1082,7 +1081,6 @@ window.DateRange = (function(){
 function rangeBounds(){const dmin=meta().date_min,dmax=meta().date_max;if(!dmin||!dmax)return[null,null];return [STATE.dateStart||dmin,STATE.dateEnd||dmax];}
 function inRange(d){const[a,b]=rangeBounds();if(!a||!b)return true;const s=String(d).slice(0,10);return s>=a&&s<=b;}
 function narrowed(){const[a,b]=rangeBounds();return !!(a&&b&&(a!==meta().date_min||b!==meta().date_max));}
-function rangeLabel(){const[a,b]=rangeBounds();return a&&b?`${fmtDate(a)} - ${fmtDate(b)}`:'all data';}
 function addDaysStr(iso,delta){const d=new Date(iso+'T00:00:00Z');d.setUTCDate(d.getUTCDate()+delta);return d.toISOString().slice(0,10);}
 function daysBetween(a,b){return Math.round((new Date(b+'T00:00:00Z')-new Date(a+'T00:00:00Z'))/86400000);}
 
@@ -1371,10 +1369,6 @@ function renderHeader(){
   $('topPeriod').textContent=`${fmtDate(f.start)} - ${fmtDate(f.end)}`;
   const notes={overview:'Sign-ups & efficiency',paid:'Delivery & efficiency',creative:'Creative library'};
   $('ctrlNote').textContent=notes[STATE.view]||'';
-  const a=agg(scoped());
-  const mk=[...new Set(ROWS().map(r=>r.market).filter(Boolean))].join(' · ')||'Australia';
-  const tiers=byTier(ROWS()).filter(t=>n(t.impressions)>0).length;
-  $('introCopy').innerHTML=`The Trade Desk programmatic display for <b>${safeName(campaignLabel())}</b> - a prospecting and retargeting buy in ${safeName(mk)} across ${tiers||4} audience ${tiers===1?'tier':'tiers'}, judged on <b>cost per sign-up</b>, <b>cost per click</b> and <b>CTR</b>. Showing <b>${rangeLabel()}</b> - ${compact(a.impressions)} impressions · ${int(a.clicks)} clicks · ${int(a.signups)} sign-ups · ${money(a.spend)} spend.`;
 }
 function renderPlaceholderBanner(){
   // Show the "sample data" banner + flip the topbar pill whenever the payload is the baked-in
@@ -1642,7 +1636,7 @@ function renderInsights(){
         if(n(a.spend)<cpaT)return `${base} - still under the ${money(cpaT,0)} CPA target, so it is too early to read.`;
         if(n(a.spend)<cpaT*2)return `${base} - about one ${money(cpaT,0)} CPA target's worth, so the first one is due about now.`;
         return `${base} - roughly ${Math.round(n(a.spend)/cpaT)}x the ${money(cpaT,0)} CPA target, so it is worth confirming the "Sign up" conversion is firing in The Trade Desk.`;})()},
-    {label:'Creative to protect',value:bestCr?safeName(bestCr.creative):'-',copy:bestCr?`CTR ${pctr(bestCr.ctr)} at ${money(bestCr.cpc,2)} CPC (${compact(bestCr.impressions)} impressions).`:'Waiting for a creative signal (5k+ impressions).'}
+    {label:'Creative to protect',value:bestCr?safeName(prettyCreative(bestCr.creative)):'-',copy:bestCr?`CTR ${pctr(bestCr.ctr)} at ${money(bestCr.cpc,2)} CPC (${compact(bestCr.impressions)} impressions).`:'Waiting for a creative signal (5k+ impressions).'}
   ];
   $('insightGrid').innerHTML=items.map(i=>`<article class="insight"><div class="label">${i.label}</div><div class="value">${i.value}</div><div class="copy">${i.copy}</div></article>`).join('');
 }
