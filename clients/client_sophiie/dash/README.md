@@ -9,10 +9,12 @@ your behalf. No password → you get nothing, and the data file cannot be reache
 charts and tabs live in one HTML file; this Python file decides **who** may see it, not **what** it
 shows.
 
-**Where this sits:** this client is in **PREVIEW** — there is no `../job/` yet, so `/data.json` serves
-the baked-in `placeholder.json` and `dashboard.html` draws every chart from that. Once an export job
-exists it will write `sophiie.json` to the private bucket, which `/data.json` prefers automatically
-and the sample banner clears itself. See [`../README.md`](../README.md) → FLIPPING PREVIEW → LIVE.
+**Where this sits:** the pipeline EXISTS and is deployed (`../sql/`, `../job/`, the `sophiie-export`
+job and its `*/10` scheduler). `/data.json` prefers the real `sophiie.json` in the private bucket and
+falls back to the baked-in `placeholder.json` while that bucket is empty - which it still is, because
+the Trade Desk advertiser `gjcl0pp` has not been granted to the Windsor connector yet. The export job
+refuses to publish an empty fact, so the sample stays up and the banner clears ITSELF on the first
+tick after real rows land. See [`../README.md`](../README.md) → GO-LIVE.
 
 ## What's in here
 
@@ -43,7 +45,7 @@ and the sample banner clears itself. See [`../README.md`](../README.md) → FLIP
 | `GET /data.json` | **The only data path.** 401 unless authenticated; then streams `sophiie.json` from the private bucket, falling back to the baked-in `placeholder.json` while the bucket is empty. The bucket stays private — the browser never touches it. |
 | `GET /<name>.jpg` | The three marble textures, by exact-name whitelist (never an arbitrary file read). **Public** - decorative, no client data. Cached a week. |
 | `GET /logo.png` | The mark. **Public** — the login page is itself unauthenticated and renders it. |
-| `GET /creative-img/<id>` | A Meta creative image cached in our bucket by the export job (a permanent copy that outlives Meta's signed CDN URL). Same auth as `/data.json`. Unused until the pipeline exists. |
+| `GET /creative-img/<id>` | Inherited from the Meta template. **Permanently unused on this client**: The Trade Desk reports creative NAMES and formats, never images, so the export job caches nothing and the Creative tab renders branded tiles instead. Kept only so the route does not 404 if an old link is followed. |
 | `POST /report` | **AI deck.** 401 unless authenticated; serves a cached report keyed by data version or calls `report.py`. Dormant until `enable_report_sophiie.ps1` has run. |
 | `GET /bb_deck.js` | The slide builder. Auth-gated (the deck reveals report content). |
 | `GET /healthz` | Liveness check. |
@@ -67,16 +69,23 @@ and strip count, never by darkening. One external chart library: Chart.js 4.5.0.
 **Sticky control bar:** the tab rail, a Looker-style date-range picker, funnel-stage chips, a search
 box, and CSV export ("this tab" / "all data"). Three tabs:
 
-1. **Overview** — the north-star KPI row (Meta enquiries · cost/enquiry · **qualified leads
-   (modelled)**, which wears the aurora gradient border · ad spend) over a delivery-quality row
-   (impressions/CPM · CTR · LP views · reach/frequency); delivery over time with axis + grain
-   toggles; budget pacing and progress-to-goal; the cumulative on-track-to-goal chart; the enquiry
-   funnel and spend-by-stage; audience and placement breakdowns; and an insight strip.
-2. **Paid Media** — performance vs targets by campaign, the cost-per-enquiry vs CTR efficiency map,
-   CPL over time, reach & frequency, video engagement, day-of-week, spend by ad set, budget burn,
-   the per-ad table with a thin-volume guard, and the creative-fatigue watch.
-3. **Creative** — the top 10 creatives by spend with real headline, copy and performance, and a
-   branded fallback tile for any ad whose Meta thumbnail link has expired.
+1. **Overview** — the KPI row (sign-ups · cost per sign-up · clicks · ad spend) over a
+   delivery-quality row (impressions · CTR · CPM · click-to-sign-up); delivery over time with axis
+   and grain toggles; budget pacing and progress-to-goal; the cumulative on-track-to-goal chart
+   (which shows IMPRESSIONS until the first sign-up is attributed, then switches itself); the
+   response funnel; spend by audience tier; performance by funnel stage; creative formats; and an
+   insight strip.
+2. **Paid Media** — performance vs targets by ad group, the CPC vs CTR efficiency map, CPC over
+   time, engagement over time, sign-ups over time (hidden until the first sign-up - a chart of zero
+   bars under a CPA target line reads as a failed campaign), day-of-week, spend by ad group, spend
+   vs delivery share, the per-creative table with a thin-volume guard, and the wear-out watch.
+   The four period charts follow the window via `trendPeriod()`, and their captions are written
+   from the same function so none can say "Weekly" over daily buckets.
+3. **Creative** — the top 10 creatives by spend as branded tiles carrying the real numbers.
+   **A creative serves across several ad groups** (all four, on this campaign), so the ad group
+   beside it is the one that carried most of its delivery and is labelled `+N more`; the same
+   resolution feeds the Paid Media tables, the CSV and the AI deck, so nothing on the page can
+   name a different ad group for the same creative.
 
 It fetches **one** payload from `/data.json` and renders everything client-side — see the JSON
 contract in [`../README.md`](../README.md) (and `../gen_placeholder.py`, which is that contract
@@ -84,6 +93,7 @@ written down as a working example until the job exists).
 
 Every dashboard also carries the **spend-multiplier shim** (`bbMultFor`/`bbApplySpendMult`), which
 grosses RAW spend by `window.BB_SPEND_MULT` per channel so the client sees what they were billed.
-Sophiie is Meta-only, so a single `meta` factor covers every row. Any new spend field or aggregate
+Sophiie is Trade Desk-only, so the single `ttd` factor covers every row (`bbMultFor('ttd')` - NOT
+`meta`, which is what the Meta template it was cloned from used). Any new spend field or aggregate
 must be grossed too, and CSV exports must keep filtering out the `_`-prefixed stash keys — they leak
 raw pre-markup spend otherwise.
