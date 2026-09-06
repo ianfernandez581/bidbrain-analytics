@@ -1004,16 +1004,22 @@ cards unchanged.
   once the FOLLOWING Monday has arrived (`weekClosed()` in `aggregate()`), applied to every week
   of the quarter so a closed quarter (Q2) is unchanged and there is no discontinuity. Same day
   after the change: TTD 1,428 (8 weeks to Sun 30 Aug), current pacing 116.3%; Q3 target 2,290,
-  QTD accepted 1,661 and overall 72.5% untouched. The card carries a methodology line naming the
-  basis ("recognised at week close: the N plan weeks completed to <date>; the week in progress
-  is not yet included") and the deck payload carries `ttd_basis`. **This is a deliberate,
+  QTD accepted 1,661 and overall 72.5% untouched. The deck payload carries `ttd_basis`. The card
+  USED to carry a methodology line naming the basis on screen; it was **REMOVED 2026-09-07** on
+  the client's instruction ("remove (weeks closed) and just have TTD target"), on BOTH lanes,
+  together with EMEA's "(weeks closed)" label qualifier - so the row now reads a plain "TTD
+  target" everywhere and NOTHING on screen states the basis. The rule itself did not move
+  (`weekClosed()` / `weekDueFraction()` untouched, figures identical); this README and
+  md/AGENTS.md are now the only record of what the number means, so keep them right.
+  `fmtDateShort()` and the `ttdWeeksClosed` / `ttdThrough` fields on `aggregate()` existed only
+  for that line and went with it. **This is a deliberate,
   client-directed EXCEPTION to the repo-wide "prorate a weekly target" rule** (md/AGENTS.md).
   **EMEA follows the SAME rule since the same day (client: "this should apply to EMEA too"):**
   `weekDueFraction()` now returns 1 for a closed plan week and 0 otherwise (it prorated before),
   so `cspdTopAgg` / `cscAgg` / the per-market "Due to date" bars all moved with no per-site edit;
   the prorated "Incl. week in progress" KPI, Leads-vs-target row and Progress row were REMOVED
   and EMEA's top cards now carry APJ's labels (Current pacing = vs weeks closed, Overall pacing =
-  vs the full flight target) plus the same methodology line; the Pacing detail weekly tile shows
+  vs the full flight target); the Pacing detail weekly tile shows
   '-' with "week in progress, day d of 7 - the week target is recognised at week close" for the
   in-progress week and sums CLOSED weeks only under "to date". Do not restore proration on
   either lane without the client. **Pacing chart bar width is ONE shared constant (2026-09-05):**
