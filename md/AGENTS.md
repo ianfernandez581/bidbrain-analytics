@@ -219,8 +219,9 @@ the same answer by coincidence. A proration bug is invisible that day. Always te
 BOTH lanes, not prorated** - the week in progress is excluded until every one of its days has passed
 (APJ: `weekClosed()` in `aggregate()`; EMEA: `weekDueFraction()` returns 1/0, feeding `cspdTopAgg`,
 `cscAgg` and the Pacing detail tiles - all in `clients/client_cloudflare/dash/dashboard.html`), and the
-cards say so in a methodology line. Do not "restore the standard" there without asking; see the client
-README.
+cards no longer say so ON SCREEN - the methodology footnote and EMEA's "(weeks closed)" label
+qualifier were removed 2026-09-07 at the client's request, so this doc + the client README are the only
+record of the basis. Do not "restore the standard" there without asking; see the client README.
 **And derive a flight from the seeded period starts, not from a stated end date** - cloudflare EMEA
 had three conflicting end dates (5 Nov / 31 Oct / 30 Sep) while its 13 week-start rows were
 unambiguous. First period start -> last period start + (period length - 1).

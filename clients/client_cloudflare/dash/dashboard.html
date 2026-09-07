@@ -3116,13 +3116,6 @@ function aggregate(filterFn) {
   };
   const ttdTarget = quarterTargets.filter(weekClosed)
     .reduce((s, r) => s + (Number(r.ALLOCATED_TARGET) || 0), 0);
-  // For the methodology line: how many plan weeks have closed, and the Sunday the last one
-  // ended on. Read off the SAME rows the figure is summed from, never re-derived from a date.
-  // PLAN weeks only (rows carrying target): a lead dated in the quarter's first days sits in a
-  // week before the plan's first Monday, which has closed but is not a target week.
-  const closedWeeks = [...new Set(quarterTargets.filter(r => weekClosed(r) && (Number(r.ALLOCATED_TARGET) || 0) > 0).map(r => weekStartISO(r.DAY)))].sort();
-  const ttdWeeksClosed = closedWeeks.length;
-  const ttdThrough = ttdWeeksClosed ? (() => { const d = new Date(closedWeeks[closedWeeks.length-1] + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + 6); return d.toISOString().slice(0,10); })() : null;
 
   // Time elapsed for pacing = progress through the same full quarter span (Q2 done -> 100%,
   // Q3 in progress -> partial), so the pace ratio compares like-for-like against q2Target.
@@ -3248,7 +3241,6 @@ function aggregate(filterFn) {
     breakdownTotal: breakdownLeads.length,  // accepted (+ unprocessed in dev mode); jtChart 'Other' fold
     leads: realLeads,                       // filtered real leads (accepted+rejected+new) for the dev lead table
     q2Target, ttdTarget, timePct,
-    ttdWeeksClosed, ttdThrough,             // week-close basis of ttdTarget (methodology line)
     weekly, daily, dailyFull, pacingDaily, solutions, countries, jobFunc, jobLevel, jobTitle, assets, regionRows
   };
 }
@@ -3480,10 +3472,14 @@ function renderLeadsTarget(agg) {
   document.getElementById('leadsTarget').classList.toggle('cspd-wide-lbl', topFromPacing());
   if (!agg.q2Target) { document.getElementById('leadsTarget').innerHTML = NO_TARGET_MSG; return; }
   const QL = periodLabel();
-  // EMEA (2026-08-31, Calvin): every target row and percentage names its BASIS. "TTD Target"
-  // is gone on this theatre - on a dashboard with a Trade Desk channel that abbreviation is
-  // a trap, and the unlabelled blend it carried is the top/pacing-detail contradiction. APJ
-  // keeps its original rows and wording byte-for-byte.
+  // EMEA (2026-08-31, Calvin): the percentages under these rows name their BASIS - on a
+  // dashboard with a Trade Desk channel the bare "TTD" abbreviation is a trap, and the
+  // unlabelled blend this row used to carry was the top/pacing-detail contradiction.
+  // The ROW LABEL is plain "TTD target" on BOTH lanes since 2026-09-07 (client: "remove
+  // (weeks closed) and just have TTD target"), and the week-close methodology footnote went
+  // with it on both. Only the on-screen note is gone - the week-close RULE behind the figure
+  // (weekClosed() / weekDueFraction()) is unchanged; do not read the plain label as a licence
+  // to restore proration.
   if (topFromPacing()) {
     // Week-close basis (2026-09-05): ONE due-to-date row, the target of the weeks that have
     // closed. The prorated "Incl. week in progress" row is gone by client instruction.
@@ -3492,13 +3488,10 @@ function renderLeadsTarget(agg) {
     const w = v => (v/maxV*100).toFixed(1);
     document.getElementById('leadsTarget').innerHTML = `
       <div class="progress-row"><div>${QL} target</div><div class="pbar gray"><div class="fill" style="width:${w(agg.q2Target)}%"></div></div><div style="text-align:right">${fmtN(agg.q2Target)}</div></div>
-      <div class="progress-row"><div>TTD target (weeks closed)</div><div class="pbar gray"><div class="fill" style="width:${w(cw)}%"></div></div><div style="text-align:right">${fmtN(cw)}</div></div>
+      <div class="progress-row"><div>TTD target</div><div class="pbar gray"><div class="fill" style="width:${w(cw)}%"></div></div><div style="text-align:right">${fmtN(cw)}</div></div>
       <div class="progress-row"><div>${toDateWord()} Accepted</div><div class="pbar"><div class="fill" style="width:${w(agg.accepted)}%"></div></div><div style="text-align:right">${fmtN(agg.accepted)}</div></div>
       <div style="font-size:12px;color:var(--cf-mute);margin-top:14px">
         Accepted to date is <b>${agg.q2Target ? (agg.accepted/agg.q2Target*100).toFixed(1) : '0'}%</b> of the ${QL.toLowerCase()} plan, <b>${cw ? (agg.accepted/cw*100).toFixed(1) : '0'}%</b> of the TTD target.
-      </div>
-      <div style="font-size:11.5px;color:var(--cf-mute);margin-top:6px">
-        Weekly target is recognised at week close: the TTD target is the ${agg.ttdWeeksClosed || 0} plan week${agg.ttdWeeksClosed === 1 ? '' : 's'} completed${agg.ttdThrough ? ' to ' + fmtDateShort(agg.ttdThrough) : ''}; the week in progress${agg.inProg && agg.inProg.day ? ' (day ' + agg.inProg.day + ' of 7)' : ''} is not yet included.
       </div>`;
     return;
   }
@@ -3510,16 +3503,7 @@ function renderLeadsTarget(agg) {
     <div class="progress-row"><div>${toDateWord()} Accepted</div><div class="pbar"><div class="fill" style="width:${w(agg.accepted)}%"></div></div><div style="text-align:right">${fmtN(agg.accepted)}</div></div>
     <div style="font-size:12px;color:var(--cf-mute);margin-top:14px">
       QTD accepted is <b>${agg.q2Target ? (agg.accepted/agg.q2Target*100).toFixed(1) : '0'}%</b> of ${QL} plan, <b>${agg.ttdTarget ? (agg.accepted/agg.ttdTarget*100).toFixed(1) : '0'}%</b> of TTD target.
-    </div>
-    <div style="font-size:11.5px;color:var(--cf-mute);margin-top:6px">
-      Weekly target is recognised at week close: the TTD target is the ${agg.ttdWeeksClosed || 0} plan week${agg.ttdWeeksClosed === 1 ? '' : 's'} completed${agg.ttdThrough ? ' to ' + fmtDateShort(agg.ttdThrough) : ''}; the week in progress is not yet included.
     </div>`;
-}
-// Short date for the methodology line ("Sun 30 Aug"). UTC so the label never slips a day.
-function fmtDateShort(iso){
-  const d = new Date(String(iso).slice(0,10) + 'T00:00:00Z');
-  if (isNaN(d)) return String(iso);
-  return d.toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short', timeZone:'UTC' });
 }
 
 function renderProgress(agg) {

@@ -1424,20 +1424,28 @@ BQ_CLIENTS = [
         "ingest_label": "Windsor (Meta) → raw_windsor.perf_meta",
         "raw_tables": ["raw_windsor.perf_meta"],
         "checks": [
-            # Meta-only. The ONLY raw filter is STARTS_WITH(campaign_name,'Geocon_') — no date floor,
-            # no account filter. rows[] IS the whole flight, so summing it == the raw aggregate.
+            # Meta-only. Scope MIRRORS client_geocon/sql/01_stg_meta.sql (2026-09-07): the 100% Digital
+            # ad account + campaign names that read `Geocon_` or `GG_` after an optional brief-number
+            # prefix (Northbourne Gateway names its Meta campaigns `0201_GG_...`, GG = Geocon Group).
+            # It was STARTS_WITH(campaign_name,'Geocon_') - Gateway Braddon's naming only - so from the
+            # day Northbourne's Meta line was admitted (2026-08-31) every one of these six checks went
+            # red against a CORRECT dashboard (leads 249 vs 178: the 71 Northbourne enquiries). The
+            # repo rule: a scope change in a view moves its accuracy check in the same change.
+            # No date floor. rows[] IS the whole flight, so summing it == the raw aggregate.
             {"label": "Meta · Leads", "kind": "sum", "group": "Meta (Facebook/Instagram)",
              "dash": _rows_sum("leads"),
              "sql": "SELECT SUM(leads) AS leads\n"
                     "FROM `bidbrain-analytics.raw_windsor.perf_meta`\n"
-                    "WHERE STARTS_WITH(campaign_name, 'Geocon_');",
+                    "WHERE account_id = '3754165911553001'\n"
+                    "  AND REGEXP_CONTAINS(REGEXP_REPLACE(TRIM(campaign_name), r'^[0-9]+_', ''), r'^(Geocon_|GG_)');",
              "note": "Meta-reported `leads` (not leads_website/leads_onfacebook/unique_leads). The prefix "
                      "filter is applied to the raw untrimmed campaign_name. vs sum(rows[].leads)."},
             {"label": "Meta · Reach", "kind": "sum", "group": "Meta (Facebook/Instagram)",
              "dash": _rows_sum("reach"),
              "sql": "SELECT SUM(reach) AS reach\n"
                     "FROM `bidbrain-analytics.raw_windsor.perf_meta`\n"
-                    "WHERE STARTS_WITH(campaign_name, 'Geocon_');",
+                    "WHERE account_id = '3754165911553001'\n"
+                    "  AND REGEXP_CONTAINS(REGEXP_REPLACE(TRIM(campaign_name), r'^[0-9]+_', ''), r'^(Geocon_|GG_)');",
              "note": "Reach is a de-duplicated audience and not truly additive, but the view AND the dash "
                      "both SUM it (documented convention), so the plain SUM reproduces the shown number. "
                      "vs sum(rows[].reach)."},
@@ -1445,25 +1453,29 @@ BQ_CLIENTS = [
              "dash": _rows_sum("lpv"),
              "sql": "SELECT SUM(landing_page_views) AS lpv\n"
                     "FROM `bidbrain-analytics.raw_windsor.perf_meta`\n"
-                    "WHERE STARTS_WITH(campaign_name, 'Geocon_');",
+                    "WHERE account_id = '3754165911553001'\n"
+                    "  AND REGEXP_CONTAINS(REGEXP_REPLACE(TRIM(campaign_name), r'^[0-9]+_', ''), r'^(Geocon_|GG_)');",
              "note": "Raw column landing_page_views (renamed lpv only in the JSON). vs sum(rows[].lpv)."},
             {"label": "Meta · Impressions", "kind": "sum", "group": "Meta (Facebook/Instagram)",
              "dash": _rows_sum("impressions"),
              "sql": "SELECT SUM(impressions) AS impressions\n"
                     "FROM `bidbrain-analytics.raw_windsor.perf_meta`\n"
-                    "WHERE STARTS_WITH(campaign_name, 'Geocon_');",
+                    "WHERE account_id = '3754165911553001'\n"
+                    "  AND REGEXP_CONTAINS(REGEXP_REPLACE(TRIM(campaign_name), r'^[0-9]+_', ''), r'^(Geocon_|GG_)');",
              "note": "vs sum(rows[].impressions)."},
             {"label": "Meta · Link clicks", "kind": "sum", "group": "Meta (Facebook/Instagram)",
              "dash": _rows_sum("link_clicks"),
              "sql": "SELECT SUM(link_clicks) AS link_clicks\n"
                     "FROM `bidbrain-analytics.raw_windsor.perf_meta`\n"
-                    "WHERE STARTS_WITH(campaign_name, 'Geocon_');",
+                    "WHERE account_id = '3754165911553001'\n"
+                    "  AND REGEXP_CONTAINS(REGEXP_REPLACE(TRIM(campaign_name), r'^[0-9]+_', ''), r'^(Geocon_|GG_)');",
              "note": "vs sum(rows[].link_clicks)."},
             {"label": "Meta · Clicks (all)", "kind": "sum", "group": "Meta (Facebook/Instagram)",
              "dash": _rows_sum("clicks"),
              "sql": "SELECT SUM(clicks) AS clicks\n"
                     "FROM `bidbrain-analytics.raw_windsor.perf_meta`\n"
-                    "WHERE STARTS_WITH(campaign_name, 'Geocon_');",
+                    "WHERE account_id = '3754165911553001'\n"
+                    "  AND REGEXP_CONTAINS(REGEXP_REPLACE(TRIM(campaign_name), r'^[0-9]+_', ''), r'^(Geocon_|GG_)');",
              "note": "vs sum(rows[].clicks)."},
         ],
     },
