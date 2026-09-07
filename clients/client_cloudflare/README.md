@@ -32,6 +32,7 @@ same Flask password gate MongoDB uses.
 | [`job/`](job/README.md) | **Export Job** (`cloudflare-export`): reads the BigQuery views → writes `cloudflare.json`. **No Snowflake** (BQ-only, like MongoDB). [Guide →](job/README.md) |
 | [`dash/`](dash/README.md) | **Web App** (`cloudflare-dash`): password gate + serves `dashboard.html` + proxies `/data.json`. Also carries its **own Feedback pill for DIRECT logins** (the front-door injects one only for sessions that come through it, and Cloudflare's people mostly hit the `…run.app` URL) — needs the one-time `dash/enable_feedback_cloudflare.ps1`. [Guide →](dash/README.md) |
 | [`sql/`](sql/README.md) | The BigQuery **model** views — staging (`stg_*`) → `paid_media_model`/`pacing_model`/etc. — over `raw_snowflake.*` + the `seed_*` static tables. [Guide →](sql/README.md) |
+| [`sql/20_cs_enriched_leads.sql`](sql/20_cs_enriched_leads.sql) | **Weekly Enriched Leads** (2026-09-07) — `cs_enriched_leads` (per-lead detail) + `cs_enriched_weekly` (week x campaign). Normalises the enriched-phone column's TWO sentinels (`'-'` and the literal `'NA'`) to NULL in ONE place. **Local only — not deployed.** [Detail ↓](#weekly-enriched-leads-2026-09-07-client-request---local-only-not-deployed) |
 | [`create_views.py`](create_views.py) | Applies every `sql/*.sql` view (runner; `NN_` prefix = dependency order). |
 | `data/` | Local CSV snapshots of the three STATIC Snowflake tables (pacing targets, account tiers, LINE JP). **Gitignored** (`clients/*/data/`) — `TIERS` is sensitive client ABM data — so it's NOT in the repo; regenerate with `pull_static.py`. The live seeds persist in BigQuery (`seed_*`). |
 | [`pull_static.py`](pull_static.py) | **One-time** Snowflake → `data/*.csv` pull (manual; needs the Snowflake key; re-run on a fresh checkout or when a static upload changes). **⚠️ The Q2 pacing targets in `seed_real_targets` were rebalanced on 2026-06-19 directly in BQ + `data/real_targets.csv` (grand total unchanged at 3216; regional split updated to the client's new Phase×Region table — see git log). The Snowflake `CLOUDFLARE_SANDBOX.CS_REPORTING.REAL_TARGETS` source was NOT updated, so re-running `pull_static.py` will REVERT this. Update Snowflake first, or skip the real_targets pull.** |
@@ -42,6 +43,151 @@ same Flask password gate MongoDB uses.
 > There is **no** one-shot `deploy_cloudflare.ps1` for this client — it was stood
 > up via the manual order in [One-time replicate / deploy order](#one-time-replicate--deploy-order)
 > below. (Only STT has a one-shot stand-up script, `clients/client_STT/deploy_stt.ps1`.)
+
+## Weekly Enriched Leads (2026-09-07, client request) - LOCAL ONLY, NOT DEPLOYED
+
+A **Weekly Enriched Leads** tab on the Core DG APJ lane: how many CS leads arrive carrying an
+**enriched phone number** on top of the `PHONE` every lead already has, by week, for the five
+campaign IDs Transmission enabled enrichment on.
+
+**Status: built and verified on localhost only. Nothing is deployed.** The two BigQuery views ARE
+applied (they are additive and nothing else reads them), but `cloudflare-export` has NOT been run,
+so the live `cloudflare.json` carries no `cs_enriched` block and the tab does not appear in
+production. See "To ship it" below.
+
+### The contract
+
+    sql/20_cs_enriched_leads.sql   ->   job/main.py            ->   dash/dashboard.html
+      cs_enriched_weekly                  env["cs_enriched"]          CSE / renderEnriched()
+        WEEK_START                          weekly[].week_start         byWeek key, "w/c <date>"
+        CAMPAIGN_ID                         weekly[].campaign_id        #enrCampaign scope
+        CAMPAIGN                            weekly[].campaign           dropdown label
+        LEAD_COUNT                          weekly[].lead_count         Leads column
+        ENRICHED_COUNT                      weekly[].enriched_count     Enriched column
+        ENRICHMENT_RATE                     weekly[].enrichment_rate    (row grain only)
+      cs_enriched_leads (detail)          detail[]                    #enrDetailTbl
+        DAY / CAMPAIGN / PHONE              day / campaign / phone
+        ENRICHED_PHONE                      enriched_phone
+
+### The trap: the column has TWO empty sentinels, and neither is NULL
+
+`ENRICHED_PHONE_NUMBER` writes **`'-'`** AND the literal string **`'NA'`** for "not enriched".
+At 2026-09-07, of 1,923 in-scope leads: 1,427 are `'-'`, 132 are `'NA'`, 363 are real numbers,
+and **zero are NULL or blank**.
+
+- `WHERE ENRICHED_PHONE_NUMBER IS NOT NULL` counts **every** lead as enriched -> 100%.
+- Handling only `'-'` is the more dangerous near-miss. It looks right, it reconciles against the
+  ~74% figure quoted in the request thread, and it still **overstates enrichment by 36%**
+  (495 vs the true 363). It reported w/c 31 Aug as **111/111 = 100%** on a week that actually
+  enriched 45 of 111 (40.5%).
+
+So the test is: not a known sentinel **AND contains at least one digit**. The digit rule is the
+backstop that makes the next unannounced sentinel (`'N/A'`, `'None'`, a stray `'--'`) fail CLOSED
+instead of inflating the rate. All 363 real values are E.164-shaped; none is lost to it.
+
+**Normalised ONCE, in the view.** `ENRICHED_PHONE` is either a real number or NULL, so the job and
+the dashboard do a plain `IS NOT NULL` and cannot get it wrong. Adding a third sentinel is a
+one-line edit in `sql/20`, not a hunt through three layers. **Do not re-test the sentinel in the
+browser** - that is how two layers come to disagree about what "enriched" means.
+
+### Other decisions worth knowing
+
+- **Bucketed on `DAY`, never `DT_CREATED`.** `DT_CREATED` is the Snowflake bulk-load instant and
+  stamps every row identically, so it would collapse the whole flight into one week. Same trap
+  already documented for `14_cf1_cs`.
+- **Scoped by the five CAMPAIGN_IDs, not by name.** Two of the five carry a **byte-identical**
+  `CAMPAIGN` string and are told apart only by id - which is also why the tab's campaign dropdown
+  appends the id tail, or it would show what looks like the same option twice.
+- **Transmission test leads ARE excluded**, with the predicate character-for-character identical to
+  `sql/10`, `sql/14` and `sql/16`. This is **not** a no-op here: 9 of the 1,932 raw in-scope leads
+  are test leads, so without it this panel would report 9 more leads for the same period than every
+  other CS figure on the dashboard - exactly how the APJ KPI strip and Pacing detail came to
+  disagree. That makes it the **fifth** copy of that predicate; they all move together.
+- **ISO week (Monday start)**, matching every other CS weekly surface (`17_cs_pacing_v2`).
+- **Rates are re-derived from the two counts** at whatever scope is selected, never averaged across
+  campaigns - a rate is not additive. `ENRICHMENT_RATE` on the view is for the row's own grain only.
+- **A week with leads but no enrichment prints a real `0.0%`**; a week with no leads prints `-`.
+  Enrichment began w/c 14 Jul, and the earlier weeks are shown at 0% rather than hidden, so the
+  start of the feed stays visible instead of looking like missing data.
+- **Whole flight - the shared date picker is hidden on this tab** (`PROGRAMS.core.dateControl` now
+  lists the five tabs it drives). Listing them is a strict no-op for the others; an absent
+  `dateControl` means "show everywhere", which would have put a control over a panel it cannot move.
+- **Data-gated** via `PROGRAMS.core.tabsWhenData.enriched` -> `hasEnrichedData()`. On an older cached
+  JSON the tab does not appear and the rail is byte-identical to the old four-tab one. It is a check
+  for the NEW block, not a filter over an existing one, so "no enrichment data" can never be
+  confused with "enrichment broke".
+- **The detail read is filtered to enriched rows in the JOB, not the browser.** The panel only ever
+  lists enriched leads, and shipping the ~1,560 non-enriched rows would put lead phone numbers in
+  the payload for no rendered purpose.
+- **The job WARNs on 0 weekly rows** (caltex pattern) and asserts the detail row count equals the
+  weekly enriched total - if those two reads of one view disagree, the summary and its own
+  drill-down contradict each other.
+
+### One predicate for the date range: picker, banner AND footer (fixed here)
+
+Hiding the date PICKER on a whole-flight tab is not enough. Two other surfaces announce the range
+independently, and both were still claiming it applied:
+
+- the **scope banner** (`#dateScopeNote`) - it read *"Filtered to 2026-07-01 - 2026-09-06. KPIs ...
+  reflect this range"* directly above this panel's own note saying the picker does not apply. Caught
+  by the first screenshot, not by any test.
+- the **footer's "Filtered to ..." line** - and `setLiveBanner` is only called at boot and on a range
+  change, so it kept whichever tab's answer was current when the page loaded.
+
+All three now derive from **one** function, `dateScopeApplies()`, over `laneCfg().dateControl`, and
+`switchTab` re-runs `setLiveBanner` so the footer can follow the tab. **Verified a strict no-op on
+every existing core tab** (picker and banner still shown on Paid Media / Content Syndication /
+CS Comparison / QoQ / Internal Notes). The general rule: *a range that does not apply must be
+withheld everywhere it is stated, and that means deriving all of those statements from one place.*
+
+### Known, NOT fixed: countUp ignores prefers-reduced-motion
+
+`countUp` (the KPI figure animation in the motion layer, ~line 8383) is called from `onIntersect`
+with **no `REDUCED` guard**, unlike `growBars` and `replayChart` which both have one - so KPI
+figures still count up under `prefers-reduced-motion: reduce`, despite this file's own comment
+saying every animation is switched off wholesale there. **Harmless in outcome** (the last frame
+writes the original string back verbatim, so the resting value is always exact), but it is an
+accessibility promise the code does not keep, and it is a one-line fix -
+`el.querySelectorAll(COUNT_SEL).forEach(countUp);` needs the same `if (REDUCED) return;`.
+Left alone deliberately: it affects every KPI on every tab of this dashboard, so it wants its own
+change and its own verification, not a drive-by edit inside this feature.
+It also makes headless screenshots misleading - a capture taken mid-animation shows every figure at
+the same fraction of its true value (1,249 of 1,923, 236 of 363 and 12.3% of 18.9% are all 0.65),
+which reads as a summary that disagrees with its own table. Suppress it for a capture by stamping
+`dataset.bbCount = '1'` on the `COUNT_SEL` elements rather than waiting on the 780ms rAF loop.
+
+### PII - decide this before it goes to the client
+
+The detail table renders **`PHONE` and the enriched phone per lead**, which is a step beyond
+anything else client-facing on this dashboard: `sql/16` deliberately drops name/email/phone and
+aggregates job title to a count, and the existing per-lead PII table is **dev-only** (`renderLeadDetail`,
+hidden outside Admin View). This tab is currently visible to any authenticated session on the lane.
+It was built as asked, but if the enriched-lead list should be staff-only, gate the card on
+`window.BB_INTERNAL` the way `#txNotesCard` is - a one-line change.
+
+### Verified 2026-09-07 (localhost)
+
+- `ENRICHED_PHONE_NUMBER` present in `raw_snowflake.salesforce_cs_apac_all` (29 columns).
+- Views reconcile exactly: **1,923 leads / 363 enriched (18.88%)**, 22 weeks, 5 campaigns.
+  `cs_enriched_weekly` sums to `cs_enriched_leads` on both counts; every `WEEK_START` is a Monday;
+  no sentinel and no digit-free value survives into `ENRICHED_PHONE`.
+- Render tested under Node against the real payload (21 assertions): KPI strip, weekly table +
+  pinned Total row, all 363 detail rows, summary-vs-detail agreement, per-campaign scoping with a
+  re-derived rate, zero-enrichment weeks printing `0.0%`, and no throw on an absent block.
+- Tab rail + date-picker gating tested: tab appears with data, hidden without, slots between
+  Quarter on Quarter and Internal Notes, picker hidden here and unchanged on all five other tabs.
+- `scripts/_validate_dash_js.py` clean (`node --check`).
+
+### To ship it
+
+1. `python clients/client_cloudflare/create_views.py` (or apply `sql/20_cs_enriched_leads.sql`) -
+   already applied in BigQuery as of 2026-09-07.
+2. `clients/client_cloudflare/job/deploy_job_cloudflare.ps1` - the payload gained a key.
+3. `clients/client_cloudflare/dash/deploy_dash_cloudflare.ps1`.
+4. Force one job run, since a view-only change does not trip the freshness gate:
+   `gcloud run jobs execute cloudflare-export --region australia-southeast1 --update-env-vars FORCE_REBUILD=1 --wait`
+5. Add the row for this to the client table in `md/AGENTS.md` (deliberately left untouched - this
+   work was scoped to `clients/client_cloudflare/`).
 
 ## Google Ads — the 5th paid channel (added 2026-08-11)
 

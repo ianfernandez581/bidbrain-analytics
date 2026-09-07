@@ -995,6 +995,9 @@
         <button class="tab" data-tab="main" onclick="switchTab('main')">Content Syndication</button>
         <button class="tab" data-tab="compare" onclick="switchTab('compare')">CS Comparison</button>
         <button class="tab" data-tab="qoq" onclick="switchTab('qoq')">Quarter on Quarter</button>
+        <!-- Data-gated (see PROGRAMS.core.tabsWhenData): appears only once the payload carries a
+             cs_enriched block, so an older cached JSON degrades to exactly the old rail. -->
+        <button class="tab" data-tab="enriched" onclick="switchTab('enriched')">Weekly Enriched Leads</button>
         <!-- Dev only (admin / Transmission): internal notes + the source-table inventory. Hidden for clients.
              Renamed from "Data from Transmission" 2026-08-05; the notes UI itself is platform-injected
              into #bbNotesMount (superadmin / agency sessions through dashboards.bidbrain.ai). -->
@@ -1070,6 +1073,67 @@
         <div class="card-head"><div><h3>Lead status mix</h3><div class="hint">Accepted / Rejected - Q3-to-date vs Q2 same period.</div></div></div>
         <div class="qoq-heatscale">Fewer <span class="grad"></span> more leads</div>
         <div id="qoqStatusBars"></div>
+      </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- WEEKLY ENRICHED LEADS TAB                                     -->
+    <!-- Client request 2026-09-07. Reads cs_enriched (sql/20 ->        -->
+    <!-- job/main.py "cs_enriched"). Whole-flight: the shared date      -->
+    <!-- picker is hidden on this tab (PROGRAMS.core.dateControl),      -->
+    <!-- because nothing here is range-driven and a control that        -->
+    <!-- changes nothing on screen is worse than no control.            -->
+    <!-- ============================================================ -->
+    <div class="panel hidden" id="panel-enriched">
+      <div class="qoq-note">
+        <b>Weekly enriched leads</b> - Content-Syndication leads that arrived with an <b>enriched
+        phone number</b> on top of the <b>PHONE</b> every lead already carries. Scoped to the
+        <b>five campaign IDs</b> Transmission enabled enrichment on, bucketed by <b>lead date</b>
+        (ISO week, Monday start). <b>Whole flight</b> - the date picker above does not apply here.
+        <br><span style="color:var(--cf-mute)">Enrichment began <b id="enrFirst">-</b>; weeks before
+        that are shown at 0% rather than hidden, so the start of the feed stays visible.
+        A value counts as enriched only if it is a real number - the source writes
+        <b>&quot;-&quot;</b> and the literal string <b>&quot;NA&quot;</b> for &quot;not
+        enriched&quot;, and both are excluded.</span>
+      </div>
+
+      <div class="kpis" id="enrKpis" style="grid-template-columns:repeat(4,1fr)"></div>
+
+      <div class="card" style="margin-top:14px">
+        <div class="card-head">
+          <div><h3>Weekly summary</h3>
+          <div class="hint">Leads, enriched leads and the enrichment rate per week. The rate is
+            re-derived from the two counts at whichever scope is selected, never averaged across
+            campaigns.</div></div>
+          <div>
+            <select id="enrCampaign" class="dash-select" onchange="renderEnriched()"
+                    style="max-width:340px"></select>
+          </div>
+        </div>
+        <div style="overflow:auto">
+          <table class="qoq-table bb-sortable" id="enrWeeklyTbl">
+            <thead><tr>
+              <th>Week</th><th class="num">Leads</th><th class="num">Enriched</th>
+              <th class="num">Enrichment rate</th>
+            </tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:14px">
+        <div class="card-head">
+          <div><h3>Enriched leads</h3>
+          <div class="hint" id="enrDetailHint">Only the leads that actually enriched.</div></div>
+        </div>
+        <div style="overflow:auto;max-height:560px">
+          <table class="qoq-table bb-sortable" id="enrDetailTbl">
+            <thead><tr>
+              <th>Day</th><th>Campaign</th><th>Phone</th><th>Enriched phone</th>
+            </tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
       </div>
     </div>
 
@@ -1901,6 +1965,7 @@
 // ==========================================================================
 const JSON_URL = '/data.json';   // single combined payload, served (gated) by the Flask app
 let COMBINED = null;             // { last_updated, paid_media:{...}, pacing:{...} }
+let CSE = null;                  // cs_enriched: { weekly:[], detail:[] } - Weekly Enriched Leads
 // CS market universe = the COARSE 7 markets (2026-07-07 grain: rolled back UP from the 2026-06-25
 // 11-chip split at the client's request, so CS markets match the paid-media L3 grain 1:1 -
 // ANZ = AU+NZ, ASEAN = SG/MY/ID/TH/VN/PH, GCR = CN/TW/HK). KR = Korea in the 6 El* campaigns;
@@ -2699,6 +2764,9 @@ async function boot() {
     // universe one grain finer (day x market x country x asset). Absent on an older JSON, in
     // which case the Comparison tab simply does not appear on that lane (see emeaHasCompare).
     CSC_ROWS = (COMBINED.cs_compare && COMBINED.cs_compare.rows) || [];
+    // "Weekly Enriched Leads" (2026-09-07). Absent on an older JSON, in which case the tab
+    // never appears (PROGRAMS.core.tabsWhenData -> hasEnrichedData).
+    CSE = COMBINED.cs_enriched || null;
 
     // Date-range picker bounds = the UNION of both core windows:
     // CS lead dates (rawRows non-dummy DAY) ∪ paid-delivery window (paid_media.window).
@@ -2763,8 +2831,11 @@ function setLiveBanner(lastUpdated, rowCount) {
     if (!latestDay || d > latestDay) latestDay = d;
   }
   const dataThrough = latestDay ? ` · Source data through <b style="color:#fff">${latestDay}</b>` : '';
-  // Echo the active date filter when narrowed so the banner doesn't contradict it.
-  const rangeText = narrowed() ? ` · Filtered to <b style="color:#fff">${rangeStart} → ${rangeEnd}</b>` : '';
+  // Echo the active date filter when narrowed so the banner doesn't contradict it - but ONLY
+  // on a tab the range actually drives (dateScopeApplies), or the footer prints "Filtered to
+  // ..." underneath a whole-flight panel that ignores it.
+  const rangeText = (narrowed() && dateScopeApplies())
+    ? ` · Filtered to <b style="color:#fff">${rangeStart} → ${rangeEnd}</b>` : '';
   document.getElementById('footer').innerHTML = `Live data · Updated <b style="color:#fff">${luText}</b>${dataThrough}${rangeText} · Auto-refreshes within ~10 min of new Snowflake data`;
 }
 
@@ -2827,12 +2898,21 @@ function renderQoQ(){
 // true/undefined (every tab), false (none), or a list of tab keys - see PROGRAMS.core_emea.
 // A control that changes nothing on screen is worse than no control, and one that is missing
 // from a tab it DOES drive is worse still, so this is derived rather than set by hand.
+// Does the shared date range apply to the tab currently on screen? THE single source of
+// truth for the picker, the scope banner and the footer's "Filtered to" line. It used to be
+// inlined in applyDateControl only, so the picker could be hidden on a tab while the banner
+// and footer still announced a filter for it - which is what shipped on Weekly Enriched
+// Leads (whole-flight) until the first screenshot showed the banner contradicting the
+// panel's own note. Three surfaces, one answer.
+function dateScopeApplies(){
+  const dc = laneCfg().dateControl;
+  return Array.isArray(dc) ? dc.indexOf(activeTab) >= 0 : dc !== false;
+}
+
 function applyDateControl(){
   const dpEl = document.getElementById('dateRange');
   if (!dpEl) return;
-  const dc = laneCfg().dateControl;
-  const show = Array.isArray(dc) ? dc.indexOf(activeTab) >= 0 : dc !== false;
-  dpEl.style.display = show ? '' : 'none';
+  dpEl.style.display = dateScopeApplies() ? '' : 'none';
 }
 
 function switchTab(tab) {
@@ -2842,8 +2922,10 @@ function switchTab(tab) {
   document.getElementById('panel-compare').classList.toggle('hidden', tab !== 'compare');
   document.getElementById('panel-paid').classList.toggle('hidden', tab !== 'paid');
   document.getElementById('panel-qoq').classList.toggle('hidden', tab !== 'qoq');
+  document.getElementById('panel-enriched').classList.toggle('hidden', tab !== 'enriched');
   document.getElementById('panel-txdata').classList.toggle('hidden', tab !== 'txdata');
   if (tab === 'qoq') renderQoQ();
+  if (tab === 'enriched') renderEnriched();
   if (tab === 'txdata') renderTxData();
   if (tab === 'compare') {
     if (document.getElementById('regionA').value) renderComparePanel('A');
@@ -2855,6 +2937,10 @@ function switchTab(tab) {
   }
   applyDateControl();
   renderDateScope();
+  // The footer's range note is per-tab now, and setLiveBanner is otherwise only called at
+  // boot and on a range change - so without this it would keep whichever tab's answer was
+  // current when the page loaded.
+  setLiveBanner(COMBINED && COMBINED.last_updated, rawRows.length);
 }
 
 // Re-render whichever core tab is active after the date range changes (no single
@@ -2876,6 +2962,13 @@ function applyDateRange(){
 function renderDateScope(){
   const note = document.getElementById('dateScopeNote');
   if (!note) return;
+  // The banner follows the SAME source of truth as the picker itself (laneCfg().dateControl),
+  // never a second hand-maintained tab list - or a tab that hides the CONTROL can still carry a
+  // banner claiming the range applies to it. That is exactly what shipped on Weekly Enriched
+  // Leads, which is whole-flight: the banner read "KPIs ... reflect this range" directly above
+  // that panel's own note saying the picker does not apply to it. Deriving it means a new tab
+  // can only ever get this right.
+  if (!dateScopeApplies()){ note.style.display = 'none'; return; }
   // Under a theatre the legacy CS model does not cover, every range-driven block on
   // this tab is hidden (see applyRegionPanelScope), so this banner would be describing
   // KPIs, donuts and charts that are not on screen. The Pacing detail section that IS
@@ -5889,7 +5982,17 @@ const PM_CF='#F38020', PM_CFs='#FBAD41', PM_LI='#3B93E8', PM_RD='#FF6A3D',
 const PROGRAMS = {
   core: {
     prog: 'CORE_DG', label: 'Core DG APJ', theatre: 'APAC',
-    tabs: ['paid','main','compare','qoq','txdata'], plans: true, note: ''
+    tabs: ['paid','main','compare','qoq','txdata'], plans: true, note: '',
+    // Weekly Enriched Leads slots in BEFORE Internal Notes, so the rail keeps a stable shape.
+    tabOrder: ['paid','main','compare','qoq','enriched','txdata'],
+    // Data-gated: enrichment is a NEW payload block (2026-09-07), so an older cached JSON
+    // renders exactly the old four-tab rail instead of an empty tab.
+    tabsWhenData: { enriched: () => hasEnrichedData() },
+    // The shared date control drives every tab EXCEPT `enriched`, which is whole-flight and
+    // weekly by definition. Listing the tabs explicitly is a strict no-op for the other five
+    // (an absent dateControl means "show everywhere"), and it stops the picker appearing over
+    // a panel it cannot move.
+    dateControl: ['paid','main','compare','qoq','txdata']
   },
   // Core DG EMEA - the same brief, the other theatre. Content Syndication ONLY: no EMEA ad
   // accounts are connected, and it launched 2026-08-07 so there is no prior quarter, hence
@@ -7613,6 +7716,166 @@ function switchDashboard(val){
 //
 // APJ is unaffected: its lane declares its five tabs explicitly and laneTabs() returns them
 // untouched, so this can only ever ADD to a lane that opted in via `tabsWhenData`.
+// ==========================================================================
+// WEEKLY ENRICHED LEADS (2026-09-07, client request)
+//
+// Reads the cs_enriched payload block: `weekly` (one row per week x campaign) and `detail`
+// (one row per lead that actually enriched). Contract:
+//   sql/20_cs_enriched_leads.sql  ->  job/main.py "cs_enriched"  ->  here.
+//
+// THE SENTINEL TEST IS NOT REPEATED HERE, deliberately. The view normalises '-' and the literal
+// 'NA' (and anything carrying no digit) to NULL, so `enriched_phone` is either a real number or
+// absent, and `enriched_count` is already the honest count. Re-testing it in the browser is how
+// two layers end up disagreeing about what "enriched" means.
+// ==========================================================================
+
+// Does the payload carry the block at all? A check for the NEW block, not a filter over an
+// existing one - so "no enrichment data" can never be confused with "enrichment broke".
+function hasEnrichedData(){
+  const e = (typeof COMBINED !== 'undefined' && COMBINED && COMBINED.cs_enriched) || null;
+  return !!(e && e.weekly && e.weekly.length);
+}
+
+// The campaign scope for this tab only (its own control - the topbar lane dropdown and the
+// Paid Media chips do not reach it). Empty string = every campaign in scope.
+let enrCampaignSel = '';
+
+// Rows for the current selection. ONE predicate behind the KPIs, the weekly table and the
+// detail list, so the three can never describe different scopes.
+function enrWeeklyRows(){
+  const w = (CSE && CSE.weekly) || [];
+  return enrCampaignSel ? w.filter(r => r.campaign_id === enrCampaignSel) : w;
+}
+function enrDetailRows(){
+  const d = (CSE && CSE.detail) || [];
+  return enrCampaignSel ? d.filter(r => r.campaign_id === enrCampaignSel) : d;
+}
+
+// Campaign labels. Two of the five campaigns share a byte-identical CAMPAIGN string and are
+// told apart ONLY by id, so the id tail is appended - otherwise the dropdown shows what looks
+// like the same option twice and picking either feels broken.
+function enrCampaignLabel(r){
+  const name = r.campaign || r.campaign_id || '(unnamed)';
+  return name + '  [' + String(r.campaign_id || '').slice(-6) + ']';
+}
+
+function enrFillCampaignSelect(){
+  const sel = document.getElementById('enrCampaign');
+  if (!sel) return;
+  const seen = {}, opts = [];
+  for (const r of ((CSE && CSE.weekly) || [])){
+    if (!r.campaign_id || seen[r.campaign_id]) continue;
+    seen[r.campaign_id] = 1;
+    opts.push({ id: r.campaign_id, label: enrCampaignLabel(r) });
+  }
+  opts.sort((a,b) => a.label.localeCompare(b.label));
+  // Rebuilt on every render, so preserve the selection rather than resetting it to "all".
+  const keep = sel.value;
+  sel.innerHTML = '<option value="">All ' + opts.length + ' campaigns</option>'
+    + opts.map(o => '<option value="' + esc(o.id) + '">' + esc(o.label) + '</option>').join('');
+  if (keep && opts.some(o => o.id === keep)) sel.value = keep;
+  enrCampaignSel = sel.value || '';
+}
+
+function renderEnriched(){
+  if (!document.getElementById('panel-enriched')) return;
+  enrFillCampaignSelect();
+
+  const weekly = enrWeeklyRows();
+  const detail = enrDetailRows();
+
+  // Sum the two COUNTS per week, then derive the rate. Never average the per-campaign rates:
+  // a rate is not additive (repo-wide rule), and under "All campaigns" the mean of five rates
+  // is not the rate of the five campaigns combined.
+  const byWeek = {};
+  for (const r of weekly){
+    const k = r.week_start; if (!k) continue;
+    const o = byWeek[k] || (byWeek[k] = { leads: 0, enriched: 0 });
+    o.leads    += (+r.lead_count || 0);
+    o.enriched += (+r.enriched_count || 0);
+  }
+  const weeks = Object.keys(byWeek).sort();
+  const totL = weeks.reduce((a,k) => a + byWeek[k].leads, 0);
+  const totE = weeks.reduce((a,k) => a + byWeek[k].enriched, 0);
+
+  // The first week that actually enriched anything - the honest start of the feed. Null while
+  // nothing has enriched, in which case say so rather than printing a date.
+  const firstEnr = weeks.find(k => byWeek[k].enriched > 0) || null;
+  const fe = document.getElementById('enrFirst');
+  if (fe) fe.textContent = firstEnr ? ('w/c ' + firstEnr) : 'not yet';
+
+  // KPI strip. The rate is derived from the two totals on screen, so it can never disagree
+  // with the Total row of the table below it.
+  const kpi = (label, val, sub, cls) =>
+    '<div class="kpi' + (cls ? ' ' + cls : '') + '"><span class="stripe"></span>'
+    + '<div class="label">' + label + '</div><div class="value">' + val + '</div>'
+    + '<div class="delta">' + sub + '</div></div>';
+  const rate = totL ? totE / totL : null;
+  const k = document.getElementById('enrKpis');
+  if (k) k.innerHTML =
+      kpi('Leads in scope', fmtNum(totL), weeks.length + ' week' + (weeks.length === 1 ? '' : 's'))
+    + kpi('Enriched leads', fmtNum(totE), 'with a real phone number', 'accent')
+    + kpi('Enrichment rate', (rate == null ? '-' : fmtPct2(rate, 1)),
+          (rate == null ? 'no leads in scope' : fmtNum(totE) + ' of ' + fmtNum(totL)))
+    + kpi('Not enriched', fmtNum(totL - totE), 'dash or NA in the feed', 'warn');
+
+  // ---- weekly table -------------------------------------------------------
+  const tb = document.querySelector('#enrWeeklyTbl tbody');
+  if (tb){
+    if (!weeks.length){
+      tb.innerHTML = '<tr><td colspan="4" style="color:var(--cf-mute)">'
+        + 'No leads for this campaign selection.</td></tr>';
+    } else {
+      let h = '';
+      for (const wk of weeks){
+        const o = byWeek[wk];
+        // A week with leads but no enrichment is a REAL 0%, printed as such. A week with no
+        // leads at all cannot have a rate - it prints a dash, never 0%.
+        const r = o.leads ? o.enriched / o.leads : null;
+        h += '<tr><td>w/c ' + esc(wk) + '</td>'
+          +  '<td class="num">' + fmtNum(o.leads) + '</td>'
+          +  '<td class="num">' + fmtNum(o.enriched) + '</td>'
+          +  '<td class="num">' + (r == null ? '-' : fmtPct2(r, 1)) + '</td></tr>';
+      }
+      // Pinned by the bb-sortable engine (first cell starts "Total"), so it never sorts away.
+      h += '<tr class="total" style="font-weight:700"><td>Total</td>'
+        +  '<td class="num">' + fmtNum(totL) + '</td>'
+        +  '<td class="num">' + fmtNum(totE) + '</td>'
+        +  '<td class="num">' + (rate == null ? '-' : fmtPct2(rate, 1)) + '</td></tr>';
+      tb.innerHTML = h;
+    }
+  }
+
+  // ---- detail table (enriched leads only) ---------------------------------
+  const db = document.querySelector('#enrDetailTbl tbody');
+  const dh = document.getElementById('enrDetailHint');
+  if (dh){
+    dh.textContent = detail.length
+      ? 'Only the leads that actually enriched - ' + fmtNum(detail.length)
+        + ' of ' + fmtNum(totL) + ' leads in scope. Newest first.'
+      : 'Only the leads that actually enriched.';
+  }
+  if (db){
+    if (!detail.length){
+      db.innerHTML = '<tr><td colspan="4" style="color:var(--cf-mute)">'
+        + 'No enriched leads for this campaign selection yet.</td></tr>';
+    } else {
+      // The summary and the drill-down are two reads of ONE view, so a mismatch means the
+      // payload is internally inconsistent. Log it rather than rendering a table that quietly
+      // contradicts the KPI above it.
+      if (detail.length !== totE){
+        console.warn('[cs-enriched] detail rows', detail.length, '!= enriched count', totE);
+      }
+      db.innerHTML = detail.map(r =>
+          '<tr><td>' + esc(r.day || '') + '</td>'
+        + '<td>' + esc(r.campaign || '') + '</td>'
+        + '<td style="font-variant-numeric:tabular-nums">' + esc(r.phone || '') + '</td>'
+        + '<td style="font-variant-numeric:tabular-nums">' + esc(r.enriched_phone || '') + '</td></tr>'
+      ).join('');
+    }
+  }
+}
+
 function laneTabs(){
   const c = laneCfg();
   const base = c.tabs.slice();

@@ -222,6 +222,22 @@ def main():
     # through the SAME predicate as cs_pacing (theatre + book + vendor + market) and hands the
     # five dimensions to the one donut() the APJ tab uses. See sql/19_cs_composition_v2.sql.
     csx = rows(bq, f"SELECT * FROM {t('cs_composition_v2')} ORDER BY THEATRE, BOOK, VENDOR, MARKET, DIM, ACCEPTED DESC")
+    # WEEKLY ENRICHED LEADS (2026-09-07, client request). Two reads of the same lane:
+    # the week x campaign rollup that drives the summary table, and the DETAIL rows for the
+    # leads that actually enriched. See sql/20_cs_enriched_leads.sql.
+    #
+    # Scoped to five campaign IDs IN THE VIEW, so this is a small, bounded lane - the detail
+    # read is filtered to `ENRICHED_PHONE IS NOT NULL` here rather than in the dashboard,
+    # because the panel only ever lists enriched leads and shipping the ~1,560 non-enriched
+    # rows would put lead PHONE numbers in the payload for no rendered purpose.
+    #
+    # The sentinel test lives ONLY in the view (two of them: '-' and the literal 'NA'). Nothing
+    # in this file or the dashboard may re-test it - a plain IS NOT NULL is the whole contract.
+    enw = rows(bq, f"SELECT * FROM {t('cs_enriched_weekly')} ORDER BY WEEK_START, CAMPAIGN_ID")
+    end = rows(bq, f"""SELECT DAY, CAMPAIGN, CAMPAIGN_ID, PHONE, ENRICHED_PHONE
+                        FROM {t('cs_enriched_leads')}
+                        WHERE ENRICHED_PHONE IS NOT NULL
+                        ORDER BY DAY DESC""")
     tx = build_transmission(bq, t)   # "Internal Notes" tab: committed Source IDs + pacing plan
 
     # Window over the paid rows (min/max date + inclusive day count).
@@ -683,6 +699,48 @@ def main():
     qoq_block = {"q2": q2, "q3": q3,
                  "asof": {"date": asof_date, "day": (asof_idx + 1) if asof_idx is not None else None}}
 
+    # WEEKLY ENRICHED LEADS payload. Counts only - the dashboard re-derives every rate from
+    # the two summed counts, because a rate is not additive and these rows are summed across
+    # campaigns to make the per-week summary (repo-wide "rates must never enter a fact" rule).
+    # `enrichment_rate` is carried at the row's OWN grain (week x campaign) for the drill-down.
+    cs_enriched_payload = {
+        "row_count": len(enw),
+        "weekly": [{
+            "week_start":      ymd(r.get("WEEK_START")),
+            "campaign_id":     r.get("CAMPAIGN_ID"),
+            "campaign":        r.get("CAMPAIGN"),
+            "lead_count":      int(jval(r.get("LEAD_COUNT")) or 0),
+            "enriched_count":  int(jval(r.get("ENRICHED_COUNT")) or 0),
+            # May be None on an empty week (SAFE_DIVIDE), never 0 - "no leads" is not "0%".
+            "enrichment_rate": jval(r.get("ENRICHMENT_RATE")),
+        } for r in enw],
+        # ONLY the leads that enriched (filtered in the query above).
+        "detail": [{
+            "day":            ymd(r.get("DAY")),
+            "campaign":       r.get("CAMPAIGN"),
+            "campaign_id":    r.get("CAMPAIGN_ID"),
+            "phone":          r.get("PHONE"),
+            "enriched_phone": r.get("ENRICHED_PHONE"),
+        } for r in end],
+    }
+    # Empty-fact alarm (caltex pattern). The scope is five hardcoded campaign IDs, so the one
+    # realistic failure mode is a Salesforce campaign being re-keyed - which drops this lane to
+    # zero rows SILENTLY, since nothing else on the dashboard reads these views. Make it loud.
+    if not enw:
+        print("WARNING cs_enriched: 0 weekly rows - the 5 seeded CAMPAIGN_IDs matched nothing. "
+              "Check sql/20_cs_enriched_leads.sql against the live CAMPAIGN_ID list.")
+    else:
+        _el = sum(r["lead_count"] for r in cs_enriched_payload["weekly"])
+        _ee = sum(r["enriched_count"] for r in cs_enriched_payload["weekly"])
+        # The detail list must tie EXACTLY to the weekly enriched total. If it does not, the
+        # two reads disagree about the sentinel test and the panel would show a summary that
+        # its own drill-down contradicts.
+        if _ee != len(end):
+            print(f"WARNING cs_enriched: weekly enriched={_ee} but detail rows={len(end)} - "
+                  "the summary and the drill-down disagree.")
+        print(f"  cs_enriched: {len(enw)} week x campaign rows, {_el} leads, {_ee} enriched "
+              f"({(_ee/_el*100 if _el else 0):.1f}%), detail={len(end)} rows")
+
     _dt_vals = [v for v in observed.values() if v]
     env = {
         "last_updated": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
@@ -692,6 +750,7 @@ def main():
         "cs_pacing": cs_pacing_payload,   # "Pacing detail" section: week x market x vendor, APAC + EMEA
         "cs_compare": cs_compare_payload, # "CS Comparison" panels: day x market x country x asset
         "cs_composition": cs_composition_payload,  # the five composition donuts off-theatre: scope x dim x value
+        "cs_enriched": cs_enriched_payload,  # "Weekly Enriched Leads" tab: week x campaign counts + enriched-lead detail
         "campaigns": campaigns,
         "qoq": qoq_block,   # Q3-vs-Q2 CS accepted leads, quarter-to-date aligned (actuals; targets pending)
         "transmission": tx,   # "Internal Notes" tab: committed Source IDs + the pacing plan
