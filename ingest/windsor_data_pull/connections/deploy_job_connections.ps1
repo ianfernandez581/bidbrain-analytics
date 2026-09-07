@@ -57,7 +57,17 @@ gcloud projects add-iam-policy-binding $PROJECT --member="serviceAccount:$SA" --
 # Reads the BigQuery Data Transfer configs + their run logs, so a FAILING transfer is reported
 # as broken rather than as a quiet feed. Without it the probe still runs - it logs "transfer
 # states unavailable" and falls back to freshness alone - so this is a degrade, not a hard dep.
-gcloud projects add-iam-policy-binding $PROJECT --member="serviceAccount:$SA" --role="roles/bigquerydatatransfer.viewer" --condition=None --quiet *> $null
+#
+# The role is roles/bigquery.user, whose ONLY transfer permission is the read one we need
+# (bigquery.transfers.get). There is NO roles/bigquerydatatransfer.viewer - that name was
+# assumed here once and the API rejects it with "Role ... is not supported for this resource".
+# NOT silenced, unlike the grants above: this one failed silently behind `*> $null` and the job
+# then deployed green and did nothing, which is the whole failure mode the probe exists to catch.
+gcloud projects add-iam-policy-binding $PROJECT --member="serviceAccount:$SA" --role="roles/bigquery.user" --condition=None --quiet 2>&1 | Out-Null
+if ($LASTEXITCODE -ne 0) {
+  Write-Host "[probe] WARNING: could not grant roles/bigquery.user to $SA - the transfer-state check will" -ForegroundColor Yellow
+  Write-Host "        degrade to freshness only, and a FAILING transfer will read as 'idle' on the tab." -ForegroundColor Yellow
+}
 
 Write-Host "[probe] Scheduling '$Cron' UTC ..."
 $SCHED_SA = "service-$PNUM@gcp-sa-cloudscheduler.iam.gserviceaccount.com"

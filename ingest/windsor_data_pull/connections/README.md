@@ -46,7 +46,11 @@ specific fact, so it outranks freshness. Two rules for it: the config's state is
 its own (a run reports `SUCCEEDED` while loading nothing - the 2026-08-18 MCC failure), so the
 RUN log is fetched for a `FAILED` config and its error carried into the fix text; and configs
 are keyed on `params.property_id` / `params.customer_id`, never `displayName`, which is typed
-by hand. Needs `roles/bigquerydatatransfer.viewer` on the job SA - without it the probe logs
+by hand. Needs **`roles/bigquery.user`** on the job SA - its only transfer permission is the read
+one this needs (`bigquery.transfers.get`). There is NO `roles/bigquerydatatransfer.viewer`: that
+name was assumed here once and the API rejects it outright ("Role ... is not supported for this
+resource"), which the deploy script had silenced behind `*> $null` - so the job deployed green,
+the grant was absent, and the check did nothing. Without the grant the probe logs
 `transfer states unavailable` and falls back to freshness, so it degrades rather than breaks.
 
 `alerts:false` on an account means it SHOWS on the tab but cannot page us. Use it for every
