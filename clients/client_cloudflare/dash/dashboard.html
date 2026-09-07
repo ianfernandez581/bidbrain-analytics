@@ -787,12 +787,18 @@
   .kpi:hover::after{transform:translateX(115%);transition:transform 1.05s var(--bb-ease-soft)}
   .kpi>*{position:relative;z-index:1}
   .kpi .stripe{z-index:2;overflow:hidden}
-  /* The accent stripe used to run a travelling light along itself. It was on EVERY tile,
-     which meant 22 of them on screen at once - 22 of the 32 infinite animations this page
-     was running at rest. One would have read as "live"; 22 read as decoration, and nothing
-     that is on every tile can emphasise any of them. The stripe stays, static. The hover
-     sheen below is now the one piece of gloss on a KPI, and it is hover-triggered, so it
-     costs nothing at rest and happens where the user is actually pointing. */
+  /* A light travelling along the accent stripe: the tile reads "live" without moving.
+     This is part of cloudflare's OWN richer, client-approved motion layer (md/AGENTS.md:
+     "Do not unify either onto the kit"), not the shared kit's portable subset. It was
+     briefly removed on 2026-09-07 as "22 shimmering tiles is decoration" and RESTORED the
+     same day - that was a taste call to raise, not to make unilaterally. If it is ever
+     revisited, the lever is the per-channel stagger and the 9s period, not deletion. */
+  .kpi .stripe::after{content:"";position:absolute;top:0;bottom:0;width:34%;
+    background:linear-gradient(90deg,transparent,rgba(255,255,255,.45),transparent);
+    animation:bbStripe 9s var(--bb-ease-soft) infinite}
+  .kpi.li .stripe::after{animation-delay:.5s} .kpi.rd .stripe::after{animation-delay:1s}
+  .kpi.warn .stripe::after{animation-delay:1.5s}
+  @keyframes bbStripe{0%{transform:translateX(-140%)}55%,100%{transform:translateX(400%)}}
 
 
   /* ---- NESTED SURFACES: the inner tier ----------------------------------
@@ -913,7 +919,7 @@
      be left invisible on a machine that asked us not to animate. */
   @media (prefers-reduced-motion: reduce){
     #bbAurora{display:none}
-    .bb-orb,.pace-bar .pfill::after,.topbar .rail,
+    .bb-orb,.kpi .stripe::after,.pace-bar .pfill::after,.topbar .rail,
     .panel:not(.hidden),#loading .msg{animation:none !important}
     html.bb-motion [data-bb-reveal]{opacity:1 !important;transform:none !important;transition:none !important}
     .card,.kpi,.chip,.cchip,.tab,.seg button,.dp-btn,.qoq-cell,.control-bar{transition:none !important}
