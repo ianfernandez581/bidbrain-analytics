@@ -804,19 +804,28 @@
   /* ---- NESTED SURFACES: the inner tier ----------------------------------
      A tile inside a panel is content, not a panel. These are the only real
      nestings on the page (7 .kpi in .card on the Google Ads strips, 2
-     .cspd-reason in .card) and they were inheriting the full outer treatment,
-     so a card sat inside a card with the same border, shadow and hover lift.
-     Flat, borderless, tinted - the panel around them supplies the edge. The
-     overrides are grouped here rather than scattered so the two tiers stay
-     legible as two tiers. */
+     .cspd-reason in .card) and at rest they were inheriting the full outer
+     treatment, so a card sat inside a card with the same border and shadow.
+     The RESTING state is therefore flat and tinted - the panel around them
+     supplies the edge.
+     But flat must not mean DEAD. A surface that does not answer the cursor
+     reads as disabled, and on a dark theme it reads as broken - which is
+     exactly what happened when this block first also cancelled the hover.
+     So the inner tier speaks the SAME vocabulary as the outer one at a lower
+     volume: half the lift (-2px against -3px), the same accent edge, the same
+     easing, and it keeps the diagonal sheen - which is hover-only and so costs
+     nothing at rest. Two tiers, one motion language. */
   .card .kpi,.card .cspd-reason{
-    border-color:transparent;background:var(--surface-2);
-    box-shadow:none}
+    border-color:transparent;background:var(--surface-2);box-shadow:none;
+    transition:transform .38s var(--bb-ease),box-shadow .38s var(--bb-ease),
+               border-color .38s var(--bb-ease-soft),background-color .38s var(--bb-ease-soft)}
   .card .kpi:hover,.card .cspd-reason:hover{
-    transform:none;box-shadow:none;border-color:transparent}
-  /* no diagonal sheen on an inner tile either - that gloss belongs to the
-     top-level KPI strip, where it is the one authored moment */
-  .card .kpi::after{display:none}
+    transform:translateY(-2px);
+    background:color-mix(in srgb,var(--brand-accent) 5%,var(--surface-2));
+    border-color:color-mix(in srgb,var(--brand-accent) 30%,var(--line));
+    /* a lift needs a shadow under it or it reads as sliding, not rising -
+       softer and shallower than the outer card's --bb-lift, on purpose */
+    box-shadow:0 10px 26px -18px rgba(0,0,0,.9),0 0 20px -14px var(--glow-strong)}
 
   /* Surfaces get a 1px top highlight - the light source is above, so the top edge of every
      card catches it. Cheapest possible way to stop a dark card reading as a flat rectangle.
@@ -824,6 +833,8 @@
      reads as a rendering fault - the sophiie rule, and it holds harder on a dark base. */
   .card,.kpi,.cs-snap .group,.qoq-stats .stat,.compare-panel,.qoq-note,.filter-row,.control-bar{
     box-shadow:var(--shadow-card),inset 0 1px 0 rgba(255,255,255,.055)}
+  /* resting state only - the :hover rule further up supplies the lift shadow, and
+     wins on specificity regardless of source order */
   .card .kpi,.card .cspd-reason{box-shadow:none}
   /* Every figure that counts up is tabular, or the digits change width mid-animation and the
      whole row twitches. Applies to the resting state too, so columns of numbers line up. */
@@ -924,7 +935,7 @@
     html.bb-motion [data-bb-reveal]{opacity:1 !important;transform:none !important;transition:none !important}
     .card,.kpi,.chip,.cchip,.tab,.seg button,.dp-btn,.qoq-cell,.control-bar{transition:none !important}
     .card:hover,.kpi:hover,.cs-snap .group:hover,.qoq-stats .stat:hover,.compare-panel:hover,
-    .qoq-note:hover,.qoq-cell:hover{transform:none !important}
+    .qoq-note:hover,.qoq-cell:hover,.card .kpi:hover,.card .cspd-reason:hover{transform:none !important}
     .pbar .fill,.reg-bar .reg-fill,.pace-bar .pfill,.cmp-asset .bar>span{transition:none !important}
     .dl-sc{scroll-behavior:auto}
     .dl-chip,.dl-wrap::before,.dl-wrap::after{transition:none !important}
