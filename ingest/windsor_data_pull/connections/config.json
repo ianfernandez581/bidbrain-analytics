@@ -161,6 +161,7 @@
       "ds": "dts_google_ads",
       "label": "Google Ads (native BigQuery transfer)",
       "source": "dts",
+      "transfer_state": true,
       "table_template": "raw_google_ads.p_ads_CampaignBasicStats_{id}",
       "date_expr": "segments_date",
       "_doc": [
@@ -194,6 +195,7 @@
       "ds": "dts_ga4",
       "label": "GA4 (native BigQuery transfer)",
       "source": "dts",
+      "transfer_state": true,
       "table_template": "raw_ga4.p_ga4_TrafficAcquisition_{id}",
       "date_expr": "_PARTITIONTIME",
       "_doc": [

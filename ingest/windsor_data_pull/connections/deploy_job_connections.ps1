@@ -54,6 +54,10 @@ if ($LASTEXITCODE -eq 0) {
 gcloud storage buckets add-iam-policy-binding "gs://$BUCKET" --member="serviceAccount:$SA" --role="roles/storage.objectAdmin" --project $PROJECT *> $null
 gcloud projects add-iam-policy-binding $PROJECT --member="serviceAccount:$SA" --role="roles/bigquery.jobUser" --condition=None --quiet *> $null
 gcloud projects add-iam-policy-binding $PROJECT --member="serviceAccount:$SA" --role="roles/bigquery.dataViewer" --condition=None --quiet *> $null
+# Reads the BigQuery Data Transfer configs + their run logs, so a FAILING transfer is reported
+# as broken rather than as a quiet feed. Without it the probe still runs - it logs "transfer
+# states unavailable" and falls back to freshness alone - so this is a degrade, not a hard dep.
+gcloud projects add-iam-policy-binding $PROJECT --member="serviceAccount:$SA" --role="roles/bigquerydatatransfer.viewer" --condition=None --quiet *> $null
 
 Write-Host "[probe] Scheduling '$Cron' UTC ..."
 $SCHED_SA = "service-$PNUM@gcp-sa-cloudscheduler.iam.gserviceaccount.com"

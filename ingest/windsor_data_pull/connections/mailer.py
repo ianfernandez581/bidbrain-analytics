@@ -36,10 +36,13 @@ BRAND_IN = "#12925A"   # darkened for link text; #22B573 on white is under 3:1
 DISPLAY = "Montserrat,'Segoe UI',Roboto,Helvetica,Arial,sans-serif"
 BODYF   = "Montserrat,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif"
 
-STATE_LABEL = {"ok": "healthy", "frozen": "frozen", "quiet": "quiet", "not_granted": "not granted", "error": "error", "idle": "idle"}
-STATE_COLOR = {"ok": "#0E9F6E", "frozen": "#B45309", "quiet": "#6F827A", "not_granted": "#D92D20", "error": "#4338CA", "idle": "#879089"}
+STATE_LABEL = {"ok": "healthy", "frozen": "frozen", "quiet": "quiet", "not_granted": "not granted",
+               "broken": "transfer failing", "error": "error", "idle": "idle"}
+STATE_COLOR = {"ok": "#0E9F6E", "frozen": "#B45309", "quiet": "#6F827A", "not_granted": "#D92D20",
+               "broken": "#C2410C", "error": "#4338CA", "idle": "#879089"}
 STATE_MEANING = {
     "not_granted": "Windsor no longer holds this account. The loader skips it every night and the dashboard keeps serving the last data it landed.",
+    "broken": "The BigQuery Data Transfer for this account is failing, so no new rows are arriving. Freshness alone could not tell this apart from a quiet account.",
     "frozen": "Windsor still returns rows, but our loader is not landing them in BigQuery. The grant is fine; the pipeline is ours to fix.",
     "error": "The connector has answered with an error on consecutive probes.",
     "ok": "Granted and current in BigQuery.",
@@ -48,10 +51,17 @@ STATE_MEANING = {
 }
 
 
+# The states that mean "something is wrong". ONE definition: this decides whether a change
+# reads as a failure or a recovery, and a state missing from it turns a still-broken account
+# into a "recovered" subject line. probe.decide_alerts keeps its own copy for the alerting
+# decision - if you add a state, move both.
+BAD_STATES = ("not_granted", "broken", "frozen", "error")
+
+
 # soft ground + coloured text, the same pill the tab uses. White-on-solid read as a
 # notification badge; this reads as a state.
-STATE_SOFT = {"ok": "#E6F6EF", "frozen": "#FBF1E4", "quiet": "#EEF3F0",
-              "not_granted": "#FCEBEA", "error": "#EEF0FF", "idle": "#EEF3F0"}
+STATE_SOFT = {"ok": "#E6F6EF", "frozen": "#FBF1E4", "quiet": "#EEF3F0", "not_granted": "#FCEBEA",
+              "broken": "#FBEDE4", "error": "#EEF0FF", "idle": "#EEF3F0"}
 
 
 def _pill(state: str) -> str:
@@ -178,8 +188,8 @@ def _head(client: str, feed: str, account: str = "", acct_id: str = "") -> str:
 
 
 def render_change_email(changes: list[dict], red: list, doc: dict, grid_url: str) -> dict:
-    worsened = [c for c in changes if c["new"] in ("not_granted", "frozen", "error")]
-    recovered = [c for c in changes if c["new"] not in ("not_granted", "frozen", "error")]
+    worsened = [c for c in changes if c["new"] in BAD_STATES]
+    recovered = [c for c in changes if c["new"] not in BAD_STATES]
     if worsened and not recovered:
         head = f"{len(worsened)} Windsor account{'s' if len(worsened) != 1 else ''} need{'s' if len(worsened) == 1 else ''} attention"
     elif recovered and not worsened:
@@ -195,7 +205,7 @@ def render_change_email(changes: list[dict], red: list, doc: dict, grid_url: str
                  + _row("State", f"{_pill(c['old'])} &nbsp;→&nbsp; {_pill(c['new'])}")
                  + _row("Means", escape(STATE_MEANING.get(c["new"], "")))
                  + (_row("Newest data", escape(c["newest_day"])) if c.get("newest_day") else "")
-                 + (_row("Do this", escape(c["fix"])) if c.get("fix") and c["new"] in ("not_granted", "frozen", "error") else "")
+                 + (_row("Do this", escape(c["fix"])) if c.get("fix") and c["new"] in BAD_STATES else "")
                  + "</table>")
         cards.append(_card(inner, STATE_COLOR.get(c["new"], INK3)))
 
