@@ -35,8 +35,19 @@ seat 569 so the loader stayed pinned to a dead id), LinkedIn (30 of 34 accounts 
 | `frozen` | granted AND Windsor still returns rows for the window, but BigQuery is behind -> **a loader fault, ours** | yes |
 | `quiet` | granted, Windsor returns NO rows for the window, BigQuery behind -> the platform reports no delivery (paused / finished campaign, or upstream) | no |
 | `not_granted` | Windsor no longer holds the account (400 "not available"); the body names what it DOES hold | yes |
+| `broken` | DTS only: the transfer config's own last run is `FAILED`. The fix text carries the real error, read from that run's log | yes |
 | `error` | connector error on two consecutive probes (or LinkedIn's `'start'` 500) | yes |
 | `idle` | expected quiet: `expected` = `ended` / `retired` / `standby`, or an account Windsor holds that the loader does not list | never |
+
+`broken` exists because freshness alone CANNOT see a failing transfer: a broken feed and a
+property with no traffic both land no rows, so eight failing GA4 transfers sat on the tab as
+`idle` - which reads as "expected to be quiet". The transfer's own run state is the more
+specific fact, so it outranks freshness. Two rules for it: the config's state is not enough on
+its own (a run reports `SUCCEEDED` while loading nothing - the 2026-08-18 MCC failure), so the
+RUN log is fetched for a `FAILED` config and its error carried into the fix text; and configs
+are keyed on `params.property_id` / `params.customer_id`, never `displayName`, which is typed
+by hand. Needs `roles/bigquerydatatransfer.viewer` on the job SA - without it the probe logs
+`transfer states unavailable` and falls back to freshness, so it degrades rather than breaks.
 
 `alerts:false` on an account means it SHOWS on the tab but cannot page us. Use it for every
 account no dashboard reads from Windsor - all the LinkedIn accounts today (those clients read

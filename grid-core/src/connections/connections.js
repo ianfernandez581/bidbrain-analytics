@@ -40,10 +40,13 @@
     frozen:      { lbl: 'Frozen',       c: 'var(--warn)',  soft: 'var(--warn-soft)', d: 'Windsor has rows our loader is not landing' },
     quiet:       { lbl: 'Quiet',        c: '#7E93AD',      soft: 'rgba(126,147,173,.16)', d: 'granted, but the platform reports no delivery' },
     not_granted: { lbl: 'Not granted',  c: 'var(--bad)',   soft: 'var(--bad-soft)',  d: 'Windsor no longer holds this account' },
+    broken:      { lbl: 'Transfer failing', c: '#C2410C', soft: 'rgba(194,65,12,.14)', d: 'the BigQuery transfer itself is failing' },
     error:       { lbl: 'Error',        c: 'var(--tx)',    soft: 'var(--tx-soft)',   d: 'the connector answered with an error' },
     idle:        { lbl: 'Idle',         c: 'var(--ink-3)', soft: 'var(--line-2)',    d: 'expected to be quiet - campaign ended or retired' }
   };
-  var SEV = { not_granted: 0, error: 1, frozen: 2, quiet: 3, ok: 4, idle: 5 };
+  // broken sits beside not_granted: both mean no new data is arriving at all, which is
+  // worse than a loader that is merely behind.
+  var SEV = { not_granted: 0, broken: 1, error: 2, frozen: 3, quiet: 4, ok: 5, idle: 6 };
 
   var CSS = [
     // ===== page shell: the mockup's measure, centred, with real side padding =====
@@ -70,7 +73,9 @@
     '#view-connections .cx-sync[disabled] .sp{display:inline-block}',
     '@keyframes cxspin{to{transform:rotate(360deg)}}',
     // ===== tiles =====
-    '#view-connections .cx-tiles{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:13px}',
+    // auto-fit, not a fixed track count: the band carries five state tiles plus the expiry
+    // one, and a hardcoded repeat(5) left the sixth orphaned on its own row.
+    '#view-connections .cx-tiles{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:13px}',
     '#view-connections .cx-scard{position:relative;text-align:left;font:inherit;cursor:pointer;background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:15px 16px 17px;overflow:hidden}',
     '#view-connections .cx-scard.static{cursor:default}',
     '#view-connections .cx-scard .base{position:absolute;left:0;right:0;bottom:0;height:3px;opacity:.9}',
@@ -83,6 +88,9 @@
     '#view-connections .cx-est{font-size:8.5px;font-weight:700;letter-spacing:.07em;padding:2px 5px;border-radius:4px;background:var(--grp);color:var(--ink-3);margin-left:5px}',
     '#view-connections .cx-tilefoot{display:flex;flex-wrap:wrap;gap:4px 20px;font-size:11.5px;color:var(--ink-3);padding:0 3px;margin-top:-7px}',
     '#view-connections .cx-tilefoot b{color:var(--ink-2);font-weight:600;font-variant-numeric:tabular-nums}',
+    // Every track count below divides SIX evenly. auto-fit was tried first and orphaned the
+    // expiry tile on its own row at the widths where only five tracks fit.
+    '@media(max-width:1280px){#view-connections .cx-tiles{grid-template-columns:repeat(3,minmax(0,1fr))}}',
     '@media(max-width:1100px){#view-connections .cx-tiles{grid-template-columns:repeat(2,minmax(0,1fr))}}',
     '@media(max-width:560px){#view-connections .cx-tiles{grid-template-columns:1fr}}',
     // ===== problem cards =====
@@ -221,7 +229,7 @@
     '@media(prefers-reduced-motion:reduce){#view-connections *{transition:none!important;animation:none!important}#view-connections .cx-scard:hover,#view-connections .cx-prob:hover,#view-connections .cx-sync:hover{translate:none!important}}'
   ].join('\n');
 
-  var RED = { not_granted: 1, frozen: 1, error: 1 };
+  var RED = { not_granted: 1, broken: 1, frozen: 1, error: 1 };
 
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function fmtDay(d) { if (!d) return '-'; var t = new Date(d + 'T00:00:00Z'); if (isNaN(t)) return esc(d); return t.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' }); }
@@ -249,7 +257,7 @@
     return out;
   }
   function counts(doc) {
-    var c = { ok: 0, frozen: 0, quiet: 0, not_granted: 0, error: 0, idle: 0, total: 0 };
+    var c = { ok: 0, frozen: 0, quiet: 0, not_granted: 0, broken: 0, error: 0, idle: 0, total: 0 };
     allAccounts(doc).forEach(function (x) { c[x.a.state] = (c[x.a.state] || 0) + 1; c.total++; });
     return c;
   }
@@ -304,15 +312,27 @@
   function tiles(doc) {
     var c = counts(doc);
     var h = '<div class="cx-tiles">';
-    [['not_granted', c.not_granted], ['frozen', c.frozen], ['quiet', c.quiet], ['ok', c.ok]].forEach(function (p) {
+    [['not_granted', c.not_granted], ['broken', c.broken], ['frozen', c.frozen],
+     ['quiet', c.quiet], ['ok', c.ok]].forEach(function (p) {
       var k = p[0], n = p[1], v = STATE[k];
       var sub = v.d;
-      if (k === 'not_granted') {
-        var who = allAccounts(doc).filter(function (x) { return RED[x.a.state] && x.a.alerts; })
+      // Name the clients ON THIS TILE'S OWN STATE. This used to gather every red-and-alerting
+      // account onto the not-granted tile, which was invisible while not_granted was the only
+      // red state that named anyone - then `broken` arrived and a tile reading 0 was captioned
+      // "VMCH. Windsor no longer holds this account", which is two wrong claims at once.
+      if (k === 'not_granted' || k === 'broken') {
+        var who = allAccounts(doc).filter(function (x) { return x.a.state === k && x.a.alerts; })
           .map(function (x) { return x.a.client_label || x.a.client; }).filter(Boolean);
         var uniq = who.filter(function (w, i) { return who.indexOf(w) === i; });
-        sub = (uniq.length ? esc(uniq.join(', ')) + '. ' : '') + v.d
-          + (c.error ? ' &middot; plus ' + c.error + ' error' + (c.error === 1 ? '' : 's') : '');
+        // The state descriptions are written lowercase to read as standalone phrases, so they
+        // need a capital once a client name and a full stop sit in front of them.
+        sub = uniq.length ? esc(uniq.join(', ')) + '. ' + v.d.charAt(0).toUpperCase() + v.d.slice(1)
+                          : v.d;
+        // `error` still has no tile of its own, so it stays a footnote - on not_granted only,
+        // or both tiles would claim the same errors.
+        if (k === 'not_granted' && c.error) {
+          sub += ' &middot; plus ' + c.error + ' error' + (c.error === 1 ? '' : 's');
+        }
       }
       h += '<button class="cx-scard' + (n ? '' : ' zero') + '" data-state="' + k + '" aria-pressed="' + (S.filter.state === k) + '">'
         + '<div class="base" style="background:' + v.c + '"></div>'

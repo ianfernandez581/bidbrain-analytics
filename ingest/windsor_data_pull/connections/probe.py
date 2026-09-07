@@ -223,6 +223,68 @@ def observe_grant(ds: dict, held_now: dict | None, prev_ds: dict | None, changes
 
 
 # ----------------------------------------------------------------------------- bigquery
+def fetch_transfer_states(location: str = LOCATION) -> dict:
+    """{account id: {state, error, name, disabled}} for every BigQuery Data Transfer config.
+
+    The signal freshness cannot give us. A failing transfer and a property with no traffic
+    both land no rows, so a pure freshness check reads a broken feed as a quiet one - which
+    is exactly how eight failing GA4 transfers sat on the tab as "idle".
+
+    Two rules learned the hard way (md/AGENTS.md):
+      * The config's own state is NOT enough - a run reports SUCCEEDED while loading nothing,
+        which is how the Google Ads MCC failure of 2026-08-18 stayed invisible. So for a
+        FAILED config we fetch its latest RUN and carry the real error message, because that
+        is the only place the cause is ever written down.
+      * Key on params.property_id / params.customer_id, NEVER displayName. The names are typed
+        by hand and already carry stray double spaces ("GA4 413451542   -> raw_ga4"). Same
+        rule as campaign names.
+
+    One list call, plus one runs call per FAILED config only, so the cost does not scale with
+    the healthy majority. NEVER raises: a missing IAM grant must degrade this probe, not stop
+    it - the freshness verdict below is still worth having on its own.
+    """
+    out: dict = {}
+    try:
+        import google.auth
+        from googleapiclient.discovery import build as _build
+
+        creds, _ = google.auth.default(scopes=["https://www.googleapis.com/auth/cloud-platform"])
+        svc = _build("bigquerydatatransfer", "v1", credentials=creds, cache_discovery=False)
+        parent = f"projects/{PROJECT}/locations/{location}"
+        cfgs, tok = [], None
+        while True:
+            resp = svc.projects().locations().transferConfigs().list(parent=parent, pageToken=tok).execute()
+            cfgs.extend(resp.get("transferConfigs", []))
+            tok = resp.get("nextPageToken")
+            if not tok:
+                break
+        failed = 0
+        for c in cfgs:
+            p = c.get("params") or {}
+            key = p.get("property_id") or p.get("customer_id")
+            if not key:
+                continue
+            rec = {"state": c.get("state"), "name": c.get("displayName"),
+                   "disabled": bool(c.get("disabled")), "error": None}
+            if rec["state"] == "FAILED":
+                failed += 1
+                try:
+                    runs = (svc.projects().locations().transferConfigs().runs()
+                            .list(parent=c["name"], pageSize=1).execute().get("transferRuns", []))
+                    if runs:
+                        rec["error"] = ((runs[0].get("errorStatus") or {}).get("message") or "").strip()[:300] or None
+                except Exception as e:  # noqa: BLE001
+                    log(f"transfer run log unavailable for {c.get('displayName')}: {type(e).__name__}")
+            out[str(key)] = rec
+        log(f"transfer configs: {len(out)} keyed, {failed} FAILED")
+    except Exception as e:  # noqa: BLE001
+        # Most likely a missing roles/bigquerydatatransfer.viewer on the job's SA. Say so
+        # loudly, then carry on with freshness alone.
+        log(f"transfer states unavailable ({type(e).__name__}: {str(e)[:140]}) - "
+            f"falling back to freshness alone for DTS accounts")
+    return out
+
+
 def newest_days(bq: bigquery.Client, ds: dict) -> dict:
     """{key: newest metric_date iso} for the datasource's raw table. Snapshot tables
     (hubspot) return {'hubspot': newest _pulled_at day}. Never raises."""
@@ -274,12 +336,17 @@ def newest_days(bq: bigquery.Client, ds: dict) -> dict:
 
 # ----------------------------------------------------------------------------- classify
 def classify(acct: dict, probe: dict, newest: str | None, frozen_after: int, prev_state: str | None,
-             kind: str = "windsor") -> tuple[str, str]:
+             kind: str = "windsor", transfer: dict | None = None) -> tuple[str, str]:
     """-> (state, fix). The verdict + the plain-English next step the tab prints.
 
     kind="dts" means a native BigQuery Data Transfer: nobody probed a connector, so the only
     evidence is freshness and every "re-grant in Windsor" instruction would be wrong. The fix
     text has to point at the transfer instead.
+
+    transfer is that config's own run state from fetch_transfer_states(), when we could read
+    it. It OUTRANKS freshness because it is the more specific fact: "no new rows" is a symptom
+    that a quiet property and a broken transfer share, while a FAILED run is only ever the
+    second one.
     """
     expected = acct.get("expected", "daily")
     today = today_utc()
@@ -289,8 +356,23 @@ def classify(acct: dict, probe: dict, newest: str | None, frozen_after: int, pre
         behind = max(behind, 0)
     v = probe["verdict"]
 
-    # ---- native DTS: freshness is the whole story -----------------------------
+    # ---- native DTS ------------------------------------------------------------
     if kind == "dts":
+        tr = transfer or {}
+        if tr.get("state") == "FAILED":
+            why = (tr.get("error") or "").strip()
+            why = (why if why.endswith(".") else why + ".") if why else "The last run failed with no message."
+            if expected in ("ended", "retired"):
+                # A finished feed whose transfer also fails is not news - but say WHY it is
+                # being ignored, or the next reader re-investigates it from scratch.
+                return "idle", f"Its transfer is failing, but this feed is finished anyway - {acct.get('why') or expected}."
+            # standby lands here too, deliberately. It is NOT idle: idle means "expected to be
+            # quiet", and a broken transfer is not that. Whether anyone gets emailed is decided
+            # by the account's own alerts flag, so a standby path becomes visible without paging.
+            return "broken", (f"The BigQuery Data Transfer is FAILING. {why} "
+                              "Fix it upstream - a lost permission on the source property or ad "
+                              "account is the usual cause - then let the next scheduled run land. "
+                              "Nothing in this repo can grant that access.")
         if newest is None:
             # No table at all. Eight GA4 properties are in exactly this state - their
             # transfers fail on "User does not have permission to access the Google Analytics
@@ -418,9 +500,16 @@ def build(cfg: dict, api_key: str, bq: bigquery.Client | None, prev: dict | None
     for ds in cfg["datasources"]:
         newest[ds["ds"]] = newest_days(bq, ds) if bq else {}
 
+    # 2b. transfer run state, for the DTS datasources that opt in. One call for all of them:
+    # the configs are project-wide, not per datasource, so fetching per datasource would just
+    # repeat the same list.
+    tstates: dict = {}
+    if any(d.get("source") == "dts" and d.get("transfer_state") for d in cfg["datasources"]):
+        tstates = fetch_transfer_states()
+
     # 3. assemble
     out_ds = []
-    counts = {"ok": 0, "frozen": 0, "quiet": 0, "not_granted": 0, "error": 0, "idle": 0}
+    counts = {"ok": 0, "frozen": 0, "quiet": 0, "not_granted": 0, "broken": 0, "error": 0, "idle": 0}
     changes = []       # for the email: (ds_label, acct, old, new)
     for ds in cfg["datasources"]:
         nd = newest.get(ds["ds"], {})
@@ -439,7 +528,8 @@ def build(cfg: dict, api_key: str, bq: bigquery.Client | None, prev: dict | None
             synthetic = {"http": None, "ms": None, "rows": None, "by_key": {},
                          "verdict": "granted", "note": "", "configured": None}
             for a in ds["accounts"]:
-                accts_out.append(_account_row(ds, a, synthetic, nd, frozen_after, prev_acc, today, changes, counts))
+                accts_out.append(_account_row(ds, a, synthetic, nd, frozen_after, prev_acc, today, changes, counts,
+                                              tstates.get(str(a["id"]))))
         elif ds["ds"] == "tradedesk":
             seat = results[(ds["ds"], ds["seat"])]
             latencies.append(seat["ms"])
@@ -514,7 +604,7 @@ def build(cfg: dict, api_key: str, bq: bigquery.Client | None, prev: dict | None
             "accounts": accts_out,
         })
 
-    worst = next((s for s in ("not_granted", "error", "frozen", "quiet", "ok") if counts[s]), "ok")
+    worst = next((s for s in ("not_granted", "broken", "error", "frozen", "quiet", "ok") if counts[s]), "ok")
     doc = {
         "generated_at": now_iso(),
         "probe_version": 1,
@@ -531,7 +621,7 @@ def build(cfg: dict, api_key: str, bq: bigquery.Client | None, prev: dict | None
     return doc
 
 
-def _account_row(ds, a, pr, nd, frozen_after, prev_acc, today, changes, counts):
+def _account_row(ds, a, pr, nd, frozen_after, prev_acc, today, changes, counts, transfer=None):
     is_dts = ds.get("source") == "dts"
     if is_dts:
         newest = nd.get(a["id"])
@@ -539,7 +629,7 @@ def _account_row(ds, a, pr, nd, frozen_after, prev_acc, today, changes, counts):
         newest = nd.get(a["id"]) if ds.get("key_col") else nd.get("hubspot")
     prev = prev_acc.get(f"{ds['ds']}:{a['id']}")
     prev_state = prev.get("state") if prev else None
-    state, fix = classify(a, pr, newest, frozen_after, prev_state, "dts" if is_dts else "windsor")
+    state, fix = classify(a, pr, newest, frozen_after, prev_state, "dts" if is_dts else "windsor", transfer)
     behind = None
     if newest:
         behind = max((today_utc() - dt.date.fromisoformat(newest)).days - 1, 0)
@@ -570,8 +660,12 @@ def decide_alerts(cfg: dict, doc: dict, prev: dict | None) -> list[dict]:
 
     out = []
     al = doc["alerts"]
-    red = [(d, a) for d in doc["datasources"] for a in d["accounts"] if a["alerts"] and a["state"] in ("not_granted", "frozen", "error")]
-    changes = [c for c in doc["_changes"] if c["alerts"] and (c["new"] in ("not_granted", "frozen", "error") or c["old"] in ("not_granted", "frozen", "error"))]
+    # "broken" is red for anything that ALERTS. The standby properties stay silent not
+    # because of the state but because their own alerts flag is false, which is the decision
+    # already recorded in config.json: worth seeing, not worth paging.
+    RED_STATES = ("not_granted", "broken", "frozen", "error")
+    red = [(d, a) for d in doc["datasources"] for a in d["accounts"] if a["alerts"] and a["state"] in RED_STATES]
+    changes = [c for c in doc["_changes"] if c["alerts"] and (c["new"] in RED_STATES or c["old"] in RED_STATES)]
 
     # FLAP DAMPING. A change email fires on every transition, which is right for a real
     # ok -> not_granted and wrong for an account that cannot make up its mind. The realistic
@@ -724,7 +818,7 @@ def main() -> int:
     bq = None if args.no_bq else bigquery.Client(project=PROJECT, location=LOCATION)
     doc = build(cfg, api_key, bq, prev)
     s = doc["summary"]
-    log(f"summary: ok={s['ok']} frozen={s['frozen']} quiet={s['quiet']} not_granted={s['not_granted']} error={s['error']} idle={s['idle']} worst={s['worst']}")
+    log(f"summary: ok={s['ok']} frozen={s['frozen']} quiet={s['quiet']} not_granted={s['not_granted']} broken={s['broken']} error={s['error']} idle={s['idle']} worst={s['worst']}")
     for c in doc["_changes"]:
         log(f"  CHANGE {c['ds']} / {c['client']} / {c['account']}: {c['old']} -> {c['new']}{'' if c['alerts'] else ' (no alert - account not on a critical path)'}")
 
