@@ -94,6 +94,15 @@
     '@media(max-width:1100px){#view-connections .cx-tiles{grid-template-columns:repeat(2,minmax(0,1fr))}}',
     '@media(max-width:560px){#view-connections .cx-tiles{grid-template-columns:1fr}}',
     // ===== problem cards =====
+    // The collapsed card's list of affected properties. Sits in the same grid area the single
+    // card uses for its table row.
+    '#view-connections .cx-prob .pgrp{padding:2px 22px 17px;display:flex;flex-direction:column;gap:1px}',
+    '#view-connections .cx-prob .pgrow{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:7px 0;border-top:1px solid var(--line-2)}',
+    '#view-connections .cx-prob .pgrow:first-child{border-top:0}',
+    '#view-connections .cx-prob .pgn{font-size:12.5px;font-weight:600;color:var(--ink-2);display:flex;align-items:baseline;gap:8px;min-width:0}',
+    '#view-connections .cx-prob .pgw{font-size:10.5px;font-weight:500;color:var(--ink-3)}',
+    '#view-connections .cx-prob .pgrp code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:10.5px;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:52%}',
+    '@media(min-width:1080px){#view-connections .cx-prob .pgrp{grid-area:b}}',
     '#view-connections .cx-prob{display:grid;grid-template-columns:4px 1fr;background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);overflow:hidden}',
     '#view-connections .cx-prob .pstripe{background:var(--bad)}',
     '#view-connections .cx-prob.muted .pstripe{background:var(--ink-3)}',
@@ -368,6 +377,14 @@
     if (a.state === 'not_granted') return 'Windsor no longer holds ' + who + "'s " + ds.label + ' account';
     if (a.state === 'frozen') return ds.label + ' is answering, but ' + who + "'s data has stopped arriving";
     if (a.state === 'error') return 'Windsor keeps erroring on ' + who + "'s " + ds.label + ' account';
+    if (a.state === 'broken') {
+      // An unmapped property has no client name, so the old fallback headlined five different
+      // properties identically as "Unmapped needs attention on ..." and buried the only
+      // distinguishing word in the sub-line. Name the property itself.
+      return (a.client_label && a.client_label !== 'Unmapped')
+        ? who + "'s " + feed + ' transfer is failing'
+        : 'The ' + (a.name || a.id) + ' ' + feed + ' transfer is failing';
+    }
     return who + ' needs attention on ' + ds.label;
   }
   function destFor(ds, a) {
@@ -375,11 +392,67 @@
     if (a.state === 'not_granted') return { href: ds.reauth_url || 'https://onboard.windsor.ai', text: 'Re-grant in Windsor' };
     return null;
   }
+  // What the collapsed card says for each state. Reusing the pill label reads as broken
+  // grammar ("8 GA4 feeds are transfer failing").
+  var GRP_PHRASE = {
+    broken: 'transfers are failing',
+    not_granted: 'accounts are no longer granted in Windsor',
+    frozen: 'feeds have stopped arriving',
+    error: 'connectors keep erroring'
+  };
+
   function problems(doc) {
     var hits = allAccounts(doc).filter(function (x) { return RED[x.a.state]; });
     if (!hits.length) return '';
     hits.sort(function (x, y) { return (y.a.alerts - x.a.alerts) || (SEV[x.a.state] - SEV[y.a.state]); });
-    return hits.map(function (it) {
+    // An ALERTING account always gets its own card - it is the thing someone has to act on.
+    // Non-alerting accounts sharing a feed AND a state share one cause and one fix, so they
+    // collapse: `broken` arriving put eight cards on the page carrying the same paragraph.
+    var solo = [], groups = {}, order = [];
+    hits.forEach(function (x) {
+      if (x.a.alerts) { solo.push(x); return; }
+      var k = x.ds.label + '|' + x.a.state;
+      if (!groups[k]) { groups[k] = []; order.push(k); }
+      groups[k].push(x);
+    });
+    var out = solo.map(probCard).join('');
+    order.forEach(function (k) {
+      out += groups[k].length > 1 ? probGroupCard(groups[k]) : probCard(groups[k][0]);
+    });
+    return out;
+  }
+
+  // One card for several muted accounts on the same feed and state: the shared fix printed
+  // ONCE, with every affected property named.
+  function probGroupCard(g) {
+    var ds = g[0].ds, a0 = g[0].a, sv = stateOf(a0.state), go = destFor(ds, a0);
+    var feed = String(ds.label || '').replace(/ \(.*\)$/, '');
+    var phrase = GRP_PHRASE[a0.state] || 'feeds need attention';
+    var rows = g.map(function (x) {
+      // The client chip is dropped when it repeats the property name - Sophiie's property IS
+      // called "Sophiie", so it rendered as "Sophiie Sophiie".
+      var nm = x.a.name || x.a.id;
+      var named = x.a.client_label && x.a.client_label !== 'Unmapped'
+        && String(x.a.client_label).toLowerCase() !== String(nm).toLowerCase();
+      var tbl = (x.a.data || {}).table;
+      return '<div class="pgrow"><span class="pgn">' + esc(nm)
+        + (named ? '<span class="pgw">' + esc(x.a.client_label) + '</span>' : '') + '</span>'
+        + (tbl ? '<code>' + esc(tbl) + '</code>' : '') + '</div>';
+    }).join('');
+    return '<article class="cx-prob muted"><div class="pstripe"></div><div class="pin">'
+      + '<div class="ph"><div class="pk"><span class="cx-verd" style="background:' + sv.soft + ';color:' + sv.c + '"><span class="cx-dot" style="background:' + sv.c + '"></span>' + sv.lbl + '</span>'
+      + '<span class="pmute">Known &middot; not alerting</span></div>'
+      + '<div class="plede">' + g.length + ' ' + esc(feed) + ' ' + esc(phrase) + '</div>'
+      + '<div class="psub">None is on a critical path, so none of these emails anyone. '
+      + 'They are listed so a dead feed is never mistaken for a quiet one.</div></div>'
+      + '<div class="pgrp">' + rows + '</div>'
+      + '<div class="ptodo"><div class="pl2">What to do</div><p>' + esc(a0.fix || a0.why || '') + '</p>'
+      + (go ? '<a class="pgo" href="' + esc(go.href) + '" target="_blank" rel="noopener">' + esc(go.text) + ' &rarr;</a>' : '')
+      + '</div></div></article>';
+  }
+
+  function probCard(it) {
+    return (function (it) {
       var ds = it.ds, a = it.a, act = !!a.alerts, go = destFor(ds, a), d = a.data || {};
       var age = d.days_behind == null ? null
         : (d.days_behind >= 14 ? Math.floor(d.days_behind / 7) + ' weeks' : d.days_behind + ' days');
@@ -398,7 +471,7 @@
         + '<div class="ptodo"><div class="pl2">What to do</div><p>' + esc(a.fix || a.why || '') + '</p>'
         + (go ? '<a class="pgo" href="' + esc(go.href) + '" target="_blank" rel="noopener">' + esc(go.text) + ' &rarr;</a>' : '')
         + '</div></div></article>';
-    }).join('');
+    })(it);
   }
 
   // ---------- account table inside an expanded feed ----------
