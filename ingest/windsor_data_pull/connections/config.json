@@ -14,20 +14,10 @@
     "account flipping not_granted -> granted) and uses the later of the two dates. Edit it only to correct history."
   ],
   "_recipients_doc": "The DEPLOYED list (Jerome's call, 2026-09-04): Jerome, Ian and Charles. Calvin (calvin@100.digital) is deliberately held back until the alerts have proven themselves - add the address here and redeploy, nothing else changes. For a LOCAL test send, do NOT edit this list: pass `--to jerome@bidbrain.ai` on probe.py, which overrides recipients for that one run. Editing the list to test it is how a test list gets deployed by accident. Read at send time from cfg['recipients'] and published into the payload, so the Grid tab always states the live list.",
-  "recipients": [
-    "jerome@bidbrain.ai",
-    "ian@100.digital",
-    "charles@100.digital"
-  ],
+  "recipients": ["jerome@bidbrain.ai", "ian@100.digital", "charles@100.digital"],
   "digest_hour_utc": 22,
   "expiry_warn_days": 14,
-  "expiry_milestones": [
-    14,
-    7,
-    3,
-    2,
-    1
-  ],
+  "expiry_milestones": [14, 7, 3, 2, 1],
   "frozen_after_days": 3,
   "probe_window_days": 3,
   "datasources": [
@@ -42,75 +32,18 @@
       "loader_job": "windsor-meta-ingest",
       "schedule": "21:15 UTC daily",
       "loader_file": "ingest/windsor_data_pull/meta/meta_loader.py",
-      "grant": {
-        "last_reauth": "2026-08-25",
-        "reauth_by": "Calvin",
-        "token_lifetime_days": 60,
-        "note": "Meta long-lived user tokens last ~60 days; the 2026-08-11 lapse was exactly this."
-      },
+      "grant": { "last_reauth": "2026-08-25", "reauth_by": "Calvin", "token_lifetime_days": 60,
+                 "note": "Meta long-lived user tokens last ~60 days; the 2026-08-11 lapse was exactly this." },
       "accounts": [
-        {
-          "id": "3754165911553001",
-          "name": "100% Digital - Clients",
-          "client": "geocon",
-          "label": "Geocon",
-          "expected": "daily",
-          "alerts": true,
-          "consumers": [
-            "geocon",
-            "nextsmile",
-            "bellshakespeare"
-          ]
-        },
-        {
-          "id": "465058559225771",
-          "name": "Reset backup - Ad account",
-          "client": "resetdata",
-          "label": "Reset Data",
-          "expected": "daily",
-          "alerts": true,
-          "consumers": [
-            "resetdata"
-          ]
-        },
-        {
-          "id": "1126027130805483",
-          "name": "Cityperfume.com.au",
-          "client": "cityperfume",
-          "label": "City Perfume",
-          "expected": "ended",
-          "alerts": false,
-          "consumers": [
-            "cityperfume"
-          ],
-          "why": "client offboarded 2026-09-01; dashboards deleted, data retained"
-        },
-        {
-          "id": "1302148091859257",
-          "name": "unknown (never delivered)",
-          "client": null,
-          "label": "Unmapped",
-          "expected": "retired",
-          "alerts": false
-        },
-        {
-          "id": "910485528634664",
-          "name": "Ad Assembly - ACRS",
-          "client": null,
-          "label": "Ad Assembly",
-          "expected": "retired",
-          "alerts": false,
-          "why": "no rows since 2026-05-01"
-        },
-        {
-          "id": "927205350157043",
-          "name": "Ad Assembly - BuyerX",
-          "client": null,
-          "label": "Ad Assembly",
-          "expected": "retired",
-          "alerts": false,
-          "why": "no rows since 2026-05-29"
-        }
+        { "id": "3754165911553001", "name": "100% Digital - Clients", "client": "geocon", "label": "Geocon", "expected": "daily", "alerts": true,
+          "consumers": ["geocon", "nextsmile", "bellshakespeare"] },
+        { "id": "465058559225771", "name": "Reset backup - Ad account", "client": "resetdata", "label": "Reset Data", "expected": "daily", "alerts": true,
+          "consumers": ["resetdata"] },
+        { "id": "1126027130805483", "name": "Cityperfume.com.au", "client": "cityperfume", "label": "City Perfume", "expected": "ended", "alerts": false,
+          "consumers": ["cityperfume"], "why": "client offboarded 2026-09-01; dashboards deleted, data retained" },
+        { "id": "1302148091859257", "name": "unknown (never delivered)", "client": null, "label": "Unmapped", "expected": "retired", "alerts": false },
+        { "id": "910485528634664", "name": "Ad Assembly - ACRS", "client": null, "label": "Ad Assembly", "expected": "retired", "alerts": false, "why": "no rows since 2026-05-01" },
+        { "id": "927205350157043", "name": "Ad Assembly - BuyerX", "client": null, "label": "Ad Assembly", "expected": "retired", "alerts": false, "why": "no rows since 2026-05-29" }
       ]
     },
     {
@@ -125,80 +58,16 @@
       "loader_job": "windsor-tradedesk-ingest",
       "schedule": "04:35 + 21:35 UTC daily",
       "loader_file": "ingest/windsor_data_pull/tradedesk/tradedesk_loader.py",
-      "grant": {
-        "last_reauth": "2026-08-25",
-        "reauth_by": "Calvin",
-        "token_lifetime_days": null,
-        "note": "Agency seat 569 (was 484 until the 2026-08-25 re-grant issued a new id). TTD partner tokens have no published lifetime."
-      },
+      "grant": { "last_reauth": "2026-08-25", "reauth_by": "Calvin", "token_lifetime_days": null,
+                 "note": "Agency seat 569 (was 484 until the 2026-08-25 re-grant issued a new id). TTD partner tokens have no published lifetime." },
       "accounts": [
-        {
-          "id": "0lw3hp6",
-          "name": "Caltex Star Card",
-          "client": "caltex",
-          "label": "Caltex",
-          "expected": "daily",
-          "alerts": true,
-          "consumers": [
-            "caltex"
-          ]
-        },
-        {
-          "id": "lxp46o9",
-          "name": "ResetData",
-          "client": "resetdata",
-          "label": "Reset Data",
-          "expected": "daily",
-          "alerts": true,
-          "consumers": [
-            "resetdata"
-          ]
-        },
-        {
-          "id": "mor6pp1",
-          "name": "The Little Marionette",
-          "client": "tlm",
-          "label": "The Little Marionette",
-          "expected": "daily",
-          "alerts": true,
-          "consumers": [
-            "tlm"
-          ]
-        },
-        {
-          "id": "sif8zx0",
-          "name": "VMCH",
-          "client": "vmch",
-          "label": "VMCH",
-          "expected": "daily",
-          "alerts": true,
-          "consumers": [
-            "vmch"
-          ]
-        },
-        {
-          "id": "tg1ubik",
-          "name": "Geocon Group",
-          "client": "geocon",
-          "label": "Geocon",
-          "expected": "daily",
-          "alerts": true,
-          "consumers": [
-            "geocon"
-          ]
-        },
-        {
-          "id": "l4dj1fw",
-          "name": "City Perfume",
-          "client": "cityperfume",
-          "label": "City Perfume",
-          "expected": "ended",
-          "alerts": false,
-          "consumers": [
-            "cityperfume"
-          ],
-          "why": "client offboarded 2026-09-01"
-        }
+        { "id": "0lw3hp6", "name": "Caltex Star Card", "client": "caltex", "label": "Caltex", "expected": "daily", "alerts": true, "consumers": ["caltex"] },
+        { "id": "lxp46o9", "name": "ResetData", "client": "resetdata", "label": "Reset Data", "expected": "daily", "alerts": true, "consumers": ["resetdata"] },
+        { "id": "mor6pp1", "name": "The Little Marionette", "client": "tlm", "label": "The Little Marionette", "expected": "daily", "alerts": true, "consumers": ["tlm"] },
+        { "id": "sif8zx0", "name": "VMCH", "client": "vmch", "label": "VMCH", "expected": "daily", "alerts": true, "consumers": ["vmch"] },
+        { "id": "tg1ubik", "name": "Geocon Group", "client": "geocon", "label": "Geocon", "expected": "daily", "alerts": true, "consumers": ["geocon"] },
+        { "id": "l4dj1fw", "name": "City Perfume", "client": "cityperfume", "label": "City Perfume", "expected": "ended", "alerts": false, "consumers": ["cityperfume"],
+          "why": "client offboarded 2026-09-01" }
       ]
     },
     {
@@ -212,146 +81,23 @@
       "loader_job": "windsor-linkedin-ingest",
       "schedule": "21:40 UTC daily",
       "loader_file": "ingest/windsor_data_pull/linkedin/linkedin_loader.py",
-      "grant": {
-        "last_reauth": "2026-08-25",
-        "reauth_by": "Calvin",
-        "token_lifetime_days": 365,
-        "note": "LinkedIn refresh tokens last 365 days. Only 4 of 34 configured accounts came back on 2026-08-25; the LinkedIn dashboards read Transmission's Snowflake mirror, so none of these is on a client's critical path today - it becomes one the day geocon's LinkedIn lane goes live."
-      },
+      "grant": { "last_reauth": "2026-08-25", "reauth_by": "Calvin", "token_lifetime_days": 365,
+                 "note": "LinkedIn refresh tokens last 365 days. Only 4 of 34 configured accounts came back on 2026-08-25; the LinkedIn dashboards read Transmission's Snowflake mirror, so none of these is on a client's critical path today - it becomes one the day geocon's LinkedIn lane goes live." },
       "accounts": [
-        {
-          "id": "520254094",
-          "name": "Cloudflare APAC",
-          "client": "cloudflare",
-          "label": "Cloudflare",
-          "expected": "standby",
-          "alerts": false,
-          "consumers": [],
-          "why": "cloudflare reads raw_snowflake.linkedin_ads_apac"
-        },
-        {
-          "id": "517045062",
-          "name": "Schneider (AUD)",
-          "client": "schneider",
-          "label": "Schneider",
-          "expected": "standby",
-          "alerts": false,
-          "consumers": [],
-          "why": "schneider reads raw_snowflake.linkedin_ads_apac"
-        },
-        {
-          "id": "504047196",
-          "name": "Schneider (USD)",
-          "client": "schneider",
-          "label": "Schneider",
-          "expected": "standby",
-          "alerts": false,
-          "consumers": []
-        },
-        {
-          "id": "516221072",
-          "name": "Schneider (SGD)",
-          "client": "schneider",
-          "label": "Schneider",
-          "expected": "standby",
-          "alerts": false,
-          "consumers": []
-        },
-        {
-          "id": "515691430",
-          "name": "STT",
-          "client": "stt",
-          "label": "STT",
-          "expected": "standby",
-          "alerts": false,
-          "consumers": [],
-          "why": "stt reads raw_snowflake"
-        },
-        {
-          "id": "511609128",
-          "name": "STT",
-          "client": "stt",
-          "label": "STT",
-          "expected": "standby",
-          "alerts": false,
-          "consumers": []
-        },
-        {
-          "id": "510177932",
-          "name": "PropTrack_TransmissionSG_AUD",
-          "client": "proptrack",
-          "label": "PropTrack",
-          "expected": "standby",
-          "alerts": false,
-          "consumers": [],
-          "why": "proptrack reads raw_snowflake"
-        },
-        {
-          "id": "513554482",
-          "name": "HireRight",
-          "client": "hireright",
-          "label": "HireRight",
-          "expected": "standby",
-          "alerts": false,
-          "consumers": [],
-          "why": "hireright reads raw_snowflake"
-        },
-        {
-          "id": "516746102",
-          "name": "Reset Data",
-          "client": "resetdata",
-          "label": "Reset Data",
-          "expected": "standby",
-          "alerts": false,
-          "consumers": [],
-          "why": "resetdata has no LinkedIn lane on the dashboard"
-        },
-        {
-          "id": "507877947",
-          "name": "Cisco APJC",
-          "client": null,
-          "label": "Unmapped (Transmission)",
-          "expected": "standby",
-          "alerts": false
-        },
-        {
-          "id": "502299829",
-          "name": "mongodb AWS Immersion Day (Windsor 500s on 'start')",
-          "client": "mongodb",
-          "label": "MongoDB",
-          "expected": "daily",
-          "alerts": false,
-          "consumers": [
-            "mongodb"
-          ],
-          "why": "the ONE LinkedIn account a dashboard reads from Windsor; the connector has 500'd on it since 2026-07 (Windsor-side bug), mongodb's LinkedIn tab auto-hides until it lands. alerts off until Windsor fixes it - flipping to true is the way to be told when it does"
-        }
+        { "id": "520254094", "name": "Cloudflare APAC", "client": "cloudflare", "label": "Cloudflare", "expected": "standby", "alerts": false, "consumers": [], "why": "cloudflare reads raw_snowflake.linkedin_ads_apac" },
+        { "id": "517045062", "name": "Schneider (AUD)", "client": "schneider", "label": "Schneider", "expected": "standby", "alerts": false, "consumers": [], "why": "schneider reads raw_snowflake.linkedin_ads_apac" },
+        { "id": "504047196", "name": "Schneider (USD)", "client": "schneider", "label": "Schneider", "expected": "standby", "alerts": false, "consumers": [] },
+        { "id": "516221072", "name": "Schneider (SGD)", "client": "schneider", "label": "Schneider", "expected": "standby", "alerts": false, "consumers": [] },
+        { "id": "515691430", "name": "STT", "client": "stt", "label": "STT", "expected": "standby", "alerts": false, "consumers": [], "why": "stt reads raw_snowflake" },
+        { "id": "511609128", "name": "STT", "client": "stt", "label": "STT", "expected": "standby", "alerts": false, "consumers": [] },
+        { "id": "510177932", "name": "PropTrack_TransmissionSG_AUD", "client": "proptrack", "label": "PropTrack", "expected": "standby", "alerts": false, "consumers": [], "why": "proptrack reads raw_snowflake" },
+        { "id": "513554482", "name": "HireRight", "client": "hireright", "label": "HireRight", "expected": "standby", "alerts": false, "consumers": [], "why": "hireright reads raw_snowflake" },
+        { "id": "516746102", "name": "Reset Data", "client": "resetdata", "label": "Reset Data", "expected": "standby", "alerts": false, "consumers": [], "why": "resetdata has no LinkedIn lane on the dashboard" },
+        { "id": "507877947", "name": "Cisco APJC", "client": null, "label": "Unmapped (Transmission)", "expected": "standby", "alerts": false },
+        { "id": "502299829", "name": "mongodb AWS Immersion Day (Windsor 500s on 'start')", "client": "mongodb", "label": "MongoDB", "expected": "daily", "alerts": false, "consumers": ["mongodb"],
+          "why": "the ONE LinkedIn account a dashboard reads from Windsor; the connector has 500'd on it since 2026-07 (Windsor-side bug), mongodb's LinkedIn tab auto-hides until it lands. alerts off until Windsor fixes it - flipping to true is the way to be told when it does" }
       ],
-      "extra_configured_ids": [
-        "504606769",
-        "504758918",
-        "507224127",
-        "508673116",
-        "508732444",
-        "508766215",
-        "508768204",
-        "508768205",
-        "508801607",
-        "509003962",
-        "509046900",
-        "509091286",
-        "509841591",
-        "510202977",
-        "511313581",
-        "512344932",
-        "512350710",
-        "512810387",
-        "516748074",
-        "517047078",
-        "547920275",
-        "547920277",
-        "547960230"
-      ],
+      "extra_configured_ids": ["504606769", "504758918", "507224127", "508673116", "508732444", "508766215", "508768204", "508768205", "508801607", "509003962", "509046900", "509091286", "509841591", "510202977", "511313581", "512344932", "512350710", "512810387", "516748074", "517047078", "547920275", "547920277", "547960230"],
       "_extra_doc": "extra_configured_ids = the rest of the loader's 34-account list: Transmission accounts we hold no client mapping for. Probed and shown collapsed as 'Unmapped (Transmission)' so a surprise grant change is still visible, never alerted."
     },
     {
@@ -365,34 +111,12 @@
       "loader_job": "windsor-reddit-ingest",
       "schedule": "21:50 UTC daily",
       "loader_file": "ingest/windsor_data_pull/reddit/reddit_loader.py",
-      "grant": {
-        "last_reauth": "2026-08-05",
-        "reauth_by": "Ian",
-        "token_lifetime_days": null,
-        "note": "Reddit refresh tokens do not expire while in use."
-      },
+      "grant": { "last_reauth": "2026-08-05", "reauth_by": "Ian", "token_lifetime_days": null,
+                 "note": "Reddit refresh tokens do not expire while in use." },
       "accounts": [
-        {
-          "id": "a2_igd0szmw7roq",
-          "name": "ResetData Ad Account",
-          "client": "resetdata",
-          "label": "Reset Data",
-          "expected": "daily",
-          "alerts": true,
-          "consumers": [
-            "resetdata"
-          ]
-        },
-        {
-          "id": "a2_iq3fdsq6rem5",
-          "name": "Transmission_Cloudflare",
-          "client": "cloudflare",
-          "label": "Cloudflare",
-          "expected": "ended",
-          "alerts": false,
-          "consumers": [],
-          "why": "Cloudflare's Reddit lane ran Q2 only (ended 2026-06-30) and the dashboard reads Snowflake for it"
-        }
+        { "id": "a2_igd0szmw7roq", "name": "ResetData Ad Account", "client": "resetdata", "label": "Reset Data", "expected": "daily", "alerts": true, "consumers": ["resetdata"] },
+        { "id": "a2_iq3fdsq6rem5", "name": "Transmission_Cloudflare", "client": "cloudflare", "label": "Cloudflare", "expected": "ended", "alerts": false, "consumers": [],
+          "why": "Cloudflare's Reddit lane ran Q2 only (ended 2026-06-30) and the dashboard reads Snowflake for it" }
       ]
     },
     {
@@ -406,47 +130,13 @@
       "loader_job": "windsor-ga4-ingest",
       "schedule": "21:25 UTC daily (pinned to the two Geocon properties)",
       "loader_file": "ingest/windsor_data_pull/ga4/ga4_loader.py",
-      "grant": {
-        "last_reauth": "2026-08-31",
-        "reauth_by": "Ian",
-        "token_lifetime_days": null,
-        "note": "Google refresh tokens do not expire while in use (they lapse after 6 months idle, or 7 days if the OAuth app is left in Testing)."
-      },
+      "grant": { "last_reauth": "2026-08-31", "reauth_by": "Ian", "token_lifetime_days": null,
+                 "note": "Google refresh tokens do not expire while in use (they lapse after 6 months idle, or 7 days if the OAuth app is left in Testing)." },
       "accounts": [
-        {
-          "id": "550962241",
-          "name": "Geocon brand site",
-          "client": "geocon",
-          "label": "Geocon",
-          "expected": "daily",
-          "alerts": true,
-          "consumers": [
-            "geocon"
-          ]
-        },
-        {
-          "id": "551838402",
-          "name": "Gatewaybraddon (landing site)",
-          "client": "geocon",
-          "label": "Geocon",
-          "expected": "daily",
-          "alerts": true,
-          "consumers": [
-            "geocon"
-          ]
-        },
-        {
-          "id": "287370621",
-          "name": "VMCH",
-          "client": "vmch",
-          "label": "VMCH",
-          "expected": "standby",
-          "alerts": false,
-          "consumers": [
-            "vmch"
-          ],
-          "why": "laptop-run fallback path; vmch's GA4 is DTS-first (raw_ga4.perf_ga4)"
-        }
+        { "id": "550962241", "name": "Geocon brand site", "client": "geocon", "label": "Geocon", "expected": "daily", "alerts": true, "consumers": ["geocon"] },
+        { "id": "551838402", "name": "Gatewaybraddon (landing site)", "client": "geocon", "label": "Geocon", "expected": "daily", "alerts": true, "consumers": ["geocon"] },
+        { "id": "287370621", "name": "VMCH", "client": "vmch", "label": "VMCH", "expected": "standby", "alerts": false, "consumers": ["vmch"],
+          "why": "laptop-run fallback path; vmch's GA4 is DTS-first (raw_ga4.perf_ga4)" }
       ]
     },
     {
@@ -461,30 +151,17 @@
       "loader_job": "windsor-hubspot-ingest",
       "schedule": "21:55 UTC daily",
       "loader_file": "ingest/windsor_data_pull/hubspot/hubspot_loader.py",
-      "grant": {
-        "last_reauth": null,
-        "reauth_by": null,
-        "token_lifetime_days": null,
-        "note": "HubSpot private-app tokens do not expire. Single tenant (Reset Data), no account selection."
-      },
+      "grant": { "last_reauth": null, "reauth_by": null, "token_lifetime_days": null,
+                 "note": "HubSpot private-app tokens do not expire. Single tenant (Reset Data), no account selection." },
       "accounts": [
-        {
-          "id": "hubspot",
-          "name": "Reset Data HubSpot portal",
-          "client": "resetdata",
-          "label": "Reset Data",
-          "expected": "snapshot",
-          "alerts": true,
-          "consumers": [
-            "resetdata"
-          ]
-        }
+        { "id": "hubspot", "name": "Reset Data HubSpot portal", "client": "resetdata", "label": "Reset Data", "expected": "snapshot", "alerts": true, "consumers": ["resetdata"] }
       ]
     },
     {
       "ds": "dts_google_ads",
       "label": "Google Ads (native BigQuery transfer)",
       "source": "dts",
+      "transfer_state": true,
       "table_template": "raw_google_ads.p_ads_CampaignBasicStats_{id}",
       "date_expr": "segments_date",
       "_doc": [
@@ -504,76 +181,21 @@
         "and Reset Data were still frozen on the MCC set; that is stale - both have their own",
         "per-account transfer since 2026-08-25 (GADS_LIVE_FROM in ingest/dts_data_pull/create_views.py)."
       ],
-      "grant": {
-        "last_reauth": null,
-        "reauth_by": null,
-        "token_lifetime_days": null,
-        "note": "Native DTS, authorised by the Google account that owns the transfer. No token to expire, but it DOES break when upstream access is revoked - which is what freshness catches."
-      },
+      "grant": { "last_reauth": null, "reauth_by": null, "token_lifetime_days": null,
+                 "note": "Native DTS, authorised by the Google account that owns the transfer. No token to expire, but it DOES break when upstream access is revoked - which is what freshness catches." },
       "accounts": [
-        {
-          "id": "3451896252",
-          "name": "MCC 345-189-6252",
-          "client": null,
-          "label": "MCC (shared)",
-          "expected": "daily",
-          "alerts": true,
-          "consumers": [
-            "cloudflare",
-            "geocon"
-          ]
-        },
-        {
-          "id": "1054407474",
-          "name": "Reset Data",
-          "client": "resetdata",
-          "label": "Reset Data",
-          "expected": "daily",
-          "alerts": true,
-          "consumers": [
-            "resetdata"
-          ]
-        },
-        {
-          "id": "5457742070",
-          "name": "Geocon",
-          "client": "geocon",
-          "label": "Geocon",
-          "expected": "daily",
-          "alerts": true,
-          "consumers": [
-            "geocon"
-          ]
-        },
-        {
-          "id": "2020134915",
-          "name": "Geocon Group",
-          "client": "geocon",
-          "label": "Geocon",
-          "expected": "daily",
-          "alerts": true,
-          "consumers": [
-            "geocon"
-          ]
-        },
-        {
-          "id": "1869745895",
-          "name": "The Little Marionette",
-          "client": "tlm",
-          "label": "The Little Marionette",
-          "expected": "daily",
-          "alerts": true,
-          "consumers": [
-            "tlm"
-          ]
-        }
-      ],
-      "transfer_state": true
+        { "id": "3451896252", "name": "MCC 345-189-6252", "client": null, "label": "MCC (shared)", "expected": "daily", "alerts": true, "consumers": ["cloudflare", "geocon"] },
+        { "id": "1054407474", "name": "Reset Data", "client": "resetdata", "label": "Reset Data", "expected": "daily", "alerts": true, "consumers": ["resetdata"] },
+        { "id": "5457742070", "name": "Geocon", "client": "geocon", "label": "Geocon", "expected": "daily", "alerts": true, "consumers": ["geocon"] },
+        { "id": "2020134915", "name": "Geocon Group", "client": "geocon", "label": "Geocon", "expected": "daily", "alerts": true, "consumers": ["geocon"] },
+        { "id": "1869745895", "name": "The Little Marionette", "client": "tlm", "label": "The Little Marionette", "expected": "daily", "alerts": true, "consumers": ["tlm"] }
+      ]
     },
     {
       "ds": "dts_ga4",
       "label": "GA4 (native BigQuery transfer)",
       "source": "dts",
+      "transfer_state": true,
       "table_template": "raw_ga4.p_ga4_TrafficAcquisition_{id}",
       "date_expr": "_PARTITIONTIME",
       "_doc": [
@@ -591,242 +213,36 @@
         "properties are on a live critical path and alert. The rest are marked standby with alerts",
         "off - they are worth SEEING, not worth paging anyone about."
       ],
-      "grant": {
-        "last_reauth": null,
-        "reauth_by": null,
-        "token_lifetime_days": null,
-        "note": "Native DTS. Breaks on upstream GA4 property permission, not on a token."
-      },
+      "grant": { "last_reauth": null, "reauth_by": null, "token_lifetime_days": null,
+                 "note": "Native DTS. Breaks on upstream GA4 property permission, not on a token." },
       "accounts": [
-        {
-          "id": "287370621",
-          "name": "VMCH Website",
-          "client": "vmch",
-          "label": "VMCH",
-          "expected": "daily",
-          "alerts": true,
-          "consumers": [
-            "vmch"
-          ],
-          "why": "LIVE client (vmch-dash). Its DTS transfer has never landed a table, and its Windsor fallback (raw_windsor.perf_ga4, property 287370621) stopped advancing 2026-07-14 - so BOTH GA4 paths are stale. This is the one genuinely urgent GA4 finding."
-        },
-        {
-          "id": "516276493",
-          "name": "Reset Data",
-          "client": "resetdata",
-          "label": "Reset Data",
-          "expected": "daily",
-          "alerts": true,
-          "consumers": [
-            "resetdata"
-          ]
-        },
-        {
-          "id": "318963196",
-          "name": "STT GDC Web All",
-          "client": "stt",
-          "label": "STT",
-          "expected": "daily",
-          "alerts": true,
-          "consumers": [
-            "stt"
-          ]
-        },
-        {
-          "id": "434839993",
-          "name": "STT GDC Web Global",
-          "client": "stt",
-          "label": "STT",
-          "expected": "daily",
-          "alerts": true,
-          "consumers": [
-            "stt"
-          ]
-        },
-        {
-          "id": "413451542",
-          "name": "STT GDC Web India",
-          "client": "stt",
-          "label": "STT",
-          "expected": "daily",
-          "alerts": true,
-          "consumers": [
-            "stt"
-          ]
-        },
-        {
-          "id": "413487460",
-          "name": "STT GDC Web Indonesia",
-          "client": "stt",
-          "label": "STT",
-          "expected": "daily",
-          "alerts": true,
-          "consumers": [
-            "stt"
-          ]
-        },
-        {
-          "id": "434829327",
-          "name": "STT GDC Web Japan",
-          "client": "stt",
-          "label": "STT",
-          "expected": "daily",
-          "alerts": true,
-          "consumers": [
-            "stt"
-          ]
-        },
-        {
-          "id": "434854278",
-          "name": "STT GDC Web Korea",
-          "client": "stt",
-          "label": "STT",
-          "expected": "daily",
-          "alerts": true,
-          "consumers": [
-            "stt"
-          ]
-        },
-        {
-          "id": "434905821",
-          "name": "STT GDC Web Malaysia",
-          "client": "stt",
-          "label": "STT",
-          "expected": "daily",
-          "alerts": true,
-          "consumers": [
-            "stt"
-          ]
-        },
-        {
-          "id": "413491455",
-          "name": "STT GDC Web Philippines",
-          "client": "stt",
-          "label": "STT",
-          "expected": "daily",
-          "alerts": true,
-          "consumers": [
-            "stt"
-          ]
-        },
-        {
-          "id": "413490347",
-          "name": "STT GDC Web Singapore",
-          "client": "stt",
-          "label": "STT",
-          "expected": "daily",
-          "alerts": true,
-          "consumers": [
-            "stt"
-          ]
-        },
-        {
-          "id": "413495845",
-          "name": "STT GDC Web Thailand",
-          "client": "stt",
-          "label": "STT",
-          "expected": "daily",
-          "alerts": true,
-          "consumers": [
-            "stt"
-          ]
-        },
-        {
-          "id": "434852571",
-          "name": "STT GDC Web Vietnam",
-          "client": "stt",
-          "label": "STT",
-          "expected": "daily",
-          "alerts": true,
-          "consumers": [
-            "stt"
-          ]
-        },
-        {
-          "id": "551838402",
-          "name": "Geocon landing site",
-          "client": "geocon",
-          "label": "Geocon",
-          "expected": "daily",
-          "alerts": true,
-          "consumers": [
-            "geocon"
-          ]
-        },
-        {
-          "id": "550962241",
-          "name": "Geocon brand site",
-          "client": "geocon",
-          "label": "Geocon",
-          "expected": "standby",
-          "alerts": false,
-          "consumers": [
-            "geocon"
-          ],
-          "why": "DTS transfer fails on permission, but geocon's GA4 arrives via windsor-ga4-ingest (pinned to this property, fresh). Re-grant Viewer and this becomes the primary path."
-        },
-        {
-          "id": "254028250",
-          "name": "City Perfume",
-          "client": "cityperfume",
-          "label": "City Perfume",
-          "expected": "ended",
-          "alerts": false,
-          "consumers": [],
-          "why": "client offboarded 2026-09-01; dashboards deleted, data retained. Stopped advancing 2026-07-02 and that no longer matters."
-        },
-        {
-          "id": "468621509",
-          "name": "Sophiie",
-          "client": "sophiie",
-          "label": "Sophiie",
-          "expected": "standby",
-          "alerts": false,
-          "consumers": [],
-          "why": "sophiie is a PREVIEW dashboard with no pipeline, dataset or job yet"
-        },
-        {
-          "id": "273098216",
-          "name": "Atlantis Reservations",
-          "client": null,
-          "label": "Unmapped",
-          "expected": "standby",
-          "alerts": false
-        },
-        {
-          "id": "506931798",
-          "name": "ChocolateGrove",
-          "client": null,
-          "label": "Unmapped",
-          "expected": "standby",
-          "alerts": false
-        },
-        {
-          "id": "341832593",
-          "name": "atlantisevents.com",
-          "client": null,
-          "label": "Unmapped",
-          "expected": "standby",
-          "alerts": false
-        },
-        {
-          "id": "341827046",
-          "name": "rsvpvacations.com",
-          "client": null,
-          "label": "Unmapped",
-          "expected": "standby",
-          "alerts": false
-        },
-        {
-          "id": "358885683",
-          "name": "100.digital",
-          "client": null,
-          "label": "Unmapped",
-          "expected": "standby",
-          "alerts": false
-        }
-      ],
-      "transfer_state": true
+        { "id": "287370621", "name": "VMCH Website", "client": "vmch", "label": "VMCH", "expected": "daily", "alerts": true, "consumers": ["vmch"],
+          "why": "LIVE client (vmch-dash). Its DTS transfer has never landed a table, and its Windsor fallback (raw_windsor.perf_ga4, property 287370621) stopped advancing 2026-07-14 - so BOTH GA4 paths are stale. This is the one genuinely urgent GA4 finding." },
+        { "id": "516276493", "name": "Reset Data", "client": "resetdata", "label": "Reset Data", "expected": "daily", "alerts": true, "consumers": ["resetdata"] },
+        { "id": "318963196", "name": "STT GDC Web All", "client": "stt", "label": "STT", "expected": "daily", "alerts": true, "consumers": ["stt"] },
+        { "id": "434839993", "name": "STT GDC Web Global", "client": "stt", "label": "STT", "expected": "daily", "alerts": true, "consumers": ["stt"] },
+        { "id": "413451542", "name": "STT GDC Web India", "client": "stt", "label": "STT", "expected": "daily", "alerts": true, "consumers": ["stt"] },
+        { "id": "413487460", "name": "STT GDC Web Indonesia", "client": "stt", "label": "STT", "expected": "daily", "alerts": true, "consumers": ["stt"] },
+        { "id": "434829327", "name": "STT GDC Web Japan", "client": "stt", "label": "STT", "expected": "daily", "alerts": true, "consumers": ["stt"] },
+        { "id": "434854278", "name": "STT GDC Web Korea", "client": "stt", "label": "STT", "expected": "daily", "alerts": true, "consumers": ["stt"] },
+        { "id": "434905821", "name": "STT GDC Web Malaysia", "client": "stt", "label": "STT", "expected": "daily", "alerts": true, "consumers": ["stt"] },
+        { "id": "413491455", "name": "STT GDC Web Philippines", "client": "stt", "label": "STT", "expected": "daily", "alerts": true, "consumers": ["stt"] },
+        { "id": "413490347", "name": "STT GDC Web Singapore", "client": "stt", "label": "STT", "expected": "daily", "alerts": true, "consumers": ["stt"] },
+        { "id": "413495845", "name": "STT GDC Web Thailand", "client": "stt", "label": "STT", "expected": "daily", "alerts": true, "consumers": ["stt"] },
+        { "id": "434852571", "name": "STT GDC Web Vietnam", "client": "stt", "label": "STT", "expected": "daily", "alerts": true, "consumers": ["stt"] },
+        { "id": "551838402", "name": "Geocon landing site", "client": "geocon", "label": "Geocon", "expected": "daily", "alerts": true, "consumers": ["geocon"] },
+        { "id": "550962241", "name": "Geocon brand site", "client": "geocon", "label": "Geocon", "expected": "standby", "alerts": false, "consumers": ["geocon"],
+          "why": "DTS transfer fails on permission, but geocon's GA4 arrives via windsor-ga4-ingest (pinned to this property, fresh). Re-grant Viewer and this becomes the primary path." },
+        { "id": "254028250", "name": "City Perfume", "client": "cityperfume", "label": "City Perfume", "expected": "ended", "alerts": false, "consumers": [],
+          "why": "client offboarded 2026-09-01; dashboards deleted, data retained. Stopped advancing 2026-07-02 and that no longer matters." },
+        { "id": "468621509", "name": "Sophiie", "client": "sophiie", "label": "Sophiie", "expected": "standby", "alerts": false, "consumers": [],
+          "why": "sophiie is a PREVIEW dashboard with no pipeline, dataset or job yet" },
+        { "id": "273098216", "name": "Atlantis Reservations", "client": null, "label": "Unmapped", "expected": "standby", "alerts": false },
+        { "id": "506931798", "name": "ChocolateGrove", "client": null, "label": "Unmapped", "expected": "standby", "alerts": false },
+        { "id": "341832593", "name": "atlantisevents.com", "client": null, "label": "Unmapped", "expected": "standby", "alerts": false },
+        { "id": "341827046", "name": "rsvpvacations.com", "client": null, "label": "Unmapped", "expected": "standby", "alerts": false },
+        { "id": "358885683", "name": "100.digital", "client": null, "label": "Unmapped", "expected": "standby", "alerts": false }
+      ]
     }
   ]
 }
