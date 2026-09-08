@@ -854,6 +854,24 @@ def feedback_ping():
     return jsonify(ok=True)
 
 
+def _me():
+    """Who is using the tracker, as (email, display name) - ("", "") when we genuinely cannot tell.
+
+    ONLY the Google and Microsoft sign-in paths set session["email"]; the typed admin/super-admin
+    passwords are SHARED, so a password session is unattributable by construction (the same reason
+    _tool_allowed refuses to gate a private preview on one). Several people work this queue from the
+    same super-admin login, so the tracker needs an identity to stamp a claim with: when there is a
+    verified email we use it, and when there is not the page falls back to a name the user declares
+    in their own browser. The two are never conflated - see the assign path below.
+    """
+    email = (session.get("email") or "").strip()
+    if not email:
+        return "", ""
+    local = email.split("@")[0]
+    name = " ".join(w.capitalize() for w in re.split(r"[._+-]+", local) if w)
+    return email, (name or local)
+
+
 def _enrich(rec):
     """Transcribe + interpret a note via Gemini (once), writing the result back to the record so
     every later view is instant. Best-effort: any failure leaves the note un-enriched to retry."""
@@ -920,11 +938,26 @@ def feedback_admin():
         elif r.get("client"):
             has_unassigned = True
     agencies_filter = sorted(seen_ag.items(), key=lambda kv: kv[1].lower())
+    # Owner ("Assigned to") roster for the filter dropdown + the preset buttons: the standing team
+    # (feedback.ASSIGNEES) UNION whatever names notes already carry, so a one-off assignment stays
+    # filterable after the fact and a roster change never orphans an existing note. `has_unowned`
+    # drives the "Unassigned" option, which is the queue that actually matters when triaging.
+    owners = sorted(({(r.get("assignee") or "").strip() for r in rows} | set(feedback.ASSIGNEES))
+                    - {""}, key=lambda n: n.lower())
+    has_unowned = any(not (r.get("assignee") or "").strip() for r in rows)
+    me_email, me_name = _me()
     return render_template_string(_FEEDBACK_ADMIN_HTML, rows=rows, names=names, count=len(rows),
+                                  me_email=me_email, me_name=me_name,
+                                  # can_assign gates every WRITE control for the owner field; the
+                                  # Assigned-to FILTER stays for everyone, because reading who owns
+                                  # what is not the same permission as deciding it.
+                                  can_assign=(session.get("kind") == "superadmin"),
+                                  presets=feedback.ASSIGNEES,
                                   ai_on=feedback_ai.enabled(), statuses=feedback.STATUSES,
                                   default_status=feedback.DEFAULT_STATUS, clients_list=clients_list,
                                   agency_of=agency_of, agencies_filter=agencies_filter,
-                                  has_unassigned=has_unassigned)
+                                  has_unassigned=has_unassigned, owners=owners,
+                                  has_unowned=has_unowned)
 
 
 @app.get("/feedback/file/<client>/<fname>")
@@ -974,7 +1007,8 @@ def feedback_status():
 
 @app.post("/feedback/edit")
 def feedback_edit():
-    """Hand-edit a note: reporter name, the two dates (date_reported / deadline) and the notes text.
+    """Hand-edit a note: reporter name, the assignee (who will fix it, stamped with who claimed it
+    and when), the two dates (date_reported / deadline) and the notes text.
     Admin/super. Only the keys present in the body are written, so a partial save is fine. Dates are
     stored as the browser's "YYYY-MM-DD" strings (or "" to clear)."""
     _require_admin()
@@ -984,6 +1018,31 @@ def feedback_edit():
     fields = {}
     if "reporter" in d:
         fields["reporter"] = (d.get("reporter") or "").strip()[:120]
+    if "assignee" in d:
+        want = (d.get("assignee") or "").strip()[:120]
+        # ASSIGNING IS SUPER-ADMIN ONLY (a plain admin may read the tracker and edit the human
+        # fields, but not decide who fixes a bug). Enforced on the CHANGE, not on the key being
+        # present: the whole form posts every field, so refusing any save that merely CARRIES an
+        # unchanged assignee would block an admin from fixing a typo in a note. A real change is
+        # refused loudly with a reason the UI can name - never silently dropped, or the page would
+        # show the new owner until the next reload swapped it back.
+        prev = feedback.get_record(client, rid) or {}
+        changing = want != (prev.get("assignee") or "")
+        if changing and session.get("kind") != "superadmin":
+            return jsonify(ok=False, reason="assign_superadmin_only",
+                           error="Only a super admin can change who a note is assigned to."), 403
+        if changing:
+            # Stamp WHO claimed it and WHEN, but only on a real change - several people work this
+            # queue from the same shared super-admin password, so without this the tracker records
+            # what is owed and never who took it, and re-saving an unrelated field (a deadline, a
+            # note) would rewrite the claim's date. `assigned_by_email` is the VERIFIED identity and
+            # exists only on an SSO session; `assigned_by` is the name the browser declared and is
+            # self-reported - keep the two apart rather than presenting a typed name as authenticated.
+            by_email, by_name = _me()
+            fields["assignee"] = want
+            fields["assigned_at"] = int(time.time())
+            fields["assigned_by_email"] = by_email
+            fields["assigned_by"] = by_name or (d.get("by") or "").strip()[:120]
     if "deadline" in d:
         fields["deadline"] = (d.get("deadline") or "").strip()[:40]
     if "date_reported" in d:
@@ -1018,9 +1077,11 @@ _FEEDBACK_ADMIN_HTML = """<!doctype html><html lang="en"><head><meta charset="ut
   :root{
     --bg:#0a0e16; --panel:#101726; --panel-2:#0d1420; --border:rgba(255,255,255,.08);
     --border-strong:#2f3a52; --text:#e8ebf2; --muted:#8a93a6; --dim:#6b7280;
-    /* single accent — bright cornflower blue */
+    /* single accent - bright cornflower blue */
     --accent:#4C8DFF; --accent-strong:#6EA8FF; --accent-bg:rgba(76,141,255,.12);
     --danger:#f87171;
+    /* one colour per triage status, shared by the card rail, the row dot and the status select */
+    --s-new:#8a93a6; --s-going:#3b82f6; --s-hold:#f59e0b; --s-done:#22c55e;
     --font-sans:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
   }
   *{box-sizing:border-box}
@@ -1030,43 +1091,119 @@ _FEEDBACK_ADMIN_HTML = """<!doctype html><html lang="en"><head><meta charset="ut
       radial-gradient(560px 340px at 50% -2%, rgba(110,168,255,.10), transparent 66%),
       var(--bg);
     background-repeat:no-repeat;background-attachment:fixed}
-  header{padding:18px 28px;border-bottom:1px solid var(--border);display:flex;align-items:baseline;gap:12px;
-    background:rgba(12,18,30,.72);backdrop-filter:blur(6px);position:sticky;top:0;z-index:5}
+  header{padding:14px 28px;border-bottom:1px solid var(--border);display:flex;align-items:baseline;gap:12px;
+    background:rgba(12,18,30,.82);backdrop-filter:blur(6px);position:sticky;top:0;z-index:6}
   header .eyebrow{font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--accent-strong)}
   header h1{margin:0;font-size:19px;font-weight:800} header .n{color:var(--muted);font-size:13px}
   header a{margin-left:auto;color:var(--muted);font-size:13px;text-decoration:none}
   header a:hover{color:var(--text)}
-  .wrap{max-width:1180px;margin:0 auto;padding:24px 28px 80px;display:flex;flex-direction:column;gap:16px}
-  .filterbar{display:flex;gap:16px;flex-wrap:wrap;align-items:center;margin-bottom:2px}
-  .fsel{display:inline-flex;align-items:center;gap:8px}
-  .fsel .flbl{font-size:11px;letter-spacing:.6px;text-transform:uppercase;color:var(--muted)}
-  .fsel select{font:600 13px/1 inherit;color:var(--text);background:var(--panel-2);border:1px solid var(--border);
-    border-radius:8px;padding:8px 11px;cursor:pointer;outline:none}
-  .fsel select:focus{border-color:var(--accent-strong)}
-  .card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:15px 17px}
-  .meta{display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-bottom:12px}
-  .chip{background:var(--accent-bg);color:var(--accent-strong);border-radius:999px;padding:2px 9px;font-weight:700}
+  .wrap{max-width:1240px;margin:0 auto;padding:12px 28px 80px;display:flex;flex-direction:column;gap:9px}
+
+  /* ---- toolbar: filters + free-text search + the expand/collapse control, in one sticky row ---- */
+  .toolbar{position:sticky;top:52px;z-index:5;display:flex;gap:12px;flex-wrap:wrap;align-items:center;
+    padding:11px 13px;margin:6px 0 4px;background:rgba(13,20,32,.94);backdrop-filter:blur(6px);
+    border:1px solid var(--border);border-radius:11px}
+  .fsel{display:inline-flex;align-items:center;gap:7px}
+  .fsel .flbl{font-size:10.5px;letter-spacing:.6px;text-transform:uppercase;color:var(--muted)}
+  .fsel select,.search input{font:600 13px/1 inherit;color:var(--text);background:var(--panel-2);
+    border:1px solid var(--border);border-radius:8px;padding:8px 11px;cursor:pointer;outline:none}
+  .fsel select:focus,.search input:focus{border-color:var(--accent-strong)}
+  .search input{min-width:210px;cursor:text;font-weight:500}
+  .toolbar .grow{flex:1}
+  .toolbar .shown{font-size:12px;color:var(--muted);white-space:nowrap}
+  button.ghost{font:600 12px/1 inherit;color:var(--muted);background:transparent;border:1px solid var(--border);
+    border-radius:8px;padding:8px 11px;cursor:pointer}
+  button.ghost:hover{color:var(--text);border-color:var(--border-strong)}
+  button.ghost.on{color:#06132b;background:var(--accent);border-color:var(--accent)}
+  /* who is working the queue: verified from the sign-in, or self-declared on a shared login */
+  .me{display:inline-flex;align-items:center;gap:7px;font-size:12px;color:var(--muted);
+    padding:7px 11px;background:var(--panel-2);border:1px solid var(--border);border-radius:8px}
+  .me b{color:var(--text);font-weight:700}
+  .me .vrf{font-size:10px;letter-spacing:.5px;text-transform:uppercase;color:var(--s-done)}
+  .me button{font:600 11.5px/1 inherit;color:var(--accent-strong);background:transparent;border:0;
+    padding:0;cursor:pointer;text-decoration:underline}
+
+  /* ---- a note is a one-line scannable row that expands to the full detail ---- */
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:11px;overflow:hidden;
+    position:relative}
+  .card::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--s-new)}
+  .card[data-status="Ongoing"]::before{background:var(--s-going)}
+  .card[data-status="On Hold"]::before{background:var(--s-hold)}
+  .card[data-status="Completed"]::before{background:var(--s-done)}
+  .card.open{border-color:var(--border-strong)}
+  .row{display:flex;align-items:center;gap:11px;width:100%;padding:11px 15px 11px 17px;
+    background:none;border:0;text-align:left;cursor:pointer;color:inherit;font:inherit}
+  .row:hover{background:rgba(255,255,255,.025)}
+  .row .dot{width:7px;height:7px;border-radius:50%;background:var(--s-new);flex:none}
+  .card[data-status="Ongoing"] .dot{background:var(--s-going)}
+  .card[data-status="On Hold"] .dot{background:var(--s-hold)}
+  .card[data-status="Completed"] .dot{background:var(--s-done)}
+  .chip{background:var(--accent-bg);color:var(--accent-strong);border-radius:999px;padding:3px 10px;
+    font-size:11.5px;font-weight:700;white-space:nowrap;flex:none;max-width:190px;overflow:hidden;
+    text-overflow:ellipsis}
+  .row .prev{flex:1;min-width:0;font-size:13.5px;color:var(--text);overflow:hidden;
+    text-overflow:ellipsis;white-space:nowrap}
+  .card[data-status="Completed"] .row .prev{color:var(--muted)}
+  .row .prev .empty{color:var(--dim);font-style:italic}
+  .row .tags{display:flex;align-items:center;gap:7px;flex:none}
+  .own{font-size:11.5px;font-weight:600;border-radius:999px;padding:3px 10px;white-space:nowrap;
+    border:1px solid var(--border);color:var(--muted);background:var(--panel-2)}
+  .own.has{color:#a7f3d0;border-color:rgba(16,185,129,.45);background:rgba(16,185,129,.12)}
+  .own.mine{color:#06132b;background:var(--accent-strong);border-color:var(--accent-strong)}
+  /* one-click claim, straight off the collapsed row - the whole point of the queue being scannable */
+  button.take{font:600 11px/1 inherit;color:var(--accent-strong);background:transparent;
+    border:1px solid rgba(76,141,255,.45);border-radius:999px;padding:4px 10px;cursor:pointer;
+    white-space:nowrap;flex:none}
+  button.take:hover{background:var(--accent-bg)}
+  button.take[disabled]{opacity:.45;cursor:default}
+  .row .when{font-size:11.5px;color:var(--dim);white-space:nowrap}
+  .row .due{font-size:11.5px;color:var(--muted);white-space:nowrap}
+  .row .due.late{color:#fca5a5}
+  .row:focus-visible{outline:2px solid var(--accent-strong);outline-offset:-2px}
+  .row .caret{color:var(--dim);font-size:11px;transition:transform .15s;flex:none}
+  .card.open .row .caret{transform:rotate(90deg)}
+  .body{display:none;padding:2px 15px 15px 17px;border-top:1px solid var(--border)}
+  .card.open .body{display:block}
+
+  .meta{display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:12px;color:var(--muted);
+    padding:11px 0 12px}
   .meta .grow{flex:1}
   select.stat{font:600 12px/1 inherit;color:var(--text);background:var(--panel-2);border:1px solid var(--border);
-    border-radius:7px;padding:5px 8px;cursor:pointer}
-  select.stat[data-status="Completed"]{background:rgba(34,197,94,.16);border-color:#22c55e}
-  select.stat[data-status="Ongoing"]{background:rgba(59,130,246,.18);border-color:#3b82f6}
-  select.stat[data-status="On Hold"]{background:rgba(245,158,11,.16);border-color:#f59e0b}
+    border-radius:7px;padding:6px 9px;cursor:pointer}
+  select.stat[data-status="Completed"]{background:rgba(34,197,94,.16);border-color:var(--s-done)}
+  select.stat[data-status="Ongoing"]{background:rgba(59,130,246,.18);border-color:var(--s-going)}
+  select.stat[data-status="On Hold"]{background:rgba(245,158,11,.16);border-color:var(--s-hold)}
   select.stat[disabled]{opacity:.5}
   button.del{font:600 12px/1 inherit;color:#fca5a5;background:transparent;border:1px solid rgba(248,113,113,.45);
-    border-radius:7px;padding:5px 9px;cursor:pointer} button.del:hover{background:rgba(248,113,113,.16)}
+    border-radius:7px;padding:6px 10px;cursor:pointer} button.del:hover{background:rgba(248,113,113,.16)}
   .edit{display:flex;gap:14px;align-items:flex-end;flex-wrap:wrap;margin-bottom:13px;
     padding:11px 13px;background:var(--panel-2);border:1px solid var(--border);border-radius:9px}
   .edit label{display:flex;flex-direction:column;gap:4px;font-size:10.5px;letter-spacing:.5px;
     text-transform:uppercase;color:var(--muted)}
+  .edit label.owner{color:var(--accent-strong)}
   .edit input{font:14px/1 inherit;color:var(--text);background:var(--bg);border:1px solid var(--border);
     border-radius:7px;padding:7px 9px;outline:none;color-scheme:dark} .edit input:focus{border-color:var(--accent-strong)}
   .edit input.rep{min-width:170px}
+  .edit input.asg{min-width:180px;border-color:rgba(76,141,255,.38)}
   .edit .grow{flex:1}
   button.save{font:600 12px/1 inherit;color:#06132b;background:var(--accent);border:1px solid var(--accent);
     border-radius:7px;padding:8px 13px;cursor:pointer} button.save:hover{background:var(--accent-strong);border-color:var(--accent-strong)}
   button.save:disabled{opacity:.5;cursor:default}
   .saved{font-size:12px;color:var(--accent-strong);align-self:center}
+  .presets{display:flex;align-items:center;gap:6px;padding-bottom:2px}
+  .presets .plbl{font-size:10.5px;letter-spacing:.5px;text-transform:uppercase;color:var(--dim);
+    margin-right:2px}
+  button.pre{font:600 11.5px/1 inherit;color:var(--accent-strong);background:transparent;
+    border:1px solid rgba(76,141,255,.4);border-radius:999px;padding:6px 11px;cursor:pointer}
+  button.pre:hover{background:var(--accent-bg)}
+  button.pre.on{color:#06132b;background:var(--accent-strong);border-color:var(--accent-strong)}
+  button.pre.clr{color:var(--muted);border-color:var(--border)}
+  button.pre.clr:hover{background:rgba(255,255,255,.05)}
+  /* the label is uppercased; a person's NAME must not be, so the read-only value opts out */
+  .ro{font:14px/1 inherit;color:var(--text);padding:7px 0;text-transform:none;letter-spacing:normal}
+  .ro .none{color:var(--dim);font-style:italic;padding:0}
+  .prov{font-size:11.5px;color:var(--dim);margin:-6px 0 12px}
+  .prov .self{color:var(--muted)}
   textarea.note{width:100%;min-height:70px;resize:vertical;font:14px/1.5 inherit;color:var(--text);
     background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 10px;
     outline:none} textarea.note:focus{border-color:var(--accent-strong)}
@@ -1086,11 +1223,18 @@ _FEEDBACK_ADMIN_HTML = """<!doctype html><html lang="en"><head><meta charset="ut
   <a href="/">&larr; back to platform</a></header>
 <div class="wrap">
 {% if rows %}
-<div class="filterbar">
+<div class="toolbar">
   <label class="fsel"><span class="flbl">Status</span>
     <select id="fStatus">
       <option value="all" data-base="All">All</option>
       {% for s in statuses %}<option value="{{ s }}" data-base="{{ s }}">{{ s }}</option>{% endfor %}
+    </select>
+  </label>
+  <label class="fsel"><span class="flbl">Assigned to</span>
+    <select id="fOwner">
+      <option value="all" data-base="Anyone">Anyone</option>
+      {% if has_unowned %}<option value="" data-base="Unassigned">Unassigned</option>{% endif %}
+      {% for o in owners %}<option value="{{ o }}" data-base="{{ o }}">{{ o }}</option>{% endfor %}
     </select>
   </label>
   <label class="fsel"><span class="flbl">Agency</span>
@@ -1106,16 +1250,37 @@ _FEEDBACK_ADMIN_HTML = """<!doctype html><html lang="en"><head><meta charset="ut
       {% for key, name in clients_list %}<option value="{{ key }}" data-base="{{ name }}">{{ name }}</option>{% endfor %}
     </select>
   </label>
+  <label class="fsel search"><input id="fQ" type="search" placeholder="Search notes, client, name" autocomplete="off"></label>
+  {% if can_assign %}<button class="ghost" id="fMine" type="button" title="Show only the notes assigned to me">Mine</button>{% endif %}
+  <span class="grow"></span>
+  {% if can_assign %}<span class="me" id="fMe"></span>{% endif %}
+  <span class="shown" id="fShown"></span>
+  <button class="ghost" id="fToggleAll" type="button">Expand all</button>
 </div>
 {% endif %}
 {% for r in rows %}
   {% set st = r.status or default_status %}
-  <div class="card" data-status="{{ st }}" data-client="{{ r.client }}" data-agency="{{ agency_of.get(r.client, '') }}">
-    <div class="meta">
+  {% set own = r.assignee or '' %}
+  {% set line = r.text or r.transcript or r.ai_summary or '' %}
+  <div class="card" data-status="{{ st }}" data-client="{{ r.client }}"
+       data-agency="{{ agency_of.get(r.client, '') }}" data-owner="{{ own }}"
+       data-q="{{ (names.get(r.client, r.client) ~ ' ' ~ (r.text or '') ~ ' ' ~ (r.transcript or '') ~ ' ' ~ (r.ai_summary or '') ~ ' ' ~ (r.reporter or '') ~ ' ' ~ own ~ ' ' ~ (r.page or '') ~ ' ' ~ st) | lower }}">
+    <div class="row" role="button" tabindex="0" aria-expanded="false">
+      <span class="dot"></span>
       <span class="chip">{{ names.get(r.client, r.client) }}</span>
-      <span>{{ r.created_at | datetime }}</span>
-      {% if r.page %}<span>· {{ r.page }}</span>{% endif %}
-      {% if r.user_kind %}<span>· {{ r.user_kind }}</span>{% endif %}
+      <span class="prev">{% if line %}{{ line[:180] }}{% else %}<span class="empty">{% if r.audio %}Voice note{% else %}No note text{% endif %}</span>{% endif %}</span>
+      <span class="tags">
+        <span class="own{% if own %} has{% endif %}">{% if own %}{{ own }}{% else %}Unassigned{% endif %}</span>
+        {% if r.deadline %}<span class="due" data-due="{{ r.deadline }}">Due {{ r.deadline }}</span>{% endif %}
+        <span class="when">{{ r.created_at | datetime }}</span>
+        {% if can_assign %}<button class="take" type="button" data-client="{{ r.client }}" data-id="{{ r.id }}">Take</button>{% endif %}
+        <span class="caret">&#9656;</span>
+      </span>
+    </div>
+    <div class="body">
+    <div class="meta">
+      {% if r.page %}<span>{{ r.page }}</span>{% endif %}
+      {% if r.user_kind %}<span>&middot; {{ r.user_kind }}</span>{% endif %}
       <span class="grow"></span>
       <select class="stat" data-status="{{ st }}" data-client="{{ r.client }}" data-id="{{ r.id }}">
         {% for s in statuses %}<option value="{{ s }}"{% if s == st %} selected{% endif %}>{{ s }}</option>{% endfor %}
@@ -1123,6 +1288,17 @@ _FEEDBACK_ADMIN_HTML = """<!doctype html><html lang="en"><head><meta charset="ut
       <button class="del" data-client="{{ r.client }}" data-id="{{ r.id }}">Delete</button>
     </div>
     <div class="edit" data-client="{{ r.client }}" data-id="{{ r.id }}">
+      {% if can_assign %}
+      <label class="owner">Assigned to<input class="ef asg" data-field="assignee" type="text" list="fbOwners"
+        placeholder="Who will fix it" value="{{ own }}"></label>
+      <span class="presets">
+        <span class="plbl">or</span>
+        {% for pn in presets %}<button class="pre" type="button" data-name="{{ pn }}">{{ pn }}</button>{% endfor %}
+        <button class="pre clr" type="button" data-name="">Clear</button>
+      </span>
+      {% else %}
+      <label class="owner">Assigned to<span class="ro">{% if own %}{{ own }}{% else %}<span class="none">Unassigned</span>{% endif %}</span></label>
+      {% endif %}
       <label>Reporter<input class="ef rep" data-field="reporter" type="text" placeholder="(none)" value="{{ r.reporter or '' }}"></label>
       <label>Date reported<input class="ef" data-field="date_reported" type="date" value="{{ r.date_reported or (r.created_at | dateonly) }}"></label>
       <label>Target deadline<input class="ef" data-field="deadline" type="date" value="{{ r.deadline or '' }}"></label>
@@ -1130,10 +1306,15 @@ _FEEDBACK_ADMIN_HTML = """<!doctype html><html lang="en"><head><meta charset="ut
       <button class="save" type="button">Save</button>
       <span class="saved" style="display:none">Saved &check;</span>
     </div>
+    {% if r.assigned_by or r.assigned_at %}
+    <div class="prov">Claimed by <b>{{ r.assigned_by or 'someone' }}</b>{% if r.assigned_by_email %}
+      ({{ r.assigned_by_email }}){% else %}<span class="self"> (name typed on a shared login, not verified)</span>{% endif %}
+      {% if r.assigned_at %} on {{ r.assigned_at | datetime }}{% endif %}</div>
+    {% endif %}
     <div class="cols">
       <div class="col">
         <h4>Notes (editable)</h4>
-        <textarea class="ef note" data-field="text" placeholder="Add or edit notes…">{{ r.text or '' }}</textarea>
+        <textarea class="ef note" data-field="text" placeholder="Add or edit notes">{{ r.text or '' }}</textarea>
         {% if r.transcript %}<div class="txt" style="margin-top:8px">&ldquo;{{ r.transcript }}&rdquo;</div>
         {% elif not r.text %}<div class="muted" style="margin-top:8px">{% if r.audio %}(voice note - see player){% endif %}</div>{% endif %}
         {% if r.audio %}<audio class="vn" controls preload="metadata" src="/feedback/file/{{ r.client }}/{{ r.audio }}"></audio>{% endif %}
@@ -1143,7 +1324,7 @@ _FEEDBACK_ADMIN_HTML = """<!doctype html><html lang="en"><head><meta charset="ut
         {% if r.ai_summary %}
           <p class="sum">{{ r.ai_summary }}</p>
           {% if r.ai_actions %}<ul class="acts">{% for a in r.ai_actions %}<li>{{ a }}</li>{% endfor %}</ul>{% endif %}
-        {% elif ai_on %}<div class="muted">Processing on next load…</div>
+        {% elif ai_on %}<div class="muted">Processing on next load</div>
         {% else %}<div class="muted">AI not configured.</div>{% endif %}
       </div>
       <div class="col">
@@ -1153,30 +1334,109 @@ _FEEDBACK_ADMIN_HTML = """<!doctype html><html lang="en"><head><meta charset="ut
         {% else %}<div class="muted">none</div>{% endif %}
       </div>
     </div>
+    </div>
   </div>
 {% else %}
   <div class="none">No feedback yet.</div>
 {% endfor %}
+<datalist id="fbOwners">{% for o in owners %}<option value="{{ o }}"></option>{% endfor %}</datalist>
 </div>
 <script>
 function fbPost(url,body){return fetch(url,{method:'POST',headers:{'content-type':'application/json'},
   credentials:'same-origin',body:JSON.stringify(body)});}
-// Status + Client filter: show only cards matching BOTH dropdowns, with live counts (per status
-// and per client) baked into each option label. Counts are computed from the actual cards, so they
-// stay correct after a status change or a delete (callers re-invoke fbFilter to recompute).
+// WHO IS USING THE TRACKER. Several people fix bugs from the SAME shared super-admin password, so
+// the server cannot always tell them apart: session["email"] is set by the Google/Microsoft sign-in
+// only. Hence two sources, deliberately NOT conflated -
+//   verified : the server passed us the signed-in email, so a claim is attributable for real.
+//   declared : a shared-password session, where the person names themselves once per browser
+//              (localStorage). Good enough to split the queue, worthless as proof - so it is
+//              labelled unverified everywhere it appears, and the server stores it in
+//              `assigned_by` while leaving `assigned_by_email` empty.
+var FB_ME=(function(){
+  var srvName={{ (me_name or '') | tojson }}, srvEmail={{ (me_email or '') | tojson }},
+      canAssign={{ can_assign | tojson }}, box=document.getElementById('fMe');
+  function declared(){try{return (localStorage.getItem('bbFbMe')||'').trim();}catch(e){return '';}}
+  function api(){
+    // A VERIFIED name always counts. A DECLARED one is honoured only for a session that may assign:
+    // localStorage outlives the session, so an admin sitting down at a browser where a super admin
+    // had named themselves would otherwise see "You - <someone else>" on rows it cannot even claim.
+    var declaredName=canAssign?declared():'';
+    return {name:srvEmail?srvName:declaredName,email:srvEmail,verified:!!srvEmail};
+  }
+  function paint(){
+    if(!box)return;
+    var me=api();
+    if(me.verified){
+      box.innerHTML='You: <b></b> <span class="vrf">verified</span>';
+      box.querySelector('b').textContent=me.name;
+      box.title='From your '+me.email+' sign-in';
+    }else if(me.name){
+      box.innerHTML='You: <b></b> <button type="button">change</button>';
+      box.querySelector('b').textContent=me.name;
+      box.title='Typed on this browser - not verified, because this login is shared';
+    }else{
+      box.innerHTML='<button type="button">Who are you?</button>';
+      box.title='This login is shared, so name yourself once to claim notes';
+    }
+    var btn=box.querySelector('button');
+    if(btn)btn.addEventListener('click',function(){
+      var v=prompt('Your name, so the notes you take are marked as yours:',me.name||'');
+      if(v===null)return;
+      try{localStorage.setItem('bbFbMe',v.trim());}catch(e){}
+      paint(); if(window.fbSyncMe)window.fbSyncMe();
+    });
+  }
+  paint();
+  return {get:api,paint:paint};
+})();
+// An overdue target deadline reads red on the COLLAPSED row, so a slipping note is visible without
+// opening it. Completed notes are exempt - a shipped fix is not late.
+(function(){var today=new Date().toISOString().slice(0,10);
+  document.querySelectorAll('.row .due').forEach(function(d){
+    var v=d.dataset.due||'', card=d.closest('.card');
+    if(v&&v<today&&(card.dataset.status||'')!=='Completed')d.classList.add('late');});})();
+// A note is a one-line row until you open it - 70+ notes do not fit on a screen as full cards.
+// Opening one is purely local (no fetch), and the caret + aria-expanded track the state.
+document.querySelectorAll('.card > .row').forEach(function(row){
+  function toggle(){
+    var card=row.closest('.card'), open=card.classList.toggle('open');
+    row.setAttribute('aria-expanded',open?'true':'false');
+    if(open){var a=card.querySelector('.asg'); if(a&&!a.value)a.focus();}
+  }
+  row.addEventListener('click',function(e){
+    if(e.target.closest('.take'))return;   // the claim button is not "open the note"
+    toggle();
+  });
+  // The row is a div (it CONTAINS a button, and a button cannot nest inside one), so the keyboard
+  // behaviour a real button would have given us for free has to be written out.
+  row.addEventListener('keydown',function(e){
+    if(e.key==='Enter'||e.key===' '||e.key==='Spacebar'){e.preventDefault();toggle();}
+  });
+});
+// Filters: a card shows only when it matches EVERY control (status, owner, agency, client, search).
+// Counts are computed from the actual cards, so they stay correct after a status change, an
+// assignment or a delete - those handlers re-invoke fbFilter() to recompute.
 var fbFilter=(function(){
-  var bar=document.querySelector('.filterbar');
+  var bar=document.querySelector('.toolbar');
   if(!bar)return function(){};
   var selStatus=document.getElementById('fStatus'), selClient=document.getElementById('fClient'),
-      selAgency=document.getElementById('fAgency');
+      selAgency=document.getElementById('fAgency'), selOwner=document.getElementById('fOwner'),
+      q=document.getElementById('fQ'), shown=document.getElementById('fShown'),
+      toggleAll=document.getElementById('fToggleAll');
   function apply(){
-    var st=selStatus.value, cl=selClient.value, ag=selAgency?selAgency.value:'all';
-    document.querySelectorAll('.card').forEach(function(card){
-      var sOk=(st==='all'||(card.dataset.status||'')===st);
-      var cOk=(cl==='all'||(card.dataset.client||'')===cl);
-      var aOk=(ag==='all'||(card.dataset.agency||'')===ag);
-      card.style.display=(sOk&&cOk&&aOk)?'':'none';
+    var st=selStatus.value, cl=selClient.value, ag=selAgency?selAgency.value:'all',
+        ow=selOwner?selOwner.value:'all', needle=(q.value||'').trim().toLowerCase(),
+        cards=document.querySelectorAll('.card'), n=0;
+    cards.forEach(function(card){
+      var ok=(st==='all'||(card.dataset.status||'')===st)
+           &&(cl==='all'||(card.dataset.client||'')===cl)
+           &&(ag==='all'||(card.dataset.agency||'')===ag)
+           &&(ow==='all'||(card.dataset.owner||'')===ow)
+           &&(!needle||(card.dataset.q||'').indexOf(needle)>=0);
+      card.style.display=ok?'':'none';
+      if(ok)n++;
     });
+    shown.textContent=(n===cards.length)?(cards.length+' shown'):(n+' of '+cards.length+' shown');
   }
   function relabel(sel,counts,total){
     if(!sel)return;
@@ -1186,22 +1446,139 @@ var fbFilter=(function(){
     });
   }
   function recount(){
-    var cards=document.querySelectorAll('.card'), byStatus={}, byClient={}, byAgency={};
+    var cards=document.querySelectorAll('.card'), byStatus={}, byClient={}, byAgency={}, byOwner={};
     cards.forEach(function(card){
-      var s=card.dataset.status||'', c=card.dataset.client||'', a=card.dataset.agency||'';
-      byStatus[s]=(byStatus[s]||0)+1; byClient[c]=(byClient[c]||0)+1; byAgency[a]=(byAgency[a]||0)+1;
+      var s=card.dataset.status||'', c=card.dataset.client||'', a=card.dataset.agency||'',
+          o=card.dataset.owner||'';
+      byStatus[s]=(byStatus[s]||0)+1; byClient[c]=(byClient[c]||0)+1;
+      byAgency[a]=(byAgency[a]||0)+1; byOwner[o]=(byOwner[o]||0)+1;
     });
     relabel(selStatus,byStatus,cards.length);
     relabel(selClient,byClient,cards.length);
     relabel(selAgency,byAgency,cards.length);
+    relabel(selOwner,byOwner,cards.length);
     apply();
   }
   selStatus.addEventListener('change',apply);
   selClient.addEventListener('change',apply);
   if(selAgency)selAgency.addEventListener('change',apply);
+  if(selOwner)selOwner.addEventListener('change',apply);
+  q.addEventListener('input',apply);
+  // "Mine" is a shortcut ONTO the owner dropdown, not a fifth filter dimension, so the two controls
+  // can never disagree about what is on screen. It needs an identity: on a shared login with no name
+  // declared yet it asks for one instead of silently filtering the queue down to nothing.
+  var mine=document.getElementById('fMine');
+  if(mine)mine.addEventListener('click',function(){
+    var me=FB_ME.get();
+    if(!me.name){alert('Name yourself first (the "Who are you?" button) - this login is shared, so the page cannot tell who you are.');return;}
+    var on=!mine.classList.contains('on');
+    mine.classList.toggle('on',on);
+    fbOwnerOption(me.name);
+    selOwner.value=on?me.name:'all';
+    apply();
+  });
+  // Expand/collapse acts on the VISIBLE cards only, so it follows the filters rather than opening
+  // every note on the page.
+  toggleAll.addEventListener('click',function(){
+    var cards=Array.prototype.filter.call(document.querySelectorAll('.card'),
+      function(c){return c.style.display!=='none';});
+    var opening=cards.some(function(c){return !c.classList.contains('open');});
+    cards.forEach(function(c){
+      c.classList.toggle('open',opening);
+      var row=c.querySelector('.row'); if(row)row.setAttribute('aria-expanded',opening?'true':'false');
+    });
+    toggleAll.textContent=opening?'Collapse all':'Expand all';
+  });
   recount();
-  return recount;   // status-change / delete handlers call fbFilter() to recompute counts + re-apply
+  return recount;   // status / assignment / delete handlers call fbFilter() to recompute + re-apply
 })();
+// Assigning is super-admin only, so a refusal here is a PERMISSION, not a glitch. The repo rule is
+// that an auth/permission failure must never be reported as "could not save, try again" - retrying
+// is the one thing that cannot fix it - so the reason is read off the response and named.
+function fbWhyFailed(resp,fallback){
+  if(resp&&resp.status===403){
+    return resp.json().catch(function(){return {};}).then(function(j){
+      return j.error||'Only a super admin can change who a note is assigned to.';
+    });
+  }
+  if(resp&&resp.status===401)return Promise.resolve('Your session has expired - sign in again.');
+  return Promise.resolve(fallback);
+}
+// Keep a name present in the owner dropdown + the input's suggestion list, so a name used once is
+// immediately filterable and offered on the next note. One function, because Save, Take and the
+// Mine shortcut all need it.
+function fbOwnerOption(name){
+  if(!name)return;
+  var sel=document.getElementById('fOwner');
+  if(sel&&!Array.prototype.some.call(sel.options,function(o){return o.value===name;})){
+    var o=document.createElement('option');o.value=name;o.dataset.base=name;sel.appendChild(o);
+  }
+  var dl=document.getElementById('fbOwners');
+  if(dl&&!Array.prototype.some.call(dl.options,function(o){return o.value===name;})){
+    var d=document.createElement('option');d.value=name;dl.appendChild(d);
+  }
+}
+// The assignment shows on the COLLAPSED row and drives its own filter, so a save has to repaint the
+// chip, the card's data-owner, the roster and the Take button in place - otherwise you reload the
+// page to see who owns what, which is exactly how a shared queue goes stale.
+function fbPaintOwner(card,name){
+  name=(name||'').trim();
+  var me=FB_ME.get(), chip=card.querySelector('.row .own'), take=card.querySelector('.take'),
+      asg=card.querySelector('.asg');
+  card.dataset.owner=name;
+  if(asg)asg.value=name;
+  var isMine=!!name&&!!me.name&&name.toLowerCase()===me.name.toLowerCase();
+  if(chip){
+    chip.textContent=name?(isMine?'You - '+name:name):'Unassigned';
+    chip.classList.toggle('has',!!name);
+    chip.classList.toggle('mine',isMine);
+  }
+  if(take)take.style.display=isMine?'none':'';
+  card.querySelectorAll('button.pre').forEach(function(b){
+    // Only a NAMED preset lights up. Clear carries an empty data-name, which would otherwise match
+    // an unassigned note and render as a selected button - "cleared" is not a choice anyone made.
+    var pn=b.dataset.name||'';
+    b.classList.toggle('on',!!pn&&pn===name);
+  });
+}
+// PRESET buttons (feedback.ASSIGNEES) next to the Assigned-to field: one click assigns, so the
+// common case needs no typing and no Save. The text input stays authoritative for anyone not on the
+// roster - this is a shortcut, never a whitelist - and Clear is a preset with an empty name, which
+// is why unassigning goes through the same path as assigning.
+function fbAssign(card,name,btn){
+  var held=(card.dataset.owner||'');
+  if(name&&held&&held.toLowerCase()!==name.toLowerCase()
+     &&!confirm('This note is assigned to '+held+'. Reassign to '+name+'?'))return;
+  if(!name&&held&&!confirm('Unassign this note from '+held+'?'))return;
+  var bar=card.querySelector('div.edit');
+  if(btn)btn.disabled=true;
+  fbPost('/feedback/edit',{client:bar.dataset.client,id:bar.dataset.id,assignee:name,
+                           by:FB_ME.get().name||''})
+    .then(function(r){
+      if(!r.ok)return fbWhyFailed(r,'Could not assign.').then(function(m){alert(m);});
+      fbPaintOwner(card,name);fbFilter();
+    })
+    .catch(function(){alert('Could not assign.');})
+    .finally(function(){if(btn)btn.disabled=false;});
+}
+document.querySelectorAll('button.pre').forEach(function(b){
+  b.addEventListener('click',function(){fbAssign(b.closest('.card'),b.dataset.name||'',b);});
+});
+// One-click claim from the row. It posts ONLY `assignee` (plus the declared name for provenance), so
+// nothing else on the note is touched, and the server stamps who + when.
+document.querySelectorAll('button.take').forEach(function(b){
+  b.addEventListener('click',function(){
+    var me=FB_ME.get();
+    if(!me.name){alert('Name yourself first (the "Who are you?" button) - this login is shared, so the page cannot tell who you are.');return;}
+    fbAssign(b.closest('.card'),me.name,b);
+  });
+});
+// Naming (or renaming) yourself re-marks which rows are yours - the "You - x" chips and the hidden
+// Take buttons - without a reload.
+window.fbSyncMe=function(){
+  document.querySelectorAll('.card').forEach(function(c){fbPaintOwner(c,c.dataset.owner||'');});
+};
+window.fbSyncMe();
 document.querySelectorAll('select.stat').forEach(function(sel){
   sel.addEventListener('change',function(){
     var prev=sel.dataset.status; sel.disabled=true;
@@ -1231,11 +1608,15 @@ document.querySelectorAll('div.edit').forEach(function(bar){
   var btn=bar.querySelector('button.save'),ok=bar.querySelector('.saved'),
       card=bar.closest('.card');
   btn.addEventListener('click',function(){
-    var body={client:bar.dataset.client,id:bar.dataset.id};
+    var body={client:bar.dataset.client,id:bar.dataset.id,by:FB_ME.get().name||''};
     card.querySelectorAll('.ef').forEach(function(el){body[el.dataset.field]=el.value;});
     btn.disabled=true;ok.style.display='none';
     fbPost('/feedback/edit',body)
-      .then(function(r){if(!r.ok)throw 0;ok.style.display='';
+      .then(function(r){
+        if(!r.ok)return fbWhyFailed(r,'Could not save.').then(function(m){alert(m);});
+        ok.style.display='';
+        if('assignee' in body)fbPaintOwner(card,body.assignee);
+        fbFilter();
         setTimeout(function(){ok.style.display='none';},2000);})
       .catch(function(){alert('Could not save.');})
       .finally(function(){btn.disabled=false;});
