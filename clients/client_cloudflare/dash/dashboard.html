@@ -434,7 +434,7 @@
   .compare-filters{display:flex;gap:10px;margin-bottom:var(--gap)}
   .compare-select{flex:1;padding:9px 12px;border:1px solid var(--cf-line);border-radius:var(--r-md);font-size:var(--t-body);background:var(--surface-2);cursor:pointer;font-family:inherit;color:var(--ink);outline:none}
   .compare-select:focus{border-color:var(--cf-orange)}
-  .compare-empty{padding:80px 20px;text-align:center;color:var(--muted);background:var(--surface-2);border-radius:var(--r-md);font-size:var(--t-body);border:2px dashed var(--cf-line)}
+  .compare-empty{padding:80px 20px;text-align:center;color:var(--muted);background:var(--surface-2);border-radius:var(--r-md);font-size:var(--t-body);border:1px solid var(--cf-line)}
   .compare-kpi-group{margin-bottom:var(--gap)}
   .compare-kpi-group .grp-lbl{font-size:var(--t-micro);color:var(--cf-mute);text-transform:uppercase;letter-spacing:var(--tr-label);font-weight:600;margin-bottom:8px}
   .compare-kpis{display:grid;grid-template-columns:1fr 1fr;gap:10px}
@@ -576,7 +576,7 @@
   .qoq-cell{border-radius:var(--r-md);padding:13px var(--s-2);text-align:center;font-weight:700;font-size:var(--t-lg);font-variant-numeric:tabular-nums;border:1px solid rgba(255,255,255,.06)}
   .qoq-dcell{display:flex;align-items:center;justify-content:flex-end;padding-right:2px}
   .qoq-dcell .qd{margin-left:0}
-  td.bench, .bench{color:var(--cf-mute);font-size:var(--t-label);font-style:italic}
+  td.bench, .bench{color:var(--cf-mute);font-size:var(--t-label)}
 
   /* Top/bottom creatives */
   .creatives-grid{display:grid;grid-template-columns:1fr 1fr;gap:var(--gap);margin-bottom:var(--gap)}
@@ -937,7 +937,7 @@
     .card:hover,.kpi:hover,.cs-snap .group:hover,.qoq-stats .stat:hover,.compare-panel:hover,
     .qoq-note:hover,.qoq-cell:hover,.card .kpi:hover,.card .cspd-reason:hover{transform:none !important}
     .pbar .fill,.reg-bar .reg-fill,.pace-bar .pfill,.cmp-asset .bar>span{transition:none !important}
-    .dl-sc{scroll-behavior:auto}
+    .dl-sc,.control-tabs .tabs{scroll-behavior:auto}
     .dl-chip,.dl-wrap::before,.dl-wrap::after{transition:none !important}
   }
 
@@ -1048,6 +1048,95 @@
   /* keyboard focus on the scrolling legend lane, which is scrollable and so
      focusable, and had no visible state at all */
   .dl-sc:focus-visible{outline:2px solid var(--brand-accent);outline-offset:-2px;border-radius:var(--r-md)}
+
+  /* ---- GRID TRACKS MUST BE ALLOWED TO SHRINK ------------------------------
+     A `1fr` track's minimum is `auto`, which resolves to its widest item's
+     MIN-CONTENT width. A Chart.js canvas reports a large intrinsic width, so on
+     a phone the track was sized by its content instead of its container: a
+     327px column computed to 635px, the card inside it to 632px, and the PAGE
+     picked up 322px of horizontal scroll. Every card was then held at 632px and
+     the reader had to pan sideways to read anything.
+     `minmax(0,1fr)` sets the track minimum to 0 so it can shrink. Measured: 322px
+     of page overflow -> 0, and 0 cards wider than the viewport.
+     The column COUNTS are unchanged at every breakpoint - this only changes what
+     a track is allowed to shrink TO. The tables were never the problem; all 14
+     of them already sit in their own `overflow:auto` wrapper. */
+  .grid,.compare-grid,.creatives-grid,.lce-grid{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+  .grid3{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .cs-snap{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .kpis{grid-template-columns:repeat(5,minmax(0,1fr))}
+  .panel-paid-scope .grid{grid-template-columns:minmax(0,2fr) minmax(0,1fr)}
+  .grid-3{grid-template-columns:repeat(3,minmax(0,1fr))}
+  @media (max-width:1100px){
+    .grid-3{grid-template-columns:repeat(2,minmax(0,1fr))}
+  }
+  @media (max-width:900px){
+    /* .grid-3 is added here because it previously stopped at TWO columns and never
+       reached one - two chart cards side by side on a 375px phone. */
+    .grid,.grid3,.cs-snap,.compare-grid,.creatives-grid,.lce-grid,
+    .panel-paid-scope .grid,.grid-3{grid-template-columns:minmax(0,1fr)}
+    .kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
+  }
+
+  /* ---- NARROW TAB RAIL: one scrolling row, not four stacked ones -----------
+     At 375px the six-button rail wrapped to four rows and ate ~170px of screen
+     before any data. Only the INNER .tabs scrolls: .control-tabs keeps its
+     flex-wrap so the date picker and view toggle drop to their own row rather
+     than being crushed beside a scroller.
+     `min-width:0` is mandatory - .tabs is a flex item, and without it its
+     automatic minimum is the min-content width of all six nowrap buttons, so
+     overflow-x would never engage and the rail would just push the bar wide.
+     overflow-y is pinned hidden because .tab has margin-bottom:-1px and its
+     ::after underline hangs at bottom:-1px, which would otherwise raise a 1px
+     vertical scrollbar. The hairline stays on .control-tabs, full width, so the
+     active underline still lands on it as it slides. */
+  /* Two fixed-width grids that could not fit a phone: .pace-row reserves
+     150px + 150px + 36px of gap = 336px of fixed track inside a 327px card, and
+     the creative CHANNEL seg is a nowrap button strip 392px wide. Both stack /
+     scroll rather than pushing the page wide. */
+  @media (max-width:760px){
+    .pace-row{grid-template-columns:minmax(0,1fr);gap:var(--s-3);padding:12px 0}
+    .pace-risk{text-align:left}
+    .panel-paid-scope .section.creatives-head .seg{max-width:100%;overflow-x:auto;overflow-y:hidden;
+      scrollbar-width:none}
+    .panel-paid-scope .section.creatives-head .seg::-webkit-scrollbar{display:none}
+  }
+  @media (max-width:760px){
+    .control-tabs .tabs{flex:1 1 100%;min-width:0;flex-wrap:nowrap;
+      overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;
+      scrollbar-width:none;-ms-overflow-style:none}
+    .control-tabs .tabs::-webkit-scrollbar{display:none}
+    .control-tabs .tab{flex:0 0 auto;white-space:nowrap}
+  }
+
+  /* ---- SORT AFFORDANCE ----------------------------------------------------
+     11 sortable tables showed nothing until you clicked: the engine draws its
+     own text glyph on the ACTIVE column only, and only after a first click.
+     There was no hint on an inactive column and no colour change.
+     The caret is a masked SVG - the same chevron path and 24-unit box as the
+     #i-chev-down sprite symbol - so it matches the drawn icon set rather than
+     being a CSS border-triangle, the one wedge on the page that would not.
+     stroke-width is 3 not 2: at a ~9px render a 2px stroke in a 24-unit box
+     thins to 0.7px and disappears (the same optical compensation the chip tick
+     already carries). It is inline-flow, never absolute, so the reserved width
+     participates in column sizing and headers do not jump between states. */
+  :root{--sort-caret:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")}
+  table.bb-sortable th[aria-sort]::after{content:"";display:inline-block;width:.9em;height:.9em;
+    margin-left:5px;vertical-align:-.15em;background-color:currentColor;
+    -webkit-mask:var(--sort-caret) center/contain no-repeat;mask:var(--sort-caret) center/contain no-repeat;
+    opacity:0;transition:opacity .18s var(--bb-ease-soft),transform .22s var(--bb-ease)}
+  table.bb-sortable th[aria-sort="none"]:hover::after{opacity:.45}
+  table.bb-sortable th[aria-sort="ascending"]::after,
+  table.bb-sortable th[aria-sort="descending"]::after{opacity:1}
+  table.bb-sortable th[aria-sort="ascending"]::after{transform:rotate(180deg)}
+  table.bb-sortable th[aria-sort="ascending"],
+  table.bb-sortable th[aria-sort="descending"]{color:var(--brand-accent)}
+  /* the engine's own text glyph would be a SECOND indicator beside ours */
+  table.bb-sortable .bb-sort-ind{display:none}
+  /* A caret on a table that cannot be sorted is a lie. The engine aborts on any
+     colspan row, which covers #cmpCSBreakdown permanently (it emits "By publisher"
+     section headers) and every table's "No data" empty state transiently. */
+  table.bb-sortable:has(tbody td[colspan]) th::after{content:none}
 </style>
 <script>
 /* BB MOTION GATE - runs before any content paints.
@@ -2836,7 +2925,11 @@ if (window.Chart) Chart.register({
   function decorate(t,h,col,dir){ if(!h) return;
     [...h.cells].forEach((th,i)=>{ let base=th.getAttribute('data-bbl');
       if(base==null){ base=th.innerHTML; th.setAttribute('data-bbl',base); }
-      th.innerHTML = (i===col) ? base+' <span class="bb-sort-ind">'+(dir==='asc'?'▲':'▼')+'</span>' : base; });
+      th.innerHTML = (i===col) ? base+' <span class="bb-sort-ind">'+(dir==='asc'?'▲':'▼')+'</span>' : base;
+      // aria-sort is the ONLY sort state this engine exposes to CSS (col/dir live on a
+      // JS expando) and it is the correct a11y attribute. 'none' on an inactive header
+      // reads as "sortable, not currently sorted" - which is exactly the hover hint.
+      th.setAttribute('aria-sort', i===col ? (dir==='asc'?'ascending':'descending') : 'none'); });
   }
   function sortRows(t,h,st){ const drows=dataRows(t,h); if(drows.length<2) return;
     let anyNum=false;
@@ -6302,6 +6395,10 @@ const _pmNum = (n) => {
 };
 const fmt$  = (n,dec=0) => '$'+ _pmNum(n).toLocaleString(undefined,{maximumFractionDigits:dec, minimumFractionDigits:dec});
 const fmtNum = (n) => _pmNum(n).toLocaleString();
+// DELIBERATELY UNUSED since 2026-09-07 - kept only so nobody re-derives it.
+// Its two call sites (k_imp, cmp_imp) now use fmtNum: an abbreviated headline
+// cannot be reconciled with the grouped column underneath it, and the >=1000
+// tier is actively dangerous on a lead count (507 -> '0.51K').
 const fmtN_M = (n) => { n = _pmNum(n); return (n>=1e6) ? (n/1e6).toFixed(2)+'M' : (n>=1000) ? (n/1000).toFixed(1)+'K' : ''+n; };
 const fmtPct2 = (n,dec=2) => (_pmNum(n)*100).toFixed(dec)+'%';
 
@@ -6653,7 +6750,7 @@ function renderPaidKPIs() {
   document.getElementById('k_spend').textContent = fmt$(spend);
   document.getElementById('k_spend_b').textContent =
     act.length ? act.map(x => `${fmt$(x.a.sp)} ${x.c.long}`).join(' · ') : 'no delivery in this selection';
-  document.getElementById('k_imp').textContent = fmtN_M(imp);
+  document.getElementById('k_imp').textContent = fmtNum(imp);   // grouped, not 21.47M: the headline must equal the column below it
   document.getElementById('k_cpm').textContent = imp ? `${fmt$(spend/imp*1000,2)} blended CPM` : '-';
   document.getElementById('k_clk').textContent = fmtNum(clk);
   document.getElementById('k_ctr').textContent = imp ? `${fmtPct2(clk/imp,2)} blended CTR` : '-';
@@ -6704,7 +6801,7 @@ function renderTtdImpCtr() {
         return ' Impressions: '+fmtNum(c.raw);
       }}}},
     scales:Object.assign({
-      y:    {beginAtZero:true, position:'left',  grid:{color:PM_LINE}, ticks:{color: PM_CF,     callback:v=>v>=1000?(v/1000)+'k':v}, title:{display:true, text:'Impressions', color:PM_CF}},
+      y:    {beginAtZero:true, position:'left',  grid:{color:PM_LINE}, ticks:{color: PM_CF,     callback:v=>v>=1e6?+(v/1e6).toFixed(1)+'M':v>=1000?+(v/1000).toFixed(0)+'k':v}, title:{display:true, text:'Impressions', color:PM_CF}},
       x:    {grid:{display:false}, ticks:{maxRotation:0, autoSkip:true, maxTicksLimit:14}}
     }, isRel ? {
       yIdx: {beginAtZero:true, max:100, position:'right', grid:{display:false}, ticks:{color:PM_INK, callback:v=>v.toFixed(0)}, title:{display:true, text:'Index (peak=100)', color:PM_INK}}
@@ -8131,7 +8228,7 @@ function renderCampaign(key){
   const cpc = t.clicks ? t.spend/t.clicks : 0, cpl = t.leads ? t.spend/t.leads : 0;
   document.getElementById('cmp_spend').textContent = fmt$(t.spend);
   document.getElementById('cmp_spend_b').textContent = w.days ? w.days+'d window' : '';
-  document.getElementById('cmp_imp').textContent = fmtN_M(t.imps);
+  document.getElementById('cmp_imp').textContent = fmtNum(t.imps);   // grouped - see k_imp
   document.getElementById('cmp_cpm').textContent = t.imps ? fmt$(cpm,2)+' CPM' : '-';
   document.getElementById('cmp_clk').textContent = fmtNum(t.clicks);
   document.getElementById('cmp_ctr').textContent = t.imps ? fmtPct2(ctr,2)+' CTR' : '-';
@@ -8172,7 +8269,7 @@ function renderCampaign(key){
         return ' Impressions: '+fmtNum(cc.raw);
       }}}},
     scales:Object.assign({
-      y:{beginAtZero:true,position:'left',grid:{color:PM_LINE},ticks:{color:PM_CF,callback:v=>v>=1000?(v/1000)+'k':v},title:{display:true,text:'Impressions',color:PM_CF}},
+      y:{beginAtZero:true,position:'left',grid:{color:PM_LINE},ticks:{color:PM_CF,callback:v=>v>=1e6?+(v/1e6).toFixed(1)+'M':v>=1000?+(v/1000).toFixed(0)+'k':v},title:{display:true,text:'Impressions',color:PM_CF}},
       x:{grid:{display:false},ticks:{maxRotation:0,autoSkip:true,maxTicksLimit:14}}
     }, cmpRel ? {
       yIdx:{beginAtZero:true,max:100,position:'right',grid:{display:false},ticks:{color:PM_INK,callback:v=>v.toFixed(0)},title:{display:true,text:'Index (peak=100)',color:PM_INK}}
@@ -8589,12 +8686,31 @@ if (new URLSearchParams(location.search).has('bbslides')){
     // the moment anything else has written to the element - the render function always wins.
     const dur = 780, t0 = performance.now();
     let mine = null;
+    // requestAnimationFrame DOES NOT RUN IN A BACKGROUND TAB. The first frame is called
+    // synchronously at p=0, so without a guard it paints the zero value and then never
+    // advances - the figure sits at 0 for as long as the tab stays hidden, and because
+    // bbCount is already set it is never re-animated even after the tab is foregrounded.
+    // Open the dashboard in a background tab and TOTAL SPEND reads $0. Two guards:
+    //   1. never paint the p=0 frame, so an animation that never advances is invisible;
+    //   2. finalise to the captured string on a timer, so a starved rAF still lands on
+    //      the real figure rather than leaving whatever the last frame happened to write.
+    const finish = () => { if (mine === null || el.textContent === mine){ el.textContent = raw; mine = raw; } };
+    const bail = setTimeout(finish, dur + 600);
     (function step(now){
-      if (mine !== null && el.textContent !== mine) return;   // re-rendered underneath us
+      // THE GUARD MUST COVER THE FIRST FRAME. countUp captures `raw` when the element
+      // is scanned, which on a slow first paint is the `0` placeholder - and the render
+      // that fills the tile lands a few hundred ms later. With `mine` still null the old
+      // check waved the first frame through, so it painted 0 back over the real figure and
+      // the last frame restored `raw` = 0, permanently (bbCount blocks a re-run).
+      // Live symptom: TOTAL SPEND reading $0 and IMPRESSIONS reading 0 on a narrow
+      // viewport, where the slower render loses the race. Only the tiles countUp had
+      // touched were wrong - the three it skipped were correct, which is what identified it.
+      // Compare against `raw` until we have written at least once.
+      if (el.textContent !== (mine === null ? raw : mine)){ clearTimeout(bail); return; }   // re-rendered underneath us
       const p = Math.min(1, (now-t0)/dur);
       const e = 1 - Math.pow(1-p, 4);                    // out-quart, matches the CSS easing
-      if (p < 1){ mine = fmt(target*e); el.textContent = mine; requestAnimationFrame(step); }
-      else { el.textContent = raw; mine = raw; }         // exact original string, always
+      if (p < 1){ if (p > 0){ mine = fmt(target*e); el.textContent = mine; } requestAnimationFrame(step); }
+      else { clearTimeout(bail); el.textContent = raw; mine = raw; }   // exact original string, always
     })(t0);
   }
   const COUNT_SEL = '.kpi .value,.cs-snap .stat .v,.qoq-stats .stat .v,.compare-kpi .v,' +
@@ -8723,6 +8839,22 @@ if (new URLSearchParams(location.search).has('bbslides')){
     onScroll();
   }
 
+  // With the narrow rail scrolling and its scrollbar hidden, an active tab that is
+  // not the first one can sit off-screen with nothing indicating the rail scrolls.
+  // switchTab() does no scrolling of its own, and lanes reorder/hide tabs, so the
+  // active one is not always first. block:'nearest' is essential - .control-bar is
+  // position:sticky, so a vertical scroll here would visibly jump the whole page.
+  function bbRevealActiveTab(){
+    const t = document.querySelector('#controlBar .tabs .tab.active');
+    if (!t) return;
+    const sc = t.parentElement;
+    if (!sc || sc.scrollWidth <= sc.clientWidth) return;
+    const cr = t.getBoundingClientRect(), sr = sc.getBoundingClientRect();
+    if (cr.left < sr.left + 8 || cr.right > sr.right - 8)
+      try { t.scrollIntoView({inline:'center', block:'nearest'}); } catch(_){}
+  }
+  window.bbRevealActiveTab = bbRevealActiveTab;
+
   function init(){
     auroraCurtains();
     scrollFx();
@@ -8741,6 +8873,8 @@ if (new URLSearchParams(location.search).has('bbslides')){
     }
     // A tab switch flips display, which the observer sees; this covers the first paint.
     window.addEventListener('load', schedule);
+    window.addEventListener('load', bbRevealActiveTab);
+    document.addEventListener('click', e => { if (e.target.closest('.tabs .tab')) setTimeout(bbRevealActiveTab, 0); }, true);
     // Report in to the head bootstrap: the reveal gate stays on only because we got here.
     if (window.__bbMotionOK) window.__bbMotionOK();
   }

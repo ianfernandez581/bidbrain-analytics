@@ -40,12 +40,27 @@
       if (grouped){ var p = s.split('.'); p[0] = p[0].replace(/\B(?=(\d{3})+(?!\d))/g, ','); s = p.join('.'); }
       return m[1] + (v < 0 ? '-' : '') + s + m[3];
     }
-    var dur = 700, t0 = performance.now();
+    var dur = 700, t0 = performance.now(), mine = null;
+    /* Two guards, both of which this used to be missing.
+       1. requestAnimationFrame DOES NOT RUN IN A BACKGROUND TAB. The first frame is
+          called synchronously at p=0, so without a guard it painted the ZERO value and
+          then never advanced - a figure sat at 0 for as long as the tab stayed hidden,
+          and dataset.bbCount meant it was never re-animated even after the tab came
+          back. Symptom: open a dashboard in a background tab and the KPI reads $0.
+          So: never paint the p=0 frame, and finalise on a timer if rAF starves.
+       2. A figure can be RE-RENDERED mid-animation (change a filter while a section is
+          counting up). The last frame writes the string captured when the animation
+          STARTED, which used to overwrite the new value with the old one and leave it
+          there. So each frame bails the moment anything else has written to the
+          element - the render function always wins. */
+    var finish = function(){ if (mine === null || el.textContent === mine){ el.textContent = raw; mine = raw; } };
+    var bail = setTimeout(finish, dur + 600);
     (function step(now){
+      if (el.textContent !== (mine === null ? raw : mine)){ clearTimeout(bail); return; }
       var p = Math.min(1, (now - t0) / dur);
       var e = 1 - Math.pow(1 - p, 4);                 /* out-quart, matches the CSS easing */
-      if (p < 1){ el.textContent = fmt(target * e); requestAnimationFrame(step); }
-      else { el.textContent = raw; }                  /* the exact original string, always */
+      if (p < 1){ if (p > 0){ mine = fmt(target * e); el.textContent = mine; } requestAnimationFrame(step); }
+      else { clearTimeout(bail); el.textContent = raw; mine = raw; }   /* the exact original string, always */
     })(t0);
   }
   var COUNT_SEL = '.kpi .value,.stat .v,.stat-card .v,.stat-card .sv,.stat .cnt';
