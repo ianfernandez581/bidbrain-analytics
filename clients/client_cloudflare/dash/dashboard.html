@@ -1371,8 +1371,8 @@
       <div class="qoq-note">
         <b>Weekly enriched leads</b> - Content-Syndication leads that arrived with an <b>enriched
         phone number</b> on top of the <b>PHONE</b> every lead already carries. Scoped to the
-        <b>five campaign IDs</b> Transmission enabled enrichment on, bucketed by <b>lead date</b>
-        (ISO week, Monday start). <b>Whole flight</b> - the date picker above does not apply here.
+        <b>campaign IDs</b> Transmission enabled enrichment on, bucketed by <b>lead date</b>
+        (ISO week, Monday start). The <b>date picker</b> above scopes every figure on this tab.
         <br><span style="color:var(--cf-mute)">Enrichment began <b id="enrFirst">-</b>; weeks before
         that are shown at 0% rather than hidden, so the start of the feed stays visible.
         A value counts as enriched only if it is a real number - the source writes
@@ -3109,6 +3109,15 @@ async function boot() {
     // "Weekly Enriched Leads" (2026-09-07). Absent on an older JSON, in which case the tab
     // never appears (PROGRAMS.core.tabsWhenData -> hasEnrichedData).
     CSE = COMBINED.cs_enriched || null;
+    // Older JSON shipped `weekly` (week grain) instead of `daily`. Degrade to day-grain-shaped
+    // rows keyed on the week start so the tab still renders rather than emptying: a week bucket
+    // IS a day bucket for bucketing purposes, and the range filter simply becomes week-coarse.
+    if (CSE && !CSE.daily && CSE.weekly){
+      CSE.daily = CSE.weekly.map(r => Object.assign({}, r, {
+        day: r.week_start, theatre: r.theatre || 'APAC'
+      }));
+      if (CSE.detail) CSE.detail.forEach(r => { if (!r.theatre) r.theatre = 'APAC'; });
+    }
 
     // Date-range picker bounds = the UNION of both core windows:
     // CS lead dates (rawRows non-dummy DAY) ∪ paid-delivery window (paid_media.window).
@@ -3293,6 +3302,8 @@ function switchTab(tab) {
 function applyDateRange(){
   if (activeTab === 'main') {
     renderAll();
+  } else if (activeTab === 'enriched') {
+    renderEnriched();
   } else if (activeTab === 'paid') {
     if (paidMediaLoaded) renderPaidMediaAll();
   } else if (activeTab === 'compare') {
@@ -3326,6 +3337,10 @@ function renderDateScope(){
   if (activeTab === 'paid') {
     scope = 'Spend / impressions / clicks / leads KPIs, all daily charts, the LinkedIn funnel and the market/creative actuals reflect this range. '
       + 'The <b>media-plan benchmarks</b> ("vs plan" columns), the <b>weekly LinkedIn target</b> lines and the <b>creatives</b> table have no date dimension and stay <b>full period</b>.';
+  } else if (activeTab === 'enriched') {
+    scope = 'Every figure on this tab - the KPIs, the weekly table and the enriched-lead list - '
+      + 'reflects this range. Weeks are bucketed from daily counts, so a range that starts or '
+      + 'ends mid-week shows a <b>part week</b>.';
   } else if (activeTab === 'compare') {
     // On a non-legacy theatre the plan is a FLIGHT, not a quarter (EMEA's runs 31 Jul -> Nov
     // and 37% of it lands in Q4), and the target tile is the seeded weekly plan prorated to
@@ -6431,7 +6446,7 @@ const PROGRAMS = {
     // weekly by definition. Listing the tabs explicitly is a strict no-op for the other five
     // (an absent dateControl means "show everywhere"), and it stops the picker appearing over
     // a panel it cannot move.
-    dateControl: ['paid','main','compare','qoq','txdata']
+    dateControl: ['paid','main','compare','qoq','enriched','txdata']
   },
   // Core DG EMEA - the same brief, the other theatre. Content Syndication ONLY: no EMEA ad
   // accounts are connected, and it launched 2026-08-07 so there is no prior quarter, hence
@@ -6443,7 +6458,7 @@ const PROGRAMS = {
     tabs: ['main','txdata'],
     // Same rail ORDER as APJ, so a tab appearing later slots into the familiar position
     // instead of being appended to the end.
-    tabOrder: ['paid','main','compare','qoq','txdata'],
+    tabOrder: ['paid','main','compare','qoq','enriched','txdata'],
     // Data-gated: each becomes visible the day its data exists (see BB:EMEATABS).
     // CS Comparison needs BOTH paid delivery and a prior quarter.
     tabsWhenData: {
@@ -6455,6 +6470,9 @@ const PROGRAMS = {
       // it uses - and EMEA has had six markets with accept/reject status since 06 Aug. It now
       // gates on the data the panels actually consume (BB:EMEACOMPARE).
       compare: () => emeaHasCompare(),
+      // Enriched leads on EMEA: appears the day the theatre earns its first enriched number
+      // (see hasEnrichedData). Zero today - 2,190 leads, 1,501 of them the 'NA' sentinel.
+      enriched: () => hasEnrichedData(),
     },
     plans: false,
     // The date control is PER TAB on this lane, because the answer differs by tab. On Content
@@ -6463,7 +6481,7 @@ const PROGRAMS = {
     // visible picker that changes nothing on screen is worse than no picker. The Comparison
     // tab IS range-driven (2026-09-02), so the picker appears there and only there. Add a tab
     // key here the day it gains range-driven content; `true` shows it everywhere.
-    dateControl: ['compare'],
+    dateControl: ['compare','enriched'],
     note: '<b>Core DG EMEA</b> - Content Syndication and CS Comparison, live since '
         + '<b>7 Aug 2026</b>. Paid Media and Quarter on Quarter are not shown: no EMEA ad '
         + 'accounts are connected, and EMEA launched part-way through the quarter so there is '
@@ -8174,9 +8192,27 @@ function switchDashboard(val){
 
 // Does the payload carry the block at all? A check for the NEW block, not a filter over an
 // existing one - so "no enrichment data" can never be confused with "enrichment broke".
-function hasEnrichedData(){
+function hasEnrichedBlock(){
   const e = (typeof COMBINED !== 'undefined' && COMBINED && COMBINED.cs_enriched) || null;
-  return !!(e && e.weekly && e.weekly.length);
+  return !!(e && e.daily && e.daily.length);
+}
+
+// THE TAB GATE, and it is deliberately "has this theatre earned an ENRICHED lead", not "has
+// this theatre got leads" (2026-09-08).
+//
+// EMEA has 2,190 in-scope leads and ZERO enriched numbers - 1,501 of them the 'NA' sentinel.
+// Rendering the tab there would publish a 0% enrichment rate to the client, which ASSERTS that
+// enrichment is failing for EMEA. We do not know that: it may simply not be a service bought
+// for that theatre, and the question is open with Transmission. A confident 0% is a claim, so
+// the tab stays hidden until the theatre has something real to show, and lights up on its own
+// the day EMEA earns its first enriched number. Nothing to remember later.
+//
+// It is NOT a filter over an existing surface either, so "EMEA is not enriched" can never be
+// confused with "enrichment broke" - the APJ tab is unaffected by anything EMEA does.
+function hasEnrichedData(){
+  if (!hasEnrichedBlock()) return false;
+  const th = laneTheatre();
+  return COMBINED.cs_enriched.daily.some(r => r.theatre === th && (+r.enriched_count || 0) > 0);
 }
 
 // The campaign scope for this tab only (its own control - the topbar lane dropdown and the
@@ -8184,14 +8220,31 @@ function hasEnrichedData(){
 let enrCampaignSel = '';
 
 // Rows for the current selection. ONE predicate behind the KPIs, the weekly table and the
-// detail list, so the three can never describe different scopes.
-function enrWeeklyRows(){
-  const w = (CSE && CSE.weekly) || [];
-  return enrCampaignSel ? w.filter(r => r.campaign_id === enrCampaignSel) : w;
+// detail list, so the three can never describe different scopes. Three things scope it:
+// the LANE's theatre, the tab's own campaign picker, and the shared DATE RANGE.
+//
+// The date range is applied at DAY grain, which is why the payload ships days rather than
+// weeks: a range that cuts mid-week cannot be honoured from week buckets (the same reason
+// sql/18_cs_compare_v2 is day grain). Weeks are bucketed below, from whatever days survive.
+function enrInRange(day){
+  if (!day) return false;
+  if (!rangeStart || !rangeEnd) return true;
+  const d = String(day).slice(0, 10);
+  return d >= rangeStart && d <= rangeEnd;
+}
+function enrDailyRows(){
+  const th = laneTheatre();
+  return ((CSE && CSE.daily) || []).filter(r =>
+    r.theatre === th
+    && (!enrCampaignSel || r.campaign_id === enrCampaignSel)
+    && enrInRange(r.day));
 }
 function enrDetailRows(){
-  const d = (CSE && CSE.detail) || [];
-  return enrCampaignSel ? d.filter(r => r.campaign_id === enrCampaignSel) : d;
+  const th = laneTheatre();
+  return ((CSE && CSE.detail) || []).filter(r =>
+    r.theatre === th
+    && (!enrCampaignSel || r.campaign_id === enrCampaignSel)
+    && enrInRange(r.day));
 }
 
 // Campaign labels. Two of the five campaigns share a byte-identical CAMPAIGN string and are
@@ -8206,7 +8259,12 @@ function enrFillCampaignSelect(){
   const sel = document.getElementById('enrCampaign');
   if (!sel) return;
   const seen = {}, opts = [];
-  for (const r of ((CSE && CSE.weekly) || [])){
+  // Built from the THEATRE's rows, not the whole payload - otherwise the EMEA lane would offer
+  // APJ campaigns that its own panel cannot show. Deliberately NOT narrowed by the date range:
+  // a campaign vanishing from the picker because the range excludes it makes the control feel
+  // broken, and picking it is how you would discover it has no delivery in that window.
+  const _th = laneTheatre();
+  for (const r of ((CSE && CSE.daily) || []).filter(x => x.theatre === _th)){
     if (!r.campaign_id || seen[r.campaign_id]) continue;
     seen[r.campaign_id] = 1;
     opts.push({ id: r.campaign_id, label: enrCampaignLabel(r) });
@@ -8229,15 +8287,27 @@ function renderEnriched(){
   if (enrCardEl) enrCardEl.style.display = window.BB_INTERNAL ? '' : 'none';
   enrFillCampaignSelect();
 
-  const weekly = enrWeeklyRows();
+  const daily  = enrDailyRows();
   const detail = enrDetailRows();
 
-  // Sum the two COUNTS per week, then derive the rate. Never average the per-campaign rates:
-  // a rate is not additive (repo-wide rule), and under "All campaigns" the mean of five rates
-  // is not the rate of the five campaigns combined.
+  // Bucket DAYS into ISO weeks (Monday start), summing the two COUNTS. Never average the
+  // per-campaign rates: a rate is not additive (repo-wide rule), and under "All campaigns" the
+  // mean of five rates is not the rate of the five campaigns combined.
+  //
+  // isoMonday() must not go through the local Date constructor for a 'YYYY-MM-DD' string in a
+  // way that shifts the day: Date.UTC keeps it date-only, so a Sunday in Brisbane cannot land
+  // in the previous week. The anchor matches sql/20's DATE_TRUNC(DAY, ISOWEEK).
+  const isoMonday = (d) => {
+    const p = String(d).slice(0,10).split('-');
+    const t = Date.UTC(+p[0], +p[1]-1, +p[2]);
+    const dow = new Date(t).getUTCDay();          // 0=Sun
+    const back = (dow === 0 ? 6 : dow - 1);       // Monday-anchored
+    return new Date(t - back*86400000).toISOString().slice(0,10);
+  };
   const byWeek = {};
-  for (const r of weekly){
-    const k = r.week_start; if (!k) continue;
+  for (const r of daily){
+    if (!r.day) continue;
+    const k = isoMonday(r.day);
     const o = byWeek[k] || (byWeek[k] = { leads: 0, enriched: 0 });
     o.leads    += (+r.lead_count || 0);
     o.enriched += (+r.enriched_count || 0);
@@ -8261,7 +8331,8 @@ function renderEnriched(){
   const rate = totL ? totE / totL : null;
   const k = document.getElementById('enrKpis');
   if (k) k.innerHTML =
-      kpi('Leads in scope', fmtNum(totL), weeks.length + ' week' + (weeks.length === 1 ? '' : 's'))
+      kpi('Leads in scope', fmtNum(totL), weeks.length + ' week' + (weeks.length === 1 ? '' : 's')
+          + (narrowed() ? ' in range' : ''))
     + kpi('Enriched leads', fmtNum(totE), 'with a real phone number', 'accent')
     + kpi('Enrichment rate', (rate == null ? '-' : fmtPct2(rate, 1)),
           (rate == null ? 'no leads in scope' : fmtNum(totE) + ' of ' + fmtNum(totL)))
@@ -8272,7 +8343,10 @@ function renderEnriched(){
   if (tb){
     if (!weeks.length){
       tb.innerHTML = '<tr><td colspan="4" style="color:var(--cf-mute)">'
-        + 'No leads for this campaign selection.</td></tr>';
+        + (narrowed()
+            ? 'No leads in the selected date range for this campaign selection.'
+            : 'No leads for this campaign selection.')
+        + '</td></tr>';
     } else {
       let h = '';
       for (const wk of weeks){
@@ -8313,7 +8387,10 @@ function renderEnriched(){
   } else if (db){
     if (!detail.length){
       db.innerHTML = '<tr><td colspan="4" style="color:var(--cf-mute)">'
-        + 'No enriched leads for this campaign selection yet.</td></tr>';
+        + (narrowed()
+            ? 'No enriched leads in the selected date range.'
+            : 'No enriched leads for this campaign selection yet.')
+        + '</td></tr>';
     } else {
       // The summary and the drill-down are two reads of ONE view, so a mismatch means the
       // payload is internally inconsistent. Log it rather than rendering a table that quietly

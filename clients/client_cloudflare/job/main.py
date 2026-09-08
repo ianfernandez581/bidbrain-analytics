@@ -223,18 +223,25 @@ def main():
     # five dimensions to the one donut() the APJ tab uses. See sql/19_cs_composition_v2.sql.
     csx = rows(bq, f"SELECT * FROM {t('cs_composition_v2')} ORDER BY THEATRE, BOOK, VENDOR, MARKET, DIM, ACCEPTED DESC")
     # WEEKLY ENRICHED LEADS (2026-09-07, client request). Two reads of the same lane:
-    # the week x campaign rollup that drives the summary table, and the DETAIL rows for the
-    # leads that actually enriched. See sql/20_cs_enriched_leads.sql.
+    # the day x theatre x campaign counts that drive the summary table, and the DETAIL rows
+    # for the leads that actually enriched. See sql/20_cs_enriched_leads.sql.
     #
-    # Scoped to five campaign IDs IN THE VIEW, so this is a small, bounded lane - the detail
+    # Scoped to the APJ + EMEA campaign lists IN THE VIEW (theatre resolved there, never
+    # defaulted), so this is a small, bounded lane - the detail
     # read is filtered to `ENRICHED_PHONE IS NOT NULL` here rather than in the dashboard,
     # because the panel only ever lists enriched leads and shipping the ~1,560 non-enriched
     # rows would put lead PHONE numbers in the payload for no rendered purpose.
     #
     # The sentinel test lives ONLY in the view (two of them: '-' and the literal 'NA'). Nothing
     # in this file or the dashboard may re-test it - a plain IS NOT NULL is the whole contract.
-    enw = rows(bq, f"SELECT * FROM {t('cs_enriched_weekly')} ORDER BY WEEK_START, CAMPAIGN_ID")
-    end = rows(bq, f"""SELECT DAY, CAMPAIGN, CAMPAIGN_ID, PHONE, ENRICHED_PHONE
+    #
+    # DAY grain is what ships (2026-09-08): the tab is date-range driven, and a range that cuts
+    # mid-week CANNOT be honoured from week buckets - the dashboard buckets days into ISO weeks
+    # itself, inside the selected range. `enw` is still read, but ONLY as the reconciliation
+    # guard below: two views over one lead set must agree, or the panel's own totals are wrong.
+    end_ = rows(bq, f"SELECT * FROM {t('cs_enriched_daily')} ORDER BY THEATRE, DAY, CAMPAIGN_ID")
+    enw = rows(bq, f"SELECT * FROM {t('cs_enriched_weekly')} ORDER BY THEATRE, WEEK_START, CAMPAIGN_ID")
+    end = rows(bq, f"""SELECT DAY, CAMPAIGN, CAMPAIGN_ID, THEATRE, PHONE, ENRICHED_PHONE
                         FROM {t('cs_enriched_leads')}
                         WHERE ENRICHED_PHONE IS NOT NULL
                         ORDER BY DAY DESC""")
@@ -704,19 +711,27 @@ def main():
     # campaigns to make the per-week summary (repo-wide "rates must never enter a fact" rule).
     # `enrichment_rate` is carried at the row's OWN grain (week x campaign) for the drill-down.
     cs_enriched_payload = {
-        "row_count": len(enw),
-        "weekly": [{
-            "week_start":      ymd(r.get("WEEK_START")),
-            "campaign_id":     r.get("CAMPAIGN_ID"),
-            "campaign":        r.get("CAMPAIGN"),
-            "lead_count":      int(jval(r.get("LEAD_COUNT")) or 0),
-            "enriched_count":  int(jval(r.get("ENRICHED_COUNT")) or 0),
-            # May be None on an empty week (SAFE_DIVIDE), never 0 - "no leads" is not "0%".
-            "enrichment_rate": jval(r.get("ENRICHMENT_RATE")),
-        } for r in enw],
+        "row_count": len(end_),
+        # DAY grain, so the dashboard's date range is exact. It re-derives every rate from the
+        # two summed counts, because a rate is not additive and these rows are summed across
+        # campaigns and days (repo-wide "rates must never enter a fact" rule).
+        "daily": [{
+            "day":            ymd(r.get("DAY")),
+            "theatre":        r.get("THEATRE"),
+            "campaign_id":    r.get("CAMPAIGN_ID"),
+            "campaign":       r.get("CAMPAIGN"),
+            "lead_count":     int(jval(r.get("LEAD_COUNT")) or 0),
+            "enriched_count": int(jval(r.get("ENRICHED_COUNT")) or 0),
+            # The '-' vs 'NA' split. NOT rendered client-facing: it is the open question with
+            # Transmission (does '-' mean "not yet processed"?). Carried so the answer can be
+            # acted on without a schema change. See sql/20's header.
+            "dash_count":     int(jval(r.get("DASH_COUNT")) or 0),
+            "na_count":       int(jval(r.get("NA_COUNT")) or 0),
+        } for r in end_],
         # ONLY the leads that enriched (filtered in the query above).
         "detail": [{
             "day":            ymd(r.get("DAY")),
+            "theatre":        r.get("THEATRE"),
             "campaign":       r.get("CAMPAIGN"),
             "campaign_id":    r.get("CAMPAIGN_ID"),
             "phone":          r.get("PHONE"),
@@ -726,20 +741,44 @@ def main():
     # Empty-fact alarm (caltex pattern). The scope is five hardcoded campaign IDs, so the one
     # realistic failure mode is a Salesforce campaign being re-keyed - which drops this lane to
     # zero rows SILENTLY, since nothing else on the dashboard reads these views. Make it loud.
-    if not enw:
-        print("WARNING cs_enriched: 0 weekly rows - the 5 seeded CAMPAIGN_IDs matched nothing. "
+    if not end_:
+        print("WARNING cs_enriched: 0 daily rows - the seeded CAMPAIGN_IDs matched nothing. "
               "Check sql/20_cs_enriched_leads.sql against the live CAMPAIGN_ID list.")
     else:
-        _el = sum(r["lead_count"] for r in cs_enriched_payload["weekly"])
-        _ee = sum(r["enriched_count"] for r in cs_enriched_payload["weekly"])
-        # The detail list must tie EXACTLY to the weekly enriched total. If it does not, the
-        # two reads disagree about the sentinel test and the panel would show a summary that
-        # its own drill-down contradicts.
-        if _ee != len(end):
-            print(f"WARNING cs_enriched: weekly enriched={_ee} but detail rows={len(end)} - "
-                  "the summary and the drill-down disagree.")
-        print(f"  cs_enriched: {len(enw)} week x campaign rows, {_el} leads, {_ee} enriched "
-              f"({(_ee/_el*100 if _el else 0):.1f}%), detail={len(end)} rows")
+        # Guard 1: the DAY-grain rows that ship must sum to the WEEK-grain view exactly, per
+        # theatre. They are two views over one lead set; if they disagree, one of them is wrong
+        # and the panel's own totals cannot be trusted.
+        _d, _w = {}, {}
+        for r in cs_enriched_payload["daily"]:
+            o = _d.setdefault(r["theatre"], [0, 0])
+            o[0] += r["lead_count"]; o[1] += r["enriched_count"]
+        for r in enw:
+            o = _w.setdefault(r.get("THEATRE"), [0, 0])
+            o[0] += int(jval(r.get("LEAD_COUNT")) or 0)
+            o[1] += int(jval(r.get("ENRICHED_COUNT")) or 0)
+        for th in sorted(set(_d) | set(_w)):
+            if _d.get(th) != _w.get(th):
+                print(f"WARNING cs_enriched {th}: daily {_d.get(th)} != weekly {_w.get(th)} - "
+                      "the two views over the same leads disagree.")
+        # Guard 2: the detail list must tie EXACTLY to the enriched total, per theatre, or the
+        # summary and its own drill-down contradict each other on screen.
+        _dt = {}
+        for r in cs_enriched_payload["detail"]:
+            _dt[r["theatre"]] = _dt.get(r["theatre"], 0) + 1
+        for th in sorted(_d):
+            if _dt.get(th, 0) != _d[th][1]:
+                print(f"WARNING cs_enriched {th}: enriched={_d[th][1]} but detail rows="
+                      f"{_dt.get(th, 0)} - summary and drill-down disagree.")
+        # Per-theatre audit line every run. EMEA is expected to read 0 enriched today (open
+        # question with Transmission: enrichment may not cover that theatre at all), so this is
+        # the cheap signal for the day it starts working - or the day APJ silently stops.
+        for th in sorted(_d):
+            l, e = _d[th]
+            na = sum(r["na_count"] for r in cs_enriched_payload["daily"] if r["theatre"] == th)
+            da = sum(r["dash_count"] for r in cs_enriched_payload["daily"] if r["theatre"] == th)
+            print(f"  cs_enriched {th:5s}: {l:>5} leads, {e:>4} enriched "
+                  f"({(e/l*100 if l else 0):5.1f}%), dash={da:>5}, na={na:>5}, "
+                  f"detail={_dt.get(th, 0):>4}")
 
     _dt_vals = [v for v in observed.values() if v]
     env = {

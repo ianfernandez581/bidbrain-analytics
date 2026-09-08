@@ -40,7 +40,8 @@ It merges what Cloudflare used to publish as **two separate public files** (`pac
 | `li_weekly_targets` | `paid_media.li_weekly` |
 | `pacing_model` | `pacing.rows` |
 | `raw_snowflake.linkedin_ads_apac` (read directly) | `campaigns` (peyc / cf1_india / coles_hyper) |
-| `cs_enriched_weekly` | `cs_enriched.weekly` — Weekly Enriched Leads (2026-09-07). **Local only, not deployed.** |
+| `cs_enriched_daily` | `cs_enriched.daily` — Weekly Enriched Leads, DAY x THEATRE x CAMPAIGN. Day grain because the tab is date-range driven; the dashboard buckets ISO weeks itself. |
+| `cs_enriched_weekly` | **not shipped** — read only as the reconciliation guard: daily must sum to weekly per theatre, or the job WARNs (two views over one lead set). |
 | `cs_enriched_leads` (filtered `ENRICHED_PHONE IS NOT NULL`) | `cs_enriched.detail` — only the leads that actually enriched. The filter is HERE, not in the browser, so ~1,560 non-enriched lead phone numbers stay out of the payload. |
 
 (The static inputs the views read — `seed_real_targets`, `seed_tiers`, `seed_line_cf` — are loaded

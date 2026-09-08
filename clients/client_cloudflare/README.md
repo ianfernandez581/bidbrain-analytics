@@ -61,15 +61,18 @@ running revision, not the note, before you repeat a deploy status to a client.
 ### The contract
 
     sql/20_cs_enriched_leads.sql   ->   job/main.py            ->   dash/dashboard.html
-      cs_enriched_weekly                  env["cs_enriched"]          CSE / renderEnriched()
-        WEEK_START                          weekly[].week_start         byWeek key, "w/c <date>"
-        CAMPAIGN_ID                         weekly[].campaign_id        #enrCampaign scope
-        CAMPAIGN                            weekly[].campaign           dropdown label
-        LEAD_COUNT                          weekly[].lead_count         Leads column
-        ENRICHED_COUNT                      weekly[].enriched_count     Enriched column
-        ENRICHMENT_RATE                     weekly[].enrichment_rate    (row grain only)
-      cs_enriched_leads (detail)          detail[]                    #enrDetailTbl
+      cs_enriched_daily                   env["cs_enriched"]          CSE / renderEnriched()
+        DAY                                 daily[].day                 range filter + isoMonday()
+        THEATRE                             daily[].theatre             lane scope (APJ / EMEA)
+        CAMPAIGN_ID                         daily[].campaign_id         #enrCampaign scope
+        CAMPAIGN                            daily[].campaign            dropdown label
+        LEAD_COUNT                          daily[].lead_count          Leads column
+        ENRICHED_COUNT                      daily[].enriched_count      Enriched column
+        DASH_COUNT / NA_COUNT               daily[].dash_count/na_count (open question; unrendered)
+      cs_enriched_weekly                  (not shipped)               job reconciliation guard
+      cs_enriched_leads (detail)          detail[]                    #enrDetailTbl (STAFF ONLY)
         DAY / CAMPAIGN / PHONE              day / campaign / phone
+        THEATRE                             theatre
         ENRICHED_PHONE                      enriched_phone
 
 ### The trap: the column has TWO empty sentinels, and neither is NULL
@@ -159,6 +162,68 @@ the same fraction of its true value (1,249 of 1,923, 236 of 363 and 12.3% of 18.
 which reads as a summary that disagrees with its own table. Suppress it for a capture by stamping
 `dataset.bbCount = '1'` on the `COUNT_SEL` elements rather than waiting on the 780ms rAF loop.
 
+### EMEA lane + a date picker on the tab (2026-09-08)
+
+Two changes, one data model. The tab now exists on **both** program lanes and is **range-driven**.
+
+**Scope is theatre-aware.** `sql/20` used to filter to the five APJ campaign IDs. It now scopes to
+APJ **+ EMEA** and carries a `THEATRE` column, resolved by an **INNER JOIN against an explicit
+per-campaign list** - so the scope gate and the theatre resolver are the same step and there is no
+`ELSE` arm to get wrong. That matters here: `sql/16` once filed 64 EMEA leads under APJ on exactly
+such a default. APJ ids stay a literal list (a client-stated scope, "these are the campaign IDs for
+now"); **EMEA ids are read from `seed_cs_emea_campaign_ids`**, which `sql/16` and the theatre
+allowlist already use - never re-type them, or two surfaces end up disagreeing about what EMEA is.
+**Verified a strict no-op on APJ**: 1,991 leads / 363 enriched before and after.
+
+**The EMEA tab is gated on the theatre having an ENRICHED lead, not on having leads.** EMEA has
+**2,190 in-scope leads and zero enriched numbers** - 1,501 of them the `'NA'` sentinel, 689 a dash.
+Rendering the tab there would publish a **0% enrichment rate**, which *asserts* enrichment is
+failing for EMEA. We do not know that: it may not be a service bought for that theatre, and the
+question is open with Transmission (Ankit + Fahad). So the tab stays hidden and lights up on its
+own the day EMEA earns its first enriched number (`hasEnrichedData()` -> `PROGRAMS.*.tabsWhenData`).
+Nothing to remember later, and no 0% claim in the meantime.
+
+**The payload ships DAY grain, not weeks.** The tab is now driven by the shared date picker, and a
+range that cuts mid-week **cannot** be honoured from week buckets - the same reason
+`sql/18_cs_compare_v2` is day grain. `cs_enriched_daily` is what the job sends; the dashboard
+buckets days into ISO weeks itself, inside the selected range, via `isoMonday()`. That bucketing is
+**asserted against `cs_enriched_weekly`** (29 theatre-week buckets, exact match), and the job WARNs
+if the two views ever disagree - they are two reads of one lead set, so a mismatch means one is
+wrong. `isoMonday()` goes through `Date.UTC`, never the local `Date` constructor: a `YYYY-MM-DD`
+parsed locally can shift a Sunday into the previous week in Brisbane.
+
+**Three surfaces had to move with the picker, not just the picker.** `dateControl` gained
+`'enriched'` on both lanes, but that alone would have been a control that renders and does nothing:
+`applyDateRange()` needed an `enriched` branch (or moving the picker changes no figure), and
+`renderDateScope()` needed its own wording (or the tab inherits the CS-tab text and describes
+donuts that are not on screen). The banner says weeks are bucketed from daily counts, so a range
+starting or ending mid-week shows a **part week** - which the Q3 default does, on w/c 29 Jun.
+
+**A useful side effect of the default range:** the dash opens on the quarter containing today, so
+the tab now leads with **Q3: 958 leads / 363 enriched / 37.9%** rather than the whole-flight
+18.2%. The whole-flight figure is dragged down by the ~1,050 leads that arrived before enrichment
+existed (first enriched lead 14 Jul) and can never be enriched. Both are correct; the quarter view
+is the more useful default. See the note below on why a third figure may be the honest one.
+
+### The two sentinels may not mean the same thing (OPEN, 2026-09-08)
+
+Raised with Ankit + Fahad; they are checking against Salesforce. Evidence, in case it lands while
+someone else is holding this:
+
+- `'NA'` first appears in the feed **the same month enrichment went live** (July). Every row before
+  that is a dash.
+- On the in-scope APJ campaigns the **dash count falls to ZERO by w/c 31 Aug** (0 dash / 66 NA /
+  45 real) and then springs straight back to **100% dash for the current part-week** (68 dash / 0
+  processed).
+
+That reads like a **processing queue** - `'-'` = not yet attempted, `'NA'` = attempted, nothing
+found - rather than two spellings of "no phone". If that is confirmed, the honest denominator is
+`NA + real` (leads actually processed) and the rate roughly quadruples: **363 of 496 = 73.4%** on
+the whole flight. `sql/20` therefore carries `ENRICHED_STATE` and the daily view carries
+`DASH_COUNT` / `NA_COUNT`, so the answer can be acted on without a schema change. **Nothing on
+screen assumes it yet** - both sentinels count as "not enriched", which is the conservative
+reading. EMEA's 0-for-1,501-NA is the other half of the same question.
+
 ### PII - the per-lead table is STAFF-ONLY (2026-09-08, live on `cloudflare-dash-00179-cwt`)
 
 The detail table renders **`PHONE` and the enriched phone per lead** - a step beyond anything else
@@ -193,7 +258,20 @@ the metric the client actually asked for.
   `sql/20` + `job/main.py` so they never leave BigQuery; that is a payload change and has not been
   made. Treat the UI gate as a stop-gap, not the resolution.
 
-### Verified 2026-09-07 (localhost)
+### Verified 2026-09-08 (localhost, after the EMEA + date-picker change)
+
+- **APJ is a strict no-op**: 1,991 leads / 363 enriched, identical before and after adding EMEA.
+- **EMEA**: 2,190 leads / **0** enriched / 689 dash / 1,501 NA, 5 campaigns, from 06 Aug.
+- `cs_enriched_daily` sums to `cs_enriched_weekly` exactly, per theatre (the job asserts it), and
+  the dashboard's own `isoMonday()` bucketing matches the SQL weekly view across all **29**
+  (theatre, week) buckets.
+- **30 render assertions** under Node against the real payload: the per-theatre tab gate (APJ
+  shows, EMEA hidden), theatre scoping with no cross-summing, exact mid-week range filtering,
+  range-aware empty states, per-campaign re-derived rates, and **lappy's PII gate still holding**
+  (client session -> card hidden AND zero phone rows in the DOM; staff -> 363 rows).
+- `scripts/_validate_dash_js.py` clean (2 inline blocks, `node --check`).
+
+### Verified 2026-09-07 (localhost, the original build)
 
 - `ENRICHED_PHONE_NUMBER` present in `raw_snowflake.salesforce_cs_apac_all` (29 columns).
 - Views reconcile exactly: **1,923 leads / 363 enriched (18.88%)**, 22 weeks, 5 campaigns.
@@ -214,8 +292,7 @@ the metric the client actually asked for.
 3. `clients/client_cloudflare/dash/deploy_dash_cloudflare.ps1`.
 4. Force one job run, since a view-only change does not trip the freshness gate:
    `gcloud run jobs execute cloudflare-export --region australia-southeast1 --update-env-vars FORCE_REBUILD=1 --wait`
-5. Add the row for this to the client table in `md/AGENTS.md` (deliberately left untouched - this
-   work was scoped to `clients/client_cloudflare/`).
+5. `md/AGENTS.md`'s cloudflare row is updated - keep it that way.
 
 ## Google Ads — the 5th paid channel (added 2026-08-11)
 
