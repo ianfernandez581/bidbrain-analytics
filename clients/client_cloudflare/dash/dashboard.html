@@ -1404,7 +1404,22 @@
         </div>
       </div>
 
-      <div class="card" style="margin-top:var(--gap-lg)">
+      <!-- STAFF ONLY (2026-09-08). This card lists PER-LEAD PHONE NUMBERS - the raw number and
+           the enriched one, 363 real E.164 numbers today. Nothing else client-facing on this
+           dashboard carries lead PII: sql/16 deliberately drops phone/email, and the older
+           per-lead lead-detail table is dev-only. The client README recorded this as a decision
+           to take BEFORE the tab reached the client; the tab shipped while it was still open, so
+           the card is now gated on window.BB_INTERNAL (the #txNotesCard rule - the platform proxy
+           injects that flag for superadmin/admin/owning-agency sessions only). The WEEKLY table
+           above is aggregate counts and rates, carries no PII, and stays visible to everyone -
+           that is the metric the client asked for.
+           IT STARTS HIDDEN AND IS REVEALED, NEVER THE OTHER WAY ROUND: applyViewMode() is only
+           reached from initDevMode() (which returns early unless DEV_ALLOWED) and setAdminView(),
+           so on a plain client session it never runs at all - gating there ALONE would have left
+           the card on screen for exactly the sessions it is meant to be hidden from. The reveal
+           therefore also sits in renderEnriched(), which runs whenever the tab renders, and the
+           default is hidden so any future path that forgets it fails CLOSED. -->
+      <div class="card" id="enrDetailCard" style="display:none;margin-top:var(--gap-lg)">
         <div class="card-head">
           <div><h3>Enriched leads</h3>
           <div class="hint" id="enrDetailHint">Only the leads that actually enriched.</div></div>
@@ -1466,7 +1481,10 @@
       <div class="grid" id="csTargetGrid">
         <div class="card">
           <h3>Leads vs target</h3>
-          <div class="hint"><span class="qlbl">Q3</span> target, time-to-date target, and accepted leads <span class="ptdlbl">QTD</span>.</div>
+          <!-- Prose, so it says "to date" in words. The .ptdlbl span is the ROW LABEL word
+               (QTD on APJ, QTR on EMEA since 2026-09-08) and reads as a label, not as English:
+               dropped into this sentence it produced "accepted leads QTR." -->
+          <div class="hint"><span class="qlbl">Q3</span> target, time-to-date target, and accepted leads to date.</div>
           <div id="leadsTarget"></div>
         </div>
         <div class="card">
@@ -1589,17 +1607,22 @@
             </div>
           </div>
           <div class="group">
-            <div class="lbl">Rejections</div>
+            <!-- id lives HERE, on the WEEKLY card - the campaign-to-date band above has an
+                 identically-worded "Rejections" label, so this id was first added to that one by
+                 mistake and wrote a week scope onto the band whose own hint says it does not move
+                 with the week selector. A label id can only be identified by the ids of the STATS
+                 INSIDE its group (cspd_w_* here, cspd_t_* there), never by its own text. -->
+            <div class="lbl" id="cspd_w_rej_lbl">Rejections</div>
             <div class="pair">
               <div class="stat"><div class="k">Rejected</div><div class="v" id="cspd_w_rej">-</div></div>
               <div class="stat"><div class="k">Rejection rate</div><div class="v" id="cspd_w_rrate">-</div></div>
             </div>
           </div>
           <div class="group">
-            <div class="lbl">Outcome</div>
+            <div class="lbl" id="cspd_w_out_lbl">Outcome</div>
             <div class="pair">
               <div class="stat"><div class="k">Acceptance rate</div><div class="v" id="cspd_w_arate">-</div></div>
-              <div class="stat"><div class="k">Lead deficit</div><div class="v" id="cspd_w_def">-</div>
+              <div class="stat"><div class="k" id="cspd_w_def_k">Lead deficit</div><div class="v" id="cspd_w_def">-</div>
                 <div class="cnt" id="cspd_w_def_cnt">-</div></div>
             </div>
           </div>
@@ -2642,6 +2665,10 @@ function updateQuarterLabels(){
   // the legacy theatre, so every APJ caption is byte-identical to before.
   const t = periodLabel();
   document.querySelectorAll('.qlbl').forEach(el => el.textContent = t);
+  // NOTE: no .ptdlbl span exists in the document any more - the one in the Leads-vs-target
+  // hint became prose on 2026-09-08, because a row LABEL ("QTD"/"QTR") dropped into a sentence
+  // read as "accepted leads QTR." The hook is kept because the label word is lane-dependent and
+  // the next caption that needs it should use this, not hardcode a word; it is a NO-OP today.
   const p = toDateWord();
   document.querySelectorAll('.ptdlbl').forEach(el => el.textContent = p);
 }
@@ -2697,21 +2724,47 @@ let effGrain='day';      // shared by ctrTrend / clkTrend / cpcTrend
 let cmpGrain='day';      // shared by cmpDaily + cmpSpend
 let csDailyGrain='day';  // dailyChart (accepted leads)
 let csWeeklyGrain='week';// weeklyChart (pacing target vs actual; Month/Week only)
-// BAR GEOMETRY for the "Pacing - target vs actual" chart, shared by BOTH lanes (2026-09-05).
-// APJ is the reference: Chart.js's own defaults and NO thickness cap, so a column's width is
-// the card width divided by the number of periods - 34.5px a week / 149.5px a month at 1,400px.
-// EMEA's renderer used to hard-cap every dataset at maxBarThickness 22, so its columns drew at
-// 22px in both views beside APJ's 34.5 / 149.5. Both renderers now SPREAD this object into every
-// dataset and nothing else sets a width property, so the two lanes cannot drift apart again.
-// Written once, on purpose: change it here and both charts move.
-// Known and accepted: with identical config the pixel width still follows the category COUNT,
-// and at Month grain APJ has 3 columns (Jul-Sep) while EMEA has 4 (its flight runs to late Oct),
-// so EMEA's month bars are ~25% narrower than APJ's. Matching PIXELS there would need a fixed
-// barThickness, which stops the bars filling the chart and breaks with the viewport - rejected.
-const PACING_BARS = Object.freeze({ barPercentage: 0.9, categoryPercentage: 0.8 });
-// The APJ Pacing-detail "Weekly pacing" card draws with the SAME function into its own, taller
-// canvas (cspdWeeklyChart) and keeps a cap - it is a different card, not the hero chart above.
-const CSPD_DETAIL_BARS = Object.freeze({ maxBarThickness: 22 });
+// BAR GEOMETRY for every "Pacing - target vs actual" chart - BOTH lanes AND the APJ
+// Pacing-detail card (2026-09-05, widened to cover the detail card 2026-09-08 on client
+// request). APJ's hero chart is the reference: Chart.js's own defaults and NO thickness cap,
+// so a column's width is the card width divided by the number of periods - 34.5px a week /
+// 149.5px a month at 1,400px. EMEA's renderer used to hard-cap every dataset at
+// maxBarThickness 22, so its columns drew at 22px in both views beside APJ's 34.5 / 149.5,
+// and the APJ Pacing-detail copy drew at that same 22px directly under a hero chart at 34.5.
+// All THREE now take their dataset geometry from pacingBars() and nothing else sets a width
+// property, so they cannot drift apart again. Note it is a FUNCTION, not one frozen object -
+// week and month deliberately differ (see below). Written once, on purpose: change it here and
+// every pacing chart moves.
+// MONTH GRAIN NEEDED ITS OWN SETTING (2026-09-08). Identical config still leaves the pixel
+// width following the category COUNT: at Month grain APJ has 3 columns (Jul-Sep) and EMEA has 4
+// (its flight runs past the quarter), so EMEA's month bars drew ~26% narrower than APJ's -
+// measured 101.6px vs 136.6px at a 1,175px plot. That difference is what "still thinner than
+// APJ" survives as once the week grain matches. Week grain keeps Chart.js's own proportions and
+// NO cap - it is already identical on both lanes (35.3px vs 35.1px at a 1,275px plot; 23.9 vs
+// 23.6 at 862px - the residual being EMEA's wider y-tick labels) and a cap there would only
+// shrink it.
+// A FIXED CAP WAS TRIED FIRST AND IS NOT GOOD ENOUGH - it equalises only while BOTH natural
+// widths exceed it. maxBarThickness 132 measured 132/132 at 1440 and 1280, then drifted as the
+// window narrowed (1150: APJ 132 vs EMEA 118.7, 10% apart; 1000: 132 vs 101, 31% apart) because
+// EMEA, with more buckets, falls under the cap first - reproducing the very complaint at exactly
+// the widths a windowed browser sits at.
+// So the month setting normalises the CATEGORY instead: categoryPercentage = cats / MONTH_REF_CATS
+// makes a 3-bucket axis occupy three quarters of its plot rather than all of it, so a bucket is
+// the same fraction of the plot on both lanes and the bars scale together at every viewport
+// (measured 151.2 vs 150.1 at 1440, 102.2 vs 101.0 at 1000 - and WIDER than the cap gave). The
+// residual ~1px is EMEA's wider y-tick labels (axis to 12,058 vs 2,290) leaving it slightly less
+// plot; nothing short of equalising axis padding removes it.
+// MONTH_REF_CATS is the widest month axis in the estate today - EMEA's four-month flight. A lane
+// that ever runs FIVE months needs this at 5; the min(1, ...) clamp is what stops such a lane
+// overflowing its category in the meantime.
+const MONTH_REF_CATS = 4;
+const PACING_BARS_WEEK = Object.freeze({ barPercentage: 0.9, categoryPercentage: 0.8 });
+// Callers pass their own `monthly` flag and their own category count rather than reading the
+// grain global, so the two renderers cannot disagree about what they are drawing.
+function pacingBars(monthly, cats){
+  if (!monthly) return PACING_BARS_WEEK;
+  return { barPercentage: 0.95, categoryPercentage: Math.min(1, (cats || MONTH_REF_CATS) / MONTH_REF_CATS) };
+}
 let cspdWeeklyGrain='week';// cspdWeeklyChart - the same Month/Week control on the Pacing detail chart
 let currentCampaignKey=null;                  // active single-campaign view key
 let cmpTab='li';                              // CF1-view tab: 'li' (LinkedIn) | 'cs' (content syndication)
@@ -3643,6 +3696,12 @@ function applyViewMode() {
   const notesAllowed = !!window.BB_INTERNAL;
   if (notesCard) notesCard.style.display = notesAllowed ? '' : 'none';
   if (txTab) txTab.textContent = notesAllowed ? 'Internal Notes' : 'Transmission data';
+  // Same rule, different tab: the per-lead enriched table prints lead PHONE NUMBERS, so it is
+  // staff-only. Gated on BB_INTERNAL and NOT on devMode - devMode is a view toggle any client
+  // session can flip, which is no protection at all. The Weekly Enriched Leads TAB stays: its
+  // weekly table is aggregate counts and rates with no PII.
+  const enrCard = document.getElementById('enrDetailCard');
+  if (enrCard) enrCard.style.display = notesAllowed ? '' : 'none';
   // The LANE has the final say on which tabs exist at all (Surround ABM is Paid Media only),
   // so re-apply it after the dev gate above has had its turn on #txDataTab.
   applyLaneTabs();
@@ -3758,6 +3817,21 @@ function renderKPIs(agg) {
 // target rows (e.g. a custom range outside the loaded Q2/Q3 plan).
 const NO_TARGET_MSG = '<div style="font-size:var(--t-body);color:var(--cf-mute);padding:10px 2px">Targets and pacing not set for the selected period yet (showing actuals only).</div>';
 
+// The to-date position as a COUNT, not just a percentage (2026-09-08, John: "for APJ it says
+// we have 2 behind, but we are 2 ahead of TTD"). Until now the only "behind" count anywhere on
+// the tab was the SELECTED WEEK's Lead deficit tile, so that number was read as the campaign
+// position - on APJ it said "2 behind" on a lane running ahead of its TTD target. Same basis as
+// the percentage it sits next to (accepted vs the TTD/due-to-date target), so the two can never
+// disagree; it prints nothing when there is no due-to-date target to measure against.
+function ttdGapPhrase(accepted, due){
+  if (!due) return '';
+  const gap = Math.round(due - accepted);
+  if (gap === 0) return ' Exactly on the TTD target.';
+  return gap > 0
+    ? ' That is <b>' + fmtN(gap) + '</b> accepted leads <b>behind</b> the TTD target.'
+    : ' That is <b>' + fmtN(-gap) + '</b> accepted leads <b>ahead</b> of the TTD target.';
+}
+
 function renderLeadsTarget(agg) {
   // Wider label column for the EMEA labelled-basis rows (2026-09-01 layout pass) - toggled
   // both ways so switching lanes always restores APJ's original geometry.
@@ -3783,7 +3857,7 @@ function renderLeadsTarget(agg) {
       <div class="progress-row"><div>TTD target</div><div class="pbar gray"><div class="fill" style="width:${w(cw)}%"></div></div><div style="text-align:right">${fmtN(cw)}</div></div>
       <div class="progress-row"><div>${toDateWord()} Accepted</div><div class="pbar"><div class="fill" style="width:${w(agg.accepted)}%"></div></div><div style="text-align:right">${fmtN(agg.accepted)}</div></div>
       <div style="font-size:var(--t-sm);color:var(--cf-mute);margin-top:var(--gap-lg)">
-        Accepted to date is <b>${agg.q2Target ? (agg.accepted/agg.q2Target*100).toFixed(1) : '0'}%</b> of the ${QL.toLowerCase()} plan, <b>${cw ? (agg.accepted/cw*100).toFixed(1) : '0'}%</b> of the TTD target.
+        Accepted to date is <b>${agg.q2Target ? (agg.accepted/agg.q2Target*100).toFixed(1) : '0'}%</b> of the ${QL.toLowerCase()} plan, <b>${cw ? (agg.accepted/cw*100).toFixed(1) : '0'}%</b> of the TTD target.${ttdGapPhrase(agg.accepted, cw)}
       </div>`;
     return;
   }
@@ -3794,7 +3868,7 @@ function renderLeadsTarget(agg) {
     <div class="progress-row"><div>TTD Target</div><div class="pbar gray"><div class="fill" style="width:${w(agg.ttdTarget)}%"></div></div><div style="text-align:right">${fmtN(agg.ttdTarget)}</div></div>
     <div class="progress-row"><div>${toDateWord()} Accepted</div><div class="pbar"><div class="fill" style="width:${w(agg.accepted)}%"></div></div><div style="text-align:right">${fmtN(agg.accepted)}</div></div>
     <div style="font-size:var(--t-sm);color:var(--cf-mute);margin-top:var(--gap-lg)">
-      QTD accepted is <b>${agg.q2Target ? (agg.accepted/agg.q2Target*100).toFixed(1) : '0'}%</b> of ${QL} plan, <b>${agg.ttdTarget ? (agg.accepted/agg.ttdTarget*100).toFixed(1) : '0'}%</b> of TTD target.
+      QTD accepted is <b>${agg.q2Target ? (agg.accepted/agg.q2Target*100).toFixed(1) : '0'}%</b> of ${QL} plan, <b>${agg.ttdTarget ? (agg.accepted/agg.ttdTarget*100).toFixed(1) : '0'}%</b> of TTD target.${ttdGapPhrase(agg.accepted, agg.ttdTarget)}
     </div>`;
 }
 
@@ -3911,14 +3985,16 @@ function renderWeekly(agg) {
   // target (a pacing read); tooltips always show the true accepted count.
   const isRel = csWeeklyScale==='rel';
   const pace = keys.map((k,i)=> tgt[i] ? act[i]/tgt[i]*100 : 0);
-  // Bar geometry comes from PACING_BARS (shared with the EMEA renderer) - never set here.
+  // Bar geometry comes from pacingBars() (shared with the EMEA/Pacing-detail renderer) - never
+  // set here, or the two lanes drift apart again.
+  const bars = pacingBars(csWeeklyGrain === 'month', keys.length);
   const datasets = isRel ? [
-      {label:'Accepted vs target', data: pace, backgroundColor:CF, borderRadius:3, ...PACING_BARS}
+      {label:'Accepted vs target', data: pace, backgroundColor:CF, borderRadius:3, ...bars}
     ] : [
-      {label:'Target', data: tgt, backgroundColor:TARGET, borderRadius:3, stack:'plan', ...PACING_BARS},
-      {label:'Accepted actual', data: act, backgroundColor:CF, borderRadius:3, stack:'actual', ...PACING_BARS},
+      {label:'Target', data: tgt, backgroundColor:TARGET, borderRadius:3, stack:'plan', ...bars},
+      {label:'Accepted actual', data: act, backgroundColor:CF, borderRadius:3, stack:'actual', ...bars},
       // Dev mode: stack the unprocessed/New backlog on top of accepted so the full delivered bar shows.
-      ...(devMode ? [{label:'Unprocessed', data: unp, backgroundColor:PENDING, borderRadius:3, stack:'actual', ...PACING_BARS}] : [])
+      ...(devMode ? [{label:'Unprocessed', data: unp, backgroundColor:PENDING, borderRadius:3, stack:'actual', ...bars}] : [])
     ];
   charts.weeklyChart = new Chart(document.getElementById('weeklyChart'), {
     type:'bar',
@@ -4768,10 +4844,12 @@ function cspdCfg(th){
            // scope since 2026-09-04 - it follows the campaign picker, not the market chips
            // or the week selector, exactly as it never did when it spanned every book).
            rows,
-           // The seed is NAMED for a quarter, but a flight is not a quarter: EMEA's 830 runs
-           // 07 Aug -> 05 Nov and 310 of it (37%) lands in Q4. Every caption in this section
-           // reads period_label, so making it lane-aware here fixes them all at once ("whole
-           // Flight", "265 of 830 Flight target", the "Flight to date" chip). APAC is
+           // The seed is NAMED for a quarter, but a flight is not a quarter: EMEA's flight
+           // runs 31 Jul -> 29 Oct and 41.8% of its target lands in Q4 (re-derived 2026-09-08;
+           // the old note's "830 / 310 / 07 Aug -> 05 Nov" was an August-vintage seed and a
+           // stated end date). Every caption in this section reads period_label, so making it
+           // lane-aware here fixes them all at once ("whole Flight", "N of M Flight target",
+           // the "Flight to date" chip). APAC is
            // untouched - it still reads the payload's own label.
            period_label: topFromPacing() ? 'Flight' : (CSPD_META.period_label || 'Q3') };
 }
@@ -5008,11 +5086,42 @@ function renderCsPacingDetail(){
         : w.accepted.toLocaleString() + ' accepted vs ' + tgtDue.toLocaleString() + ' target'
           + (qtd ? ' - weeks closed to date; the week in progress is not yet included' : '')
           + (earlyAcc > 0 ? ' - includes ' + earlyAcc.toLocaleString() + ' accepted ahead of their target start' : ''));
+  // THE DEFICIT IS THE SELECTED WEEK'S, AND IT MUST SAY SO (2026-09-08, John). This tile
+  // read a bare "332 / accepted leads behind target" while the campaign-to-date band at the
+  // top of the same tab was 152 behind its TTD target - two true numbers on two different
+  // scopes, and the only "behind" COUNT on the page was the weekly one, so it was read as
+  // the campaign position (APJ showed "2 behind" on a lane running AHEAD to date). Both
+  // scopes now print their own count: this sub-line names the week (or "<period> to date"
+  // when the flight-to-date chip is on, which is what wkName already carries), and
+  // renderLeadsTarget() prints the to-date behind/ahead count beside its to-date percentage.
+  // A week that BEAT its target keeps its 0 but names the surplus - a bare "0" beside
+  // "target met" threw away the one number that says by how much.
   const deficit = tgtDue - w.accepted;
-  S('cspd_w_def', (!w.target || notDueYet) ? '-' : (deficit > 0 ? deficit.toLocaleString() : '0'));
+  // Lower-case the scope so it reads inside a sentence ("behind the week of 08/28 target"),
+  // but NEVER when it opens with a period token - period_label is "Q3" on APJ, and "q3 to date"
+  // reads as a typo. Q/H/FY forms are the ones that occur here.
+  const scopeWord = /^(Q\d|H\d|FY)/i.test(wkName) ? wkName
+                  : wkName.charAt(0).toLowerCase() + wkName.slice(1);
+  // The TILE'S OWN NAME carries the scope and the direction, because the tile name is what gets
+  // quoted in an email - the group label above it is not. A week that BEAT its target used to
+  // print a big "0" under "Lead deficit" while the sub-line named the surplus; it now names the
+  // surplus in both places, so the figure is never a zero standing in for a real number.
+  const ahead = !!w.target && !notDueYet && deficit < 0;
+  S('cspd_w_def_k', ahead ? (qtd ? 'Ahead of target to date' : 'Ahead of target this week')
+                          : (qtd ? 'Deficit to date' : 'Week deficit'));
+  S('cspd_w_def', (!w.target || notDueYet) ? '-'
+                : deficit > 0 ? deficit.toLocaleString()
+                : deficit < 0 ? (-deficit).toLocaleString()
+                : '0');
   S('cspd_w_def_cnt', !w.target ? 'no target to measure against'
                     : notDueYet ? 'week in progress - target not yet due'
-                    : deficit > 0 ? 'accepted leads behind target' : 'target met');
+                    : deficit > 0 ? 'accepted leads behind the ' + scopeWord + ' target'
+                    : deficit < 0 ? 'target met - ' + (-deficit).toLocaleString() + ' accepted above the ' + scopeWord + ' target'
+                    : 'target met');
+  // The other two groups in this row are the same week's figures; only the first one named
+  // its scope, which is how a week-scoped count gets read as a campaign one.
+  S('cspd_w_rej_lbl', 'Rejections - ' + scopeWord);
+  S('cspd_w_out_lbl', 'Outcome - ' + scopeWord);
 
   cspdRenderMarketChart(cfg, slice, wkName);
   // WHERE the chart is drawn is the lane's call (2026-09-01, John: "its lower down").
@@ -5214,11 +5323,21 @@ function cspdRenderMarketChart(cfg, slice, wkName){
   // all-zero Target series there put a grey swatch in the legend for a series with nothing in
   // it, under a heading promising a comparison that the data cannot make - the chart claimed
   // "vs target" while showing no target. One series and an honest title, instead.
+  // THE 9px PIN STAYS - it is what MATCHES the lanes here (settled 2026-09-08, after trying the
+  // alternative). The canvas height is fixed, so EMEA's 6 markets sit in ~25px slots against
+  // APJ's 8 in ~19px, and an identical 9px bar in a taller slot does read as thinner with more
+  // space around it. But raising the cap to 18 does not fix that: neither lane REACHES 18 in a
+  // 298px canvas, so the bars go purely proportional to row count and EMEA lands 33% THICKER
+  // than APJ (9.3 vs 12.4, measured) - a matched pair traded for a mismatch in the opposite
+  // direction, on a panel whose whole complaint was lane parity. A cap only equalises at a value
+  // BOTH lanes exceed, so if this ever needs to be thicker the cap must go LOWER, or the canvas
+  // must grow. The client's request was the top pacing chart, not this panel.
+  const MKT_BARS = { maxBarThickness: 9 };
   const ds = [
-    { label: 'Accepted', data: labels.map(m => (byMkt[m] || {}).accepted || 0), backgroundColor: CF, maxBarThickness: 9 },
+    { label: 'Accepted', data: labels.map(m => (byMkt[m] || {}).accepted || 0), backgroundColor: CF, ...MKT_BARS },
   ];
   if (cfg.hasTargets) ds.unshift(
-    { label: 'Target', data: labels.map(m => (byMkt[m] || {}).target || 0), backgroundColor: TARGET, maxBarThickness: 9 });
+    { label: 'Target', data: labels.map(m => (byMkt[m] || {}).target || 0), backgroundColor: TARGET, ...MKT_BARS });
   const title = document.getElementById('cspdMktTitle');
   if (title) title.textContent = cfg.hasTargets ? 'Accepted vs target by market' : 'Accepted by market';
   charts['cspdMarketChart'] = new Chart(el, {
@@ -5288,20 +5407,31 @@ function cspdRenderWeeklyChart(cfg, rows, canvasId){
     ? base : 'color-mix(in srgb,' + base + ' 45%,transparent)';
   const UNPROC = PENDING;                   // same swatch as the APJ chart's Unprocessed series -
                                             // now structurally, not by two matching literals
-  // On the hero canvas (EMEA's "Pacing - target vs actual") the bars must match APJ's chart
-  // exactly, so they take the shared PACING_BARS; the APJ Pacing-detail card keeps its cap.
-  const bars = (cid === 'weeklyChart') ? PACING_BARS : CSPD_DETAIL_BARS;
+  // Both canvases this function draws into - EMEA's hero "Pacing - target vs actual" and the
+  // APJ Pacing-detail copy - take the shared pacingBars(), so every pacing chart in the
+  // dashboard is the same width. Do NOT re-add a per-canvas cap here: the detail card sitting
+  // under the hero chart at half its bar width is exactly what the client asked us to fix.
+  const bars = pacingBars(monthly, keys.length);
   // Unprocessed is ADMIN-VIEW ONLY, exactly as on the APJ chart: the client rule of
   // 2026-07-07 (Jade call) keeps the unreviewed backlog out of the client view. It is a
   // DISPLAY series either way - never added into accepted, and no pacing figure reads it.
+  // STACKED EXACTLY AS renderWeekly STACKS IT (2026-09-08, Ian's Admin-view screenshot):
+  // Target on its own 'plan' stack, Accepted + Unprocessed together on 'actual', so the
+  // backlog sits ON TOP of accepted (the full delivered bar) and the week keeps TWO bar
+  // slots. Before this, Unprocessed was pushed as an unstacked THIRD dataset, so in Admin
+  // view these two canvases drew 3 side-by-side columns at 2/3 width - measured 23.5px here
+  // against 35.3px on the APJ hero chart in the same view, a 34% gap that client view never
+  // shows (2 datasets either way), which is why the client-view checks all read "matched".
+  // Same pacingBars() geometry is not enough: the SLOT COUNT must match too, and the slot
+  // count is the number of distinct stacks. Keep the stack keys identical to renderWeekly's.
   const datasets = [
-    { label: 'Target',   data: tgt, borderRadius: 3, ...bars,
+    { label: 'Target',   data: tgt, borderRadius: 3, stack: 'plan', ...bars,
       backgroundColor: keys.map(k => dimIf(TARGET, k)) },
-    { label: 'Accepted actual', data: acc, borderRadius: 3, ...bars,
+    { label: 'Accepted actual', data: acc, borderRadius: 3, stack: 'actual', ...bars,
       backgroundColor: keys.map(k => dimIf(CF, k)) },
   ];
   if (devMode) datasets.push(
-    { label: 'Unprocessed', data: unp, borderRadius: 3, ...bars,
+    { label: 'Unprocessed', data: unp, borderRadius: 3, stack: 'actual', ...bars,
       backgroundColor: keys.map(k => dimIf(UNPROC, k)) });
   const swatch = [TARGET, CF, UNPROC];
   charts[cid] = new Chart(el, {
@@ -5318,8 +5448,11 @@ function cspdRenderWeeklyChart(cfg, rows, canvasId){
             { text: d.label, fillStyle: swatch[i] || TARGET, strokeStyle: 'transparent',
               datasetIndex: i })) } },
         tooltip: { callbacks: { label: c => ' ' + c.dataset.label + ': ' + fmtN(c.parsed.y) } } },
-      scales: { x: { grid: { display: false } },
-        y: { beginAtZero: true, grid: { color: LINE }, ticks: { precision: 0 } } } },
+      // stacked:true on BOTH axes is what makes the 'plan'/'actual' stack keys above take
+      // effect (see renderWeekly); without it Chart.js ignores `stack` and draws every
+      // dataset side by side again.
+      scales: { x: { stacked: true, grid: { display: false } },
+        y: { stacked: true, beginAtZero: true, grid: { color: LINE }, ticks: { precision: 0 } } } },
   });
   // TITLE IS LANE-AWARE, and it has to be. John asked EMEA's chart to carry APJ's wording,
   // but this chart renders on BOTH lanes - and on APJ the APJ chart is visible too, so a
@@ -5634,10 +5767,13 @@ function topFromPacing(){
 
 // ---- flight window -------------------------------------------------------
 // DERIVED FROM THE TARGET WEEKS, never from a stated end date. Three sources disagree
-// on when EMEA ends (13 Friday weeks from 07 Aug -> 05 Nov; the sheet's overall tab ->
-// 31 Oct; its Roverpath tab -> 30 Sep), and week 13 starts 30 Oct, so a 31 Oct end
-// would make it a two-day week. The 13 week starts in cs_targets_q3.csv are the one
+// on when EMEA ends (the sheet's overall tab -> 31 Oct; its Roverpath tab -> 30 Sep; an
+// earlier reading of the week rows -> 05 Nov), and the seeded weeks settle it: the 13 week
+// starts run 2026-07-31 to 2026-10-23, so the flight is 31 Jul -> 29 Oct (last start + 6
+// days) and a 31 Oct end would make week 13 a two-day week. The week starts are the one
 // unambiguous structure, so the flight is first week start -> last week start + 6 days.
+// (Re-derived from the live payload 2026-09-08; the comments here said 07 Aug -> 05 Nov,
+// which is a STATED end date of exactly the kind this function exists to ignore.)
 // A corrected end date arrives as CSV rows and needs no code change.
 function cspdFlight(rows){
   const wks = [...new Set(rows.filter(r => r.week_start).map(r => r.week_start))].sort();
@@ -5738,13 +5874,22 @@ function cspdTopAgg(){
 }
 
 // ---- labelling -----------------------------------------------------------
-// EMEA's 830 is NOT a Q3 number: 310 of it (37%) falls in October, and its flight runs
-// 07 Aug -> 05 Nov, not 01 Jul -> 30 Sep. Calling it "Q3" while drawing a time-elapsed
+// EMEA's target is NOT a Q3 number: its flight runs 31 Jul -> 29 Oct, not 01 Jul -> 30 Sep,
+// and 5,036 of the 12,058 (41.8%) sits in weeks starting in October. (Figures re-derived from
+// the live payload 2026-09-08 - this said "830, 310 of it, 37%", which was the seed as it
+// stood in August; the argument is unchanged, the numbers had moved.) Calling it "Q3" while
+// drawing a time-elapsed
 // bar would state a progress figure through a period that is not the one being bought.
 // APAC keeps the quarter wording exactly as it was - periodLabel() returns qtrLabel()
 // there, so every APJ string is byte-identical.
 function periodLabel(){ return topFromPacing() ? 'Flight' : qtrLabel(); }
-function toDateWord(){ return topFromPacing() ? 'To date' : 'QTD'; }
+// The word in front of "Accepted" on the accepted-to-date rows. APJ says QTD; EMEA said
+// "To date" until 2026-09-08, when the client asked for "QTR Accepted" on that lane. It is
+// ONE word in ONE place, so the Leads-vs-target row, the by-market cards and every .ptdlbl
+// span move together and cannot end up saying two different things about one figure.
+// NOTE the imprecision the client chose: EMEA's window is a 13-week FLIGHT (31 Jul - 29 Oct),
+// not a calendar quarter, so the row above it still says "Flight target" on purpose.
+function toDateWord(){ return topFromPacing() ? 'QTR' : 'QTD'; }
 
 // Scope caption under the EMEA KPI strip. The book/publisher pickers that change these
 // figures live further down the page, so the number says out loud what it covers - a
@@ -8077,6 +8222,11 @@ function enrFillCampaignSelect(){
 
 function renderEnriched(){
   if (!document.getElementById('panel-enriched')) return;
+  // PII gate, re-asserted on every render (see the card's comment): the per-lead table prints
+  // lead phone numbers and is staff-only. Hidden by default in the markup; this is the ONLY
+  // thing that reveals it, so a client session that never reaches applyViewMode() stays safe.
+  const enrCardEl = document.getElementById('enrDetailCard');
+  if (enrCardEl) enrCardEl.style.display = window.BB_INTERNAL ? '' : 'none';
   enrFillCampaignSelect();
 
   const weekly = enrWeeklyRows();
@@ -8153,7 +8303,14 @@ function renderEnriched(){
         + ' of ' + fmtNum(totL) + ' leads in scope. Newest first.'
       : 'Only the leads that actually enriched.';
   }
-  if (db){
+  if (db && !window.BB_INTERNAL){
+    // DON'T BUILD IT AT ALL on a client session. Hiding the card kept the 363 phone numbers in
+    // the DOM - not displayed, but one inspector-open away, and read by anything that walks the
+    // table (a print stylesheet, an extension, a copy-all). The card gate stays as the visible
+    // guarantee; this is the one that means the numbers are never written to the page. Neither
+    // removes them from data.json - only the job/main.py payload trim does that.
+    db.innerHTML = '';
+  } else if (db){
     if (!detail.length){
       db.innerHTML = '<tr><td colspan="4" style="color:var(--cf-mute)">'
         + 'No enriched leads for this campaign selection yet.</td></tr>';
