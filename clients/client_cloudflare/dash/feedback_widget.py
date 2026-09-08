@@ -79,9 +79,6 @@ def save(client, text, audio_bytes, audio_ctype, page, user_kind, screenshot_byt
         b.cache_control = "no-store"
         b.upload_from_string(screenshot_bytes, content_type="image/jpeg")
 
-    # NOTE: the platform's feedback.py also carries an `assignee` (who will fix it) - deliberately
-    # NOT written here. It is a TRIAGE field set by staff on /feedback/admin, never by the person
-    # filing the note, and a missing key renders as "Unassigned". Do not "sync" it in.
     rec = {"id": rid, "client": client, "text": text, "audio": audio_name, "screenshot": shot_name,
            "page": (page or "")[:300], "user_kind": user_kind or "", "created_at": int(time.time()),
            "reporter": (reporter or "").strip()[:120], "deadline": (deadline or "").strip()[:40]}

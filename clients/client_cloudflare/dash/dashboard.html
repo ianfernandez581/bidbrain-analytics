@@ -8670,6 +8670,7 @@ if (new URLSearchParams(location.search).has('bbslides')){
     const target = parseFloat(m[2].replace(/,/g,''));
     if (!isFinite(target) || Math.abs(target) > 1e12) return;
     el.dataset.bbCount = '1';
+    el.dataset.bbCounting = '1';      // in flight - see the beforeprint handler
     const dec = (m[2].split('.')[1] || '').length;
     const grouped = m[2].indexOf(',') >= 0;
     const fmt = v => {
@@ -8694,7 +8695,8 @@ if (new URLSearchParams(location.search).has('bbslides')){
     //   1. never paint the p=0 frame, so an animation that never advances is invisible;
     //   2. finalise to the captured string on a timer, so a starved rAF still lands on
     //      the real figure rather than leaving whatever the last frame happened to write.
-    const finish = () => { if (mine === null || el.textContent === mine){ el.textContent = raw; mine = raw; } };
+    const finish = () => { if (mine === null || el.textContent === mine){ el.textContent = raw; mine = raw; } delete el.dataset.bbCounting; };
+    el.dataset.bbCountFinal = raw;    // what print must show if we are still mid-flight
     const bail = setTimeout(finish, dur + 600);
     (function step(now){
       // THE GUARD MUST COVER THE FIRST FRAME. countUp captures `raw` when the element
@@ -8706,11 +8708,11 @@ if (new URLSearchParams(location.search).has('bbslides')){
       // viewport, where the slower render loses the race. Only the tiles countUp had
       // touched were wrong - the three it skipped were correct, which is what identified it.
       // Compare against `raw` until we have written at least once.
-      if (el.textContent !== (mine === null ? raw : mine)){ clearTimeout(bail); return; }   // re-rendered underneath us
+      if (el.textContent !== (mine === null ? raw : mine)){ clearTimeout(bail); delete el.dataset.bbCounting; return; }   // re-rendered underneath us
       const p = Math.min(1, (now-t0)/dur);
       const e = 1 - Math.pow(1-p, 4);                    // out-quart, matches the CSS easing
       if (p < 1){ if (p > 0){ mine = fmt(target*e); el.textContent = mine; } requestAnimationFrame(step); }
-      else { clearTimeout(bail); el.textContent = raw; mine = raw; }   // exact original string, always
+      else { clearTimeout(bail); el.textContent = raw; mine = raw; delete el.dataset.bbCounting; }   // exact original string, always
     })(t0);
   }
   const COUNT_SEL = '.kpi .value,.cs-snap .stat .v,.qoq-stats .stat .v,.compare-kpi .v,' +
@@ -8811,6 +8813,20 @@ if (new URLSearchParams(location.search).has('bbslides')){
       el.querySelectorAll(COUNT_SEL).forEach(countUp);
     });
   }
+
+  // ---- PRINT: a count-up in flight would put a PARTIAL figure on paper -----------------
+  // The @media print block kills CSS animations, but countUp is a JS textContent animation
+  // and CSS cannot reach it. Printing renders the whole page at once, so a print fired
+  // inside the 780ms window captures whatever intermediate number the animation had
+  // reached - measured: $91,657 on screen against a true $103,780. Only elements still
+  // marked in-flight are touched, so a figure a re-render has already corrected is left
+  // alone rather than being reverted to a stale capture.
+  window.addEventListener('beforeprint', () => {
+    document.querySelectorAll('[data-bb-counting]').forEach(el => {
+      if (el.dataset.bbCountFinal != null) el.textContent = el.dataset.bbCountFinal;
+      delete el.dataset.bbCounting;
+    });
+  });
 
   // ---- 6. one scroll handler: sticky-bar state + the top progress rail -----------------
   // ONE listener, rAF-coalesced, and it only writes a class and a transform - no layout reads

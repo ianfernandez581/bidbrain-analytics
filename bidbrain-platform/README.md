@@ -742,82 +742,31 @@ ride along as plain form fields; both stored on the record, blank when not given
 - **Track it:** sign in as **admin/super** → **`/feedback/admin`** (also a "Feedback →" link in the
   super-admin/admin top bars). **Each note is a ONE-LINE ROW that expands to the full detail
   (2026-09-08)** — the row carries a status-coloured rail + dot, the client chip, the first line of
-  the note, **who it is assigned to**, an overdue-red target deadline and the timestamp; clicking it
-  reveals the three columns — **Notes** (the editable typed text + voice transcript + audio player)
+  the note, an overdue-red target deadline and the timestamp; clicking it reveals the three
+  columns — **Notes** (the editable typed text + voice transcript + audio player)
   · **AI summary** (interpretation + action items) · **Screenshot** (thumbnail → full image). It was
   a stack of ~300px-tall cards, which put 3 of 70+ notes on a screen; the collapsed row fits ~15.
   `Expand all` acts on the **VISIBLE** cards only, so it follows the filters instead of opening
-  every note on the page. The row is a **`div[role=button]`, not a `<button>`** — it CONTAINS the
-  Take button and a button cannot nest inside one — so its Enter/Space handling is written out by
-  hand, and the row's click handler ignores anything originating inside `.take` (claiming a note is
-  not "open the note"). Audio/images stream via `/feedback/file/<client>/<f>`,
-  which honors HTTP **Range** (`Accept-Ranges`/`206`) so the player can seek. MediaRecorder `.webm`
-  voice notes carry **no duration in their header** (the player would show `0:00 / 0:00`), so the
+  every note on the page. Audio/images stream via `/feedback/file/<client>/<f>`, which honors HTTP
+  **Range** (`Accept-Ranges`/`206`) so the player can seek. MediaRecorder `.webm` voice notes carry
+  **no duration in their header** (the player would show `0:00 / 0:00`), so the
   admin page forces a seek-to-end on `loadedmetadata` to make the browser compute the real length,
   then rewinds (`audio.vn` handler); `<audio preload="metadata">` loads it up front (fixed 2026-06-24).
 - **Triage:** each note has a **status** dropdown (`feedback.STATUSES` = Not yet started → Ongoing →
   On Hold → Completed; new notes default to the first) → `POST /feedback/status`, and a **Delete**
   button → `POST /feedback/delete` (removes the JSON + audio + screenshot, which share the rid prefix).
-  A sticky **toolbar** at the top of the tracker filters the cards by **status, assigned to, agency
+  A sticky **toolbar** at the top of the tracker filters the cards by **status, agency
   (100% Digital / Transmission / Unassigned) and client**, plus a **free-text search** over the note
-  text, transcript, AI summary, reporter, assignee, page and client name (one prebuilt lowercase
-  `data-q` haystack per card, so it is a substring test and not a DOM walk). Each dropdown lists only
-  values present in the notes, with a live count chip; client-side only (all five AND-combine), and it
-  re-counts as you change a status, assign a note or delete one — a `n of N shown` readout is the
-  cheap guard against a left-on filter being read as the whole queue. Agency membership comes from
+  text, transcript, AI summary, reporter, page and client name (one prebuilt lowercase `data-q`
+  haystack per card, so it is a substring test and not a DOM walk). Each dropdown lists only values
+  present in the notes, with a live count chip; client-side only (all four AND-combine), and it
+  re-counts as you change a status or delete one — a `n of N shown` readout is the cheap guard
+  against a left-on filter being read as the whole queue. Agency membership comes from
   the registry (`agency_of` client→agency map). The tracker was restyled to the house palette
   (2026-07-02) and rebuilt as a scannable list (2026-09-08).
-- **Owner — who will fix it (2026-09-08):** each note carries an **`assignee`**, set three ways in
-  the edit bar and on the row: a free-text **Assigned to** field, **preset buttons** for the standing
-  team (**`feedback.ASSIGNEES`** = Christian / Charles / Ian, plus **Clear**) where one click assigns
-  with no Save, and a **Take** button on the collapsed row that claims it for whoever is signed in.
-  A **Mine** filter completes it. All of them post the same `POST /feedback/edit` through
-  `fbAssign()`, and on success `fbPaintOwner()` repaints the row chip, the card's `data-owner`, the
-  text input, the lit preset, the Take button and every dropdown count IN PLACE — without that you
-  would reload the page to see who owns what, which is how a shared queue goes stale.
-  **`ASSIGNEES` is a convenience roster, NEVER a whitelist** — the typed field still accepts anyone,
-  and the filter roster is the presets UNION the names notes already carry, so a one-off assignment
-  stays filterable and editing the roster never orphans an existing note. An unassigned note reads a
-  grey **Unassigned** chip; one that is yours reads an accent **You - <name>** chip and hides its Take
-  button. Only a NAMED preset lights up — Clear carries an empty `data-name`, which would otherwise
-  match every unassigned note and render as a button someone had chosen. `Assigned to → Unassigned`
-  is the triage queue that matters. Old records have no `assignee` key at all and render as
-  Unassigned (Jinja's undefined is falsy); nothing needs backfilling.
-- **ASSIGNING IS SUPER-ADMIN ONLY (2026-09-08).** A plain **admin** reads the tracker and edits the
-  human fields (reporter, dates, notes) but may not decide who fixes a bug. `can_assign` gates every
-  WRITE control (the input, the presets, Take, Mine and the identity chip; the owner column renders
-  as read-only text) and `/feedback/edit` enforces it server-side — **hiding a control is not a
-  permission**. Three things that shape are easy to get wrong:
-  - The guard fires on the **CHANGE, not on the key being present**. The edit form posts every field
-    at once, so refusing any save that merely CARRIES an unchanged assignee would stop an admin
-    fixing a typo in a note. It reads the stored value via `feedback.get_record` and compares.
-  - It refuses **loudly** — `403 {reason:"assign_superadmin_only"}` with a sentence the UI prints
-    (`fbWhyFailed()`), per the repo-wide "never report an auth/permission failure as *try again*"
-    rule. Silently dropping the field would show the new owner until the next reload swapped it back.
-  - The read-only owner value sets `text-transform:none`: `.edit label` is uppercased, and a
-    person's NAME must not be.
-- **The tracker's identity problem, and why there are TWO kinds of "who" (2026-09-08).** A claim is
-  worth nothing if it cannot say who made it, and **`session["email"]` is set by the Google and
-  Microsoft sign-in paths ONLY** — the typed admin / super-admin passwords are SHARED, so a
-  password session is unattributable by construction (the same fact that makes `_tool_allowed`
-  refuse to gate a private preview on an email). Several people fix bugs from that one super-admin
-  login, so the page carries both kinds and never conflates them:
-  - **verified** — `_me()` derives a display name from `session["email"]`; the toolbar prints
-    `You: <name> VERIFIED` with the address in its `title`, and the claim records
-    **`assigned_by_email`**.
-  - **declared** — on a shared-password session the toolbar asks **"Who are you?"** once and keeps
-    the answer in that browser's `localStorage` (`bbFbMe`); the claim records **`assigned_by`** and
-    leaves `assigned_by_email` empty. It is good enough to split a queue and **worthless as proof**,
-    so every surface that shows it says so: the detail line reads
-    `Claimed by X (name typed on a shared login, not verified)`. Never render a declared name as if
-    it had been authenticated, and never fall back to a real-looking default — an unnamed browser is
-    asked to name itself rather than being allowed to claim as nobody.
-  `assigned_at` / `assigned_by` / `assigned_by_email` are stamped **only when the assignee actually
-  CHANGES**: otherwise saving an unrelated field — a deadline, a note — would rewrite the claim's
-  date, and the tracker would record what is owed but never who took it or when.
 - **Hand-edit (admin/super):** an edit bar on each note makes the human fields fully editable — the
-  **assignee**, the **reporter** name, **two dates** (`date_reported`, defaulting to the submission
-  day, and the **target deadline**), and the **Notes** text — saved via `POST /feedback/edit` (merges
+  **reporter** name, **two dates** (`date_reported`, defaulting to the submission day, and the
+  **target deadline**), and the **Notes** text — saved via `POST /feedback/edit` (merges
   only the posted keys; dates are the browser's `YYYY-MM-DD` strings or `""`). The AI summary/actions and
   transcript stay read-only (they're derived; `ai_done` keeps Gemini from re-running on an edit).
 - **Caps:** voice 2 min; the service rejects bodies over `MAX_AUDIO_BYTES + MAX_IMAGE_BYTES` (~24 MB);
