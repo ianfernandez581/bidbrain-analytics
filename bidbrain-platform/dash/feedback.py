@@ -12,10 +12,12 @@ Layout inside gs://$GCS_BUCKET:
     feedback/<client>/<ts>-<id>.jpg     # the page screenshot (only when one was captured)
 
 Record fields: id, client, text, audio (filename or ""), screenshot (filename or ""), page,
-user_kind, created_at (epoch s, UTC), reporter (optional name), deadline (optional preferred
-deadline / target deadline, "YYYY-MM-DD" or ""). Enriched later (by main.py via feedback_ai):
-transcript, ai_summary, ai_actions[], ai_done. Hand-editable from the tracker (main.py
-/feedback/edit): reporter, date_reported (defaults to created_at's date), deadline, text.
+user_kind, created_at (epoch s, UTC), reporter (optional name), assignee (optional name of the
+person who will fix it, "" = unassigned; stamped with assigned_at + assigned_by/assigned_by_email
+when it changes), deadline (optional preferred deadline / target deadline,
+"YYYY-MM-DD" or ""). Enriched later (by main.py via feedback_ai): transcript, ai_summary,
+ai_actions[], ai_done. Hand-editable from the tracker (main.py /feedback/edit): reporter, assignee,
+date_reported (defaults to created_at's date), deadline, text.
 """
 import os
 import re
@@ -27,6 +29,11 @@ _PREFIX = "feedback"
 MAX_AUDIO_BYTES = 16 * 1024 * 1024     # ~16 MB; the widget caps recording at 2 min (opus is tiny)
 MAX_IMAGE_BYTES = 8 * 1024 * 1024      # a JPEG viewport screenshot is normally well under 1 MB
 MAX_TEXT_CHARS = 8000
+
+# Who bugs get assigned to. PRESETS ONLY - the tracker also accepts a typed name, so this is a
+# convenience roster (one click instead of typing), never a whitelist. Add or remove a name here and
+# the tracker's preset buttons follow; names already stored on notes keep working either way.
+ASSIGNEES = ["Christian", "Charles", "Ian"]
 
 # Triage workflow states for the tracker; a record with no `status` is treated as the first one.
 STATUSES = ["Not yet started", "Ongoing", "On Hold", "Completed"]
@@ -54,7 +61,7 @@ def _ext_for(ctype):
 
 
 def save(client, text, audio_bytes, audio_ctype, page, user_kind, screenshot_bytes=None,
-         reporter="", deadline=""):
+         reporter="", deadline="", assignee=""):
     """Persist one feedback entry. Returns the stored record dict. `audio_bytes` may be None for a
     text-only note; `screenshot_bytes` is an optional JPEG of the page. `reporter` (name) and
     `deadline` (preferred deadline, "YYYY-MM-DD") are both optional. Order: write the binary
@@ -79,11 +86,26 @@ def save(client, text, audio_bytes, audio_ctype, page, user_kind, screenshot_byt
 
     rec = {"id": rid, "client": client, "text": text, "audio": audio_name, "screenshot": shot_name,
            "page": (page or "")[:300], "user_kind": user_kind or "", "created_at": int(time.time()),
-           "reporter": (reporter or "").strip()[:120], "deadline": (deadline or "").strip()[:40]}
+           "reporter": (reporter or "").strip()[:120], "deadline": (deadline or "").strip()[:40],
+           "assignee": (assignee or "").strip()[:120]}
     j = bucket.blob(f"{_PREFIX}/{client}/{rid}.json")
     j.cache_control = "no-store"
     j.upload_from_string(json.dumps(rec, separators=(",", ":")), content_type="application/json")
     return rec
+
+
+def get_record(client, rid):
+    """One stored record, or None. Needed by the tracker's assign path, which has to know the
+    PREVIOUS assignee to decide whether a save is a real re-assignment worth stamping."""
+    if not valid(client) or not valid(rid):
+        return None
+    b = _bucket().blob(f"{_PREFIX}/{client}/{rid}.json")
+    if not b.exists():
+        return None
+    try:
+        return json.loads(b.download_as_bytes())
+    except Exception:
+        return None
 
 
 def update_record(client, rid, fields):
