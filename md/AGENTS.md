@@ -578,6 +578,21 @@ Build as yourself via the per-stage scripts (each self-contained, idempotent, in
   Sophiie standup.
 - **`/ship` (or `/go`) auto-deploys every changed service** after landing on main - the path ->
   deploy-script map is `Resolve-DeployPlan` in `scripts/merge-branches.ps1`. Doc-only changes deploy nothing.
+- **A DEPLOY FROM AN UNCOMMITTED TREE PRODUCES AN IMAGE WHOSE TAG LIES** (2026-09-08). All 18
+  `dash/deploy_dash_<c>.ps1` tag the image `git rev-parse --short HEAD` but `gcloud builds submit`
+  uploads the WORKING TREE, so deploying uncommitted work ships content that is in no commit under
+  a tag naming a commit that does not contain it - and `gcloud run revisions describe` then reports
+  that tag as if it identified the code. Nothing warns you. Deploy uncommitted only when it is
+  urgent, and `/push` immediately after so the tag becomes true again; until then the revision's
+  provenance is the tree on one machine (and this repo has already swept one session's uncommitted
+  work into another device's WIP commit). **The tag also MOVES, so it is not even a stable
+  pointer**: two deploys from the same HEAD reuse the tag, Artifact Registry re-points it at the
+  new digest and the earlier image is left UNTAGGED - verified 2026-09-08, when three deploys of
+  `cloudflare-dash` off one uncommitted tree left `ec80aee` on the newest digest and the two
+  images behind it (including the one a live revision had been serving) carrying no tag at all.
+  **The DIGEST is the only honest identifier of what a revision runs** (`gcloud run revisions
+  describe <rev> --format='value(status.imageDigest)'`); and hash the file before you build
+  (`git hash-object <path>`) so you can say which content you shipped.
 - **Any view-only or seed/static change requires a forced job run** (the gate does not watch views
   or seed tables): `gcloud run jobs execute <c>-export --region australia-southeast1
   --update-env-vars FORCE_REBUILD=1 --wait`

@@ -32,7 +32,7 @@ same Flask password gate MongoDB uses.
 | [`job/`](job/README.md) | **Export Job** (`cloudflare-export`): reads the BigQuery views → writes `cloudflare.json`. **No Snowflake** (BQ-only, like MongoDB). [Guide →](job/README.md) |
 | [`dash/`](dash/README.md) | **Web App** (`cloudflare-dash`): password gate + serves `dashboard.html` + proxies `/data.json`. Also carries its **own Feedback pill for DIRECT logins** (the front-door injects one only for sessions that come through it, and Cloudflare's people mostly hit the `…run.app` URL) — needs the one-time `dash/enable_feedback_cloudflare.ps1`. [Guide →](dash/README.md) |
 | [`sql/`](sql/README.md) | The BigQuery **model** views — staging (`stg_*`) → `paid_media_model`/`pacing_model`/etc. — over `raw_snowflake.*` + the `seed_*` static tables. [Guide →](sql/README.md) |
-| [`sql/20_cs_enriched_leads.sql`](sql/20_cs_enriched_leads.sql) | **Weekly Enriched Leads** (2026-09-07) — `cs_enriched_leads` (per-lead detail) + `cs_enriched_weekly` (week x campaign). Normalises the enriched-phone column's TWO sentinels (`'-'` and the literal `'NA'`) to NULL in ONE place. **Local only — not deployed.** [Detail ↓](#weekly-enriched-leads-2026-09-07-client-request---local-only-not-deployed) |
+| [`sql/20_cs_enriched_leads.sql`](sql/20_cs_enriched_leads.sql) | **Weekly Enriched Leads** (2026-09-07) — `cs_enriched_leads` (per-lead detail) + `cs_enriched_weekly` (week x campaign). Normalises the enriched-phone column's TWO sentinels (`'-'` and the literal `'NA'`) to NULL in ONE place. **LIVE since 2026-09-07** (the earlier "local only" note was stale). [Detail ↓](#weekly-enriched-leads-2026-09-07-client-request) |
 | [`create_views.py`](create_views.py) | Applies every `sql/*.sql` view (runner; `NN_` prefix = dependency order). |
 | `data/` | Local CSV snapshots of the three STATIC Snowflake tables (pacing targets, account tiers, LINE JP). **Gitignored** (`clients/*/data/`) — `TIERS` is sensitive client ABM data — so it's NOT in the repo; regenerate with `pull_static.py`. The live seeds persist in BigQuery (`seed_*`). |
 | [`pull_static.py`](pull_static.py) | **One-time** Snowflake → `data/*.csv` pull (manual; needs the Snowflake key; re-run on a fresh checkout or when a static upload changes). **⚠️ The Q2 pacing targets in `seed_real_targets` were rebalanced on 2026-06-19 directly in BQ + `data/real_targets.csv` (grand total unchanged at 3216; regional split updated to the client's new Phase×Region table — see git log). The Snowflake `CLOUDFLARE_SANDBOX.CS_REPORTING.REAL_TARGETS` source was NOT updated, so re-running `pull_static.py` will REVERT this. Update Snowflake first, or skip the real_targets pull.** |
@@ -44,16 +44,19 @@ same Flask password gate MongoDB uses.
 > up via the manual order in [One-time replicate / deploy order](#one-time-replicate--deploy-order)
 > below. (Only STT has a one-shot stand-up script, `clients/client_STT/deploy_stt.ps1`.)
 
-## Weekly Enriched Leads (2026-09-07, client request) - LOCAL ONLY, NOT DEPLOYED
+## Weekly Enriched Leads (2026-09-07, client request)
 
 A **Weekly Enriched Leads** tab on the Core DG APJ lane: how many CS leads arrive carrying an
 **enriched phone number** on top of the `PHONE` every lead already has, by week, for the five
 campaign IDs Transmission enabled enrichment on.
 
-**Status: built and verified on localhost only. Nothing is deployed.** The two BigQuery views ARE
-applied (they are additive and nothing else reads them), but `cloudflare-export` has NOT been run,
-so the live `cloudflare.json` carries no `cs_enriched` block and the tab does not appear in
-production. See "To ship it" below.
+**Status: LIVE.** This section said "built on localhost only, nothing is deployed" until
+2026-09-08, and that was WRONG by then - `662a335` is an ancestor of the deployed revision
+(`cloudflare-dash-00178`, built from `ec80aee`) and the live `cloudflare.json` in the bucket
+carries a full `cs_enriched` block (76 weekly rows, 363 detail rows, verified by reading the
+object). The tab renders on Core DG APJ for any authenticated session. **A "not deployed" note is
+worth nothing once someone else deploys the branch it sits on** - check the bucket object and the
+running revision, not the note, before you repeat a deploy status to a client.
 
 ### The contract
 
@@ -156,14 +159,39 @@ the same fraction of its true value (1,249 of 1,923, 236 of 363 and 12.3% of 18.
 which reads as a summary that disagrees with its own table. Suppress it for a capture by stamping
 `dataset.bbCount = '1'` on the `COUNT_SEL` elements rather than waiting on the 780ms rAF loop.
 
-### PII - decide this before it goes to the client
+### PII - the per-lead table is STAFF-ONLY (2026-09-08, live on `cloudflare-dash-00179-cwt`)
 
-The detail table renders **`PHONE` and the enriched phone per lead**, which is a step beyond
-anything else client-facing on this dashboard: `sql/16` deliberately drops name/email/phone and
-aggregates job title to a count, and the existing per-lead PII table is **dev-only** (`renderLeadDetail`,
-hidden outside Admin View). This tab is currently visible to any authenticated session on the lane.
-It was built as asked, but if the enriched-lead list should be staff-only, gate the card on
-`window.BB_INTERNAL` the way `#txNotesCard` is - a one-line change.
+The detail table renders **`PHONE` and the enriched phone per lead** - a step beyond anything else
+client-facing on this dashboard: `sql/16` deliberately drops name/email/phone and aggregates job
+title to a count, and the older per-lead PII table is **dev-only** (`renderLeadDetail`). This was
+recorded here as a decision to take BEFORE the tab reached the client, and the tab then shipped
+while it was still open: 363 real E.164 numbers were visible to any authenticated Cloudflare
+session on the lane. `#enrDetailCard` is now gated on `window.BB_INTERNAL` (the `#txNotesCard`
+rule). The WEEKLY table stays visible to everyone - aggregate counts and rates, no PII, and it is
+the metric the client actually asked for.
+
+**Two things about that gate to keep:**
+- **It fails CLOSED.** The card is `display:none` in the markup and only ever REVEALED, because
+  `applyViewMode()` is reached solely from `initDevMode()` (which returns early unless
+  `DEV_ALLOWED`) and `setAdminView()` - so on a plain client session it never runs at all, and
+  gating there alone would have left the card on screen for exactly the sessions it hides from.
+  The reveal therefore also sits in `renderEnriched()`, which runs whenever the tab renders.
+  **Do not "tidy" this into `applyViewMode()`** - that is the same trap `md/AGENTS.md` records for
+  the `schneidersecpwr` Reports tab: hiding a panel is not a permission, and a gate that only runs
+  for staff sessions protects nobody. The other half holds too - `BB_INTERNAL` is injected by the
+  PROXY, so a direct `*-dash` URL never receives it and the card stays hidden there as well.
+- **The rows are not BUILT on a client session either (2026-09-08, second pass).** The card gate
+  alone left all 363 phone numbers in the DOM - not displayed, but one inspector-open away, and
+  readable by anything that walks the table (a print stylesheet, an extension, a copy-all). So
+  `renderEnriched()` now writes an EMPTY tbody unless `BB_INTERNAL` is set, and the card gate
+  stays as the visible guarantee. Verified: client session -> card `none`, **0** detail rows in
+  the DOM, no phone string anywhere in the panel, weekly table still 24 rows; staff -> card
+  visible, 363 rows; flag removed and re-rendered -> back to 0.
+- **Hiding a card is not removing the data.** `data.json` still ships all 363 phone pairs (and
+  `pacing.rows` has carried EMAIL and PHONE for ~6,300 leads for far longer), so anyone who opens
+  the network tab behind the password gate still has them. The real fix is dropping the columns in
+  `sql/20` + `job/main.py` so they never leave BigQuery; that is a payload change and has not been
+  made. Treat the UI gate as a stop-gap, not the resolution.
 
 ### Verified 2026-09-07 (localhost)
 
@@ -1169,14 +1197,108 @@ cards unchanged.
   '-' with "week in progress, day d of 7 - the week target is recognised at week close" for the
   in-progress week and sums CLOSED weeks only under "to date". Do not restore proration on
   either lane without the client. **Pacing chart bar width is ONE shared constant (2026-09-05):**
-  `PACING_BARS` (Chart.js defaults, no cap - APJ was the reference) is spread into every dataset
-  of the "Pacing - target vs actual" chart by BOTH renderers (`renderWeekly` and
-  `cspdRenderWeeklyChart` when it draws into `weeklyChart`); EMEA's datasets used to hard-cap at
-  `maxBarThickness 22` and drew 22px columns beside APJ's 34.5px (week) / 149.5px (month). The APJ
-  Pacing-detail "Weekly pacing" card keeps its own `CSPD_DETAIL_BARS` cap - a different, taller
-  card. Both lanes have 13 week columns, but at Month grain APJ has 3 and EMEA 4 (flight to late
-  Oct), so identical config still gives EMEA ~25% narrower month bars; matching pixels there would
-  need a fixed barThickness and was rejected. **The Pacing detail card opens on the most recent
+  `PACING_BARS` (Chart.js defaults, no cap - APJ's hero chart was the reference) is spread into
+  every dataset of the "Pacing - target vs actual" chart by BOTH renderers (`renderWeekly` and
+  `cspdRenderWeeklyChart`); EMEA's datasets used to hard-cap at `maxBarThickness 22` and drew 22px
+  columns beside APJ's 34.5px (week) / 149.5px (month). **Widened to cover the APJ Pacing-detail
+  "Weekly pacing" card too (2026-09-08, client):** that card kept its own `maxBarThickness 22` cap
+  on the grounds that it is a different, taller card, which left half-width bars directly under the
+  hero chart on one page - the constant is now the ONLY width setting either renderer applies
+  (`CSPD_DETAIL_BARS` deleted), so all three pacing charts draw at ~35px a week / ~151px a month.
+  Do not re-add a per-canvas cap. **SAME `pacingBars()` GEOMETRY IS NOT SUFFICIENT - THE SLOT
+  COUNT MUST MATCH TOO, and a slot is a distinct `stack` key (2026-09-08, found from an
+  Admin-view screenshot).** `cspdRenderWeeklyChart` pushed Unprocessed as an UNSTACKED third
+  dataset while `renderWeekly` stacks it onto Accepted, so in ADMIN VIEW the Pacing-detail chart
+  and the EMEA hero drew three side-by-side columns at 2/3 width - 23.5px against the APJ hero's
+  35.3px, a 34% gap - while CLIENT VIEW read perfectly matched, because there are only two
+  datasets either way. Every geometry check in this ticket was run in client view, which is why
+  four passes missed it. Unprocessed now carries `stack:'actual'` (Target `'plan'`, both axes
+  `stacked:true`), so the three charts agree on the bar's WIDTH and on what it MEANS (the full
+  delivered bar, backlog on top). Verified POST-CHANGE in ADMIN view at 1440 (the view that
+  had the defect - `?dev=1` + `setAdminView(true)`; client view cannot show it): week
+  35.3 / 35.3 / 35.0, month 151.2 / 150.3 / 150.1 (APJ hero / APJ detail / EMEA hero), 3 datasets
+  over 2 stacks on every one, and click-to-select-week still resolves (clicking week 4 selected
+  2026-08-31). Client view re-measured after the change too, not inferred: 35.3 / 35.3 / 35.0 on
+  2 datasets.
+  **Any pacing series added to one renderer must carry the same stack key in the other**, or
+  Admin view diverges while client view still reads matched. **That comment block carried a STALE CLAIM twice in one day**
+  (it described a `maxBarThickness` cap that had been replaced, then still called `pacingBars()`
+  "this one object" after it became a function) - and it is the ONLY record of why the geometry is
+  what it is, so a wrong sentence there is worse than a wrong sentence anywhere else in the file.
+  Re-read it whenever you change the geometry, not just the code beneath it. **The "behind" COUNT now exists on BOTH scopes (2026-09-08,
+  John: "for APJ it says we have 2 behind, but we are 2 ahead of TTD; for EMEA it says 332 behind
+  but we are 152 behind TTD"):** the Pacing-detail Lead deficit tile is the SELECTED WEEK's
+  (`tgtDue - w.accepted`) and was the only behind-count anywhere on the tab, so it was read as the
+  campaign position - APJ's last completed week was 2 short on a lane running 62 AHEAD to date.
+  Neither figure was wrong and neither moved: the tile's sub-line now names its scope from the same
+  `wkName` every other panel uses ("accepted leads behind the week of 08/28 target", or "the flight
+  to date target" under that chip), the Rejections and Outcome group labels beside it carry the
+  week too (they were the same week's figures with no label at all), and `ttdGapPhrase()` prints
+  the to-date count next to the to-date percentage in Leads vs target on BOTH lanes ("That is 152
+  accepted leads behind the TTD target"). Same basis as the percentage it sits beside, so the two
+  can never disagree - and selecting the "Flight to date" chip makes the tile read 152 as well,
+  which is the check that they reconcile. A week that BEAT its target no longer shows a bare 0: the tile NAMES
+  its own scope and direction (`cspd_w_def_k` - "Week deficit" / "Deficit to date" / "Ahead of
+  target") and prints the surplus as the figure, because the tile name is what gets quoted in an
+  email while the group label above it does not travel. Verified: APJ week 08/31 "Week deficit 2",
+  APJ Q3-to-date "Ahead of target to date 62", EMEA week 08/28 "Week deficit 332", EMEA
+  flight-to-date "Deficit to date 152".
+  **The scoped group labels belong to `#cspdWeekly`, NOT `#cspdTotals`, and the two are one
+  attribute apart.** `cspd_w_rej_lbl` was first added to the campaign-to-date band by mistake -
+  both cards have an identically-worded "Rejections" group, so a text search cannot tell them
+  apart - and it wrote "Rejections - week of 08/31" onto the band whose own hint says it does NOT
+  move with the week selector, while the weekly card's own label got nothing. **Identify a label
+  by the ids of the STATS INSIDE its group (`cspd_w_*` vs `cspd_t_*`), never by its own text**, and
+  verify by reading the group structure rather than grepping for the string. Caught in review
+  before it shipped; the campaign-to-date band's three labels stay unscoped (Delivery /
+  Rejections / Quality and pacing) by design.
+  **Not fixed, but know it is there: "week closed" now has THREE definitions** - `cspdWeekClosed()`
+  (which calls itself THE predicate), an inlined `cspdDayInWeek(wk)===0 && wk<todayISO` in the
+  qtd `tgtDue` sum, and `weekClosed()` in `aggregate()` for `ttdTarget`. All three agree on
+  today's boundary cases, so nothing is wrong now - but that is the shape that eventually
+  disagrees. Hoist them rather than adding a fourth. **`toDateWord()` returns `QTR` on EMEA (2026-09-08, client: "can To date Accepted
+  change to QTR Accepted")** - one word in one place, so the Leads-vs-target row, the by-market
+  cards and every `.ptdlbl` span move together; note EMEA's window is a 13-week FLIGHT (31 Jul -
+  29 Oct), not a calendar quarter, which is why the row above still says "Flight target". The
+  Leads-vs-target card HINT was switched to plain prose in the same change - the `.ptdlbl` span is
+  a row LABEL, and dropped into that sentence it read "accepted leads QTR."
+  **Two consequences to state rather than discover.** (1) That hint is NOT lane-branched, so it is
+  the ONE APJ string this EMEA-only ask moved: "...accepted leads QTD." -> "...accepted leads to
+  date." It is prose with no figure attached and it reads better, but it IS client-visible on APJ -
+  `toDateWord()` still returns `QTD` there and all eight APJ row labels are byte-identical.
+  (2) The rename is deliberately PARTIAL - John named one row, and it changed 7 on-screen instances
+  on EMEA (Leads vs target + the 6 by-market cards) from 2 call sites. Fourteen other EMEA "to
+  date" strings remain, and one of them is IN THE SAME CARD: the by-market rows label their target
+  "Due to date" directly above "QTR Accepted", so that card mixes quarter vocabulary for the actual
+  with flight vocabulary for the target over one window. Left as asked; expect John to bounce it,
+  and decide the whole card's vocabulary then rather than renaming strings one at a time. **MONTH GRAIN HAS ITS OWN SETTING (2026-09-08)** - `PACING_BARS_WEEK` plus a derived month
+  setting, both handed out by `pacingBars(monthly, cats)`, which each renderer calls with its OWN
+  grain flag and category count so the two can never disagree about what they are drawing. Both
+  lanes have 13 week columns, but at Month grain APJ has 3 and EMEA 4 (its flight runs past the
+  quarter), so identical config left EMEA's month bars ~26% narrower - which is what "still
+  thinner than APJ" survives as once the week grain matches. **The month rule normalises the
+  CATEGORY, not the bar:** `categoryPercentage = min(1, cats / MONTH_REF_CATS)` (`MONTH_REF_CATS`
+  = 4, the widest month axis in the estate today - EMEA's four-month flight) with
+  `barPercentage 0.95` and NO cap, so a 3-bucket axis occupies three quarters of its plot and a
+  bucket is the same fraction of the plot on either lane.
+  **A FIXED `maxBarThickness 132` WAS TRIED FIRST AND REJECTED - do not reinstate it.** A cap
+  equalises only while BOTH natural widths exceed it: it measured 132/132 at 1440 and 1280, then
+  drifted as the window narrowed (1150: 132 vs 118.7, 10% apart; 1000: 132 vs 101, 31% apart)
+  because EMEA, having more buckets, falls under the cap first - reproducing the client's own
+  complaint at exactly the widths a windowed browser sits at. The category rule is matched at
+  EVERY width AND wider on a desktop: measured 151.2/150.2 at 1440, 126.0/124.8 at 1200,
+  102.3/101.1 at 1000. The residual ~1px is EMEA's wider y-tick labels (axis to 12,058 vs 2,290)
+  leaving it slightly less plot; only equalising axis padding removes it. A lane that ever runs
+  FIVE months needs `MONTH_REF_CATS` at 5 - the `min(1, ...)` clamp is what stops it overflowing
+  its category until then. Week grain keeps Chart.js's own proportions and no cap (35.3/35.1 at
+  1440, 23.9/23.6 at 1000 - matched at every width tried); a cap there would only shrink it.
+  **`cspdMarketChart` KEEPS its 9px pin, and that was tested, not assumed:** EMEA's 6 markets sit
+  in ~25px slots against APJ's 8 in ~19px, so the same 9px bar does read as thinner there with more
+  space around it - but raising the cap to 18 does not fix it. Neither lane REACHES 18 in a 298px
+  canvas, so the bars go purely proportional to row count and EMEA lands 33% THICKER than APJ (9.3
+  vs 12.4, measured) - a matched pair traded for a mismatch in the opposite direction, on a panel
+  whose whole complaint was lane parity. A cap only equalises at a value both lanes exceed, so if
+  this ever needs to be thicker the cap must go LOWER or the canvas must grow. **The Pacing detail card opens on the most recent
   COMPLETED week (2026-09-05, client):** `cspdDefaultWeek()` used to take the latest week with
   delivery, which is always the week in progress, and under week-close recognition that week shows
   '-' for Weekly pacing and Lead deficit - a default view of dashes. It now takes the latest week
