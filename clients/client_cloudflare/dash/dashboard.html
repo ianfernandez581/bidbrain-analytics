@@ -72,16 +72,33 @@
     --shadow-pop:0 2px 6px -2px rgba(0,0,0,.62),0 26px 64px -22px rgba(0,0,0,.88);
   }
   *{box-sizing:border-box}
+  /* The page background is a COMPOSITED FIXED LAYER, not `background-attachment:fixed`
+     on the body (2026-09-08). Same four gradients, same sizes, same positions, same
+     order - identical pixels. What changes is the work per scroll frame: with
+     background-attachment:fixed the browser re-rasterises the entire background against
+     the viewport EVERY frame you scroll, which is the classic scroll-jank pattern and
+     here it was four large radials over a linear. On its own fixed layer it is painted
+     once and only re-composited.
+     Three things hold the stacking, and all three are load-bearing:
+       - html keeps a SOLID floor, so the root canvas is never unpainted (body's
+         background used to propagate to it) and there is no flash on first paint;
+       - body's own background must stay TRANSPARENT, or it paints over its ::before -
+         the classic trap with a negative z-index pseudo-element;
+       - the layer sits at z-index:-1, below .bb-aurora / #bbAurora / .bb-scrim (all
+         z-index:0) and therefore below .container (1) and .topbar (2), which is exactly
+         where the body background used to paint. */
+  html{background:var(--bg)}
   body{margin:0;padding:0;min-height:100vh;color:var(--ink);
     font-family:-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,sans-serif;line-height:1.45;
+    background:transparent}
+  body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
     /* brand glow blooming from the top, a second bloom top-right, one warm lift bottom-left,
        over a near-black warm base (MongoDB's recipe with the orange accent) */
     background:
       radial-gradient(1150px 640px at 50% -170px, var(--glow-strong), transparent 62%),
       radial-gradient(820px 460px at 88% -40px, rgba(243,128,32,.17), transparent 62%),
       radial-gradient(900px 720px at 4% 104%, rgba(224,104,32,.20), transparent 60%),
-      linear-gradient(180deg,var(--bg-2) 0%,var(--bg) 58%,#0F0602 100%);
-    background-attachment:fixed}
+      linear-gradient(180deg,var(--bg-2) 0%,var(--bg) 58%,#0F0602 100%)}
 
   /* ===== Topbar: client logo · divider · lane selector | agency logo right =====
      The MongoDB header structure - surface-to-base gradient with the accent glow spilling
