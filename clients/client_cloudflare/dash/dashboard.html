@@ -6469,11 +6469,25 @@ const PROGRAMS = {
     // Data-gated: enrichment is a NEW payload block (2026-09-07), so an older cached JSON
     // renders exactly the old four-tab rail instead of an empty tab.
     tabsWhenData: { enriched: () => hasEnrichedData() },
-    // The shared date control drives every tab EXCEPT `enriched`, which is whole-flight and
-    // weekly by definition. Listing the tabs explicitly is a strict no-op for the other five
-    // (an absent dateControl means "show everywhere"), and it stops the picker appearing over
-    // a panel it cannot move.
-    dateControl: ['paid','main','compare','qoq','enriched','txdata']
+    // The tabs the shared date range ACTUALLY drives - i.e. the ones whose figures are filtered
+    // by `dateOk()` (or `enrInRange()` on the enriched tab). An absent dateControl means "show
+    // everywhere", which is how the picker came to sit over two tabs it cannot move:
+    //
+    //  - `qoq` is a QUARTER-ALIGNED like-for-like comparison, built in the job (Q3-to-date vs
+    //    the same opening window of Q2). Narrowing it to an arbitrary range would destroy the
+    //    alignment that is its entire point, so it is not range-driven and must not offer the
+    //    control. Worse than useless before this: the banner read "Filtered to 2026-07-01 -
+    //    2026-09-09" directly above that panel's own note saying "the first 70 days, through
+    //    2026-09-08" - two different windows, one line apart.
+    //  - `txdata` has NO date dimension at all (internal notes + the committed Source-ID list +
+    //    the pacing plan). It printed lifetime totals under the same "Filtered to ..." banner,
+    //    which is the actively misleading case: one Source ID reads 2,033 accepted while the
+    //    whole of Q3 is 1,868, so a reader takes a lifetime figure for a quarter figure.
+    //
+    // Neither appears in `applyDateRange()` either, so the control never re-rendered them - the
+    // same defect the enriched tab had from the other direction. Removing them here hides the
+    // picker AND the banner together, because both derive from `dateScopeApplies()`.
+    dateControl: ['paid','main','compare','enriched']
   },
   // Core DG EMEA - the same brief, the other theatre. Content Syndication ONLY: no EMEA ad
   // accounts are connected, and it launched 2026-08-07 so there is no prior quarter, hence

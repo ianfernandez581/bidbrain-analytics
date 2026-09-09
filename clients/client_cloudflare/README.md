@@ -224,6 +224,44 @@ the whole flight. `sql/20` therefore carries `ENRICHED_STATE` and the daily view
 screen assumes it yet** - both sentinels count as "not enriched", which is the conservative
 reading. EMEA's 0-for-1,501-NA is the other half of the same question.
 
+### Which tabs the date picker drives, and why the other three do not (2026-09-09)
+
+`PROGRAMS.<lane>.dateControl` lists the tabs the shared range actually filters. It is not a
+preference - **a tab belongs there if and only if `applyDateRange()` re-renders it**, because
+`dateScopeApplies()` drives the picker, the scope banner and the footer's "Filtered to" line from
+that one list. Get it wrong in either direction and the page states a filter it is not applying.
+
+Removed 2026-09-09, after a client asked for a picker on EMEA's Content Syndication:
+
+| Tab | Picker | Why |
+|---|---|---|
+| `qoq` | **removed** | Quarter on Quarter is a QUARTER-ALIGNED like-for-like (Q3-to-date vs the same opening window of Q2), built in the job. A range would destroy the alignment that is its whole point. The banner read `Filtered to 2026-07-01 - 2026-09-09` one line above the panel's own `first 70 days, through 2026-09-08`. |
+| `txdata` | **removed** | Internal Notes has **no date dimension at all** (notes + committed Source IDs + the pacing plan). It printed LIFETIME totals under the same banner - one Source ID reads 2,033 accepted while all of Q3 is 1,868, so a reader takes a lifetime figure for a quarter figure. |
+| EMEA `main` | stays hidden | see below |
+
+**EMEA Content Syndication cannot honestly take one, and this is the part to re-read before
+promising it.** Three independent blockers:
+
+1. **Nothing on that tab reads the range.** Under `topFromPacing()` the whole tab is driven by
+   `cspdTopAgg()`, not APJ's range-aware `aggregate()`. `cspdTopAgg`, `cspdRows`,
+   `renderCsPacingDetail`, `cscxDims`, `renderCompositionV2` and `renderTopScopeNote` reference no
+   range state whatsoever.
+2. **The grain is not there.** `cs_pacing_v2` is WEEK grain; `cs_composition_v2` has **no `DAY`
+   column at all**. Only `cs_compare_v2` is day grain.
+3. **Most of the tab is TARGET-PACED.** The KPI strip, Leads vs target, Progress and the pacing
+   chart divide accepted by a WEEKLY target on the week-close basis the client asked for. Pacing an
+   arbitrary window against a weekly target is not a defined quantity.
+
+And a trap if you ever filter only the parts that could be: `renderCompositionV2` passes the KPI
+strip's own accepted figure as the donut ring total, so range-scoping the donuts while the paced
+strip stays whole-flight makes every ring draw an **Unaccounted** slice.
+
+**The range-driven EMEA CS view already exists - it is the CS Comparison tab** (the one surface
+reading the day-grain view, and it has the picker). Building it again on Content Syndication would
+be a second, disagreeing definition. If the donuts specifically must follow a range, that is `DAY`
+added to `sql/19_cs_composition_v2` -> job -> dash, the paced panels left whole-flight and SAID so,
+and the job's donuts-tie-to-pacing assertion made range-aware.
+
 ### PII - the per-lead table is STAFF-ONLY (2026-09-08, live on `cloudflare-dash-00179-cwt`)
 
 The detail table renders **`PHONE` and the enriched phone per lead** - a step beyond anything else
