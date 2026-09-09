@@ -833,6 +833,37 @@ utm campaign names (the same class of break as the delivery scope, and just as s
   agency/client for the delivering CID and link it under MCC 3451896252; `sql/09` then needs that
   `customer_id` added. Until then the Google Ads lane correctly shows nothing.
 
+### Trade Desk IS reporting conversions and `sql/08` DROPS them (found 2026-09-09)
+
+`08_stg_ttd.sql` hardcodes `CAST(NULL AS INT64) AS leads -- awareness/retargeting lines: no lead
+form` and **selects no conversion column at all** - no `conversions`, no `click_conversion_NN`, no
+`view_through_conversion_NN`. That comment was true when the view was written on 2026-08-24. It is
+not true now: the raw feed carries populated slots for this advertiser, so **100% of it is discarded
+before the dashboard**. `client_caltex/sql/01_stg_ttd.sql` already parses the same slots out of the
+same shared table - copy that, do not re-derive it.
+
+**Three distinct trackers are reporting, and the only way to tell them apart is the day they
+started** (Windsor hands us anonymous numbered slots with no tracker name):
+
+| slot | post-click | post-view | total fires | first seen |
+|---|---|---|---|---|
+| 01 | 699 | 275 | 4,281 | 2026-08-20 |
+| 02 | 700 | 401 | 4,600 | 2026-08-20 |
+| 03 | 500 | 42 | 2,462 | **2026-08-28** |
+
+**Do not label slot 03 a form submit without confirming the tracker in the TTD UI.** Its volume is
+inconsistent with one: 2,462 fires in eleven days against Meta counting ~80 website leads over the
+same window and GA4 logging 126 `form_start` in three weeks. That pattern is a tag firing on page
+load - consistent with a form that submits over AJAX with no page navigation, where a pixel dropped
+on a confirmation page fires on load instead of on submit.
+
+Three rules when wiring it up: it renders as **TTD-attributed conversions, never as leads** (a
+post-view display conversion and a Meta lead-form submit are different events - the repo-wide
+"a conversion is never a lead" rule); **never sum all 12 slots**, because these are three separate
+trackers measuring different things; and `conversion_touch_NN` stays unused, since it counts every
+fire including non-ad traffic. Watch for the VMCH duplicate-PAIR layout too - slots 01 and 02 differ
+on only one row here, so they may well be one tracker double-reported.
+
 ## Freshness
 
 `geocon-export` is **self-gating** on a Cloud Scheduler `*/10` UTC tick (`scheduler.ps1`): each tick
