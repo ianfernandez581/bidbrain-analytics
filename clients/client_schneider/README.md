@@ -674,6 +674,34 @@ either one makes a whole sweep worthless while looking green:**
 above), but the job must run before the titles appear. `/ship` resolves all three from the changed
 paths.
 
+## Cost per lead is WITHHELD on the paid lane (2026-09-08, client request)
+
+The client asked to "remove the cost per lead value under the lead form leads number for every
+campaign". It sat in **THREE** places under that same leads number, and all three went together -
+removing only the one the client pointed at leaves the same metric on the same tab:
+
+- the `Lead-form leads` KPI tile sub-line (`pm_leads_sub`),
+- the `Cost / lead` column on the *Funnel by program* table,
+- `paid.totals.cost_per_lead_form_lead` in the AI-deck payload.
+
+**Doing it surfaced a real defect: the tab printed TWO DIFFERENT cost-per-lead figures for the same
+53 leads** - **A$1,175.63** on the tile (all LinkedIn spend, awareness programs included) against
+**A$896** in the funnel directly below it (lead-form programs only). If it is ever restored, restore
+**ONE** definition for both surfaces. It must also divide **LinkedIn** spend, never `t.spend`: `t` is
+all platforms by design (it feeds Spend / Impressions / Clicks / blended CPC), so the pre-2026-09-01
+blended version charged Trade Desk money to a metric only LinkedIn can produce - A$2,085 per lead
+against a true A$1,129, growing with every non-LinkedIn dollar in the filter.
+
+**Deleting the payload key was NOT sufficient.** `spend` and `lead_form_leads` both have to stay -
+each is a headline figure in its own right - so the model can still divide one by the other. The
+prohibition is therefore STATED, in the payload's `paid.note` AND in `report.py`'s `business_model`,
+and it is framed as a client reporting instruction rather than a data-quality caveat so the deck
+does not explain the absence on a slide.
+
+**What is NOT affected:** cost per CLICK and cost per form OPEN (different metrics, not asked for),
+and the CS **`Plan CPL`**, which is a separate plan-side figure for content syndication. The CSV
+exports never carried the paid figure.
+
 ## Platform (channel) chips — only engines this program actually ran
 **2026-08-15 (client):** the Platform chip group used to render engines that delivered for OTHER
 programs as a **dim** chip on the selected one. That is gone - `renderControls()` now filters the

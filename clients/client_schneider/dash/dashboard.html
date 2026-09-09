@@ -941,7 +941,7 @@
         <h3>Funnel by program</h3>
         <div class="hint">Every program running a LinkedIn lead-gen form in the current filter. The total row ties exactly to the funnel above.</div>
         <div style="overflow:auto;margin-top:4px">
-          <table id="liFunnelProgTable"><thead><tr><th>Program</th><th class="num">Impressions</th><th class="num">Clicks</th><th class="num">CTR</th><th class="num">Form opens</th><th class="num">Submitted leads</th><th class="num" title="Share of clicks that opened the lead form">Click → open</th><th class="num" title="Share of form opens that were submitted">Open → submit</th><th class="num">Cost / lead</th></tr></thead><tbody></tbody><tfoot></tfoot></table>
+          <table id="liFunnelProgTable"><thead><tr><th>Program</th><th class="num">Impressions</th><th class="num">Clicks</th><th class="num">CTR</th><th class="num">Form opens</th><th class="num">Submitted leads</th><th class="num" title="Share of clicks that opened the lead form">Click → open</th><th class="num" title="Share of form opens that were submitted">Open → submit</th></tr></thead><tbody></tbody><tfoot></tfoot></table>
         </div>
       </div>
 
@@ -2145,14 +2145,20 @@ function renderPaid(){
   el('pm_leads_card').style.display=hasLf?'':'none';
   if(hasLf){
     el('pm_leads').textContent=fmtN(t.leads);
-    // COST PER LEAD MUST USE LINKEDIN SPEND (fixed 2026-09-01). This divided the BLENDED all-platform
-    // spend by LinkedIn's own lead-form leads, so Trade Desk money was being charged to a metric only
-    // LinkedIn can produce - A$2,085 per lead against a true A$1,129 under the all-up scope, and the
-    // error grew with every non-LinkedIn dollar in the filter. `t` is all platforms by design (it
-    // feeds Spend / Impressions / Clicks / blended CPC), so this one figure re-sums LinkedIn's rows.
-    const liSpend=rows.reduce((a,r)=>a+(r.platform==='linkedin'?(r.spend_aud||0):0),0);
+    // COST PER LEAD REMOVED 2026-09-08 (client: "remove the cost per lead value under the lead form
+    // leads number for every campaign"). The tile states VOLUME only - leads and form opens. Removing
+    // it here alone was not enough: the same metric sat in THREE places under the same leads number -
+    // this tile, the funnel's Cost / lead column, and cost_per_lead_form_lead in the deck payload -
+    // so all three went together, and report.py is told not to re-derive it from spend and leads.
+    // IF IT IS EVER RESTORED, restore ONE definition for the whole tab. The tile and the funnel
+    // disagreed: A$1,175.63 here (ALL LinkedIn spend, awareness programs included) against A$896 in
+    // the funnel below (lead-form programs only), for the same 53 leads. And it must divide LINKEDIN
+    // spend, never `t.spend` - `t` is all platforms by design (it feeds Spend / Impressions / Clicks /
+    // blended CPC), so the pre-2026-09-01 blended version charged Trade Desk money to a metric only
+    // LinkedIn can produce: A$2,085 per lead against a true A$1,129, growing with every non-LinkedIn
+    // dollar in the filter.
     el('pm_leads_sub').textContent=t.leads
-      ? `${money(liSpend/t.leads,2)} per lead (LinkedIn spend) · ${fmtN(t.opens)} form opens`
+      ? `${fmtN(t.opens)} form opens`
       : `${fmtN(t.opens)} form opens, no submissions yet`;
   }
   el('pmKpiHint').innerHTML='Tap Spend, Impressions or Clicks to show or hide it on the chart below. Blended CPC is a read-only efficiency figure.'
@@ -2334,8 +2340,7 @@ function renderLiFunnel(rows){
     + `<td class="num">${x.imps?fmtPct(pct(x.clicks,x.imps),2):'-'}</td>`
     + `<td class="num">${fmtN(x.opens)}</td><td class="num">${fmtN(x.leads)}</td>`
     + `<td class="num">${x.clicks?fmtPct(pct(x.opens,x.clicks),1):'-'}</td>`
-    + `<td class="num">${x.opens?fmtPct(pct(x.leads,x.opens),1):'-'}</td>`
-    + `<td class="num">${x.leads?money(x.spend/x.leads,0):'-'}</td>`;
+    + `<td class="num">${x.opens?fmtPct(pct(x.leads,x.opens),1):'-'}</td>`;
   tbl.querySelector('tbody').innerHTML=keys.map(k=>
     `<tr><td><span class="pill"><span class="dot" style="background:${campColor(k)}"></span>${esc(campLabel(k))}</span></td>${cells(t.progs[k])}</tr>`).join('');
   tbl.querySelector('tfoot').innerHTML=`<tr class="total"><td>Total</td>${cells(t)}</tr>`;
@@ -3080,11 +3085,10 @@ function buildReportPayload(){
     },
     paid:{
       totals:{ spend:_r2(pt.spend), imps:pt.imps, clicks:pt.clk, cpm:_r2(pt.imps?pt.spend/pt.imps*1000:0), cpc:_r2(pt.clk?pt.spend/pt.clk:0), ctr:_r6(pt.imps?pt.clk/pt.imps:0),
-        lead_form_leads:pt.leads, lead_form_opens:pt.opens,
-        cost_per_lead_form_lead:_r2(pt.leads?pt.spend/pt.leads:null) },
+        lead_form_leads:pt.leads, lead_form_opens:pt.opens },
       by_platform, by_market:paid_by_market,
       platforms:activePlatformList().map(x=>x.label),
-      note:'DV360 / The Trade Desk / LinkedIn / Google Search delivery. The programmatic and social lines are upper/mid-funnel; Google Search is intent-led and is NOT comparable with them on CTR or CPC - never rank the four against each other on those. No per-strategy split and no CTR/CPM/CPC benchmarks are seeded. lead_form_leads are LinkedIn on-platform LEAD-FORM submissions - a paid-media metric, entirely separate from the Salesforce content-syndication leads in cs.* and NEVER to be added to them.',
+      note:'DV360 / The Trade Desk / LinkedIn / Google Search delivery. The programmatic and social lines are upper/mid-funnel; Google Search is intent-led and is NOT comparable with them on CTR or CPC - never rank the four against each other on those. No per-strategy split and no CTR/CPM/CPC benchmarks are seeded. lead_form_leads are LinkedIn on-platform LEAD-FORM submissions - a paid-media metric, entirely separate from the Salesforce content-syndication leads in cs.* and NEVER to be added to them. COST PER LEAD-FORM LEAD IS WITHHELD AT THE CLIENT\'S REQUEST: report lead_form_leads and lead_form_opens as VOLUME only, and never divide spend by them to state or imply a cost per lead, per submission or per enquiry. This is a reporting instruction from the client, NOT a data-quality caveat, so do not explain its absence. The plan cost-per-lead in cs.* is a separate, plan-side figure and is unaffected.',
       search_note:'Google Search (SEM) is reported for impressions, clicks, spend, CTR and CPC ONLY. It has NO conversion metric on this dashboard and you must not state, estimate or imply one - no conversions, no conversion rate, no cost per acquisition, no ROAS, no leads. The account records conversions but the figure is unreconciled and may be inflated by roughly 100x, so it is deliberately excluded from the data you have been given. Brand and non-brand search are bought for different jobs and their CTR and CPC differ by an order of magnitude - if you cite a blended search CTR or CPC, say it is a blend. Search spend is billed in USD and converted to AUD at the dashboard rate.'
     },
     plan:{
