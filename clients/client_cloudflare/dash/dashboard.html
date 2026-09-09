@@ -1702,6 +1702,15 @@
            one renderCompositionDonuts(): APJ off aggregate() (legacy lead rows), any other
            theatre off cs_composition (sql/19) filtered by the same scope predicate as the band
            above - see cscxDims(). The ids are what keep them out of applyRegionPanelScope. -->
+      <!-- ONE note for all FIVE composition donuts (2026-09-09, John Massey). Admin View folds
+           the unreviewed New backlog into every ring (aggregate()'s breakdownLeads on APJ,
+           cscxDims() on EMEA) while the KPI strip above keeps printing ACCEPTED - so the rings
+           read a bigger number than every other figure on the page and NOTHING said why. John
+           reported EMEA rings at 1,918 against 1,834 everywhere else and correctly deduced the
+           84 unreviewed leads himself, which is the tell that the page should have told him.
+           Written by renderCompositionDonuts() - the ONE entry both lanes pass through - and
+           hidden whenever nothing is folded in, so the client view is byte-identical. -->
+      <div class="hint" id="csDonutNote" style="display:none"></div>
       <div class="grid" id="csDonutRow1">
         <div class="card"><h3>Solutions</h3><div class="chart-wrap"><canvas id="solChart"></canvas></div></div>
         <div class="card"><h3>Country</h3><div class="chart-wrap"><canvas id="countryChart"></canvas></div></div>
@@ -4161,8 +4170,24 @@ function assertDimsSumTo(dims, total, theatre){
     if (s !== total) bbIsolationFail(theatre + ' ' + k + ' sums to ' + s + ' but the scoped total is ' + total);
   }
 }
-function renderCompositionDonuts(dims, total){
+// `newIncluded` = how many UNREVIEWED (New) leads are folded into these rings, 0 in the client
+// view. Both callers derive it from the same devMode test they use to build `total`, so the note
+// and the figure can never disagree - and a caller that forgets it degrades to silence, not to a
+// wrong claim. Do NOT compute devMode here: this function serves both lanes and the two read
+// their backlog from different objects (agg.unprocessed vs cspdTopAgg().unprocessed).
+function renderCompositionDonuts(dims, total, newIncluded){
   assertDimsSumTo(dims, total, topFromPacing() ? cspdTheatre() : CSPD_LEGACY_THEATRE);
+  const note = document.getElementById('csDonutNote');
+  if (note){
+    const n = Number(newIncluded) || 0;
+    note.style.display = n > 0 ? '' : 'none';
+    note.innerHTML = n > 0
+      ? '<b>Admin View:</b> these five rings include <b>' + fmtN(n) + '</b> unreviewed (New) lead'
+        + (n === 1 ? '' : 's') + ' on top of accepted, so they total <b>' + fmtN(total)
+        + '</b> where the figures above read <b>' + fmtN(total - n) + '</b> accepted. '
+        + 'The client view shows accepted only.'
+      : '';
+  }
   donut('solChart',     dims.solutions, null, total);
   donut('countryChart', dims.countries, null, total);
   donut('jfChart',      dims.jobFunc,   null, total);
@@ -4222,7 +4247,8 @@ function assertTheatreIsolation(){
 function renderCompositionV2(top){
   if (!CSX_ROWS.length){ setDonutRows(false); ['solChart','countryChart','jfChart','jlChart','jtChart'].forEach(destroy); return; }
   setDonutRows(true);
-  renderCompositionDonuts(cscxDims(), (top.accepted || 0) + (devMode ? (top.unprocessed || 0) : 0));
+  const cxNew = devMode ? (top.unprocessed || 0) : 0;
+  renderCompositionDonuts(cscxDims(), (top.accepted || 0) + cxNew, cxNew);
 }
 
 // ---- the scrolling legend -------------------------------------------------------------------
@@ -4722,7 +4748,7 @@ function renderAll() {
   renderProgress(agg);
   renderWeekly(agg);
   setDonutRows(true);
-  renderCompositionDonuts(agg, agg.breakdownTotal);
+  renderCompositionDonuts(agg, agg.breakdownTotal, devMode ? (agg.unprocessed || 0) : 0);
   renderAssets(agg);
   renderDaily(agg);
   renderRegionGrid(agg);
@@ -5217,7 +5243,11 @@ const CSPD_ANY_THEATRE_BLOCKS = new Set(['cspdSection','csKpiStrip','csTargetGri
   // 2026-09-05: the five composition donuts, repointed at cs_composition (sql/19) off-theatre
   // through cscxDims() - the SAME scope predicate as the band, the SAME donut() as APJ. On an
   // older JSON with no cs_composition block renderCompositionV2() hides both rows itself.
-  'csDonutRow1','csDonutRow2']);
+  // 2026-09-09: and the ONE note that says when Admin View has folded the New backlog into those
+  // rings. It sits with them, so it needs listing with them - adding a surface off-theatre is TWO
+  // edits (render it, and allow it here) or applyRegionPanelScope() hides it under EMEA and the
+  // note is populated-but-invisible, which is the exact silence it was written to remove.
+  'csDonutRow1','csDonutRow2','csDonutNote']);
 
 // A lane with no explicit theatre is APAC - so an older lane definition, or a new one added
 // without thinking about theatre, degrades to exactly today's behaviour.
