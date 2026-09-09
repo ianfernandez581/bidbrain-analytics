@@ -2153,14 +2153,58 @@ the existing `paid_media.rows[]`. Re-renders on every quarter change (`applyDate
 - **Budgets are a hardcoded editable knob** `PACING_PLANS` in `dash/dashboard.html` (same pattern as
   mongodb's `MARGIN_TARGET` / the `CF1_CS_TARGET`); NOT in the pipeline - edit the const and redeploy the
   dash service (no job/view rebuild).
-  - **Q3: TTD $47,624.56 / LinkedIn $61,022.44** - media-plan platform budgets from
-    `targets/real_targets Q3.csv` ("Program total (APAC + JP)").
+  - **Q3: TTD $70,703.36 / LinkedIn $83,598.12 since the 2026-09-09 CLIENT TOP-UP** (was
+    $47,624.56 / $61,022.44, the original media-plan platform budgets from
+    `targets/real_targets Q3.csv` -> "Program total (APAC + JP)"). Source is Calvin's
+    "Cloudflare Q3 Top-ups by region" workbook (LinkedIn + TTD sheets), confirmed by John;
+    that CSV now carries a **Q3 TOP-UP** section recording both columns, with the original
+    plan tables kept above it as the record of what was signed. **+48.5% TTD / +37.0%
+    LinkedIn, +42.0% across the two ($108,646.99 -> $154,301.48).**
+    - **Why a wholesale swap was safe:** the workbook's own "Current budget" column
+      reconciles EXACTLY to the superseded plan - LinkedIn to the cent, TTD to 1c of
+      rounding, its CN+TW+KR "TTD-only markets" subtotal to the plan's $14,641.20, and its
+      four LinkedIn lead-gen regions to `LI_LEADGEN_PLANS`' 18,051 / 10,066 / 6,798 / 2,858.
+      Same book of lines, re-budgeted - not a differently-scoped set.
+    - **What the client was reporting.** Spend through 09-07 read **TTD 106.5% and LinkedIn
+      100.2% of budget at 75.0% of the quarter elapsed** - both bars past 100% with three
+      weeks to run ("we are above budget pacing... but that is only because the budget has
+      now increased"). After the swap: 71.7% and 73.1%.
+    - **The top-up inverts the risk, unevenly.** To land the new budgets in the days left,
+      TTD China needs ~3.5x and TTD Korea ~3.3x their current daily rate, while LinkedIn ANZ
+      is the only line that must SLOW DOWN (0.58x). Korea took the largest single share of
+      the top-up (+86.4%). An unspendable top-up turns today's overspend into a quarter-end
+      underspend, so it is worth raising rather than banking.
+    - **NOT covered by the top-up, and never paced here at all:** Google Ads (YouTube JP),
+      $7,553 of the committed $116,200 program. This section paces $154,301 of $161,854.
+    - **Reading the workbook:** its "New %" column is each line's SHARE of its region's new
+      budget (sums to 100% per region), **not** a growth rate - ANZ's TAL-B2BEACON shows 25%
+      share on a +5.3% uplift. The uplift is a per-REGION decision applied to both channels
+      alike (ASEAN +55.9% on LinkedIn and TTD; India +47.4% on both).
   - **Q2: every channel uses `useActual:true`** - Q2 has NO committed spend budget in the repo, so the
     budget IS the actual Q2 spend (each bar reads 100% delivered, $0 gap - a placeholder). Swap a channel's
     `useActual` for a `budget` number once the real Q2 figure is known, and its bar shows real over/under.
 - **Multiplier-aware:** the budget is grossed by the same per-channel client-billed spend multiplier as
   spend (`bbMultFor`), so the pacing % is invariant to raw (direct) vs billed (front-door) access - it
   reconciles with the (also-grossed) spend column in the table above it.
+  - **This contradicts the repo-wide rule settled 2026-08-31** (`md/AGENTS.md` -> "THE SPEND MULTIPLIER
+    MUST FOLLOW THE ROW'S CHANNEL"): a media plan is what the client signed and pays, so it is ALREADY
+    the billed number and grossing it bills them twice on paper. The RATIO is unaffected (both sides
+    grossed), so the pacing % and the behind/ahead verdict are right either way - what would be wrong is
+    the DOLLAR figure printed beside it, which would no longer match Calvin's workbook. `ttd` and
+    `linkedin` are both in the platform's `SPEND_CHANNELS`, so a factor CAN be set for this client;
+    unverified as of 2026-09-09 (needs the registry). Check before quoting budget dollars to the client,
+    and prefer ungrossing the plan side over preserving the ratio.
+- **KNOWN DEFECT, found 2026-09-09 while swapping the budgets in, NOT yet fixed.** `renderPacing()`'s
+  spend loop filters by DATE ONLY - it never calls `progOk(r)`, unlike `passesAll` / `activeChans` / the
+  creative paths. So **SURROUND ABM's TTD delivery is summed into Core DG's TTD bar and paced against
+  Core DG's budget**: $9,656.78 of the $50,728.44 the bar shows for Q3, inflating TTD spend by 23.5%.
+  TTD reads 71.7% of the new budget where Core DG alone is 58.1% (LinkedIn is unaffected - it has no
+  Surround ABM delivery). This is the exact thing the function's own comment promises it does not do ("a
+  lane without its own plan hides the block entirely rather than pacing its spend against another
+  brief's budget") - the LANE dimension is honoured, the PROGRAM dimension is not. Fix is one line
+  (`if (!progOk(r)) continue;` in that loop), but it moves a client-facing figure by ~14 points and
+  leaves Surround ABM's spend paced nowhere (its lane sets `plans:false`), so it wants the client's nod
+  rather than a silent correction.
 
 ### Paid Media shows only the channels that RAN in the selection (2026-08-05)
 

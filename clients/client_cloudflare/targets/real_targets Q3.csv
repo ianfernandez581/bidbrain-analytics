@@ -30,8 +30,31 @@ GEO,Source,Amount,,Note
 "ANZ, ASEAN, India, HK",TTD within social markets,"$28,916.36",,"B2Beacon, whitelist + 3PA and a retargeting line in each"
 "CN, TW, KR",TTD-only markets,"$14,641.20",,"Full market budget on TTD, no social platform in scope"
 APAC TTD TOTAL,,"$43,557.56",,Matches APAC TTD above
+
+Q3 TOP-UP (client, 2026-09-09),,,,
+"Calvin issued ""Cloudflare Q3 Top-ups by region"" (LinkedIn + TTD sheets), confirmed by John. The tables ABOVE are the ORIGINAL committed plan and are kept as the record of what was signed; the figures BELOW supersede them for pacing. The top-up file's own ""Current budget"" column reconciles exactly to the plan above - LinkedIn to the cent, TTD to 1c of rounding, and its CN+TW+KR TTD-only subtotal to the $14,641.20 shown above - so this is the same book of lines, re-budgeted, not a differently-scoped set.",,,,
 ,,,,
+Platform,,Old budget USD,New budget USD,Change
+LinkedIn,,"$61,022.44","$83,598.12",+37.0%
+TTD,,"$47,624.56","$70,703.36",+48.5%
+Reddit,,$0.00,$0.00,n/a - dropped in Q3
+Google Ads (YouTube),,"$7,553.00","$7,553.00","NOT in the top-up file - unchanged, and never paced on the dashboard"
+TOTAL,,"$116,200.00","$161,854.48",+39.3%
 ,,,,
+Top-up by region (LinkedIn + TTD combined),,,,
+Region,,Old budget USD,New budget USD,Uplift
+ANZ,,"$52,290.00","$65,574.54",+25.4%
+ASEAN,,"$19,870.19","$30,975.87",+55.9%
+India (SAARC),,"$10,458.00","$15,417.02",+47.4%
+Hong Kong,,"$7,320.60","$11,692.31",+59.7%
+China,,"$3,660.30","$5,846.15",+59.7%
+Taiwan,,"$3,660.30","$5,846.15",+59.7%
+Korea,,"$7,320.60","$13,642.97",+86.4%
+Japan,,"$4,067.00","$5,306.47",+30.5%
+"TWO CHANNELS TOTAL",,"$108,646.99","$154,301.48",+42.0%
 ,,,,
-,,,,
-,,,,
+Notes on reading the source workbook,,,,
+"Its ""New %"" column is each ad set's SHARE of its region's new budget (it sums to 100% per region), NOT a growth rate. TAL-B2BEACON in ANZ shows 25% share but was topped up only +5.3%. Uplift = Change / Current and is not in the file.",,,,
+"The top-up is a per-region allocation applied consistently to BOTH channels - ASEAN is +55.9% on LinkedIn and TTD alike, India +47.4% on both - so the regional percentages, not the per-line ones, are the decision that was made.",,,,
+"Within almost every region the money went to the whitelist/3PA awareness lines while the Bombora TAL lines got the least (+5.1% to +21.5%). The workbook's own note offers to reweight to protect the TAL accounts; nobody has answered that.",,,,
+"OPEN: the file states BUDGETS only and says nothing about LEAD COMMITMENTS, so LI_LEADGEN_PLANS in dash/dashboard.html was deliberately NOT moved with it. See the comment there before editing it.",,,,
