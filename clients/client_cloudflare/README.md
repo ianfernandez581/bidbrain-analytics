@@ -603,6 +603,34 @@ an EMEA heading**, which is what it prevents.
 
 ### Composition donuts on EMEA (2026-09-05)
 
+**ADMIN VIEW NOW SAYS WHEN IT HAS FOLDED THE BACKLOG IN (2026-09-09, John Massey).** Admin View adds
+the unreviewed New leads into all five rings - `aggregate()`'s `breakdownLeads` on APJ, `cscxDims()`
+on EMEA - while the KPI strip above keeps printing ACCEPTED. That is deliberate and it is the only
+place the backlog is visible by composition. What was wrong is that **nothing on screen said so**:
+the card headings and hints were byte-identical in both views, so the rings simply read a bigger
+number than every other figure on the page. John reported the EMEA rings at 1,918 against 1,834
+everywhere else and correctly worked out the 84 unreviewed leads himself - which is the tell that
+the page owed him that sentence. Reproduced exactly: on the 2026-09-08 payload the client view
+renders 1,834 and Admin View 1,918 (accepted 1,834 + New 84).
+- **`renderCompositionDonuts(dims, total, newIncluded)`** - ONE note (`#csDonutNote`, above
+  `csDonutRow1`) written by the ONE entry both lanes pass through, so the two can never disagree.
+  `newIncluded` comes from the SAME `devMode` test each caller uses to build `total`; a caller that
+  forgets it degrades to SILENCE, not to a wrong claim. Do not compute `devMode` inside that
+  function - the lanes read their backlog from different objects (`agg.unprocessed` vs
+  `cspdTopAgg().unprocessed`).
+- **It hides itself whenever nothing is folded in**, so the client view is byte-identical to before
+  and Admin View on a lane with an empty backlog says nothing (verified: APJ Q3 has 0 New today, so
+  Admin View there shows no note; on the 09-08 payload it had 248 and did).
+- **THE TRAP, and it cost a render:** adding a surface off-theatre is TWO edits. The note was
+  populated but INVISIBLE under EMEA until `csDonutNote` was added to `CSPD_ANY_THEATRE_BLOCKS` -
+  `applyRegionPanelScope()` hides every CS-tab element not on that list. A note that ships silent is
+  the exact failure it was written to remove, so render it before believing it.
+- **No client-facing figure changed, and a client cannot reach Admin View**: `window.BB_DEV` is
+  injected only for an admin/superadmin session or Transmission's agency portal
+  (`_dev_flag_script`, `bidbrain-platform/dash/main.py`), there is no Cloudflare account in the
+  platform registry, and `?dev=1` - which any URL can carry - had ZERO requests in the 7 days to
+  2026-09-09. So what John saw was a staff or agency screen, most likely shared on the call.
+
 The APJ donuts aggregate the LEGACY lead rows in the browser (`aggregate()` over
 `salesforce_leads_live`, APAC-only by its 13-ID allowlist). EMEA had no lead-grain rows in the
 payload at all, so the five cards were hidden. Now:
