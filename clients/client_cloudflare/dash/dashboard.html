@@ -2552,8 +2552,22 @@ let selQuarters = new Set(['Q3']);           // kept in sync by syncQuarterFromR
 // market); the "on-pace" marker = budget x the fraction of the quarter elapsed today (a
 // COMPLETE quarter pins it at 100%, so the bar reads as final delivery vs budget). See
 // renderPacing().
-//   - Q3 budgets = media-plan platform budgets from `targets/real_targets Q3.csv`
-//     ("Program total (APAC + JP)"). Reddit/LINE did NOT run in Q3, so they are absent.
+//   - Q3 budgets = the CLIENT TOP-UP of 2026-09-09 ("Cloudflare Q3 Top-ups by region", the
+//     LinkedIn + TTD sheets Calvin issued and John confirmed), which SUPERSEDE the original
+//     media-plan figures in `targets/real_targets Q3.csv` ("Program total (APAC + JP)"):
+//     TTD 47,624.56 -> 70,703.36 (+48.5%) and LinkedIn 61,022.44 -> 83,598.12 (+37.0%),
+//     a +42.0% top-up across the two. What makes a wholesale swap safe is that the top-up
+//     file's own "Current budget" column reconciles EXACTLY to the superseded plan and to
+//     the two numbers below - LinkedIn to the cent, TTD to 1c of rounding, and its CN+TW+KR
+//     "TTD-only markets" subtotal to the plan's $14,641.20 - so the new column is the same
+//     book of lines, re-budgeted, not a differently-scoped set.
+//     Before the swap, spend through 09-07 read TTD 86.2% and LinkedIn 100.2% of budget at
+//     75.0% of the quarter elapsed (LinkedIn had consumed its entire budget with 3 weeks to
+//     run - the "we are above budget pacing" the client reported); after it, 58.1% and 73.1%.
+//     Reddit/LINE did NOT run in Q3, so they are absent. NOT COVERED, and worth knowing when
+//     someone asks why the bars do not sum to the program: GOOGLE ADS (YouTube JP) is $7,553
+//     of the committed $116,200 program, has never had a budget bar here, and is absent from
+//     the top-up file too - so this section paces $154,301 of a $161,854 program.
 //   - Q2 has NO committed spend budget in the repo, so every Q2 channel uses
 //     `useActual:true` = budget IS the actual Q2 spend (bar reads 100% delivered, $0 gap -
 //     a placeholder). Replace a channel's `useActual` with a `budget` number once the real
@@ -2566,8 +2580,8 @@ const PACING_PLANS = {
     { key:'LINE',     label:'LINE',       pill:'ln', multKey:'line',     useActual:true },
   ]},
   Q3: { flight:{start:'2026-07-01', end:'2026-09-30'}, channels:[
-    { key:'TTD',      label:'Trade Desk', pill:'cf', multKey:'ttd',      budget:47624.56 },
-    { key:'LinkedIn', label:'LinkedIn',   pill:'li', multKey:'linkedin', budget:61022.44 },
+    { key:'TTD',      label:'Trade Desk', pill:'cf', multKey:'ttd',      budget:70703.36 },
+    { key:'LinkedIn', label:'LinkedIn',   pill:'li', multKey:'linkedin', budget:83598.12 },
   ]},
 };
 const PACING_QUARTER_ORDER = ['Q2', 'Q3'];
@@ -2580,6 +2594,19 @@ const PACING_QUARTER_ORDER = ['Q2', 'Q3'];
 // seeded view if it ever needs to leave the frontend. CAVEAT: cpl is the LEAD-GEN-line planning
 // CPL, while dashboard LinkedIn spend is ALL LinkedIn delivery (the feed carries no campaign-
 // objective split), so actual-vs-plan CPL reads conservative (high).
+//
+// DELIBERATELY NOT MOVED BY THE 2026-09-09 TOP-UP, and this is the trap (PACING_PLANS above WAS
+// moved). The top-up raises these four markets' LEAD-GEN lines 37,773 -> 52,907 (+40.1%), but
+// the client's file states BUDGETS ONLY - it says nothing about lead commitments. And the CPL
+// benchmark is DERIVED, not read: liPlanScope() computes `cpl: budget / commit`, so the per-
+// market `cpl:` fields below are documentation that happens to equal budget/commit and are
+// never consumed. Editing `budget` here WITHOUT `commit` therefore does not leave the plan
+// stale - it silently re-grades LinkedIn against a ~40% higher CPL benchmark and makes
+// performance look better against plan, a client-facing change nobody authorised. The two
+// readings are: hold CPL and commit goes 210 -> 304 leads, or hold commit and per-market CPL
+// rises 25-60%. Delivery favours the first (517 leads against a 210 commit already, 246%, with
+// ASEAN 247/80 and India 219/59) but it is the client's call. Move budget, cpl AND commit
+// together when Calvin answers - never budget alone.
 const LI_LEADGEN_PLANS = {
   Q3: { start:'2026-07-01', end:'2026-09-30', markets:{
     ANZ:   { label:'ANZ',           budget:18051, cpl:301, commit:60 },
