@@ -677,7 +677,93 @@
       <div class="section"><h2 style="font-size:15px">Platform comparison</h2><span class="sub">DV360 vs The Trade Desk vs LinkedIn - efficiency side by side (CTR / CPM / CPC in AUD).</span></div>
       <div class="card" style="margin-top:14px"><div style="overflow:auto">
         <table id="pmPlatTable"><thead><tr><th>Platform</th><th class="num">Spend</th><th class="num">Imps</th><th class="num">Clicks</th><th class="num">CTR</th><th class="num">CPM</th><th class="num">CPC</th><th class="num" id="pmPlatLeadsHead" style="display:none" title="LinkedIn on-platform lead-form submissions">Lead-form leads</th></tr></thead><tbody></tbody></table>
+<<<<<<< Updated upstream
       </div></div>
+=======
+      </div>
+      <div class="hint" id="pmPlatNote" style="display:none;margin:12px 0 0 0"></div></div>
+
+      <!-- ============ GOOGLE SEARCH (SEM) ============
+           Hidden entirely unless the current selection actually has Search delivery, so the ten
+           programs that never bought Search see no trace of it. Brand and non-brand lead because
+           they are not comparable to each other - a blended Search CTR describes neither. -->
+      <div id="pmSearchSec" style="display:none">
+        <div class="section"><h2 style="font-size:15px">Google Search (SEM)</h2><span class="sub" id="searchIntro">Paid search delivery. <b>Brand</b> and <b>non-brand</b> are reported separately - they are bought for different jobs and a blended figure describes neither. Honours the selected region(s) and date range.</span></div>
+
+        <div class="kpis" id="searchKpis" style="margin-top:14px"></div>
+
+        <div class="grid">
+          <div class="card"><h3>Brand vs non-brand</h3>
+            <div class="hint">Branded terms defend an existing intent; non-brand buys new demand. Their CTR and CPC are an order of magnitude apart, so they are never averaged together here.</div>
+            <div style="overflow:auto"><table id="searchTypeTable"><thead><tr><th>Query type</th><th class="num">Spend</th><th class="num">Imps</th><th class="num">Clicks</th><th class="num">Share of clicks</th><th class="num">CTR</th><th class="num">CPC</th></tr></thead><tbody></tbody><tfoot></tfoot></table></div>
+          </div>
+          <div class="card"><h3>By market</h3>
+            <div class="hint">Search delivery across the selected regions, split the same way.</div>
+            <div style="overflow:auto"><table id="searchMarketTable"><thead><tr><th>Market</th><th>Query type</th><th class="num">Spend</th><th class="num">Imps</th><th class="num">Clicks</th><th class="num">CTR</th><th class="num">CPC</th></tr></thead><tbody></tbody></table></div>
+          </div>
+        </div>
+
+        <div class="card" id="searchPaceCard" style="margin-top:16px;display:none">
+          <h3>Clicks vs the media-plan target</h3>
+          <div class="hint" id="searchPaceHint"></div>
+          <div class="budget-body" id="searchPaceBody" style="margin-top:10px"></div>
+        </div>
+
+        <div class="card" style="margin-top:16px"><h3>Search campaigns</h3>
+          <div class="hint">Every in-scope Search campaign, at the grain the account reports (one row per campaign per day, rolled up over the selected range). Sorted by clicks.</div>
+          <div style="overflow:auto"><table id="searchCampTable"><thead><tr><th>Campaign</th><th>Brief</th><th>Market</th><th>Query type</th><th class="num">Spend</th><th class="num">Imps</th><th class="num">Clicks</th><th class="num">CTR</th><th class="num">CPC</th></tr></thead><tbody></tbody><tfoot></tfoot></table></div>
+          <div class="fx-foot" id="searchFxFoot"></div>
+        </div>
+
+        <!-- CONVERSIONS: deliberately not built. See sql/03b_stg_google_search.sql - the account's
+             CONVERSIONS / CONVERSION_RATE / COST_PER_CONVERSION / CONVERSION_VALUE_TOTAL columns are
+             unresolved and are not carried past the staging view, so there is nothing on this page
+             that could accidentally be summed into a conversion, a CPA or a ROAS. This placeholder
+             is static copy on purpose: it must state that the panel is pending, not render a zero. -->
+        <div class="info-note pending" id="searchConvNote" style="margin-top:16px">
+          <span class="pending-badge">Pending</span> <b>Search conversions are not reported yet.</b>
+          This account records conversions, but the figure has not been reconciled against the Google Ads
+          interface and cannot be trusted from the warehouse alone - its conversion actions are dominated
+          by page-view tags, so it may be counting page views rather than enquiries. Rather than publish a
+          number that could be wrong by two orders of magnitude, no conversion metric is shown: no
+          conversions, no conversion rate, no cost per acquisition and no ROAS. Impressions, clicks, spend,
+          CTR and CPC above are verified and reconcile to the source. This panel goes live once the manual
+          reconciliation is done.
+        </div>
+      </div>
+
+      <!-- ============ LINKEDIN LEAD-GEN-FORM FUNNEL ============
+           Client request 2026-09-01: "For all LinkedIn campaigns with LGFs, can we include a view on
+           pipeline progression, same as the view we have on Cloudflare (Impressions > clicks > LGF
+           fills > LGF completions)?" - the cloudflare `#liFunnel` card, ported.
+
+           FRONTEND-ONLY: `lead_form_opens` and `leads` have travelled stg_linkedin -> stg_ad_delivery
+           -> pm_delivery -> the payload since 2026-08-06. No view, job or payload change.
+
+           Three things this must get right:
+             * LINKEDIN ONLY. The impressions and clicks in the funnel are LinkedIn's, filtered off
+               pmRows() by platform - NOT the tab's blended pmTotals(), which would show Trade Desk
+               impressions feeding a LinkedIn lead form.
+             * It HIDES ITSELF where no lead form ran. Four of the nine programs have zero opens and
+               zero leads on LinkedIn (global_rebrand, mcset, microgrid, and eba which has no LinkedIn
+               delivery at all); a four-stage funnel of zeros reads as a campaign that failed rather
+               than an awareness buy with no form on it. Same rule as the Lead-form-leads KPI above.
+             * NO verdict colour on the conversion rates. A 0.2% impression-to-click rate is normal on
+               a social awareness buy and terrible on search; there is no threshold here we could
+               defend, and a coloured number makes a judgement while making none. -->
+      <div class="section" id="liFunnelSec" style="display:none"><h2 style="font-size:15px">LinkedIn lead-gen-form funnel</h2><span class="sub" id="liFunnelSub"></span></div>
+      <div class="card" id="liFunnelCard" style="margin-top:14px;display:none">
+        <div class="funnel" id="liFunnel"></div>
+        <div class="funnel-note" id="liFunnelNote"></div>
+      </div>
+      <div class="card" id="liFunnelProgCard" style="margin-top:16px;display:none">
+        <h3>Funnel by program</h3>
+        <div class="hint">Every program running a LinkedIn lead-gen form in the current filter. The total row ties exactly to the funnel above.</div>
+        <div style="overflow:auto;margin-top:4px">
+          <table id="liFunnelProgTable"><thead><tr><th>Program</th><th class="num">Impressions</th><th class="num">Clicks</th><th class="num">CTR</th><th class="num">Form opens</th><th class="num">Submitted leads</th><th class="num" title="Share of clicks that opened the lead form">Click → open</th><th class="num" title="Share of form opens that were submitted">Open → submit</th></tr></thead><tbody></tbody><tfoot></tfoot></table>
+        </div>
+      </div>
+>>>>>>> Stashed changes
 
       <div class="section"><h2 style="font-size:15px">Spend &amp; market breakdown</h2><span class="sub">Where the media budget went - by platform and by market (AUD).</span></div>
       <div class="grid">
@@ -1511,7 +1597,19 @@ function renderPaid(){
   el('pm_leads_card').style.display=hasLf?'':'none';
   if(hasLf){
     el('pm_leads').textContent=fmtN(t.leads);
+<<<<<<< Updated upstream
     el('pm_leads_sub').textContent=t.leads?`${money(t.spend/t.leads,2)} cost per lead · ${fmtN(t.opens)} form opens`:`${fmtN(t.opens)} form opens, no submissions yet`;
+=======
+    // COST PER LEAD REMOVED 2026-09-08 (client: "remove the cost per lead value under the lead form
+    // leads number for every campaign"). The tile now states volume only - leads and form opens.
+    // IF IT IS EVER RESTORED it must divide LINKEDIN spend, never `t.spend`: `t` is all platforms by
+    // design (it feeds Spend / Impressions / Clicks / blended CPC), so the blended version charged
+    // Trade Desk money to a metric only LinkedIn can produce - A$2,085 per lead against a true
+    // A$1,129 under the all-up scope, growing with every non-LinkedIn dollar in the filter.
+    el('pm_leads_sub').textContent=t.leads
+      ? `${fmtN(t.opens)} form opens`
+      : `${fmtN(t.opens)} form opens, no submissions yet`;
+>>>>>>> Stashed changes
   }
   el('pmKpiHint').innerHTML='Tap Spend, Impressions or Clicks to show or hide it on the chart below. Blended CPC is a read-only efficiency figure.'
     +(hasLf?' <b>Lead-form leads</b> are LinkedIn\'s own on-platform form submissions - a paid-media metric, separate from the Salesforce content-syndication leads.':'');
@@ -1571,6 +1669,129 @@ function renderPaid(){
   renderGantt();
 }
 
+<<<<<<< Updated upstream
+=======
+// ---- LINKEDIN LEAD-GEN-FORM FUNNEL ----------------------------------------------------------
+// impressions -> clicks -> lead form opens -> submitted leads, off LinkedIn's own on-platform counts.
+// `rows` is the ALREADY-FILTERED pmRows() the rest of the tab renders from, so the funnel honours the
+// Campaign dropdown, Region chips, Platform chips and date range identically - untick LinkedIn and the
+// section hides itself, which is the correct answer for a card that only describes LinkedIn.
+//
+// STAGE NAMES: the client asked for "LGF fills > LGF completions". LinkedIn's metric is
+// oneClickLeadFormOpens - the form being OPENED, not a partial fill - so the labels say "opens" and
+// "submitted", and the note spells out the mapping. Renaming an open to a fill would overstate intent.
+// SCOPE: the programs that actually RAN a lead form. Everything - the funnel headline, every stage
+// rate, the cost figures and the per-program table - is summed from THOSE programs only.
+//
+// This is the whole correctness question in this card, and the first cut got it wrong. Three of the
+// nine programs (global_rebrand, mcset, microgrid) run LinkedIn AWARENESS with no lead form at all:
+// 469,206 impressions, 2,062-vs-2,847 clicks, A$13,390. Including them put 57% more impressions at
+// the top of a lead-form funnel than ever carried a lead form, understated click-to-open by the same
+// factor (17.2% instead of the true 23.8%), and - the tell - left a "Total" row of 1,286,864 above
+// five rows summing to 817,658. A total that does not sum its own rows is not a rounding quibble.
+//
+// GRAIN LIMIT, stated honestly on screen: `pm_delivery` is aggregated to program x platform x day x
+// market and carries NO campaign column (deliberately - see sql/20), so this is the finest scope
+// available. A program that ran BOTH an awareness line and a lead-form line contributes all of its
+// LinkedIn delivery here. Going finer needs a campaign-grain view, not an un-grouping of sql/20.
+function liFunnelAgg(rows){
+  const progs={}, excl={n:0,imps:0,clicks:0,spend:0};
+  rows.forEach(r=>{
+    if(r.platform!=='linkedin') return;
+    const t=progs[r.program]||(progs[r.program]={imps:0,clicks:0,opens:0,leads:0,spend:0});
+    t.imps+=r.imps||0; t.clicks+=r.clicks||0; t.opens+=r.lead_form_opens||0;
+    t.leads+=r.leads||0; t.spend+=r.spend_aud||0;
+  });
+  const o={imps:0,clicks:0,opens:0,leads:0,spend:0,progs:{},excl};
+  Object.keys(progs).forEach(k=>{
+    const t=progs[k];
+    // No opens AND no leads = no lead form on this program. Not part of a lead-form funnel, and a row
+    // of zeros would read as a form that failed rather than one that was never on the buy.
+    if(!t.opens && !t.leads){ excl.n++; excl.imps+=t.imps; excl.clicks+=t.clicks; excl.spend+=t.spend; return; }
+    o.progs[k]=t;
+    o.imps+=t.imps; o.clicks+=t.clicks; o.opens+=t.opens; o.leads+=t.leads; o.spend+=t.spend;
+  });
+  return o;
+}
+function renderLiFunnel(rows){
+  const sec=el('liFunnelSec'), card=el('liFunnelCard'), progCard=el('liFunnelProgCard');
+  if(!sec||!card) return;
+  const t=liFunnelAgg(rows);
+  const on=(t.opens>0 || t.leads>0);
+  sec.style.display=on?'':'none'; card.style.display=on?'':'none';
+  if(!on){
+    progCard.style.display='none';
+    // Clear the rows when hiding: the shared sortable engine keeps re-wiring a hidden table full of
+    // the previous scope's numbers, and they would resurface on any reflow.
+    const tb=el('liFunnelProgTable'); if(tb){ tb.querySelector('tbody').innerHTML=''; tb.querySelector('tfoot').innerHTML=''; }
+    return;
+  }
+  const nProg=Object.keys(t.progs).length;
+  el('liFunnelSub').innerHTML = `LinkedIn's own on-platform lead-gen-form pipeline for `
+    + (isAllCampaigns()
+        ? `the <b>${fmtN(nProg)}</b> program${nProg===1?'':'s'} running a lead form in this filter`
+        : `<b>${esc(campaign().label)}</b>`)
+    + `: impression to click to lead form opened to lead form submitted. Reflects the selected <b>region(s)</b> and <b>date range</b>; LinkedIn is the only engine in this dashboard that reports lead-form metrics, so the Platform chips scope it in and out.`;
+
+  const rate=(a,b)=>a>0?b/a:null;                       // stage-to-stage conversion (never a drop-off)
+  const r_ic=rate(t.imps,t.clicks), r_co=rate(t.clicks,t.opens), r_ol=rate(t.opens,t.leads);
+  // No cost-per-LEAD here since 2026-09-08 (client) - see the KPI tile above. Cost per CLICK and per
+  // form OPEN are different metrics and were not part of that request, so they stay.
+  const cpc=t.clicks?t.spend/t.clicks:null, cpo=t.opens?t.spend/t.opens:null;
+
+  // An empty sub renders NO .fs div rather than an empty one - the grid is align-items:stretch, so the
+  // steps stay level, and a stray empty line under one figure reads as something failing to load.
+  const step=(k,v,sub,pending)=>`<div class="fstep"><div class="fk">${k}</div>`
+    + `<div class="fv${pending?' pending':''}">${v}</div>`
+    + (sub?`<div class="fs">${sub}</div>`:'') + `</div>`;
+  const conn=(r,lbl)=>`<div class="fconn"><div class="fa">&#9654;</div>`
+    + `<div class="fp">${r==null?'-':fmtPct(r, r<0.01?3:r<0.1?2:1)}</div><div class="fl">${lbl}</div></div>`;
+
+  el('liFunnel').innerHTML =
+      step('Impressions', fmtN(t.imps), `${money(t.spend)} media spend`)
+    + conn(r_ic, 'impressions&nbsp;&rarr;&nbsp;clicks')
+    + step('Clicks', fmtN(t.clicks), cpc==null?'no clicks yet':`${money(cpc,2)} per click`)
+    + conn(r_co, 'clicks&nbsp;&rarr;&nbsp;form opens')
+    + step('Lead form opens', t.opens>0?fmtN(t.opens):'none yet', t.opens>0?`${money(cpo,2)} per open`:'no form opened in this filter', !(t.opens>0))
+    + conn(r_ol, 'form opens&nbsp;&rarr;&nbsp;submitted')
+    + step('Submitted leads', t.leads>0?fmtN(t.leads):'none yet',
+           t.leads>0?'':'no submissions in this filter', !(t.leads>0));
+
+  // An earlier stage can legitimately be SMALLER than the one after it, because LinkedIn dates an open
+  // and its submission independently - narrow the date range far enough and a lead lands in a window
+  // its own form-open does not. Say so where it happens rather than leaving a >100% rate looking broken.
+  const inverted=[[t.imps,t.clicks,'clicks exceed impressions'],[t.clicks,t.opens,'form opens exceed clicks'],
+                  [t.opens,t.leads,'submissions exceed form opens']].filter(x=>x[0]>0&&x[1]>x[0]).map(x=>x[2]);
+  el('liFunnelNote').innerHTML =
+    `<b>Lead form opens</b> is LinkedIn's <i>oneClickLeadFormOpens</i> - the form being opened (the "LGF fill" stage); `
+    + `<b>submitted leads</b> is a completed submission (the "LGF completion"). Both are LinkedIn's own on-platform counts and are <b>separate from the Salesforce content-syndication leads</b> on the Content Syndication tab - never add the two together. `
+    + `Costs use client-billed media spend, LinkedIn only.`
+    // Say what is NOT in the funnel and where it is, so the impressions here can be reconciled
+    // against the KPI band and the platform table above (which are all-platform, all-program).
+    + (t.excl.n
+        ? ` <b>Scope:</b> these figures cover only the ${fmtN(nProg)} program${nProg===1?'':'s'} that ran a lead form. A further <b>${fmtN(t.excl.imps)}</b> LinkedIn impressions and <b>${money(t.excl.spend)}</b> across <b>${fmtN(t.excl.n)}</b> awareness program${t.excl.n===1?'':'s'} carried no lead form and are excluded here - they are still in the KPI band and the <b>Platform comparison</b> table above.`
+        : '')
+    + (inverted.length?` <b>Note:</b> ${inverted.join(' and ')} in this date range - LinkedIn dates a form open and its submission independently, so a narrow window can hold one without the other. Widen the range to see the true rate.`:'');
+
+  // ---- per-program decomposition. Shown only with 2+ programs in scope, where the blended funnel
+  // above is a number nobody can break down; for a single program it would restate the funnel.
+  const keys=Object.keys(t.progs).sort((a,b)=>t.progs[b].leads-t.progs[a].leads || t.progs[b].imps-t.progs[a].imps);
+  const showProg=keys.length>1;
+  progCard.style.display=showProg?'':'none';
+  const tbl=el('liFunnelProgTable');
+  if(!showProg){ tbl.querySelector('tbody').innerHTML=''; tbl.querySelector('tfoot').innerHTML=''; return; }
+  const cells=x=>`<td class="num">${fmtN(x.imps)}</td><td class="num">${fmtN(x.clicks)}</td>`
+    + `<td class="num">${x.imps?fmtPct(pct(x.clicks,x.imps),2):'-'}</td>`
+    + `<td class="num">${fmtN(x.opens)}</td><td class="num">${fmtN(x.leads)}</td>`
+    + `<td class="num">${x.clicks?fmtPct(pct(x.opens,x.clicks),1):'-'}</td>`
+    // Cost / lead column removed 2026-09-08 (client) - the table is volume and conversion rates only.
+    + `<td class="num">${x.opens?fmtPct(pct(x.leads,x.opens),1):'-'}</td>`;
+  tbl.querySelector('tbody').innerHTML=keys.map(k=>
+    `<tr><td><span class="pill"><span class="dot" style="background:${campColor(k)}"></span>${esc(campLabel(k))}</span></td>${cells(t.progs[k])}</tr>`).join('');
+  tbl.querySelector('tfoot').innerHTML=`<tr class="total"><td>Total</td>${cells(t)}</tr>`;
+}
+
+>>>>>>> Stashed changes
 // Clickable Paid-Media KPI cards toggle their matching series on the hero delivery chart.
 // Re-wired after every renderPaid() (the chart is rebuilt each render); state syncs the card dim.
 function wireKpiToggles(){
@@ -1948,11 +2169,19 @@ function tableCSV(section,obj){ const lines=['# '+section]; const keys=Object.ke
 //==============================================================================
 // OTHER CHANNELS (plan only - no measured feed)
 //==============================================================================
-// Article (trade-publication thought-leadership) delivery. MANUAL - no warehouse feed. Source:
-// clients/client_cloudflare/raw files/Article Reporting.pdf (Ben Robinson / publisher reports; weekly
-// per-publication series). Update these totals when a new report lands (add/adjust the flight's
+// Article (trade-publication thought-leadership) delivery. MANUAL - no warehouse feed, no SQL, no job
+// key: every number below was typed in by hand from a publisher report, so it only moves when someone
+// edits this const.
+// SOURCE (path corrected 2026-09-08 - it read clients/client_cloudflare/... which does not exist and
+// is the wrong client):  clients/client_schneider/raw_files/Article Reporting.pdf
+// Supplied by Ben Robinson / the publishers as a WEEKLY per-publication series. The committed copy was
+// pulled 2026-07-20. Update these totals when a NEWER report lands (add/adjust the flight's
 // publications, flip live:true; set partial:true while a flight is mid-run). We report FLIGHT TOTALS
 // per publication = the sum of that flight's reported weeks (May's weeks were identical; July's vary).
+// WEEKS COVERED BY THE FIGURES BELOW - state this whenever you edit them, or a partial flight is
+// indistinguishable from a collapse in delivery:
+//   May 2026  4 of 4 weeks  (w/c 4, 11, 18, 25 May)  - COMPLETE
+//   Jul 2026  2 of 5 weeks  (w/c 1, 8 Jul)           - w/c 15, 22, 29 Jul NEVER REPORTED TO US
 const ARTICLE_DELIVERY = {
   heavy: {
     plan: { click_target:180, spend:10000, note:'~1,200 page views, 950+ sessions, 700+ engaged, 15% outbound CTR; on-months May / Jul / Sep' },
@@ -2129,11 +2358,19 @@ function buildReportPayload(){
     },
     paid:{
       totals:{ spend:_r2(pt.spend), imps:pt.imps, clicks:pt.clk, cpm:_r2(pt.imps?pt.spend/pt.imps*1000:0), cpc:_r2(pt.clk?pt.spend/pt.clk:0), ctr:_r6(pt.imps?pt.clk/pt.imps:0),
-        lead_form_leads:pt.leads, lead_form_opens:pt.opens,
-        cost_per_lead_form_lead:_r2(pt.leads?pt.spend/pt.leads:null) },
+        // cost_per_lead_form_lead was REMOVED 2026-09-08 (client: no cost per lead against lead-form
+        // leads). `spend` and `lead_form_leads` both have to stay - they are the tab's own headline
+        // figures - so the model CAN still divide them. Deleting the key is therefore not sufficient
+        // on its own; the matching prohibition lives in report.py's business_model + guardrails.
+        lead_form_leads:pt.leads, lead_form_opens:pt.opens },
       by_platform, by_market:paid_by_market,
       platforms:activePlatformList().map(x=>x.label),
+<<<<<<< Updated upstream
       note:'DV360 / The Trade Desk / LinkedIn delivery (upper/mid-funnel). No per-strategy split and no CTR/CPM/CPC benchmarks are seeded. lead_form_leads are LinkedIn on-platform LEAD-FORM submissions - a paid-media metric, entirely separate from the Salesforce content-syndication leads in cs.* and NEVER to be added to them.'
+=======
+      note:'DV360 / The Trade Desk / LinkedIn / Google Search delivery. The programmatic and social lines are upper/mid-funnel; Google Search is intent-led and is NOT comparable with them on CTR or CPC - never rank the four against each other on those. No per-strategy split and no CTR/CPM/CPC benchmarks are seeded. lead_form_leads are LinkedIn on-platform LEAD-FORM submissions - a paid-media metric, entirely separate from the Salesforce content-syndication leads in cs.* and NEVER to be added to them. COST PER LEAD-FORM LEAD IS WITHHELD AT THE CLIENT\'S REQUEST: report lead_form_leads and lead_form_opens as VOLUME only, and never divide spend by them to state or imply a cost per lead, per submission or per enquiry. The plan cost-per-lead in cs.* is a different, plan-side figure and is unaffected.',
+      search_note:'Google Search (SEM) is reported for impressions, clicks, spend, CTR and CPC ONLY. It has NO conversion metric on this dashboard and you must not state, estimate or imply one - no conversions, no conversion rate, no cost per acquisition, no ROAS, no leads. The account records conversions but the figure is unreconciled and may be inflated by roughly 100x, so it is deliberately excluded from the data you have been given. Brand and non-brand search are bought for different jobs and their CTR and CPC differ by an order of magnitude - if you cite a blended search CTR or CPC, say it is a blend. Search spend is billed in USD and converted to AUD at the dashboard rate.'
+>>>>>>> Stashed changes
     },
     plan:{
       target_mql:c.target_mql||0, target_hql:c.target_hql||0, target:c.target||0, committed_spend:_r2(c.committed_spend),

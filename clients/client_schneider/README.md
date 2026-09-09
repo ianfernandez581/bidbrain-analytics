@@ -240,6 +240,503 @@ Also fixed in passing: **`tableCSV()` leaked `_`-prefixed internal stashes** —
 each row's pre-markup spend on `_rawSpend`, and `pm_delivery` exports were shipping it to the client.
 Underscore keys are now dropped from the header and every row (the repo-wide rule in `md/AGENTS.md`).
 
+<<<<<<< Updated upstream
+=======
+## Google Search (SEM) — the 4th platform (added 2026-09-02)
+
+Google Ads data for Schneider has been in the warehouse since **2026-07-06** and reached no surface until
+now. The client asked for it. It is a **PLATFORM, not a tab**: it unions into the existing paid-media
+model, so the Platform chips, the platform-comparison table, the delivery chart, the spend doughnuts, the
+market tables, the by-program table, the CSV exports and the AI deck all picked it up with no per-surface
+work — plus a dedicated **Google Search (SEM)** detail section on the Paid Media tab for the
+brand-vs-non-brand split, which is the part the generic platform model cannot express.
+
+**Source:** `raw_snowflake.google_ads_apac`, `ACCOUNT_NAME = 'AAG region Account'` (ACCOUNT_ID
+`2494240566`). **The account name gives no hint that it is Schneider's** — do not try to filter this
+platform on anything containing "schneider"; no row carries that string. Campaign-level grain, one row per
+campaign per day, `NETWORK` single-valued per campaign.
+
+### Scope: the account is NOT Pacific-only, and that is the whole risk
+17 campaigns sit on this account. Only **11** belong to this dashboard, and they are separated **by
+PROGRAM, never by region** — the dashboard's existing intake-sheet scope rule does the work:
+
+| Campaigns | Brief | Resolves to | In scope? | Why |
+|---|---|---|---|---|
+| `2061_AET - *` (9) | 2061 | `global_rebrand` | **YES** | AU + NZ, brand + 4 category lines, live 2026-07-06. The lines the client is chasing. |
+| `2389_SE_MCSeT EvoPacT {Brand,NonBrand}_ANZ_search_AWR` (2) | 2389 | `mcset` | **YES** | ANZ, live 2026-08-10. Already matched via the existing `2389_` token. |
+| `2306_SE_AI&LiquidCooling_{AU,BR,CL,SA,UAE}_SEM_AWR` (5) | 2306 | `ai_lc` | **NO, by design** | Runs in **Brazil / Chile / Saudi / UAE**. Has its OWN dashboard, [`client_schneiderlqai`](../client_schneiderlqai/), which already reports it in EUR. |
+| `2353_MEA_Healthcare.` (1) | 2353 | `mea_seg` | **NO, by design** | One YouTube row, 2026-04-25, MEA. Noise. |
+
+**Two `match_pattern` tokens were added** to `data/campaign_map.csv`: `2061_` on `global_rebrand` (its
+existing `SE_AET` token matches none of the real `2061_AET - *` names) and **`2306_` on `ai_lc`**. The
+second one changes no number — its purpose is that the 2306 campaigns now resolve to a **named
+out-of-scope program** instead of falling through unmatched. That matters because **every mechanism
+keeping foreign delivery off this dashboard is silent**: an unmatched campaign is dropped by the JOIN, and
+`sql/20`'s market normalisation is an `ELSE 'Australia'`, so a 2306 row that ever *did* get in would be
+reported as Australian rather than rejected. Simulated before committing (the repo rule): the change moved
+**exactly the 14 previously-unmatched campaigns and stole nothing** — zero campaigns changed program.
+
+`sql/24_search_scope_audit` re-checks all of this **every job run** and the export WARNs on `UNMAPPED` or
+`IN_SCOPE_NON_ANZ`. Read its header for what each status means. Today: 11 in scope, 6 out, 0 unmapped,
+0 non-ANZ.
+
+### Brand vs non-brand is the point
+The two lanes are bought for different jobs and are an order of magnitude apart, so **they are never
+averaged into one Search figure** without saying so:
+
+| | Campaigns | Spend | Imps | Clicks | CTR | CPC |
+|---|---|---|---|---|---|---|
+| Brand | 2 | A$592 | 7,782 | 2,061 | **26.5%** | **A$0.29** |
+| Non-brand | 7 | A$2,935 | 13,175 | 721 | 5.5% | A$4.07 |
+
+(global_rebrand, whole flight, as at 2026-08-29.) The parse ladder is **most-specific-first because
+`NonBrand` CONTAINS `Brand`** — the same trap as `CONVERSION` containing `CON` in
+[`client_schneidersecpwr`](../client_schneidersecpwr/). A campaign naming neither is `Non-brand`, the
+honest default (brand terms are always labelled; generic ones often are not).
+
+### NO conversions panel — deliberately, and it is enforced in the SQL
+The account's `CONVERSIONS` / `CONVERSION_RATE` / `COST_PER_CONVERSION` / `CONVERSION_VALUE_TOTAL` columns
+are **unresolved**: either correct or inflated ~100x, and the warehouse cannot settle it. The obvious
+sanity check does not help — the conversion actions are dominated by page-view tags, so >1 conversion per
+click is genuinely plausible (`2061_AET Branded` reports **12,616 conversions on 1,630 clicks**), and the
+`Google Ads - APAC ALL - Conversion` cross-check table disagrees with the campaign table for the same
+account and day.
+
+**Nothing may be displayed, computed or derived from those four columns — CPA and ROAS included — until a
+manual reconciliation against the Google Ads UI lands.** The enforcement is that `sql/03b` **does not
+select them at all**, so no column exists downstream that could be summed by accident. The dashboard
+carries a dashed, badge-led **PENDING** placeholder (`#searchConvNote`) where the panel will go, and
+`report.py` + the deck payload's `search_note` forbid the model from asserting any Search conversion,
+conversion rate, CPA, ROAS or lead. When the reconciliation lands, carry the column through 03b -> 22 ->
+`job/main.py` -> the placeholder.
+
+### Currency
+This account bills in **USD** — the only source on this dashboard whose native currency is never AUD.
+`sql/03b` converts at the **shared** `FX_USD_AUD = 1.50` (the same constant `stg_dv360` / `stg_linkedin` /
+`stg_tradedesk` use), so Search spend is on one basis with the other three and can legitimately be summed
+with them. `cost_usd` is carried alongside `spend_aud` so the source figure stays recoverable, and the
+section footnotes the conversion on screen rather than blending currencies silently. Both fields are
+grossed by `bbApplySpendMult` together (channel key `google`), so the footnote can never contradict the
+number it explains.
+
+### CPM and CTR are not comparable across the four engines
+Search is bought on **intent**, the other three on **reach**. Search will always show a far higher CTR
+*and* a far higher CPM — that is the shape of the buy, not a performance verdict. So: the Search KPI strip
+deliberately **does not show a CPM** (it shows share of paid spend instead), and a `Reading this table`
+note appears under the platform comparison **only when Search is in it**, pointing readers at CPC as the
+one cross-engine number. `report.py` carries the same rule.
+
+### Plan pacing
+`global_rebrand`'s media plan always had a **Search** line (`data/media_plan.csv`, click_target **1,222**,
+"3% CTR target") that was bucketed `other` and rendered as a plan-only Other-Channels line, because the
+note said *"no warehouse source"*. It has one now, so `chan_group()` in `job/main.py` moves **Search ->
+`paid`** and the dashboard paces real clicks against that committed target. `global_rebrand` keeps its
+Other Channels tab regardless (Capital Brief / Energy Magazine / Innovation Aus are still genuinely
+plan-only). **The pace card counts clicks ONLY from programs that seeded a target** — mcset has no media
+plan at all, and letting its clicks into a ratio whose denominator it does not contribute to read 241%
+instead of the true 228% under "All campaigns".
+
+### Files
+`sql/03b_stg_google_search` (staging — read its header before changing anything here) → unioned into
+`sql/04_stg_ad_delivery` → `sql/20_pm_delivery` (unchanged behaviour) and `sql/23_search_campaigns`
+(campaign grain, for the brand split) → `job/main.py` (`search_campaigns` + `search_fx`) →
+`renderSearch()` / `renderSearchPace()` in `dash/dashboard.html`. Plus `sql/24_search_scope_audit`.
+
+**`sql/04b_campaign_program` is new and shared:** the campaign->program first-match-wins ladder used to be
+inlined in `sql/20`, and views 23 and 24 would have made three copies of a precedence rule that must always
+agree. It is now defined once and read by all three, so the Search detail can never disagree with the
+Google Search row of the platform table above it. Extracting it was verified a **strict no-op** —
+program x platform x imps x clicks x spend identical before and after, on all 14 existing rows.
+
+## Campaign scope is a SET, not one campaign (2026-09-02, client request)
+> "Is it possible to add a filter to this view so you can either view all of the campaigns, only 5 of
+> them, or only 2 of them for example?"
+
+The topbar `<select>` is gone. In its place is a **multi-select tag control** (the antd `mode="tags"`
+pattern, built natively - this dashboard is one vanilla HTML file and the platform proxy's CSP allows
+no new script hosts, so React/antd cannot load here). Selected campaigns are removable tags; the
+popover lists all 9 with a tick, `only` (hover, or alt-click a row) isolates one, `+N` collapses the
+box to one line and names the hidden ones in its tooltip, and typing filters the list.
+
+**Frontend-only** - no sql, job or payload change. It generalises what was already there rather than
+adding a mechanism: every render path went through `inCamp()` / `campaign()`, so `campaign()` now sums
+the SELECTED campaigns instead of all of them and the 12 `inCamp()` call sites were untouched.
+
+Rules it encodes, each of which cost a render to find:
+- **The one predicate became two.** `isWholeBook()` = the scope IS all 9, and is the ONLY state that
+  may be described to a reader (or to the AI deck) as "the portfolio". `isMultiProgram()` = 2+, so
+  every tab DECOMPOSES by program - which is what the old `isAllCampaigns()` actually gated, so it
+  survives as an alias and its call sites did not move. Conflating them is how a 2-campaign subset
+  ends up narrated as the whole book.
+- **Tabs are the UNION of the selected campaigns' own `tabs[]`.** Picking two awareness-only briefs
+  must not draw a Content Syndication tab of zeros - a zero tab reads as a failed campaign, not as one
+  that was never bought that way.
+- **Every caption routes through `scopePhrase()`.** Before subsets, "all programs" was the only
+  multi-campaign state and ~6 captions said so in prose; each of those became a false claim about the
+  whole book. One helper means one place to keep honest.
+- **The noun is CAMPAIGN, not program** (client) - `scopePhrase()` says "all campaigns" with **no
+  count** (the same reason `(9 programs)` came off the selector). The by-program TABLES still say
+  program; renaming that vocabulary was offered and not taken, so it is deliberate, not drift.
+- **Draft + Apply, the date picker's pattern.** Ticking used to commit instantly, so narrowing 9 to 2
+  was SEVEN full re-renders, each rebuilding every Chart.js canvas. The list edits a draft and one
+  Apply renders once; Cancel, Escape and an outside click all revert, so a half-finished selection is
+  never silently committed. Dashed tag borders mark a draft that differs from what is on screen.
+- **The last campaign can never be removed** - an empty scope is a blank dashboard.
+- **Search filters VISIBILITY ONLY and never hides a selected chip.** A scope the reader cannot see is
+  the one real failure mode of filtering a filter.
+- **No keyboard highlight until the keyboard is used** (`hi=-1`). Opening with `hi=0` parked a
+  permanent highlight - and a visible `only` button - on the first row, which reads as stuck.
+- **CSV headers name the selected campaigns**, and the AI deck gets `scope:'program_subset'` plus a
+  `scope_note` that forbids generalising beyond the selection.
+
+Things deliberately NOT built: grouped sections with per-group "select all" (offered, declined - the
+per-row Lead-gen/Awareness badges were then dropped too, on request, so the picker no longer
+distinguishes the two lanes at all); a second `Reset to all` button (it duplicated the `All campaigns`
+row's own behaviour - two controls for one action, the thing the topbar dropdown was removed for).
+
+## Flight Gantt: an open flight is drawn OPEN (2026-09-02)
+> "only 5 campaigns on the left hand axis, but all of the campaigns within the chart. the dates also
+> aren't right, many showing they are ending in september which is not true"
+
+Two independent bugs, both pre-existing:
+
+1. **5 names against 9 bars was a rendering limit, not missing data.** The container was a fixed
+   `height:300px` and the y-axis had no `autoSkip` override. Chart.js caps a tick label's width and
+   WRAPS it, so `EcoStruxure Building Activate` became 2-3 lines, overflowed its ~30px slot, and
+   `autoSkip` (on by default) dropped every other LABEL while still drawing every BAR. Fixed with one
+   row's height per campaign (`rows x 34 + 56`, floor 300) plus `autoSkip:false`.
+2. **The end dates were FABRICATED.** The bar read `c.flight_end || DATA.window.end` - the last day of
+   delivery DATA - so the four campaigns with no agreed end were drawn AND tooltipped as ending
+   2026-09-01, under a caption calling every bar "a plan flight". `job/main.py` is explicit that an
+   end is NEVER synthesized, so this was purely presentational. Open flights now run to a dashed
+   **today** line with a translucent fill and a square (uncapped) right edge, and the tooltip says
+   `-> no agreed end date` + `live N days`. AirSeT (Sep 17) and New Energy Landscape (Sep 10) are
+   genuinely September and did not move. **NEL was extended to 2026-09-26 on 2026-09-08** at the
+   client's request — see below.
+
+Also: a campaign with NO start was silently dropped from the chart (`.filter(c=>c.flight_start)`).
+None today, but a 10th program with an unsigned plan would have vanished without trace - the caption
+now names them. The today-line plugin is in the chart's own `plugins:[]` array, never
+`options.plugins` (the repo-wide Chart.js v4 rule: a function there is treated as a scriptable option,
+throws, and silently blanks the whole chart).
+
+## Extending a campaign flight — the one-cell edit (NEL, 2026-09-08)
+> *"Please extend the end date for the New Energy Landscape campaign to 26th September"*
+
+**`data/plan_budget.csv` is the ONLY place a campaign flight lives.** `job/main.py` reads
+`seed_plan_budget` for `flight_start`/`flight_end` and the media plan's own per-line dates reach no
+surface — `channels[]` carries name/group/line_type/spend/targets and no dates — so this is one cell:
+
+    nel,35000.0,ex_fees,2026-06-06,2026-09-10   ->   nel,35000.0,ex_fees,2026-06-06,2026-09-26
+
+Then re-seed and force a rebuild (a seed change does not trip the freshness gate):
+
+    .\.venv\Scripts\python.exe clients\client_schneider\load_seeds.py
+    gcloud run jobs execute schneider-export --region australia-southeast1 --update-env-vars FORCE_REBUILD=1 --wait
+
+**What moves, and what deliberately does not.** The Gantt bar's right edge and tooltip follow the
+date. The pacing does too, because `flightFrac()` is the denominator of every time-to-date figure:
+a longer flight means less of it has elapsed, so **expected-to-date falls and the pace reads better**
+— NEL's reach pacing went 73% → 85% of expected-to-date on the same 582,784 delivered impressions
+(94 days elapsed of 96 → of 112). That is the correct behaviour, not a flattering one, but flag it
+when you report the change or it looks like performance improved overnight. **Share of the whole
+reach target (71.5%) does not move at all** — only the time-to-date lens does. NEL is awareness-only,
+so it is `reachVerdict`, not `paceVerdict`; both stayed *Slightly behind reach plan* here.
+
+**`data/media_plan.csv` still says 2026-09-10 on NEL's LinkedIn line.** That file is the signed plan
+line, not the campaign flight, and it renders nowhere — left alone deliberately rather than edited to
+match something the client did not confirm. Align it if the media plan is formally revised.
+
+## An OPEN-ENDED flight gets no ahead/behind verdict (2026-09-02)
+The Gantt's fabricated end was one instance of a wider idiom: `elapsedFrac(start, flight_end || now)`
+appeared in **four** places, and `elapsedFrac` returns **1** once `now >= end` - so substituting "now"
+for a missing end did not mean "ongoing", it meant **"the flight is 100% over"** and expected-to-date
+became the FULL target. Live effect: two awareness campaigns with no agreed end date were labelled
+**"Behind reach plan"** against a bar no delivery could ever clear (the repo-wide "pace against the
+budget that can actually spend" rule - a denominator nothing can close is an accusation, not a pace),
+and `reachVerdict`'s honest `no flight dates` arm was unreachable because a date had been substituted.
+
+`flightFrac(c)` is now the one helper: it returns `null` without an agreed end, and the by-program
+reach lane, `budgetPace()` and `csPacing()` all use it. The verdict cell prints a fact and judges
+nothing - `83% of reach target · no agreed end date`, neutral amber:
+
+| Campaign | Impressions / target | Was | Now |
+|---|---|---|---|
+| Advancing Energy Technology | 324,086 / 390,625 | Behind reach plan (red) | 83% of reach target · no agreed end date |
+| EcoConsult | 228,076 / 333,333 | Behind reach plan (red) | 68% of reach target · no agreed end date |
+| Microgrid | 105,168 / 70,680 | Ahead of reach plan (green) | 149% of reach target · no agreed end date |
+
+**Microgrid losing its GREEN is the point, not a side effect** - with no end date "ahead" is exactly as
+unsupported as "behind". `impPct` was already computed and never rendered, so the percentage is new
+information. `paceVerdict()` got the same guard for the lead-gen lane: no campaign is in that state
+today (every one carrying a lead target has a plan end), so it is protection for the next one - the
+reach lane only got there first by accident of which plans are signed. And on the CS pacing card,
+**"Days left" printed 0** for an open flight (its `totalDays` is measured to today, so the subtraction
+always landed on zero and read as "this flight has ended") - now `-` with `no agreed end date`.
+
+`totalDays` / `elapsed` still measure to today for an open flight: they are DESCRIPTIVE ("64 days
+live"), not pacing. Advancing Energy Technology is `flight_source:'plan'` with a deliberately open end
+(see `job/main.py`); the other three are the unsigned plans. When a plan is signed with an end date,
+the normal verdicts light up on their own with no code change.
+
+## Content Syndication tab changes (2026-09-01, client) + the LinkedIn LGF funnel
+Four requests in one round, plus what verifying them turned up.
+
+### 1. "By-market summary" removed; "Leads by market" is a share doughnut
+> *"For content synd, there's the 'leads by market' section and the 'by-market summary' section but
+> they are both showing the exact same thing. Can we remove the 'by market summary' section? And
+> change the Leads by market column graph to a pie chart?"*
+
+Correct on both counts: the summary card restated the same per-region lead counts as horizontal bars
+plus a share percentage. `renderCSRegionGrid()` and the `.reg-*` CSS are **gone**; the share it added
+over the column chart now lives in the doughnut's own ring, tooltip and legend, so nothing it showed
+was lost. It is a **doughnut, not a solid pie**, so it matches the "Leads by programme" ring beside it
+and can carry the scope total in the middle (`bbDonutCenter`) — a solid pie is one token away
+(`cutout:'0%'`) if the client prefers it.
+
+**The trap was one card along.** `renderCSProgramme()` used to FALL BACK to a market-share doughnut
+whenever the scope holds a single Salesforce programme — which `eba` and `water_env` both do. Against
+a market doughnut on its left that would have drawn the identical chart twice under two headings:
+exactly the duplication the client asked us to remove, re-created next door. So:
+- the programme card **hides itself** at 0 or 1 programme,
+- `#csChartGrid` takes `.one-up` (`grid-template-columns:1fr`) so the surviving card is full width
+  rather than half a row with a hole in it,
+- `#csProgSole` — a `.card-foot` note **inside** the market card — names the sole programme, so the
+  fact does not leave with the card,
+- **`renderCSProgramme()` MUST run before `renderCSMarket()`** in `renderCS()`, because the second
+  reads the first's show/hide decision to size the row. There is a comment on the call site.
+
+**A doughnut cannot draw a zero**, which a bar chart can, so two things had to be added:
+- a region with **no leads leaves the ring** and is NAMED in the caption ("New Zealand has no leads in
+  this scope, so it is not in the ring") — stated, not silently missing;
+- an **all-zero scope hides the canvas** behind a sibling `.chart-empty` div. Chart.js renders literally
+  nothing for an all-zero dataset, so without this the card is a titled blank box. **Hide the canvas,
+  never replace its parent's `innerHTML`** — see the audience-block bug below.
+
+*Legend note:* a RIGHT-hand legend was tried for the one-up row (to use the width either side of the
+ring) and reverted the same pass — Chart.js reserves the legend's width out of the canvas, so the arc
+collapsed to a ~40px circle pinned left, `bbDonutCenter` kept drawing the total in the middle of the
+CANVAS detached from the ring, and the legend title clipped. Bottom legend, always.
+
+### 2. Top accounts reached now lists each account's own job titles
+> *"Under 'Top accounts reached' section, is it possible to identify the top 1 or 2 job titles from
+> each account? Would be useful info to have, but i want to understand if we have the existing data
+> to show this."*
+
+**Yes — Salesforce `JOB_TITLE`, and it is well populated: 90.6% (997 of the 1,101 flight-clamped
+leads), 605 of 670 companies with at least one title.** New data path:
+
+`raw_snowflake.salesforce_cs_apac_all.JOB_TITLE` → `sql/17_stg_salesforce.job_title` →
+**`sql/22_cs_account_titles`** (`campaign × market × company × title`, with a lead count per title) →
+`job/main.py` `cs_account_titles` → `audAcctTitles()` → the `.acct` blocks in `renderAudience()`.
+
+- **A separate view, not part of `21_cs_audience`.** 21 is a LONG one-value-per-row shape (`dim` /
+  `value`); a title belongs to a COMPANY, so it needs a two-level key and would have had to be
+  smuggled into `value` as a delimited string.
+- **Ranked client-side**, so it follows the Campaign dropdown and the Region chips exactly as the
+  account totals above it do (a company can appear in two campaigns and both markets).
+- **Case folded in BOTH places** — the view groups per market, the frontend sums across markets — with
+  a deterministic `MIN()` display spelling. Never `ANY_VALUE`: a client-facing label that flickers run
+  to run is the cloudflare pacing-tier lesson.
+- **342 distinct spellings across ~997 titled leads, so most titles are unique to one lead.** A count
+  is printed ONLY where a title genuinely repeats at that account (134 of 827 company×title pairs do,
+  max 4). Two titles are shown per the client's ask; the rest are summarised as "+ N other titles"
+  rather than silently truncated.
+- **Coverage is stated, never faked.** The card hint counts the shortfall across the accounts ON
+  SCREEN ("*N* of these *M* leads left the title field blank, so they are absent rather than
+  bucketed") - and the clause appears ONLY where there is a shortfall, which under the all-up scope's
+  top 18 accounts there currently is not. A blank title is **never** coalesced to an invented
+  `Unknown` that would rank against real ones; an account with no titled leads reads "No job title
+  recorded".
+- **`titlesLoaded` guard.** The dashboard and the export job are separate services, so between a dash
+  redeploy and the job's next run `cs_account_titles` legitimately does not exist. In that state the
+  card renders exactly as it did before this change — saying "all 1,101 leads left the title field
+  blank" would be a confident false statement about the client's CRM hygiene.
+- **PII.** Job title + company is one step closer to a named individual than `COMPANY_NAME` alone; at
+  a small account "Chief Operating Officer" + the company name is one person. It is the client's own
+  CRM field about their own leads, behind the same password gate and private bucket, so WHO can see it
+  does not change — but keep it aggregated to a count per company, and keep name / email / phone
+  dropped in `sql/17`. The reasoning is written into that view.
+- **Needs `bq` access to add more:** `INDUSTRY` / `ASSET` / `STATE` / `REVENUE` are empty for SE and
+  are still deliberately not surfaced.
+
+### 3. The Status column is off the programme × market table
+> *"Under the section 'Programme × market breakdown', the 'status' column doesn't make sense to me.
+> What is this supposed to convey? I think we can remove it."*
+
+Right again: every SE lead is CRM-raw status `New`, so the cell only ever printed `New <n>` — the
+Leads column immediately to its left, restated. **UI-only.** The status counts still travel
+`stg_salesforce` → `cs_by_programme` → the payload → both CSV exports → the AI-deck payload
+(`report.py`'s guardrail already forbids the model judging a quality mix from them), so the column
+returns with one `<th>` and one `<td>` the day the CRM starts grading leads. The empty-row `colspan`
+must track the column count — it is 5 now.
+
+### 4. LinkedIn lead-gen-form funnel on the Paid Media tab
+> *"For all LinkedIn campaigns with LGFs, can we include a view on pipeline progression, same as the
+> view we have on Cloudflare (Impressions > clicks > LGF fills > LGF completions)?"*
+
+`renderLiFunnel()` / `liFunnelAgg()`, a port of cloudflare's `#liFunnel` card, plus a **Funnel by
+program** table. **FRONTEND-ONLY** — `lead_form_opens` and `leads` have travelled `stg_linkedin` →
+`04_stg_ad_delivery` → `20_pm_delivery` → the payload since 2026-08-06.
+
+**SCOPE — the one thing to get right here, and the first cut got it wrong.** The funnel covers only
+the programs that actually RAN a lead form. Three of the nine (`global_rebrand`, `mcset`, `microgrid`)
+run LinkedIn AWARENESS with no form at all: 469,206 impressions, 785 clicks, A$13,390. Including them
+put 57% more impressions at the top of a lead-form funnel than ever carried a form, understated
+click→open (17.2% instead of the true 23.8%), and — the tell — left a **Total row of 1,286,864 above
+five rows summing to 817,658**. A total that does not sum its own rows is not a rounding quibble. The
+funnel headline, every stage rate, the cost figures and the table are now all summed from the same
+surviving programs, and the note names what was excluded and where it still lives (the KPI band and
+the Platform comparison table).
+
+**Grain limit, stated on screen:** `pm_delivery` is aggregated to program × platform × day × market
+and carries no campaign column (deliberately — see `sql/20`), so program is the finest scope
+available. A program running both an awareness line and a lead-form line contributes all of its
+LinkedIn delivery. Going finer needs a NEW campaign-grain view, not an un-grouping of `sql/20`.
+
+Other rules it encodes:
+- **LinkedIn only.** It filters `pmRows()` on `platform==='linkedin'`; the tab's blended `pmTotals()`
+  would have shown Trade Desk impressions feeding a LinkedIn lead form.
+- **It hides itself where no form ran.** A four-stage funnel of zeros reads as a campaign that failed
+  rather than an awareness buy with no form on it. Untick LinkedIn on the Platform chips and the
+  section goes too — correct, and attributable to a visible control.
+- **The per-program table appears only at 2+ programs**, where the blended funnel is a number nobody
+  can break down. For a single program it would restate the funnel.
+- **NO green/red verdict colour on the stage rates.** 0.25% impression→click is normal on a social
+  awareness buy and terrible on search; there is no threshold here we could defend, and a coloured
+  number makes a judgement while making none.
+- **Rates can legitimately exceed 100%.** LinkedIn dates a form open and its submission
+  independently, so a narrow date range can hold one without the other. The card detects the
+  inversion and explains it rather than leaving a 732% rate looking broken.
+- **Labels say "opens", not the client's "fills".** `oneClickLeadFormOpens` is the form being OPENED;
+  renaming it a "fill" would overstate intent. The note spells the mapping out in the client's own
+  vocabulary.
+- Live figures (whole flight, all regions, 2026-09-01): **817,658 imps → 2,062 clicks (0.252%) → 491
+  form opens (23.8%) → 50 submitted leads (10.2%)**, across `ecoconsult` (25),
+  `airset` (14), `nel` (8), `heavy` (2), `water_env` (1). Every figure reconciles to
+  `pm_delivery` with zero delta.
+
+### COST PER LEAD IS WITHHELD ON THE PAID LANE (2026-09-08, client request)
+> *"Please remove the cost per lead value under the lead form leads number for every campaign"*
+
+The figure appeared in **three** places, all under a lead-form leads number on the Paid Media tab, and
+all three went together — removing only the one the client pointed at would have left the same metric
+on the same tab, two scrolls down:
+1. the **`Lead-form leads` KPI tile** sub-line (`pm_leads_sub`) — now `"N form opens"` alone;
+2. the funnel's **`Submitted leads`** step sub-line — now no sub-line at all;
+3. the *Funnel by program* table's **`Cost / lead`** column — removed (header + `cells()`).
+
+**Which is what surfaced a real defect: the tab was printing TWO DIFFERENT cost-per-lead figures for
+the same 53 leads** — A$1,175.63 on the tile against A$896 in the funnel below it. Both were
+"correct" and neither was wrong: the tile divides ALL LinkedIn spend (awareness programs included),
+the funnel divides only the lead-form programs' spend, and nothing on screen said so. **If cost per
+lead is ever restored, restore ONE definition and use it in both places** — and never `t.spend`,
+which is all four platforms (that bug, blended Trade Desk money into a LinkedIn-only metric, was
+fixed 2026-09-01 and read A$2,085 against a true A$1,129).
+
+**Cost per CLICK and per form OPEN stay** — different metrics, not part of the request. **The CS
+`Plan CPL`** on the Content Syndication tab is a separate plan-side figure (committed ÷ lead target)
+and is untouched.
+
+**It reaches the AI deck too, and deleting the key was NOT sufficient there.** `paid.totals.
+cost_per_lead_form_lead` is gone, but `spend` and `lead_form_leads` both have to stay — they are
+headline figures in their own right — so the model can still divide them. The prohibition is
+therefore stated three times: in the payload's `paid.note`, and in `report.py`'s `business_model`
+(which used to tell it to *"judge paid on delivery and reach and its cost per lead"*) and
+`guardrails`. The CSV exports were already clean — they carry `pm_delivery` rows, no computed CPL.
+
+Reversing it is a frontend edit in `dash/dashboard.html` plus the two `report.py` strings; no `sql/`,
+`job/` or payload change was made, so the underlying numbers are all still there.
+
+### Found while verifying — three defects that were already live
+1. **The audience-intelligence block could disappear for the rest of a session.** `renderAudience()`
+   drew its empty state with `el('scFunc').parentElement.innerHTML = '<div>No leads…</div>'`, which
+   DELETES the canvas; its own `if(!el('scFunc')) return;` guard then short-circuited the whole
+   function on every later pass. **Clearing the Region chips and ticking them straight back was enough
+   to trigger it** — job function, seniority, top accounts and the coverage note all stayed blank,
+   silently, until a reload. Both canvases now toggle against a sibling `.chart-empty` div. This is now
+   a repo-wide rule in `md/AGENTS.md`; **`client_schneidersecpwr` still carries the same pattern in
+   four places on its Creative tab** and should be fixed the next time that tab is touched.
+2. **The Lead-form-leads KPI divided BLENDED spend by LinkedIn-only leads** — Trade Desk money charged
+   to a metric only LinkedIn can produce: A$2,085 per lead against a true A$1,129 under the all-up
+   scope, and the error grew with every non-LinkedIn dollar in the filter. It now re-sums LinkedIn's
+   rows and says `(LinkedIn spend)` on the tile.
+3. **The topbar was the whole page's 832px min-width floor.** `.topbar .inner` is a non-wrapping flex
+   row (agency + logo + region tag + Campaign dropdown | Live pill + period). Below 832px it simply
+   overflowed and the DOCUMENT gained a horizontal scrollbar **on every tab** — 32px at 800, 132px at
+   700 — which then held every card at 832px regardless of viewport. One `@media (max-width:900px)`
+   block lets the row wrap; the page-level scroll is gone at every width down to 700. Also clamped the
+   `.goal-marker` pace label, which overhung its bar by ~24px whenever the marker sat at 100% (a
+   finished flight) and pushed the card, the tab pane and — below 760px — the page.
+
+### Verification (headless Edge over CDP, real `schneider.json` from GCS)
+Three responsive sweeps plus a grossing pass and a data-edge pass. Every assertion is read off the
+RENDERED DOM, never from JS state.
+
+**1. Scope sweep - 95 cases.** Widths **1500 / 1280 / 1100 / 1000 / 900 / 800 / 700** x the two
+changed tabs x all 10 Campaign scopes, plus region/platform edge cases. Run BOTH with fresh page loads
+and with state carried between cases - **the sticky run is what surfaced the audience-block bug**,
+because it only shows on the render AFTER an empty one.
+
+**2. CLIENT VIEW - 35 cases.** Every tab (Paid / CS / Compare / Other / Website) x every width, with
+exactly what a client session receives: no `BB_INTERNAL`, no staff dock, 4 tabs in the rail, and an
+empty `BB_SPEND_MULT` (schneider has no `spend_multipliers` in the registry today, so that is
+production-exact).
+
+**3. ADMIN VIEW - 35 cases.** The same grid with what the proxy injects for a staff session:
+`window.BB_INTERNAL`, the cloned **"Internal Notes"** 5th tab (re-appended by a MutationObserver
+because `renderControls()` rebuilds this dashboard's rail on every render - schneider is named in the
+platform's own comment for exactly that reason) and the fixed bottom-left dock. **The 5th tab does not
+overflow the rail or the control bar at any width.** The dock is `position:fixed`, so it floats over
+whatever is scrolled beneath it on every dashboard in the estate; probed against BOTH builds it is
+**identical before and after**, and `dockTouchesArc` is false at every width - it sits over the market
+canvas's transparent left margin, never on the ring. `.container`'s 60px bottom padding keeps it clear
+of the last card at full scroll.
+
+Asserted across all three: **zero JS errors and zero uncaught exceptions**, `docOverflow == 0` in every
+case (**11 cases failed before this change**), zero tab-rail and control-bar overflow, zero text
+overflow, zero single-row grid-height mismatch, uniform account-block heights, `cssRules` constant (a
+malformed CSS rule is silently DROPPED, so the count is the honest signal the stylesheet parsed), the
+funnel Total row summing its own tbody rows, and the funnel headline equalling that Total. The only
+residual overflow anywhere is `goal-marker +19` on the CS tab - the pace label is wider than the 2px
+marker it is centred on, which is inherent to the technique; after the clamp it no longer propagates to
+the card, the tab pane or the document.
+
+**4. Spend grossing.** Because schneider has no registry multiplier, every other run exercised the
+shim as a no-op. Re-run with a synthetic `{linkedin:2, ttd:1.5}`: LinkedIn spend A$56,445 -> A$112,890
+(ratio exactly 2.0), Trade Desk A$47,825 -> A$71,737 (1.5), and every NEW money surface followed -
+funnel media spend, cost per click / per open / per lead, the table's Cost/lead, the excluded-delivery
+figure in the scope note, and the corrected KPI tile (A$1,128.90 -> A$2,257.80). **Counts and rates did
+not move** (817,658 / 2,062 / 491 / 50 and 0.252% / 23.8% / 10.2%), which is the actual contract - see
+the repo-wide spend-multiplier rule in `md/AGENTS.md`.
+
+**5. Six synthetic data edges** that real data cannot reach: a zero-lead region, an all-zero scope, a
+funnel inversion (a 732% rate, explained rather than left looking broken), a zero-click program, an
+account with no titles, and a payload with no `cs_account_titles` key at all.
+
+**Two harness traps, both of which produced a false PASS before being caught. Worth knowing because
+either one makes a whole sweep worthless while looking green:**
+- Screenshots catch charts **mid-entry-animation** - a doughnut part-way through its entry looks like a
+  broken 40px sliver while `outerRadius` reports a correct 119, and a KPI tile mid-count-up reads lower
+  than its own table. Assert on the DOM; only capture with `Chart.defaults.animation=false`.
+- **`[].slice.call(new Set(x))` returns `[]`** - a Set has no `length`, so `Array.prototype.slice`
+  finds nothing to copy. That was the dedupe behind the clipped-element assertion, so it reported
+  "NONE" in every case regardless of what the page actually did. Use `Array.from`.
+
+### Deploy order (all three stages changed)
+```powershell
+# 1. views (17 gained job_title, 22 is new) - load seeds first, apply, then force the job
+.\clients\client_schneider\sql\deploy_views_schneider.ps1
+# 2. the job (job/main.py reads cs_account_titles) - build + deploy + run
+.\clients\client_schneider\job\deploy_job_schneider.ps1
+# 3. the dashboard
+.\clients\client_schneider\dash\deploy_dash_schneider.ps1
+```
+**Order matters:** the dashboard degrades gracefully if it is deployed first (the `titlesLoaded` guard
+above), but the job must run before the titles appear. `/ship` resolves all three from the changed
+paths.
+
+>>>>>>> Stashed changes
 ## Platform (channel) chips — only engines this program actually ran
 **2026-08-15 (client):** the Platform chip group used to render engines that delivered for OTHER
 programs as a **dim** chip on the selected one. That is gone - `renderControls()` now filters the

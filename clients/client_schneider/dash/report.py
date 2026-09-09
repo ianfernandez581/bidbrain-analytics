@@ -32,11 +32,29 @@ CONFIG = {
     "business_model": (
         "Schneider Electric's Pacific (ANZ) B2B demand-generation account, run by Transmission, scoped one "
         "lead-gen PROGRAM at a time (the brief tells you which). TWO DISTINCT ENGINES — keep them separate:\n"
+<<<<<<< Updated upstream
         "  1) PAID MEDIA = delivery across THREE platforms — DV360, The Trade Desk (both programmatic DISPLAY) "
         "and LinkedIn. Measured on spend, impressions, clicks (and derived CTR/CPM/CPC). There is NO per-strategy "
         "split and NO CTR/CPM/CPC benchmark seeded — so judge paid on DELIVERY and reach and its cost per lead, "
         "NOT against a benchmark. Display + paid social are UPPER/MID-FUNNEL brand-and-reach activity; clicks are a "
         "weak proxy for intent and are NOT the goal. Never treat a display click as a lead.\n"
+=======
+        "  1) PAID MEDIA = delivery across FOUR platforms — DV360 and The Trade Desk (both programmatic "
+        "DISPLAY), LinkedIn (paid social) and GOOGLE SEARCH (SEM). Measured on spend, impressions, clicks (and "
+        "derived CTR/CPM/CPC). There is NO per-strategy split and NO CTR/CPM/CPC benchmark seeded — so judge paid "
+        "on DELIVERY and reach, NOT against a benchmark. Display + paid social are "
+        "UPPER/MID-FUNNEL brand-and-reach activity; clicks are a weak proxy for intent and are NOT the goal. "
+        "Never treat a display click as a lead.\n"
+        "     GOOGLE SEARCH IS DIFFERENT AND MUST NOT BE RANKED AGAINST THE OTHER THREE ON CTR OR CPM. It is "
+        "bought on intent, so its CTR runs an order of magnitude higher and its CPM an order of magnitude higher "
+        "too — that is the shape of the buy, not a performance verdict. Use CPC if you need one number across "
+        "engines. Within Search, BRAND and NON-BRAND are separate lanes bought for different jobs (brand defends "
+        "existing demand cheaply at very high CTR; non-brand buys new demand at roughly 10x the CPC); if you quote "
+        "a single blended Search CTR or CPC, say it is a blend. SEARCH HAS NO CONVERSION METRIC HERE — the "
+        "account's conversion figure is unreconciled and possibly inflated ~100x, so it is deliberately withheld "
+        "from your data. You must not state, estimate or imply Search conversions, conversion rate, cost per "
+        "acquisition, ROAS or leads. Search spend bills in USD and is converted to AUD at the dashboard rate.\n"
+>>>>>>> Stashed changes
         "  2) CONTENT SYNDICATION (CS) = the actual LEAD ENGINE: Salesforce leads from gated content, measured "
         "against a total MQL/HQL lead target and a time-to-date (TTD) pro-rata target (are leads pacing ahead of, "
         "or behind, where elapsed time says they should be?), with a plan cost-per-lead by media-plan line. Leads "
@@ -49,6 +67,15 @@ CONFIG = {
     ),
     # Extra client-specific honesty rules woven into both stages.
     "guardrails": (
+        "COST PER LEAD-FORM LEAD IS WITHHELD AT THE CLIENT'S REQUEST (2026-09-08) and no longer appears "
+        "anywhere on the dashboard. paid.totals no longer carries cost_per_lead_form_lead — but it still "
+        "carries spend and lead_form_leads, because both are headline figures in their own right, so you "
+        "could derive the cost yourself. Do not. Report lead_form_leads and lead_form_opens as VOLUME "
+        "only, and never state or imply a cost per lead, per form submission or per enquiry for paid "
+        "media — not in a KPI, a headline, an insight or a recommendation. This is a reporting "
+        "instruction from the client, NOT a data-quality caveat, so do not explain its absence on a "
+        "slide. The media-plan cost-per-lead in cs.* is a SEPARATE, plan-side figure for content "
+        "syndication and is unaffected — keep using it. "
         "CS LEAD QUALITY IS CRM-RAW, NOT GRADED. The lead-status buckets (new / working / qualified / disqualified) "
         "are raw Salesforce CRM lifecycle stages — in practice almost every lead sits in 'New' (un-triaged). Do NOT "
         "invent, imply, or judge an acceptance/rejection/qualification RATE from these — there is no graded "
