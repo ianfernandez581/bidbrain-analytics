@@ -32,7 +32,7 @@ same Flask password gate MongoDB uses.
 | [`job/`](job/README.md) | **Export Job** (`cloudflare-export`): reads the BigQuery views → writes `cloudflare.json`. **No Snowflake** (BQ-only, like MongoDB). [Guide →](job/README.md) |
 | [`dash/`](dash/README.md) | **Web App** (`cloudflare-dash`): password gate + serves `dashboard.html` + proxies `/data.json`. Also carries its **own Feedback pill for DIRECT logins** (the front-door injects one only for sessions that come through it, and Cloudflare's people mostly hit the `…run.app` URL) — needs the one-time `dash/enable_feedback_cloudflare.ps1`. [Guide →](dash/README.md) |
 | [`sql/`](sql/README.md) | The BigQuery **model** views — staging (`stg_*`) → `paid_media_model`/`pacing_model`/etc. — over `raw_snowflake.*` + the `seed_*` static tables. [Guide →](sql/README.md) |
-| [`sql/20_cs_enriched_leads.sql`](sql/20_cs_enriched_leads.sql) | **Weekly Enriched Leads** (2026-09-07) — `cs_enriched_leads` (per-lead detail) + `cs_enriched_weekly` (week x campaign). Normalises the enriched-phone column's TWO sentinels (`'-'` and the literal `'NA'`) to NULL in ONE place. **LIVE since 2026-09-07** (the earlier "local only" note was stale). [Detail ↓](#weekly-enriched-leads-2026-09-07-client-request) |
+| [`sql/20_cs_enriched_leads.sql`](sql/20_cs_enriched_leads.sql) | **Weekly Enriched Leads** (2026-09-07) — `cs_enriched_leads` (per-lead detail) + `cs_enriched_daily` / `cs_enriched_weekly` (day / week x theatre x **market** x campaign). Normalises the enriched-phone column's TWO sentinels (`'-'` and the literal `'NA'`) to NULL in ONE place. Carries **`MARKET`** since 2026-09-10 — the LEAD's `COUNTRY_NAME` folded on `sql/10`'s coarse-7 lists, APAC only (EMEA is NULL, never `OTHER`). **LIVE since 2026-09-07** (the earlier "local only" note was stale). [Detail ↓](#weekly-enriched-leads-2026-09-07-client-request) |
 | [`create_views.py`](create_views.py) | Applies every `sql/*.sql` view (runner; `NN_` prefix = dependency order). |
 | `data/` | Local CSV snapshots of the three STATIC Snowflake tables (pacing targets, account tiers, LINE JP). **Gitignored** (`clients/*/data/`) — `TIERS` is sensitive client ABM data — so it's NOT in the repo; regenerate with `pull_static.py`. The live seeds persist in BigQuery (`seed_*`). |
 | [`pull_static.py`](pull_static.py) | **One-time** Snowflake → `data/*.csv` pull (manual; needs the Snowflake key; re-run on a fresh checkout or when a static upload changes). **⚠️ The Q2 pacing targets in `seed_real_targets` were rebalanced on 2026-06-19 directly in BQ + `data/real_targets.csv` (grand total unchanged at 3216; regional split updated to the client's new Phase×Region table — see git log). The Snowflake `CLOUDFLARE_SANDBOX.CS_REPORTING.REAL_TARGETS` source was NOT updated, so re-running `pull_static.py` will REVERT this. Update Snowflake first, or skip the real_targets pull.** |
@@ -64,6 +64,7 @@ running revision, not the note, before you repeat a deploy status to a client.
       cs_enriched_daily                   env["cs_enriched"]          CSE / renderEnriched()
         DAY                                 daily[].day                 range filter + isoMonday()
         THEATRE                             daily[].theatre             lane scope (APJ / EMEA)
+        MARKET                              daily[].market              #enrMarketChips + table
         CAMPAIGN_ID                         daily[].campaign_id         #enrCampaign scope
         CAMPAIGN                            daily[].campaign            dropdown label
         LEAD_COUNT                          daily[].lead_count          Leads column
@@ -73,6 +74,7 @@ running revision, not the note, before you repeat a deploy status to a client.
       cs_enriched_leads (detail)          detail[]                    #enrDetailTbl (STAFF ONLY)
         DAY / CAMPAIGN / PHONE              day / campaign / phone
         THEATRE                             theatre
+        MARKET                              market                      chips scope the drill-down
         ENRICHED_PHONE                      enriched_phone
 
 ### The trap: the column has TWO empty sentinels, and neither is NULL
@@ -187,7 +189,7 @@ Nothing to remember later, and no 0% claim in the meantime.
 range that cuts mid-week **cannot** be honoured from week buckets - the same reason
 `sql/18_cs_compare_v2` is day grain. `cs_enriched_daily` is what the job sends; the dashboard
 buckets days into ISO weeks itself, inside the selected range, via `isoMonday()`. That bucketing is
-**asserted against `cs_enriched_weekly`** (29 theatre-week buckets, exact match), and the job WARNs
+**asserted against `cs_enriched_weekly`** (theatre x market x week buckets, exact match), and the job WARNs
 if the two views ever disagree - they are two reads of one lead set, so a mismatch means one is
 wrong. `isoMonday()` goes through `Date.UTC`, never the local `Date` constructor: a `YYYY-MM-DD`
 parsed locally can shift a Sunday into the previous week in Brisbane.
@@ -262,6 +264,90 @@ be a second, disagreeing definition. If the donuts specifically must follow a ra
 added to `sql/19_cs_composition_v2` -> job -> dash, the paced panels left whole-flight and SAID so,
 and the job's donuts-tie-to-pacing assertion made range-aware.
 
+### Market breakdown (2026-09-10, Jade's request)
+
+*"For the enrichment % on the dashboard, can you do a market breakdown?"* - an **Enrichment by
+market** card above the weekly table (leads / enriched / rate per market, each rate re-derived
+from that market's own two counts), whose chips **filter the WHOLE tab** - KPI strip, weekly table
+AND the staff-only detail list. One selection, so nothing on screen can be scoped differently from
+the figure above it. The card hides itself when the scope resolves a single market: a one-row
+breakdown of a KPI already on screen, under a chip row you cannot un-tick, reads as broken.
+
+**MARKET is the LEAD's own country.** Resolved in `sql/20` from `COUNTRY_NAME` using
+`sql/10_salesforce_leads_live`'s coarse-7 country lists character-for-character (ANZ / ASEAN /
+SAARC / GCR / JP / KR), so it means exactly what the Content Syndication tab's market chips
+already mean. Two definitions of one dimension on one dashboard is how two panels start
+disagreeing.
+
+**It is deliberately NOT `sql/16_stg_cs_leads_v2`'s MARKET**, for two reasons that are easy to miss:
+
+1. `sql/16`'s `SEG_REGION` is `SPLIT(CAMPAIGN,'_')[SAFE_OFFSET(2)]` - parsed from the CAMPAIGN
+   NAME, so it is a property of the campaign, not the lead. Across a five-campaign scope that is
+   close to a relabelling of the campaign picker already on this tab.
+2. Its base CTE is scoped `STARTS_WITH(CAMPAIGN,'2026_Q3')` and this lane runs from **2026-03-27**,
+   so it could resolve no market at all for the pre-Q3 half of these leads.
+
+**RIG IS carried, evaluated BEFORE geography, exactly as `sql/10` does it.** It was left out of the
+first cut on the reasoning that RIG is Q3-hidden estate-wide (2026-08-05) and this tab opens on the
+current quarter - but that made this column `sql/10`'s definition **minus an arm**, so at any range
+reaching before Q3 one lead would read `RIG` on the CS tab and a geographic market here, on the same
+dashboard. Measured 2026-09-10: **0 RIG-asset leads in scope for Q3, 64 pre-Q3** (all unenriched).
+Carrying the arm costs nothing in the default view - no rows means no chip and no table row, so it
+self-hides - and it removes the divergence outright rather than documenting it.
+
+*Transferable:* "same definition as X, minus the arm that does not apply today" is not the same
+definition. The arm that does not apply today is the one that silently disagrees the day someone
+widens a date range.
+
+**KR stays campaign-scoped** off the same `seed_kr_campaign_ids` that `sql/10` reads - never
+re-typed. All five in-scope campaigns are in that seed today, so it is currently a **no-op**; it is
+there so the two definitions cannot drift when the enrichment scope grows.
+
+**`OTHER` is rendered, never dropped** (pinned last in the fixed chip and table order). The market
+rows must sum to the `Leads in scope` KPI, or the two disagree the day a country outside the lists
+arrives. It is empty today, which is exactly why it would have been easy to leave out.
+
+**EMEA resolves to NULL, not `OTHER`, and the theatre gate is load-bearing.** `sql/10`'s country
+lists are APAC-only, so without `WHEN s.THEATRE <> 'APAC' THEN NULL` all **2,634** EMEA leads land
+in `OTHER` - which is what the first run did, caught by the job's own new guard. `OTHER` asserts
+*"we looked and this country is outside the plan"*; NULL says *"no resolver for this theatre yet"*,
+and only the second is true. The dashboard hides the whole market card when a theatre resolves no
+markets, so the EMEA lane cannot render a breakdown of one meaningless bucket.
+
+**Giving EMEA real markets is NOT a country-list extension.** Every other EMEA panel on this
+dashboard splits by the six campaign-name regions (UKI/DACH/SEUR/NEUR/CEERI/MEA) that `sql/16`
+resolves, because that is the grain the EMEA targets are bought at; a `COUNTRY_NAME` -> EMEA-region
+map here would be a second, disagreeing definition of a dimension the campaign name already
+carries. Not blocking - the EMEA enriched tab is hidden today (zero enriched across 2,634 leads) -
+so do it properly the day that tab lights up.
+
+**The job gained a third guard** (alongside `0 weekly rows` and summary-vs-drill-down): every daily
+row must carry a market, the daily rows must equal `cs_enriched_weekly` PER MARKET (an independent read - summing the daily rows twice and comparing them to each other is tautological and cannot fail), and an `OTHER` row is
+WARNed **by name** - a country outside `sql/10`'s lists has to be added in `sql/10` AND `sql/20`
+together, or the two drift the moment one is fixed. A NULL market is expected on EMEA and only
+there; anywhere else it means `sql/20`'s `CASE` has a gap.
+
+### Verified 2026-09-10 (market breakdown)
+
+Q3 to date, APJ. Rates are per market, from that market's own two counts:
+
+| Market | Leads | Enriched | Rate |
+|---|---:|---:|---:|
+| ANZ | 388 | 152 | 39.2% |
+| ASEAN | 220 | 110 | 50.0% |
+| GCR | 150 | 57 | 38.0% |
+| SAARC | 124 | 59 | 47.6% |
+| JP | 104 | 28 | 26.9% |
+| KR | 44 | 14 | 31.8% |
+| **Total** | **1,030** | **420** | **40.8%** |
+
+- The 1,030 ties **exactly** to the tab's `Leads in scope` KPI. **No `OTHER` row and no unmapped
+  country** - every in-scope APJ lead resolves.
+- All time APJ is **2,063 leads / 420 enriched / 20.4%**; the pre-Q3 half is **1,033 leads / 0
+  enriched** (enrichment began 14 Jul), which is the whole of the difference.
+- EMEA resolves **no** markets (2,634 leads, all NULL), the expected state - the job prints the
+  informational line, not a WARNING, and the card does not render.
+
 ### PII - the per-lead table is STAFF-ONLY (2026-09-08, live on `cloudflare-dash-00179-cwt`)
 
 The detail table renders **`PHONE` and the enriched phone per lead** - a step beyond anything else
@@ -325,7 +411,7 @@ the metric the client actually asked for.
 ### To ship it
 
 1. `python clients/client_cloudflare/create_views.py` (or apply `sql/20_cs_enriched_leads.sql`) -
-   already applied in BigQuery as of 2026-09-07.
+   re-apply it after the 2026-09-10 `MARKET` column; the three views changed grain.
 2. `clients/client_cloudflare/job/deploy_job_cloudflare.ps1` - the payload gained a key.
 3. `clients/client_cloudflare/dash/deploy_dash_cloudflare.ps1`.
 4. Force one job run, since a view-only change does not trip the freshness gate:

@@ -239,9 +239,9 @@ def main():
     # mid-week CANNOT be honoured from week buckets - the dashboard buckets days into ISO weeks
     # itself, inside the selected range. `enw` is still read, but ONLY as the reconciliation
     # guard below: two views over one lead set must agree, or the panel's own totals are wrong.
-    end_ = rows(bq, f"SELECT * FROM {t('cs_enriched_daily')} ORDER BY THEATRE, DAY, CAMPAIGN_ID")
-    enw = rows(bq, f"SELECT * FROM {t('cs_enriched_weekly')} ORDER BY THEATRE, WEEK_START, CAMPAIGN_ID")
-    end = rows(bq, f"""SELECT DAY, CAMPAIGN, CAMPAIGN_ID, THEATRE, PHONE, ENRICHED_PHONE
+    end_ = rows(bq, f"SELECT * FROM {t('cs_enriched_daily')} ORDER BY THEATRE, DAY, MARKET, CAMPAIGN_ID")
+    enw = rows(bq, f"SELECT * FROM {t('cs_enriched_weekly')} ORDER BY THEATRE, WEEK_START, MARKET, CAMPAIGN_ID")
+    end = rows(bq, f"""SELECT DAY, CAMPAIGN, CAMPAIGN_ID, THEATRE, MARKET, PHONE, ENRICHED_PHONE
                         FROM {t('cs_enriched_leads')}
                         WHERE ENRICHED_PHONE IS NOT NULL
                         ORDER BY DAY DESC""")
@@ -718,6 +718,11 @@ def main():
         "daily": [{
             "day":            ymd(r.get("DAY")),
             "theatre":        r.get("THEATRE"),
+            # MARKET (2026-09-10, Jade): the LEAD's country folded to the coarse 7 that the CS
+            # tab's chips already use. Resolved in sql/20 off COUNTRY_NAME, never re-derived
+            # here. 'OTHER' is a real value and must be rendered, or the market rows stop
+            # summing to the headline the day an unmapped country arrives.
+            "market":         r.get("MARKET"),
             "campaign_id":    r.get("CAMPAIGN_ID"),
             "campaign":       r.get("CAMPAIGN"),
             "lead_count":     int(jval(r.get("LEAD_COUNT")) or 0),
@@ -734,6 +739,9 @@ def main():
             "theatre":        r.get("THEATRE"),
             "campaign":       r.get("CAMPAIGN"),
             "campaign_id":    r.get("CAMPAIGN_ID"),
+            # Carried so the market chips scope the drill-down too. Without it the detail list
+            # would keep listing every market while the KPIs above it are scoped to one.
+            "market":         r.get("MARKET"),
             "phone":          r.get("PHONE"),
             "enriched_phone": r.get("ENRICHED_PHONE"),
         } for r in end],
@@ -769,6 +777,41 @@ def main():
             if _dt.get(th, 0) != _d[th][1]:
                 print(f"WARNING cs_enriched {th}: enriched={_d[th][1]} but detail rows="
                       f"{_dt.get(th, 0)} - summary and drill-down disagree.")
+        # Guard 3 (2026-09-10, with the market breakdown): every daily row must carry a
+        # market, the per-market counts must sum to the theatre total, and an 'OTHER' row means
+        # a country the sql/10 lists do not know. OTHER is rendered, not dropped - but it is a
+        # signal that the country lists need a line adding, so name it here.
+        # The daily-vs-weekly assertion has to be against the WEEKLY VIEW, per market. Summing
+        # the daily rows twice and comparing them to each other is tautological - it cannot
+        # fail, and a guard that cannot fail is worse than none because it reads as coverage.
+        _wm = {}
+        for r in enw:
+            k = (r.get("THEATRE"), r.get("MARKET") or "(null)")
+            _wm[k] = _wm.get(k, 0) + int(jval(r.get("LEAD_COUNT")) or 0)
+        for th in sorted(_d):
+            _mk = {}
+            for r in cs_enriched_payload["daily"]:
+                if r["theatre"] != th:
+                    continue
+                _mk[r["market"] or "(null)"] = _mk.get(r["market"] or "(null)", 0) + r["lead_count"]
+            for m in sorted(set(_mk) | {k[1] for k in _wm if k[0] == th}):
+                if _mk.get(m, 0) != _wm.get((th, m), 0):
+                    print(f"WARNING cs_enriched {th}/{m}: daily {_mk.get(m, 0)} != weekly "
+                          f"{_wm.get((th, m), 0)} - the two views disagree on this market.")
+            # A NULL market means sql/20 has no resolver for that THEATRE, which is true of
+            # EMEA today by design (its markets are the six campaign-name regions, not
+            # countries - see sql/20's header). Expected there, loud anywhere else.
+            if _mk.get("(null)"):
+                if th == "EMEA" and len(_mk) == 1:
+                    print(f"  cs_enriched {th}: no market breakdown (EMEA markets are "
+                          "campaign-name regions; wire them when the EMEA tab lights up)")
+                else:
+                    print(f"WARNING cs_enriched {th}: {_mk['(null)']} rows carry NO market "
+                          "but the theatre resolves others - sql/20's CASE has a gap.")
+            if _mk.get("OTHER"):
+                print(f"WARNING cs_enriched {th}: {_mk['OTHER']} leads in market OTHER - a "
+                      "country outside sql/10's lists. Add it there AND in sql/20 together.")
+
         # Per-theatre audit line every run. EMEA is expected to read 0 enriched today (open
         # question with Transmission: enrichment may not cover that theatre at all), so this is
         # the cheap signal for the day it starts working - or the day APJ silently stops.

@@ -852,7 +852,7 @@
     box-shadow:var(--shadow-card),inset 0 1px 0 rgba(255,255,255,.055)}
   /* resting state only - the :hover rule further up supplies the lift shadow, and
      wins on specificity regardless of source order */
-  .card .kpi,.card .cspd-reason{box-shadow:none}
+  .card .kpi,.card .cspd-reason,.card .filter-row{box-shadow:none}
   /* Every figure that counts up is tabular, or the digits change width mid-animation and the
      whole row twitches. Applies to the resting state too, so columns of numbers line up. */
   .kpi .value,.cs-snap .stat .v,.qoq-stats .stat .v,.compare-kpi .v,
@@ -1381,6 +1381,34 @@
       </div>
 
       <div class="kpis" id="enrKpis" style="grid-template-columns:repeat(4,1fr)"></div>
+
+      <!-- MARKET BREAKDOWN (2026-09-10, client request via Jade). Markets are the LEAD's own
+           country folded to the coarse 7 the Content Syndication chips already use, resolved
+           in sql/20 off COUNTRY_NAME - NOT sql/16's campaign-name market, which on a
+           5-campaign scope would just restate the campaign picker. Chips FILTER the whole tab
+           (KPIs, weekly table and the staff-only detail list), so nothing on screen can be
+           scoped differently from the figure above it. -->
+      <div class="card" id="enrMarketCard" style="margin-top:var(--gap-lg)">
+        <div class="card-head">
+          <div><h3>Enrichment by market</h3>
+          <div class="hint">Leads and enrichment rate per market, over the selected date range
+            and campaign. The rate is re-derived per market from its own two counts, never
+            averaged. Click a market to scope the whole tab to it.</div></div>
+        </div>
+        <div class="filter-row" id="enrMarketChipRow" style="margin-bottom:var(--gap)">
+          <span class="lbl">Markets</span>
+          <div class="chips" id="enrMarketChips"></div>
+        </div>
+        <div style="overflow:auto">
+          <table class="qoq-table bb-sortable" id="enrMarketTbl">
+            <thead><tr>
+              <th>Market</th><th class="num">Leads</th><th class="num">Enriched</th>
+              <th class="num">Enrichment rate</th>
+            </tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
 
       <div class="card" style="margin-top:var(--gap-lg)">
         <div class="card-head">
@@ -8290,9 +8318,13 @@ function hasEnrichedData(){
 // Paid Media chips do not reach it). Empty string = every campaign in scope.
 let enrCampaignSel = '';
 
-// Rows for the current selection. ONE predicate behind the KPIs, the weekly table and the
-// detail list, so the three can never describe different scopes. Three things scope it:
-// the LANE's theatre, the tab's own campaign picker, and the shared DATE RANGE.
+// Rows for the current selection. TWO predicates since the market breakdown landed
+// (2026-09-10), and the split is deliberate: enrScopeRows() is theatre + campaign + date range
+// and feeds the MARKET card, which has to keep showing - and offering - a market the current
+// selection excludes; enrDailyRows()/enrDetailRows() add the market filter on top, so the KPIs,
+// the weekly table and the detail list still can never describe different scopes from each
+// other. FOUR things scope those: the LANE's theatre, the tab's own campaign picker, the
+// shared DATE RANGE, and the market chips.
 //
 // The date range is applied at DAY grain, which is why the payload ships days rather than
 // weeks: a range that cuts mid-week cannot be honoured from week buckets (the same reason
@@ -8303,19 +8335,81 @@ function enrInRange(day){
   const d = String(day).slice(0, 10);
   return d >= rangeStart && d <= rangeEnd;
 }
-function enrDailyRows(){
+// MARKET SELECTION (2026-09-10). Empty set == every market, the same convention the CS tab's
+// chips use. Deliberately NOT defaulted to "all markets ticked": a market that has no leads in
+// the current range must not be silently absent from a selection the user never made.
+let enrMarketSel = {};
+function enrMarketActive(){ return Object.keys(enrMarketSel).filter(k => enrMarketSel[k]); }
+// A NULL market means the THEATRE has no resolver (EMEA today), which is NOT the same claim
+// as 'OTHER' ("we looked, this country is outside the plan"). sql/20 is emphatic about the
+// difference, so do not alias one to the other here - label it and let it be selectable.
+const ENR_NO_MARKET = 'Unresolved';
+function enrMarketKey(m){ return m || ENR_NO_MARKET; }
+function enrMarketOk(m){
+  const on = enrMarketActive();
+  return !on.length || on.indexOf(enrMarketKey(m)) >= 0;
+}
+// The daily rows for THIS theatre and date range, BEFORE the market filter. The market table
+// and its chips are built from these - a chip must keep showing a market the current selection
+// excludes, or unticking one would make it disappear and there would be no way back.
+function enrScopeRows(){
   const th = laneTheatre();
   return ((CSE && CSE.daily) || []).filter(r =>
     r.theatre === th
     && (!enrCampaignSel || r.campaign_id === enrCampaignSel)
     && enrInRange(r.day));
 }
+function enrDailyRows(){
+  return enrScopeRows().filter(r => enrMarketOk(r.market));
+}
 function enrDetailRows(){
   const th = laneTheatre();
   return ((CSE && CSE.detail) || []).filter(r =>
     r.theatre === th
     && (!enrCampaignSel || r.campaign_id === enrCampaignSel)
+    && enrMarketOk(r.market)
     && enrInRange(r.day));
+}
+
+// Market order. Fixed, so the table and the chips never reshuffle between renders, with
+// anything unrecognised appended - a new market must APPEAR rather than be dropped by an
+// order list that does not know it. OTHER is pinned last: it is a real row (leads whose
+// country is outside sql/10's lists) and must be visible, but it is not a market anyone buys.
+const ENR_MARKET_ORDER = ['ANZ', 'ASEAN', 'SAARC', 'GCR', 'JP', 'KR', 'RIG'];
+function enrMarketSort(keys){
+  const known = ENR_MARKET_ORDER.filter(m => keys.indexOf(m) >= 0);
+  const tail  = ['OTHER', ENR_NO_MARKET];
+  const rest  = keys.filter(m => ENR_MARKET_ORDER.indexOf(m) < 0 && tail.indexOf(m) < 0).sort();
+  return known.concat(rest, tail.filter(t => keys.indexOf(t) >= 0));
+}
+// ISOLATE, not remove. The other chip rows on this page (togglePaidChannel) explode the empty
+// set to the full roster and then UNTICK what you click, which needs five clicks to reach one
+// market - wrong for a drill-down. Clicking the market you are already isolated on clears back
+// to every market, so the control is a plain toggle with no dead end.
+function enrToggleMarket(m){
+  const on = enrMarketActive();
+  enrMarketSel = (on.length === 1 && on[0] === m) ? {} : { [m]: true };
+  renderEnriched();
+}
+function enrClearMarkets(){
+  enrMarketSel = {};
+  renderEnriched();
+}
+// Drop any selected market that has no rows in the CURRENT scope. enrMarketSel survives a
+// date-range, campaign or lane change, so without this a market that has just gone out of scope
+// keeps filtering the whole tab to zero from a chip that is no longer rendered - and if the
+// surviving scope holds a single market the card hides too, taking the reset button with it and
+// leaving no way back but a reload. Same guard the campaign picker already applies.
+//
+// IT MUST RUN BEFORE ANYTHING READS THE SELECTION. Pruning inside the market card (which is
+// built after the KPIs) fixes the NEXT render and leaves this one showing 0 leads in scope -
+// which is how it was first written, and it looked exactly like the bug it was meant to fix.
+function enrPruneMarkets(){
+  const live = {};
+  for (const r of enrScopeRows()) live[enrMarketKey(r.market)] = 1;
+  for (const k in enrMarketSel){
+    if (enrMarketSel[k] && !live[k]) delete enrMarketSel[k];
+  }
 }
 
 // Campaign labels. Two of the five campaigns share a byte-identical CAMPAIGN string and are
@@ -8357,6 +8451,7 @@ function renderEnriched(){
   const enrCardEl = document.getElementById('enrDetailCard');
   if (enrCardEl) enrCardEl.style.display = window.BB_INTERNAL ? '' : 'none';
   enrFillCampaignSelect();
+  enrPruneMarkets();
 
   const daily  = enrDailyRows();
   const detail = enrDetailRows();
@@ -8408,6 +8503,69 @@ function renderEnriched(){
     + kpi('Enrichment rate', (rate == null ? '-' : fmtPct2(rate, 1)),
           (rate == null ? 'no leads in scope' : fmtNum(totE) + ' of ' + fmtNum(totL)))
     + kpi('Not enriched', fmtNum(totL - totE), 'dash or NA in the feed', 'warn');
+
+  // ---- market breakdown ---------------------------------------------------
+  // Built from enrScopeRows() (theatre + campaign + date range, NO market filter) so a market
+  // stays on screen and re-tickable when it is filtered out. Rates are re-derived per market
+  // from that market's own two counts - never the average of anything (repo-wide rule).
+  {
+    const byMkt = {};
+    for (const r of enrScopeRows()){
+      const m = enrMarketKey(r.market);
+      const o = byMkt[m] || (byMkt[m] = { leads: 0, enriched: 0 });
+      o.leads    += (+r.lead_count || 0);
+      o.enriched += (+r.enriched_count || 0);
+    }
+    const mkts = enrMarketSort(Object.keys(byMkt));
+    const on   = enrMarketActive();
+
+    const chipEl = document.getElementById('enrMarketChips');
+    if (chipEl){
+      chipEl.innerHTML = mkts.map(m =>
+        '<button class="chip' + (!on.length || on.indexOf(m) >= 0 ? ' on' : '') + '"'
+        + ' onclick="enrToggleMarket(' + JSON.stringify(m).replace(/"/g, '&quot;') + ')">'
+        + esc(m) + '</button>'
+      ).join('')
+      + (on.length
+          ? '<button class="chip-action" onclick="enrClearMarkets()" '
+            + 'title="Show every market">All markets</button>'
+          : '');
+    }
+    // The card hides when there is only one market in scope: a single-row breakdown of a figure
+    // already on screen adds nothing. It must NEVER hide while a selection is active, though -
+    // that would take the reset control off screen while it is still filtering the tab.
+    const mcard = document.getElementById('enrMarketCard');
+    if (mcard) mcard.style.display = (mkts.length > 1 || on.length) ? '' : 'none';
+
+    const mb = document.querySelector('#enrMarketTbl tbody');
+    if (mb){
+      // Sums over the SELECTED markets, so the total row ties to the KPI strip above rather
+      // than to the unfiltered scope - two totals on one screen must never disagree.
+      let sL = 0, sE = 0, h = '';
+      for (const m of mkts){
+        const o = byMkt[m];
+        const r = o.leads ? o.enriched / o.leads : null;
+        const sel = !on.length || on.indexOf(m) >= 0;
+        if (sel){ sL += o.leads; sE += o.enriched; }
+        h += '<tr' + (sel ? '' : ' style="opacity:.45"') + '><td>' + esc(m) + '</td>'
+          +  '<td class="num">' + fmtNum(o.leads) + '</td>'
+          +  '<td class="num">' + fmtNum(o.enriched) + '</td>'
+          +  '<td class="num">' + (r == null ? '-' : fmtPct2(r, 1)) + '</td></tr>';
+      }
+      const sR = sL ? sE / sL : null;
+      h += '<tr class="total" style="font-weight:700"><td>Total</td>'
+        +  '<td class="num">' + fmtNum(sL) + '</td>'
+        +  '<td class="num">' + fmtNum(sE) + '</td>'
+        +  '<td class="num">' + (sR == null ? '-' : fmtPct2(sR, 1)) + '</td></tr>';
+      mb.innerHTML = mkts.length
+        ? h
+        : '<tr><td colspan="4" style="color:var(--cf-mute)">No leads in scope.</td></tr>';
+      // The market total must equal the KPI strip. If it does not, one of them is lying.
+      if (sL !== totL){
+        console.warn('[cs-enriched] market total', sL, '!= leads in scope', totL);
+      }
+    }
+  }
 
   // ---- weekly table -------------------------------------------------------
   const tb = document.querySelector('#enrWeeklyTbl tbody');
