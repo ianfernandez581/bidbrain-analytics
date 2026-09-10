@@ -241,9 +241,12 @@ def main():
     # guard below: two views over one lead set must agree, or the panel's own totals are wrong.
     end_ = rows(bq, f"SELECT * FROM {t('cs_enriched_daily')} ORDER BY THEATRE, DAY, MARKET, CAMPAIGN_ID")
     enw = rows(bq, f"SELECT * FROM {t('cs_enriched_weekly')} ORDER BY THEATRE, WEEK_START, MARKET, CAMPAIGN_ID")
+    # ACCEPTED-only since 2026-09-10, matching the tab's basis. If this stayed on every
+    # enriched lead the drill-down would list more rows than the KPI above it claims (420 vs
+    # 374 whole-flight) - a staff-only panel contradicting the headline it sits under.
     end = rows(bq, f"""SELECT DAY, CAMPAIGN, CAMPAIGN_ID, THEATRE, MARKET, PHONE, ENRICHED_PHONE
                         FROM {t('cs_enriched_leads')}
-                        WHERE ENRICHED_PHONE IS NOT NULL
+                        WHERE ENRICHED_PHONE IS NOT NULL AND IS_ACCEPTED
                         ORDER BY DAY DESC""")
     tx = build_transmission(bq, t)   # "Internal Notes" tab: committed Source IDs + pacing plan
 
@@ -723,10 +726,25 @@ def main():
             # here. 'OTHER' is a real value and must be rendered, or the market rows stop
             # summing to the headline the day an unmapped country arrives.
             "market":         r.get("MARKET"),
+            # PUBLISHER + OFFER_TYPE (2026-09-10): the vendor and the offer, inherited from
+            # sql/10 rather than re-derived. OFFER_TYPE is what the BENCHMARK is a set over -
+            # the client's target is "all leads with pulse survey and qualification questions"
+            # - so switching whether VRSM's Lead Magnet counts is a frontend constant, not a
+            # view change. NULL on EMEA (sql/10 is APAC-only), so any consumer must tolerate it.
+            "publisher":      r.get("PUBLISHER"),
+            "offer_type":     r.get("OFFER_TYPE"),
             "campaign_id":    r.get("CAMPAIGN_ID"),
             "campaign":       r.get("CAMPAIGN"),
+            # BOTH bases ship. `accepted_*` is what the tab renders from 2026-09-10 (client:
+            # "the total amount of leads accepted ... compared to the leads enriched and
+            # accepted"); the delivered counts stay so a delivery figure is still available.
+            # NEVER mix the two in one figure - that is the near-miss basis error the CS
+            # by-market chart shipped with (md/AGENTS.md, "pace in the unit the plan is bought
+            # in"): a numerator and denominator drawn from different populations.
             "lead_count":     int(jval(r.get("LEAD_COUNT")) or 0),
+            "accepted_count": int(jval(r.get("ACCEPTED_COUNT")) or 0),
             "enriched_count": int(jval(r.get("ENRICHED_COUNT")) or 0),
+            "accepted_enriched_count": int(jval(r.get("ACCEPTED_ENRICHED_COUNT")) or 0),
             # The '-' vs 'NA' split. NOT rendered client-facing: it is the open question with
             # Transmission (does '-' mean "not yet processed"?). Carried so the answer can be
             # acted on without a schema change. See sql/20's header.
@@ -756,14 +774,20 @@ def main():
         # Guard 1: the DAY-grain rows that ship must sum to the WEEK-grain view exactly, per
         # theatre. They are two views over one lead set; if they disagree, one of them is wrong
         # and the panel's own totals cannot be trusted.
+        # Four figures, not two, since 2026-09-10: the DELIVERED pair and the ACCEPTED pair.
+        # The accepted pair is what the tab renders, so leaving it out of the guard would mean
+        # the assertion covered only the numbers nobody looks at any more.
         _d, _w = {}, {}
         for r in cs_enriched_payload["daily"]:
-            o = _d.setdefault(r["theatre"], [0, 0])
-            o[0] += r["lead_count"]; o[1] += r["enriched_count"]
+            o = _d.setdefault(r["theatre"], [0, 0, 0, 0])
+            o[0] += r["lead_count"];     o[1] += r["enriched_count"]
+            o[2] += r["accepted_count"]; o[3] += r["accepted_enriched_count"]
         for r in enw:
-            o = _w.setdefault(r.get("THEATRE"), [0, 0])
+            o = _w.setdefault(r.get("THEATRE"), [0, 0, 0, 0])
             o[0] += int(jval(r.get("LEAD_COUNT")) or 0)
             o[1] += int(jval(r.get("ENRICHED_COUNT")) or 0)
+            o[2] += int(jval(r.get("ACCEPTED_COUNT")) or 0)
+            o[3] += int(jval(r.get("ACCEPTED_ENRICHED_COUNT")) or 0)
         for th in sorted(set(_d) | set(_w)):
             if _d.get(th) != _w.get(th):
                 print(f"WARNING cs_enriched {th}: daily {_d.get(th)} != weekly {_w.get(th)} - "
@@ -773,9 +797,12 @@ def main():
         _dt = {}
         for r in cs_enriched_payload["detail"]:
             _dt[r["theatre"]] = _dt.get(r["theatre"], 0) + 1
+        # Index 3 = ACCEPTED enriched, matching the detail query's own filter. Comparing it
+        # against index 1 (every enriched lead) would fail by exactly the rejected-and-enriched
+        # leads and read as a real defect.
         for th in sorted(_d):
-            if _dt.get(th, 0) != _d[th][1]:
-                print(f"WARNING cs_enriched {th}: enriched={_d[th][1]} but detail rows="
+            if _dt.get(th, 0) != _d[th][3]:
+                print(f"WARNING cs_enriched {th}: accepted+enriched={_d[th][3]} but detail rows="
                       f"{_dt.get(th, 0)} - summary and drill-down disagree.")
         # Guard 3 (2026-09-10, with the market breakdown): every daily row must carry a
         # market, the per-market counts must sum to the theatre total, and an 'OTHER' row means
@@ -816,12 +843,27 @@ def main():
         # question with Transmission: enrichment may not cover that theatre at all), so this is
         # the cheap signal for the day it starts working - or the day APJ silently stops.
         for th in sorted(_d):
-            l, e = _d[th]
+            l, e, a, ae = _d[th]
             na = sum(r["na_count"] for r in cs_enriched_payload["daily"] if r["theatre"] == th)
             da = sum(r["dash_count"] for r in cs_enriched_payload["daily"] if r["theatre"] == th)
-            print(f"  cs_enriched {th:5s}: {l:>5} leads, {e:>4} enriched "
-                  f"({(e/l*100 if l else 0):5.1f}%), dash={da:>5}, na={na:>5}, "
-                  f"detail={_dt.get(th, 0):>4}")
+            print(f"  cs_enriched {th:5s}: {a:>5} accepted, {ae:>4} enriched "
+                  f"({(ae/a*100 if a else 0):5.1f}%)  [delivered {l}/{e}], "
+                  f"dash={da:>5}, na={na:>5}, detail={_dt.get(th, 0):>4}")
+        # The BENCHMARK set, printed per offer so the headline rate is explainable from the log
+        # alone. The client's target is every accepted lead on Pulse Survey + Qualification
+        # Questions; whether VRSM's Lead Magnet joins it is open, so print both totals rather
+        # than picking one here. A blended rate with no per-offer split is what made the drop
+        # from 41% to 20% look like a failure instead of one campaign that is not enriched.
+        _off = {}
+        for r in cs_enriched_payload["daily"]:
+            if r["theatre"] != "APAC":
+                continue
+            o = _off.setdefault(r["offer_type"] or "(none)", [0, 0])
+            o[0] += r["accepted_count"]; o[1] += r["accepted_enriched_count"]
+        for k in sorted(_off):
+            a, ae = _off[k]
+            print(f"    offer {k:<24s}: {a:>5} accepted, {ae:>4} enriched "
+                  f"({(ae/a*100 if a else 0):5.1f}%)")
 
     _dt_vals = [v for v in observed.values() if v]
     env = {

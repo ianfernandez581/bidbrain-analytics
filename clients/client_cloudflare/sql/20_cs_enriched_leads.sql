@@ -74,150 +74,150 @@
 -- mid-week CANNOT be honoured from week buckets -- the same reason sql/18_cs_compare_v2 is day
 -- grain. The dashboard buckets days into ISO weeks itself, inside the selected range.
 CREATE OR REPLACE VIEW `client_cloudflare.cs_enriched_leads` AS
-WITH scope AS (
-  -- EMEA: the maintained list, never re-typed. See header.
-  SELECT campaign_id AS CAMPAIGN_ID, 'EMEA' AS THEATRE
-  FROM `bidbrain-analytics.client_cloudflare.seed_cs_emea_campaign_ids`
-  UNION ALL
-  -- APJ: the client-stated scope. A sixth campaign is one row here.
-  SELECT id, 'APAC'
-  FROM UNNEST([
-    '701RG00001ElTu3YAF',
-    '701RG00001ElVXdYAN',
-    '701RG00001ElUa0YAF',
-    '701RG00001ElNYkYAN',
-    '701RG00001W1FQRYA3'
-  ]) AS id
-)
+WITH
+-- APJ arm. Reads sql/10_salesforce_leads_live and joins back to the raw mirror ONLY for the
+-- enriched-phone column, on LEAD_ID_SF. Verified clean: 2,285 Q3 rows in, 2,285 out, zero NULL
+-- keys, zero duplicate keys in raw -- so the join cannot drop or double a lead.
+--
+-- WHY sql/10 AND NOT THE RAW TABLE (2026-09-10, the basis change). Four things this tab now
+-- needs were each about to become a SECOND copy of a definition that already exists there:
+--   LEAD_STATUS  -> the accepted bucket (the client's stated basis, below)
+--   REGION_GRP   -> the market, which the CS tab's chips already show
+--   PUBLISHER    -> the vendor
+--   OFFER_TYPE   -> Pulse Survey / Qualification Questions / Precision MQL / Lead Magnet
+-- Inheriting them means this tab cannot disagree with the CS tab about what a market is, which
+-- leads are accepted, or which vendor sold one. It also brings sql/10's test-lead filter and its
+-- quarter clamp for free, so the FIFTH copy of the Transmission predicate is GONE from the APJ
+-- path rather than being kept in step by hand.
+--   Cost of the move, stated so nobody reads it as a regression: sql/10 clamps DAY to the
+--   quarter its campaign is named for and caps the 4 Q2-only campaigns, so the ALL-TIME figure
+--   shifts slightly against the pre-2026-09-10 payload. Q3 is unaffected.
+apj AS (
+  SELECT
+    l.DAY,
+    l.CAMPAIGN,
+    l.CAMPAIGN_ID,
+    'APAC'                        AS THEATRE,
+    l.PHONE,
+    f.ENRICHED_PHONE_NUMBER       AS RAW_ENRICHED,
+    l.LEAD_STATUS,
+    l.REGION_GRP                  AS MARKET,
+    l.PUBLISHER,
+    l.OFFER_TYPE
+  FROM `bidbrain-analytics.client_cloudflare.salesforce_leads_live` l
+  JOIN `bidbrain-analytics.raw_snowflake.salesforce_cs_apac_all` f USING (LEAD_ID_SF)
+),
+-- EMEA arm. sql/10 is APAC-only (its 13-ID allowlist has never held an EMEA campaign), so this
+-- side still reads raw, scoped by the maintained seed. MARKET / PUBLISHER / OFFER_TYPE are NULL,
+-- never a placeholder string: EMEA's markets are the six campaign-name regions sql/16 carries,
+-- and REGION_GRP's country lists are APAC-only, so resolving one here would file every EMEA lead
+-- under OTHER and assert a judgement nobody made.
+--   Transmission confirmed 2026-09-10 (Nabeel) that enrichment is APJ ONLY and EMEA is not
+--   planned, so the tab's own gate -- render only where a theatre has an enriched lead -- is now
+--   expected to keep EMEA dark indefinitely rather than temporarily.
+emea AS (
+  SELECT
+    f.DAY,
+    f.CAMPAIGN,
+    f.CAMPAIGN_ID,
+    'EMEA'                        AS THEATRE,
+    f.PHONE,
+    f.ENRICHED_PHONE_NUMBER       AS RAW_ENRICHED,
+    f.LEAD_STATUS,
+    CAST(NULL AS STRING)          AS MARKET,
+    CAST(NULL AS STRING)          AS PUBLISHER,
+    CAST(NULL AS STRING)          AS OFFER_TYPE
+  FROM `bidbrain-analytics.raw_snowflake.salesforce_cs_apac_all` f
+  JOIN `bidbrain-analytics.client_cloudflare.seed_cs_emea_campaign_ids` s
+    ON s.campaign_id = f.CAMPAIGN_ID
+  -- Exclude Transmission TEST leads. The APJ arm inherits this from sql/10; this arm does not
+  -- read sql/10, so it keeps its own copy -- character-for-character identical to the one in
+  -- 10_salesforce_leads_live / 14_cf1_cs / 16_stg_cs_leads_v2. Match on the email DOMAIN, never
+  -- the string 'test' (Advantest Corporation is a real lead) and never LIKE '%transmission%'
+  -- (allisontransmission.com, dhoottransmission.com are real manufacturers).
+  WHERE LOWER(IFNULL(SPLIT(f.EMAIL, '@')[SAFE_OFFSET(1)], '')) NOT IN
+        ('transmissionagency.com', 'transmission.com')
+),
+both AS (SELECT * FROM apj UNION ALL SELECT * FROM emea)
 SELECT
-  f.DAY,
-  f.CAMPAIGN,
-  f.CAMPAIGN_ID,
-  s.THEATRE,
-  f.PHONE,
+  DAY,
+  CAMPAIGN,
+  CAMPAIGN_ID,
+  THEATRE,
+  MARKET,
+  PUBLISHER,
+  OFFER_TYPE,
+  PHONE,
+  LEAD_STATUS,
+  -- ACCEPTED is the client's stated basis for this tab (2026-09-10, Jade: "Enrichment % on this
+  -- dashboard should be the total amount of leads accepted within that timeframe compared to the
+  -- leads enriched and accepted"). Before this the tab counted DELIVERED, which is why its 1,030
+  -- could not be reconciled against the CS tab's 1,868 and the client raised it.
+  --
+  -- THE THREE-STATUS SET IS A THIRD COPY. definitions.json `status_buckets.accepted` documents
+  -- it, the dashboard hardcodes it as ACCEPTED_STATUSES, and it is written out here. All three
+  -- must move together; it is a candidate for a seed table (see the client README).
+  -- Replied/Unresponsive are both ZERO in Q3, so today the set is equivalent to 'Accepted'
+  -- alone -- do NOT simplify it to that, or the tab silently diverges the first month one lands.
+  LEAD_STATUS IN ('Accepted', 'Replied', 'Unresponsive') AS IS_ACCEPTED,
   -- The one normalisation. See header point 2. Order matters only for legibility; the digit
   -- test alone would catch '-' and 'NA' today, but the explicit list DOCUMENTS the two sentinels
   -- actually observed in the feed, and stays correct if a future sentinel contains a digit
   -- (a '0', a '000'), which the digit test would wave through.
   CASE
-    WHEN TRIM(IFNULL(f.ENRICHED_PHONE_NUMBER, '')) = ''                       THEN NULL
-    WHEN UPPER(TRIM(f.ENRICHED_PHONE_NUMBER)) IN
+    WHEN TRIM(IFNULL(RAW_ENRICHED, '')) = ''                                  THEN NULL
+    WHEN UPPER(TRIM(RAW_ENRICHED)) IN
          ('-', '--', 'NA', 'N/A', 'N.A.', 'NONE', 'NULL', 'UNKNOWN', 'NIL')   THEN NULL
-    WHEN NOT REGEXP_CONTAINS(f.ENRICHED_PHONE_NUMBER, r'[0-9]')               THEN NULL
-    ELSE TRIM(f.ENRICHED_PHONE_NUMBER)
+    WHEN NOT REGEXP_CONTAINS(RAW_ENRICHED, r'[0-9]')                          THEN NULL
+    ELSE TRIM(RAW_ENRICHED)
   END AS ENRICHED_PHONE,
-  -- Carried so the open '-' vs 'NA' question above can be answered from the dashboard without a
-  -- schema change the day Transmission confirms what they mean. NOT surfaced to the client yet.
+  -- Carried so the open '-' vs 'NA' question can be answered from the dashboard without a schema
+  -- change. NOT surfaced to the client yet. Transmission told us (2026-09-10, Nabeel) the field
+  -- is "either a phone number or NA, there is no blank field" -- MEASURABLY NOT TRUE: '-' sits
+  -- on 306 of VRSM's 466 accepted Q3 leads and on 7 of Final Funnel Qualification Questions'.
+  -- Back with Nabeel; until it is answered BOTH sentinels stay "not enriched", the conservative
+  -- read, and nothing on screen assumes otherwise.
   CASE
-    WHEN UPPER(TRIM(IFNULL(f.ENRICHED_PHONE_NUMBER, ''))) = 'NA' THEN 'NA'
-    WHEN TRIM(IFNULL(f.ENRICHED_PHONE_NUMBER, '')) = '-'         THEN 'DASH'
-    WHEN REGEXP_CONTAINS(IFNULL(f.ENRICHED_PHONE_NUMBER, ''), r'[0-9]') THEN 'VALUE'
+    WHEN UPPER(TRIM(IFNULL(RAW_ENRICHED, ''))) = 'NA' THEN 'NA'
+    WHEN TRIM(IFNULL(RAW_ENRICHED, '')) = '-'         THEN 'DASH'
+    WHEN REGEXP_CONTAINS(IFNULL(RAW_ENRICHED, ''), r'[0-9]') THEN 'VALUE'
     ELSE 'OTHER'
-  END AS ENRICHED_STATE,
-  -- MARKET (2026-09-10, client request via Jade: "can you do a market breakdown of the
-  -- enrichment %"). Resolved from COUNTRY_NAME -- the LEAD's own country -- which is the
-  -- definition sql/10_salesforce_leads_live uses for REGION_GRP and therefore what the CS
-  -- tab's market chips already show. Keep the country lists character-for-character the same
-  -- as sql/10's; two market definitions on one dashboard is how two panels start disagreeing.
-  --
-  -- DELIBERATELY NOT sql/16_stg_cs_leads_v2's MARKET, for two reasons that are easy to miss:
-  --   1. Its SEG_REGION is SPLIT(CAMPAIGN,'_')[SAFE_OFFSET(2)] -- parsed from the CAMPAIGN
-  --      NAME, so it is a property of the campaign, not the lead. Across a 5-campaign scope
-  --      that is close to a relabelling of the campaign picker already on this tab, and it is
-  --      not what "market" means to the client.
-  --   2. That view's base CTE is scoped STARTS_WITH(CAMPAIGN,'2026_Q3'), and this lane runs
-  --      from 2026-03-27. It could not resolve a market for the pre-Q3 half of these leads.
-  --
-  -- RIG IS CARRIED, and evaluated BEFORE geography exactly as sql/10 does. It was left out of
-  -- the first cut on the reasoning that RIG is Q3-hidden estate-wide (2026-08-05) and this tab
-  -- defaults to the current quarter -- but that made this column sql/10's definition MINUS an
-  -- arm, so at any range reaching before Q3 the same lead would read RIG on the CS tab and a
-  -- geographic market here, on one dashboard. Measured: 0 RIG-asset leads in scope for Q3, 64
-  -- pre-Q3. Carrying the arm costs nothing in the default view (no rows -> no chip, no table
-  -- row, so it self-hides) and removes the divergence outright.
-  --
-  -- KR stays campaign-scoped off the SAME seed sql/10 reads, not re-typed. All five in-scope
-  -- campaigns are in that seed today, so it is currently a no-op -- it is here so the two
-  -- definitions cannot drift if the enrichment scope grows.
-  --
-  -- 'OTHER' is a REAL row, not a residual to drop: the market rows must sum to the headline
-  -- "Leads in scope" or the two disagree the day an unmapped country arrives. Empty today
-  -- (all 1,030 Q3 leads resolve), which is exactly why it would be easy to leave out.
-  --
-  -- APAC ONLY, AND THE THEATRE GATE IS LOAD-BEARING. sql/10's country lists cover the APAC
-  -- markets and nothing else, so without this gate all 2,634 EMEA leads resolve to 'OTHER' -
-  -- caught by the export job's guard on the first run of this column. EMEA is NULL, not
-  -- 'OTHER': 'OTHER' asserts "we looked and this country is outside the plan", NULL says
-  -- "no resolver for this theatre yet", and only the second is true. The dashboard hides the
-  -- whole market card when a theatre resolves no markets, so the EMEA tab cannot render a
-  -- breakdown of one meaningless bucket.
-  --
-  -- GIVING EMEA REAL MARKETS IS NOT A COUNTRY-LIST EXTENSION. Every other EMEA panel on this
-  -- dashboard splits by the SIX campaign-name markets (UKI/DACH/SEUR/NEUR/CEERI/MEA) that
-  -- sql/16 resolves, because that is the grain the EMEA targets are bought at. Writing a
-  -- COUNTRY_NAME -> EMEA-region map here would be a second, disagreeing definition of a
-  -- dimension the campaign name already carries - the exact thing sql/16's header warns about.
-  -- The EMEA enriched tab is hidden today (zero enriched leads across 2,634), so this is not
-  -- blocking; do it properly on the day that tab lights up.
-  CASE
-    WHEN s.THEATRE <> 'APAC' THEN NULL
-    -- RIG: asset-based, so it is evaluated BEFORE geography and deliberately pulls its leads
-    -- out of every geographic market (the overlap is intentional). Same seeds sql/10 reads.
-    WHEN UPPER(TRIM(f.COUNTRY_NAME)) <> 'KOREA, REPUBLIC OF'
-         AND f.ASSET_2 IN (SELECT asset_2
-                           FROM `bidbrain-analytics.client_cloudflare.seed_rig_assets`)
-         AND f.CAMPAIGN_ID IN (SELECT campaign_id
-                               FROM `bidbrain-analytics.client_cloudflare.seed_rig_campaign_ids`)
-                                                                                       THEN 'RIG'
-    WHEN UPPER(TRIM(f.COUNTRY_NAME)) = 'KOREA, REPUBLIC OF'
-         AND f.CAMPAIGN_ID IN (SELECT campaign_id
-                               FROM `bidbrain-analytics.client_cloudflare.seed_kr_campaign_ids`)
-                                                                                       THEN 'KR'
-    WHEN UPPER(TRIM(f.COUNTRY_NAME)) IN ('AUSTRALIA', 'NEW ZEALAND')                    THEN 'ANZ'
-    WHEN UPPER(TRIM(f.COUNTRY_NAME)) IN ('SINGAPORE', 'MALAYSIA', 'INDONESIA',
-                                         'THAILAND', 'VIET NAM', 'VIETNAM',
-                                         'PHILIPPINES')                                THEN 'ASEAN'
-    WHEN UPPER(TRIM(f.COUNTRY_NAME)) = 'INDIA'                                         THEN 'SAARC'
-    WHEN UPPER(TRIM(f.COUNTRY_NAME)) IN ('CHINA', 'MAINLAND CHINA', 'TAIWAN',
-                                         'HONG KONG')                                  THEN 'GCR'
-    WHEN UPPER(TRIM(f.COUNTRY_NAME)) = 'JAPAN'                                         THEN 'JP'
-    ELSE 'OTHER'
-  END AS MARKET
-FROM `bidbrain-analytics.raw_snowflake.salesforce_cs_apac_all` f
--- INNER JOIN = the scope gate AND the theatre resolver in one step. An unlisted campaign is
--- dropped, never defaulted onto a theatre.
-JOIN scope s USING (CAMPAIGN_ID)
--- Exclude Transmission TEST leads. IDENTICAL predicate to 10_salesforce_leads_live,
--- 14_cf1_cs and 16_stg_cs_leads_v2 -- keep all four character-for-character the same. This is
--- NOT a no-op here: 9 of the in-scope leads are test leads (2026-09-07), so without it this
--- panel would report 9 more leads for the same period than every other CS figure on the
--- same dashboard, which is exactly how the APJ KPI strip and Pacing detail came to disagree.
---
--- Match on the email DOMAIN, never on the string 'test' anywhere: a real rejected lead from
--- Advantest Corporation (advantest.com) carries 'test' in its name and domain. And match the
--- domain EXACTLY, never LIKE '%transmission%', which would drop allisontransmission.com and
--- dhoottransmission.com -- real manufacturers.
-WHERE LOWER(IFNULL(SPLIT(f.EMAIL, '@')[SAFE_OFFSET(1)], '')) NOT IN
-      ('transmissionagency.com', 'transmission.com');
+  END AS ENRICHED_STATE
+FROM both;
 
 
 -- DAY grain: what the payload ships, so a mid-week date range is exact. See header.
+--
+-- OFFER_TYPE IS IN THE GRAIN so the BENCHMARK is derivable in the browser without another SQL
+-- change. The client's target is "ALL leads with pulse survey and qualification questions"
+-- (2026-09-10) = every accepted lead on those offers should carry an enriched number. Whether
+-- VRSM's Lead Magnet joins that set is OPEN with the client (Transmission say it IS enriched;
+-- 361 accepted vs 827, 81% vs 41%), so the target is a FRONTEND set over this column and never
+-- a hardcoded number here -- switching it is one constant, not a redeploy of the view.
 CREATE OR REPLACE VIEW `client_cloudflare.cs_enriched_daily` AS
 SELECT
   DAY,
   THEATRE,
   MARKET,
+  PUBLISHER,
+  OFFER_TYPE,
   CAMPAIGN_ID,
   -- One CAMPAIGN string per id, so the id can be labelled without a second join. MIN(), not
   -- ANY_VALUE(): a deterministic spelling, so the label cannot flicker between runs.
-  MIN(CAMPAIGN)                        AS CAMPAIGN,
-  COUNT(*)                             AS LEAD_COUNT,
-  COUNTIF(ENRICHED_PHONE IS NOT NULL)  AS ENRICHED_COUNT,
-  -- The '-' vs 'NA' split, for the open question with Transmission. Internal for now.
-  COUNTIF(ENRICHED_STATE = 'DASH')     AS DASH_COUNT,
-  COUNTIF(ENRICHED_STATE = 'NA')       AS NA_COUNT
+  MIN(CAMPAIGN)                                          AS CAMPAIGN,
+  -- BOTH bases are carried. ACCEPTED_* is what the tab renders from 2026-09-10; the delivered
+  -- counts stay so a delivery figure is still available and so the job can assert one against
+  -- the other. A consumer must never MIX them -- that is the near-miss basis error the CS
+  -- by-market chart shipped with (md/AGENTS.md, "pace in the unit the plan is bought in").
+  COUNT(*)                                               AS LEAD_COUNT,
+  COUNTIF(IS_ACCEPTED)                                   AS ACCEPTED_COUNT,
+  COUNTIF(ENRICHED_PHONE IS NOT NULL)                    AS ENRICHED_COUNT,
+  COUNTIF(IS_ACCEPTED AND ENRICHED_PHONE IS NOT NULL)    AS ACCEPTED_ENRICHED_COUNT,
+  -- The '-' vs 'NA' split, on the ACCEPTED basis to match everything above it. Internal.
+  COUNTIF(IS_ACCEPTED AND ENRICHED_STATE = 'DASH')       AS DASH_COUNT,
+  COUNTIF(IS_ACCEPTED AND ENRICHED_STATE = 'NA')         AS NA_COUNT
 FROM `client_cloudflare.cs_enriched_leads`
-GROUP BY DAY, THEATRE, MARKET, CAMPAIGN_ID;
+GROUP BY DAY, THEATRE, MARKET, PUBLISHER, OFFER_TYPE, CAMPAIGN_ID;
 
 
 -- ISO week rollup, so WEEK_START is always a Monday and lines up with the Monday anchor every
@@ -225,17 +225,21 @@ GROUP BY DAY, THEATRE, MARKET, CAMPAIGN_ID;
 -- convenience AND as the job's reconciliation guard: cs_enriched_daily must sum to this exactly.
 CREATE OR REPLACE VIEW `client_cloudflare.cs_enriched_weekly` AS
 SELECT
-  DATE_TRUNC(DAY, ISOWEEK)                        AS WEEK_START,
+  DATE_TRUNC(DAY, ISOWEEK)                               AS WEEK_START,
   THEATRE,
   MARKET,
+  PUBLISHER,
+  OFFER_TYPE,
   CAMPAIGN_ID,
-  MIN(CAMPAIGN)                                   AS CAMPAIGN,
-  COUNT(*)                                        AS LEAD_COUNT,
-  COUNTIF(ENRICHED_PHONE IS NOT NULL)             AS ENRICHED_COUNT,
-  -- The rate at THIS grain (week x theatre x market x campaign). SAFE_DIVIDE, so an empty
-  -- week is NULL,
-  -- never a divide-by-zero. Anything aggregating across campaigns MUST re-derive the rate from
-  -- the two summed counts and never average these -- a rate is not additive (repo-wide rule).
-  SAFE_DIVIDE(COUNTIF(ENRICHED_PHONE IS NOT NULL), COUNT(*)) AS ENRICHMENT_RATE
+  MIN(CAMPAIGN)                                          AS CAMPAIGN,
+  COUNT(*)                                               AS LEAD_COUNT,
+  COUNTIF(IS_ACCEPTED)                                   AS ACCEPTED_COUNT,
+  COUNTIF(ENRICHED_PHONE IS NOT NULL)                    AS ENRICHED_COUNT,
+  COUNTIF(IS_ACCEPTED AND ENRICHED_PHONE IS NOT NULL)    AS ACCEPTED_ENRICHED_COUNT,
+  -- The rate at THIS grain, on the ACCEPTED basis. SAFE_DIVIDE, so a week with no accepted lead
+  -- is NULL, never a divide-by-zero. Anything aggregating across campaigns MUST re-derive the
+  -- rate from the two summed counts and never average these -- a rate is not additive.
+  SAFE_DIVIDE(COUNTIF(IS_ACCEPTED AND ENRICHED_PHONE IS NOT NULL),
+              COUNTIF(IS_ACCEPTED))                      AS ENRICHMENT_RATE
 FROM `client_cloudflare.cs_enriched_leads`
-GROUP BY WEEK_START, THEATRE, MARKET, CAMPAIGN_ID;
+GROUP BY WEEK_START, THEATRE, MARKET, PUBLISHER, OFFER_TYPE, CAMPAIGN_ID;
