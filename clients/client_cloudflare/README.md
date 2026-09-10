@@ -32,7 +32,7 @@ same Flask password gate MongoDB uses.
 | [`job/`](job/README.md) | **Export Job** (`cloudflare-export`): reads the BigQuery views → writes `cloudflare.json`. **No Snowflake** (BQ-only, like MongoDB). [Guide →](job/README.md) |
 | [`dash/`](dash/README.md) | **Web App** (`cloudflare-dash`): password gate + serves `dashboard.html` + proxies `/data.json`. Also carries its **own Feedback pill for DIRECT logins** (the front-door injects one only for sessions that come through it, and Cloudflare's people mostly hit the `…run.app` URL) — needs the one-time `dash/enable_feedback_cloudflare.ps1`. [Guide →](dash/README.md) |
 | [`sql/`](sql/README.md) | The BigQuery **model** views — staging (`stg_*`) → `paid_media_model`/`pacing_model`/etc. — over `raw_snowflake.*` + the `seed_*` static tables. [Guide →](sql/README.md) |
-| [`sql/20_cs_enriched_leads.sql`](sql/20_cs_enriched_leads.sql) | **Weekly Enriched Leads** (2026-09-07) — `cs_enriched_leads` (per-lead detail) + `cs_enriched_daily` / `cs_enriched_weekly` (day / week x theatre x **market** x campaign). Normalises the enriched-phone column's TWO sentinels (`'-'` and the literal `'NA'`) to NULL in ONE place. Carries **`MARKET`** since 2026-09-10 — the LEAD's `COUNTRY_NAME` folded on `sql/10`'s coarse-7 lists, APAC only (EMEA is NULL, never `OTHER`). **LIVE since 2026-09-07** (the earlier "local only" note was stale). [Detail ↓](#weekly-enriched-leads-2026-09-07-client-request) |
+| [`sql/20_cs_enriched_leads.sql`](sql/20_cs_enriched_leads.sql) | **Weekly Enriched Leads** (2026-09-07) — `cs_enriched_leads` (per-lead detail) + `cs_enriched_daily` / `cs_enriched_weekly` (day / week x theatre x **market** x campaign). Normalises the enriched-phone column's TWO sentinels (`'-'` and the literal `'NA'`) to NULL in ONE place. Carries **`MARKET`** since 2026-09-10 — the LEAD's `COUNTRY_NAME` folded on `sql/10`'s coarse-7 lists, APAC only (EMEA is NULL, never `OTHER`). **Rebased onto `sql/10` and moved to the ACCEPTED basis across ALL Core DG campaigns 2026-09-10** (client); also carries `PUBLISHER` / `OFFER_TYPE`, which is what the benchmark is a set over. **LIVE since 2026-09-07** (the earlier "local only" note was stale). [Detail ↓](#weekly-enriched-leads-2026-09-07-client-request) |
 | [`create_views.py`](create_views.py) | Applies every `sql/*.sql` view (runner; `NN_` prefix = dependency order). |
 | `data/` | Local CSV snapshots of the three STATIC Snowflake tables (pacing targets, account tiers, LINE JP). **Gitignored** (`clients/*/data/`) — `TIERS` is sensitive client ABM data — so it's NOT in the repo; regenerate with `pull_static.py`. The live seeds persist in BigQuery (`seed_*`). |
 | [`pull_static.py`](pull_static.py) | **One-time** Snowflake → `data/*.csv` pull (manual; needs the Snowflake key; re-run on a fresh checkout or when a static upload changes). **⚠️ The Q2 pacing targets in `seed_real_targets` were rebalanced on 2026-06-19 directly in BQ + `data/real_targets.csv` (grand total unchanged at 3216; regional split updated to the client's new Phase×Region table — see git log). The Snowflake `CLOUDFLARE_SANDBOX.CS_REPORTING.REAL_TARGETS` source was NOT updated, so re-running `pull_static.py` will REVERT this. Update Snowflake first, or skip the real_targets pull.** |
@@ -47,8 +47,21 @@ same Flask password gate MongoDB uses.
 ## Weekly Enriched Leads (2026-09-07, client request)
 
 A **Weekly Enriched Leads** tab on the Core DG APJ lane: how many CS leads arrive carrying an
-**enriched phone number** on top of the `PHONE` every lead already has, by week, for the five
-campaign IDs Transmission enabled enrichment on.
+**enriched phone number** on top of the `PHONE` every lead already has, by week.
+
+**BASIS AND SCOPE CHANGED 2026-09-10 (client instruction, Jade).** It was DELIVERED leads on the
+five campaign IDs Transmission named. It is now **ACCEPTED leads across every Core DG campaign** -
+*"Enrichment % on this dashboard should be the total amount of leads accepted within that
+timeframe compared to the leads enriched and accepted"*. The client raised it because the tab read
+**1,030** for Q3 while the Content Syndication tab read **1,868**, and both were right: two
+campaigns short (Roverpath + Final Funnel **Precision MQL**) and a different basis. They now tie
+exactly at 1,868 accepted / 374 enriched / 20.0%.
+
+**Expect the headline to FALL from 41% to 20%, and say why on screen.** Roverpath Precision MQL
+alone contributes 702 accepted leads and **zero** enriched; Final Funnel Precision MQL 31 of 339.
+The four Pulse Survey / Qualification Questions campaigns run **74-86%**. That is why the **by
+offer type** table is not decoration - a blended 20% with no split reads as enrichment failing
+everywhere rather than one offer it is not bought on.
 
 **Status: LIVE.** This section said "built on localhost only, nothing is deployed" until
 2026-09-08, and that was WRONG by then - `662a335` is an ancestor of the deployed revision
@@ -67,8 +80,12 @@ running revision, not the note, before you repeat a deploy status to a client.
         MARKET                              daily[].market              #enrMarketChips + table
         CAMPAIGN_ID                         daily[].campaign_id         #enrCampaign scope
         CAMPAIGN                            daily[].campaign            dropdown label
-        LEAD_COUNT                          daily[].lead_count          Leads column
-        ENRICHED_COUNT                      daily[].enriched_count      Enriched column
+        PUBLISHER                           daily[].publisher           (vendor; carried)
+        OFFER_TYPE                          daily[].offer_type          #enrOfferTbl + benchmark
+        LEAD_COUNT                          daily[].lead_count          (delivered; NOT rendered)
+        ACCEPTED_COUNT                      daily[].accepted_count      Accepted column
+        ENRICHED_COUNT                      daily[].enriched_count      (delivered; NOT rendered)
+        ACCEPTED_ENRICHED_COUNT             daily[].accepted_enriched_count  Enriched column
         DASH_COUNT / NA_COUNT               daily[].dash_count/na_count (open question; unrendered)
       cs_enriched_weekly                  (not shipped)               job reconciliation guard
       cs_enriched_leads (detail)          detail[]                    #enrDetailTbl (STAFF ONLY)
@@ -76,6 +93,65 @@ running revision, not the note, before you repeat a deploy status to a client.
         THEATRE                             theatre
         MARKET                              market                      chips scope the drill-down
         ENRICHED_PHONE                      enriched_phone
+
+### The accepted basis, the benchmark, and the traps in them (2026-09-10)
+
+**The basis is defined ONCE per layer and nowhere else.** `IS_ACCEPTED` in `sql/20`, the
+`accepted_*` columns in the payload, and `enrLeads()` / `enrEnr()` in the dashboard. Every figure
+on the tab - KPI band, weekly table, market table, offer table, benchmark - reads through those
+two accessors, so no two panels can end up on different bases. The DELIVERED counts still ship;
+**never mix one with an accepted-basis number inside a single rate.**
+
+**`sql/20`'s APJ arm now reads `sql/10_salesforce_leads_live`, not the raw mirror.** Four things
+this tab needed were each about to become a second copy of a definition that already existed
+there: `LEAD_STATUS` (accepted), `REGION_GRP` (market), `PUBLISHER` (vendor) and `OFFER_TYPE`.
+Inheriting them means the tab cannot disagree with the CS tab about what a market is or which
+leads are accepted, and the **fifth copy of the Transmission test-lead predicate is gone from the
+APJ path**. The join is on `LEAD_ID_SF`, verified clean (2,285 Q3 rows in, 2,285 out, zero NULL
+keys, zero duplicate keys in raw). EMEA still reads raw - `sql/10` is APAC-only - so it keeps its
+own copy of the test-lead predicate, and its `MARKET` / `PUBLISHER` / `OFFER_TYPE` are **NULL,
+never a placeholder**: `REGION_GRP`'s country lists are APAC-only, so resolving one there would
+file every EMEA lead under `OTHER`.
+**Cost of the move, so nobody reads it as a regression:** `sql/10` clamps `DAY` to the quarter its
+campaign is named for and caps the 4 Q2-only campaigns, so the **ALL-TIME** figure shifts slightly
+against the pre-2026-09-10 payload. Q3 is unaffected.
+
+**THE BENCHMARK TRAP - a target must sit beside its own numerator.** The client asked for *"ALL
+leads with pulse survey and qualification questions ... as the target below the delivered so
+there's a benchmark"*. Rendered literally, the 361 target would sit under the all-campaign
+enriched figure of **374** and read as **104%, ahead of benchmark** - while those two offers are
+really **292 of 361 (81%)**, sixty-nine leads short. The 374 includes 82 enriched leads from
+offers the target does not cover. So the benchmark card is built from the same rows as the KPI
+band and then **narrowed to the target offers**, both halves from that one population. Same
+near-miss basis error as the CS by-market chart (md/AGENTS.md, "pace in the unit the plan is
+bought in"): a numerator and denominator drawn from different populations.
+
+**The target offer set is `ENR_TARGET_OFFERS`, a frontend array, deliberately not a number in the
+view.** OPEN with the client: Transmission (Nabeel, 2026-09-10) say **VRSM's Lead Magnet is
+enriched too**, which would make it 5 campaigns rather than the client's 4 - **827 accepted / 343
+enriched (41%)** instead of **361 / 292 (81%)**. Adding `'Lead Magnet'` to that array is the whole
+change; `OFFER_TYPE` sits in the daily grain precisely so the answer needs no SQL round.
+
+**Transmission's account of the field does not match the data - do not build on it.** Nabeel
+(2026-09-10): *"the EnrichedPhoneNumber field either has a phone number in it or has NA, there is
+no blank field"*, and enrichment runs on exactly five campaign IDs. Measured on Q3 accepted leads,
+both halves are wrong: **`'-'` sits on 306 of VRSM's 466** and on 7 of Final Funnel Qualification
+Questions', and **Final Funnel Precision MQL - not on his list - carries 31 real numbers** plus
+682 `'NA'`. Back with him. Until it is answered both sentinels stay "not enriched", the
+conservative read.
+
+**EMEA is APJ-only by design now, not temporarily.** Nabeel confirmed enrichment is APJ only with
+no EMEA plan, so the tab's gate (render only where a theatre has an enriched lead) is expected to
+keep EMEA dark indefinitely. EMEA's 1,834 accepted / 0 enriched would otherwise publish a 0% rate
+asserting enrichment is failing there.
+
+**`OTHER` is a real market row and must stay rendered.** Widening the scope surfaced 55 accepted
+leads in `OTHER` - Korea leads on campaigns outside `seed_kr_campaign_ids`, which is `sql/10`'s
+documented behaviour. The job WARNs it by name; dropping the row would stop the market table
+summing to the headline.
+
+**Deploy order is job THEN dash.** The live payload carries no `accepted_count` / `offer_type`
+until the job ships, so a dash-first deploy renders every figure as zero.
 
 ### The trap: the column has TWO empty sentinels, and neither is NULL
 
