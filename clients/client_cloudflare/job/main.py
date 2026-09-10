@@ -247,6 +247,14 @@ def main():
     end = rows(bq, f"""SELECT DAY, CAMPAIGN, CAMPAIGN_ID, THEATRE, MARKET, PHONE, ENRICHED_PHONE
                         FROM {t('cs_enriched_leads')}
                         WHERE ENRICHED_PHONE IS NOT NULL AND IS_ACCEPTED
+                          -- Same exclusion the dashboard applies to every headline figure
+                          -- (2026-09-10, client): enrichment is not run on Precision MQL, and
+                          -- the only numbers it ever carried came in one batch on 2026-07-21.
+                          -- Without this the drill-down lists 31 more leads than the KPI above
+                          -- it claims, which is how a staff panel starts contradicting its own
+                          -- headline. `cs_enriched_leads` keeps every row - this scopes the
+                          -- PAYLOAD, not the data.
+                          AND IFNULL(OFFER_TYPE, '') NOT IN ('Precision MQL')
                         ORDER BY DAY DESC""")
     tx = build_transmission(bq, t)   # "Internal Notes" tab: committed Source IDs + pacing plan
 
@@ -777,17 +785,27 @@ def main():
         # Four figures, not two, since 2026-09-10: the DELIVERED pair and the ACCEPTED pair.
         # The accepted pair is what the tab renders, so leaving it out of the guard would mean
         # the assertion covered only the numbers nobody looks at any more.
+        # Index 4 is the ACCEPTED+ENRICHED count on the offers enrichment is actually run on -
+        # i.e. excluding Precision MQL, whose only enriched leads arrived in one batch on
+        # 2026-07-21 (client, 2026-09-10). This mirrors ENR_NOT_ENRICHED_OFFERS in the dashboard
+        # and the detail query's own filter above; MOVE ALL THREE TOGETHER or guard 2 starts
+        # failing on a payload that is perfectly correct.
+        _NOT_ENRICHED_OFFERS = ("Precision MQL",)
         _d, _w = {}, {}
         for r in cs_enriched_payload["daily"]:
-            o = _d.setdefault(r["theatre"], [0, 0, 0, 0])
+            o = _d.setdefault(r["theatre"], [0, 0, 0, 0, 0])
             o[0] += r["lead_count"];     o[1] += r["enriched_count"]
             o[2] += r["accepted_count"]; o[3] += r["accepted_enriched_count"]
+            if (r.get("offer_type") or "") not in _NOT_ENRICHED_OFFERS:
+                o[4] += r["accepted_enriched_count"]
         for r in enw:
-            o = _w.setdefault(r.get("THEATRE"), [0, 0, 0, 0])
+            o = _w.setdefault(r.get("THEATRE"), [0, 0, 0, 0, 0])
             o[0] += int(jval(r.get("LEAD_COUNT")) or 0)
             o[1] += int(jval(r.get("ENRICHED_COUNT")) or 0)
             o[2] += int(jval(r.get("ACCEPTED_COUNT")) or 0)
             o[3] += int(jval(r.get("ACCEPTED_ENRICHED_COUNT")) or 0)
+            if (r.get("OFFER_TYPE") or "") not in _NOT_ENRICHED_OFFERS:
+                o[4] += int(jval(r.get("ACCEPTED_ENRICHED_COUNT")) or 0)
         for th in sorted(set(_d) | set(_w)):
             if _d.get(th) != _w.get(th):
                 print(f"WARNING cs_enriched {th}: daily {_d.get(th)} != weekly {_w.get(th)} - "
@@ -801,9 +819,10 @@ def main():
         # against index 1 (every enriched lead) would fail by exactly the rejected-and-enriched
         # leads and read as a real defect.
         for th in sorted(_d):
-            if _dt.get(th, 0) != _d[th][3]:
-                print(f"WARNING cs_enriched {th}: accepted+enriched={_d[th][3]} but detail rows="
-                      f"{_dt.get(th, 0)} - summary and drill-down disagree.")
+            if _dt.get(th, 0) != _d[th][4]:
+                print(f"WARNING cs_enriched {th}: accepted+enriched (enriched offers only)="
+                      f"{_d[th][4]} but detail rows={_dt.get(th, 0)} - summary and drill-down "
+                      "disagree.")
         # Guard 3 (2026-09-10, with the market breakdown): every daily row must carry a
         # market, the per-market counts must sum to the theatre total, and an 'OTHER' row means
         # a country the sql/10 lists do not know. OTHER is rendered, not dropped - but it is a
@@ -843,12 +862,15 @@ def main():
         # question with Transmission: enrichment may not cover that theatre at all), so this is
         # the cheap signal for the day it starts working - or the day APJ silently stops.
         for th in sorted(_d):
-            l, e, a, ae = _d[th]
+            l, e, a, ae, aes = _d[th]
             na = sum(r["na_count"] for r in cs_enriched_payload["daily"] if r["theatre"] == th)
             da = sum(r["dash_count"] for r in cs_enriched_payload["daily"] if r["theatre"] == th)
-            print(f"  cs_enriched {th:5s}: {a:>5} accepted, {ae:>4} enriched "
-                  f"({(ae/a*100 if a else 0):5.1f}%)  [delivered {l}/{e}], "
+            print(f"  cs_enriched {th:5s}: {a:>5} accepted, {aes:>4} enriched "
+                  f"({(aes/a*100 if a else 0):5.1f}%)  [all offers {ae}, delivered {l}/{e}], "
                   f"dash={da:>5}, na={na:>5}, detail={_dt.get(th, 0):>4}")
+            if ae != aes:
+                print(f"    NOTE {ae - aes} enriched lead(s) on offers enrichment is not run on "
+                      "(Precision MQL) - excluded from every reported figure. See sql/20 header.")
         # The BENCHMARK set, printed per offer so the headline rate is explainable from the log
         # alone. The client's target is every accepted lead on Pulse Survey + Qualification
         # Questions; whether VRSM's Lead Magnet joins it is open, so print both totals rather

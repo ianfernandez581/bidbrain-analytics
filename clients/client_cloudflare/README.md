@@ -181,6 +181,86 @@ summing to the headline.
 **Deploy order is job THEN dash.** The live payload carries no `accepted_count` / `offer_type`
 until the job ships, so a dash-first deploy renders every figure as zero.
 
+### Enrichment is only RUN on two offers, and the reconciliation to Transmission's own report (2026-09-10)
+
+**Precision MQL is not enriched, and its 36 enriched leads are a batch.** Client (Jade): *"Precision
+MQL shouldn't have any enriched leads. We are only enriching the leads that have filled out the
+pulse survey or qualification questions"*. The data agrees: **every** Precision MQL lead carrying a
+real number is dated **2026-07-21** - one day, 36 delivered / 31 accepted, none before it and none
+since, spread over 13 campaign strings, 4 assets and 7 countries, and **not one carrying the CQ tag**
+that marks a survey lead. That rules out "Pulse Survey leads filed in the wrong campaign", which is
+what it would look like if it were the VRSM problem again. `ENR_NOT_ENRICHED_OFFERS` in the
+dashboard excludes them from every reported figure (374 -> **343**, 20.0% -> **18.4%**); the job's
+detail query and its guard-2 comparison carry the same exclusion, and the per-offer audit line still
+PRINTS the excluded count so a second batch is visible to us rather than silently absorbed. **Three
+copies - move them together.**
+
+**The offer column mixes two kinds of thing, and the label says so.** `OFFER_TYPE` carries three real
+lead types plus `Lead Magnet`, which is not a lead type at all: it is VRSM's single campaign, holding
+Pulse Survey AND Qualification Questions leads that nothing in the feed separates. Rendered as a peer
+of the other three it reads as a fourth lead type (the client called this out). `ENR_OFFER_LABELS`
+renames it **in the dashboard only** - `sql/10`'s `OFFER_TYPE` is read by other surfaces.
+
+**The benchmark is NOT a target, and the wording is the client's own.** *"a note to not present this
+number as the 'target' but rather x amount of leads enriched compared to the total leads available to
+be enriched. We know that not ALL the leads will be able to be enriched by Apollo, so we don't want to
+make it seem like we are not reaching an unattainable target"*. So the card reads **Available to
+enrich / Enriched / Enrichment rate**, prints no shortfall, and the bar is a share of what was
+available rather than progress toward a goal. It is also **weekly** now (client request), bucketed
+through the same `isoMonday()` the weekly table uses so the two cannot disagree; a week with no
+available leads is DROPPED rather than drawn as `0 / 0 / -`, which reads as a failed week.
+
+**RECONCILING TO TRANSMISSION'S REPORT - the differences are ours on purpose.** Fahad/Nabeel reported
+352/561 across five campaigns against our 343. Line by line:
+
+| Campaign | Their report | Ours | Why |
+|---|---|---|---|
+| Roverpath Qualification Questions | 91 / 106 | 91 / 106 | exact |
+| Final Funnel Pulse Survey | 68 / 80 | 68 / 80 | exact |
+| Roverpath Pulse Survey | 75 / 102 | 74 / 100 | **2 Transmission test leads** |
+| Final Funnel Qualification Questions | 59 / 77 | 59 / 75 | **2 Transmission test leads** |
+| VRSM | 59 / 196 | 51 / 466 | **basis + scope, see below** |
+
+**Every lead of difference on the four non-VRSM campaigns is exactly the Transmission test-lead
+filter** (2 accepted test leads on each of those two campaigns, 0 on the other two - verified). We
+strip them at the client's own 2026-07-07 request; their report does not. **Do not "fix" ours to
+match** - a Snowflake-side review concluded our figures were stale and theirs correct, which is wrong:
+re-pulled twice, unchanged, and the delta is the filter.
+
+**Their VRSM row is on a DIFFERENT BASIS from their other four.** Their 59 is every enriched CQ-tagged
+VRSM lead **including rejected** (28 CQ3 + 31 CQ4 delivered); their other four rows are accepted-only.
+On a consistent accepted basis VRSM is 51. Their 352 total is therefore not internally consistent, and
+their 196 denominator reproduces from nothing we can compute (CQ-tagged delivered is 143, accepted
+121, submitted-for-enrichment 184).
+
+**THE CQ TAG - VRSM CAN BE PARTLY SPLIT AFTER ALL.** The `CAMPAIGN` free-text field ends in `_CQ3` or
+`_CQ4` on some rows. On the campaigns where the offer is already known this is a clean discriminator
+**within Q3**: all 234 Pulse Survey leads are `_CQ4`, all 228 Qualification Questions are `_CQ3`, all
+1,255 Precision MQL carry none. Applied to VRSM it identifies **~142 of the client's 196**, and **59 of
+the 60 enriched VRSM leads carry a tag**. It is NOT wired in, for one reason: across the WHOLE flight
+(not just Q3) recall is poor - 559 of 809 known Pulse Survey leads carry no tag - so the tag is
+trustworthy when present and meaningless when absent, and folding in a denominator that is ~28% short
+would OVERSTATE the rate. It is an undocumented pattern in a free-text field that nobody upstream has
+committed to populating; confirm with Transmission before it reaches a client-facing number.
+**This corrects an earlier statement to the client that VRSM could not be split at all.**
+
+**VRSM was barely enriched before 24 August, and that is most of why its rate looks low.** By week,
+VRSM runs 0 NA / all dash until 17 Aug, then 0 dash / NA+numbers from 24 Aug - a hard cutover.
+Roverpath and Final Funnel return NA from the first week of July and show no such block, so **the dash
+is essentially VRSM-only and means "not submitted", not "no number found"**. Do NOT state it as
+"nothing before 24 August was ever sent": **12 leads in w/c 27 July came back with real numbers**, a
+fifth of VRSM's enriched total. Open with Nabeel: was the late start deliberate, and will the earlier
+leads be back-processed? If they will, the denominator grows later; if not, they should be excluded
+permanently.
+
+**Internal labelling.** Three cards on this dashboard are `BB_INTERNAL`-gated (Internal notes, the
+per-lead enriched-phone table, the benchmark). The per-lead table - the one that actually prints lead
+phone numbers - carried **no visible marker at all** until 2026-09-10; a gate stops the card rendering
+on a client session but does nothing about a staff screenshot. All three now say so on their face, and
+the benchmark pill says `internal` to match the existing `internal - not shown to client` convention
+rather than inventing a second phrase. **`client_schneidersecpwr` has the same gap** on its
+`BB_INTERNAL` Reports tab (labelled just "Reports"); not fixed there, it needs its own pass.
+
 ### The trap: the column has TWO empty sentinels, and neither is NULL
 
 `ENRICHED_PHONE_NUMBER` writes **`'-'`** AND the literal string **`'NA'`** for "not enriched".
