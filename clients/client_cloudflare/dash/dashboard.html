@@ -1394,10 +1394,14 @@
            array, because whether VRSM's Lead Magnet belongs in it is still open. -->
       <div class="card hidden" id="enrBenchCard" style="margin-top:var(--gap-lg)">
         <div class="card-head">
-          <div><h3>Against benchmark</h3>
+          <div><h3>Against benchmark <span class="pill" style="font-size:10px">staff only</span></h3>
           <div class="hint">Every accepted lead on <b id="enrBenchOffers">-</b> is expected to
             carry an enriched number, so that count is the target. Scoped by the date range,
-            campaign and market selections above.</div></div>
+            campaign and market selections above.
+            <br><b>Not shown in the client view</b> (client request, 2026-09-10): VRSM's Pulse
+            Survey and Qualification Questions leads cannot be told apart from its Lead Magnet
+            leads, so this target covers 4 of the 5 enriched campaigns and understates what
+            should be enriching.</div></div>
         </div>
         <div id="enrBenchVals"></div>
       </div>
@@ -8589,10 +8593,22 @@ function renderEnriched(){
   // offers (pick Precision MQL alone and there is no benchmark to show) - a target of 0 with a
   // 0% bar reads as a failed campaign rather than an offer the benchmark does not cover.
   {
+    // STAFF-ONLY since 2026-09-10 (Jade: "let's keep the target hidden in the client's view
+    // for now then"). The benchmark covers 4 of the 5 enriched campaigns - VRSM's Pulse Survey
+    // and Qualification Questions leads cannot be separated from its Lead Magnet leads, so the
+    // target understates what should be enriching and the client must not pace against it
+    // until Transmission can split that campaign. A CLIENT INSTRUCTION, not a measurement
+    // judgement: do not un-hide it because the figure looks right.
+    //   Same gate as #enrDetailCard: the markup ships `hidden`, this is the ONLY reveal, and it
+    //   requires BB_INTERNAL as well as having target rows - so any future path that forgets to
+    //   call this leaves the card hidden rather than exposed.
     const bc = document.getElementById('enrBenchCard');
-    if (bc) bc.classList.toggle('hidden', !tgtRows || !tgtL);
+    if (bc) bc.classList.toggle('hidden', !window.BB_INTERNAL || !tgtRows || !tgtL);
     const bv = document.getElementById('enrBenchVals');
-    if (bv && tgtRows && tgtL){
+    // Hiding the card is not enough - the figures would still sit in a client's DOM, one
+    // inspector away and read by any print stylesheet. Never build them at all.
+    if (bv && !window.BB_INTERNAL) bv.innerHTML = '';
+    else if (bv && tgtRows && tgtL){
       const pct = Math.max(0, Math.min(100, tgtRate * 100));
       bv.innerHTML =
           '<div class="kpis" style="grid-template-columns:repeat(3,1fr)">'
