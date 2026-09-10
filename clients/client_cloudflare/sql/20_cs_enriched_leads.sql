@@ -66,9 +66,9 @@
 -- up on its own the day EMEA earns its first enriched number. Question is with Transmission.
 --
 -- Grain: cs_enriched_leads  = one row per LEAD (detail).
---        cs_enriched_daily  = DAY x THEATRE x CAMPAIGN_ID  (what the payload ships).
---        cs_enriched_weekly = ISO week x THEATRE x CAMPAIGN_ID (SQL convenience + the job's
---                             reconciliation guard: daily must sum to weekly).
+--        cs_enriched_daily  = DAY x THEATRE x MARKET x CAMPAIGN_ID (what the payload ships).
+--        cs_enriched_weekly = ISO week x THEATRE x MARKET x CAMPAIGN_ID (SQL convenience + the
+--                             job's reconciliation guard: daily must sum to weekly, per market).
 --
 -- WHY DAILY IS WHAT SHIPS: the tab is date-range driven (2026-09-08), and a range that cuts
 -- mid-week CANNOT be honoured from week buckets -- the same reason sql/18_cs_compare_v2 is day
@@ -113,7 +113,76 @@ SELECT
     WHEN TRIM(IFNULL(f.ENRICHED_PHONE_NUMBER, '')) = '-'         THEN 'DASH'
     WHEN REGEXP_CONTAINS(IFNULL(f.ENRICHED_PHONE_NUMBER, ''), r'[0-9]') THEN 'VALUE'
     ELSE 'OTHER'
-  END AS ENRICHED_STATE
+  END AS ENRICHED_STATE,
+  -- MARKET (2026-09-10, client request via Jade: "can you do a market breakdown of the
+  -- enrichment %"). Resolved from COUNTRY_NAME -- the LEAD's own country -- which is the
+  -- definition sql/10_salesforce_leads_live uses for REGION_GRP and therefore what the CS
+  -- tab's market chips already show. Keep the country lists character-for-character the same
+  -- as sql/10's; two market definitions on one dashboard is how two panels start disagreeing.
+  --
+  -- DELIBERATELY NOT sql/16_stg_cs_leads_v2's MARKET, for two reasons that are easy to miss:
+  --   1. Its SEG_REGION is SPLIT(CAMPAIGN,'_')[SAFE_OFFSET(2)] -- parsed from the CAMPAIGN
+  --      NAME, so it is a property of the campaign, not the lead. Across a 5-campaign scope
+  --      that is close to a relabelling of the campaign picker already on this tab, and it is
+  --      not what "market" means to the client.
+  --   2. That view's base CTE is scoped STARTS_WITH(CAMPAIGN,'2026_Q3'), and this lane runs
+  --      from 2026-03-27. It could not resolve a market for the pre-Q3 half of these leads.
+  --
+  -- RIG IS CARRIED, and evaluated BEFORE geography exactly as sql/10 does. It was left out of
+  -- the first cut on the reasoning that RIG is Q3-hidden estate-wide (2026-08-05) and this tab
+  -- defaults to the current quarter -- but that made this column sql/10's definition MINUS an
+  -- arm, so at any range reaching before Q3 the same lead would read RIG on the CS tab and a
+  -- geographic market here, on one dashboard. Measured: 0 RIG-asset leads in scope for Q3, 64
+  -- pre-Q3. Carrying the arm costs nothing in the default view (no rows -> no chip, no table
+  -- row, so it self-hides) and removes the divergence outright.
+  --
+  -- KR stays campaign-scoped off the SAME seed sql/10 reads, not re-typed. All five in-scope
+  -- campaigns are in that seed today, so it is currently a no-op -- it is here so the two
+  -- definitions cannot drift if the enrichment scope grows.
+  --
+  -- 'OTHER' is a REAL row, not a residual to drop: the market rows must sum to the headline
+  -- "Leads in scope" or the two disagree the day an unmapped country arrives. Empty today
+  -- (all 1,030 Q3 leads resolve), which is exactly why it would be easy to leave out.
+  --
+  -- APAC ONLY, AND THE THEATRE GATE IS LOAD-BEARING. sql/10's country lists cover the APAC
+  -- markets and nothing else, so without this gate all 2,634 EMEA leads resolve to 'OTHER' -
+  -- caught by the export job's guard on the first run of this column. EMEA is NULL, not
+  -- 'OTHER': 'OTHER' asserts "we looked and this country is outside the plan", NULL says
+  -- "no resolver for this theatre yet", and only the second is true. The dashboard hides the
+  -- whole market card when a theatre resolves no markets, so the EMEA tab cannot render a
+  -- breakdown of one meaningless bucket.
+  --
+  -- GIVING EMEA REAL MARKETS IS NOT A COUNTRY-LIST EXTENSION. Every other EMEA panel on this
+  -- dashboard splits by the SIX campaign-name markets (UKI/DACH/SEUR/NEUR/CEERI/MEA) that
+  -- sql/16 resolves, because that is the grain the EMEA targets are bought at. Writing a
+  -- COUNTRY_NAME -> EMEA-region map here would be a second, disagreeing definition of a
+  -- dimension the campaign name already carries - the exact thing sql/16's header warns about.
+  -- The EMEA enriched tab is hidden today (zero enriched leads across 2,634), so this is not
+  -- blocking; do it properly on the day that tab lights up.
+  CASE
+    WHEN s.THEATRE <> 'APAC' THEN NULL
+    -- RIG: asset-based, so it is evaluated BEFORE geography and deliberately pulls its leads
+    -- out of every geographic market (the overlap is intentional). Same seeds sql/10 reads.
+    WHEN UPPER(TRIM(f.COUNTRY_NAME)) <> 'KOREA, REPUBLIC OF'
+         AND f.ASSET_2 IN (SELECT asset_2
+                           FROM `bidbrain-analytics.client_cloudflare.seed_rig_assets`)
+         AND f.CAMPAIGN_ID IN (SELECT campaign_id
+                               FROM `bidbrain-analytics.client_cloudflare.seed_rig_campaign_ids`)
+                                                                                       THEN 'RIG'
+    WHEN UPPER(TRIM(f.COUNTRY_NAME)) = 'KOREA, REPUBLIC OF'
+         AND f.CAMPAIGN_ID IN (SELECT campaign_id
+                               FROM `bidbrain-analytics.client_cloudflare.seed_kr_campaign_ids`)
+                                                                                       THEN 'KR'
+    WHEN UPPER(TRIM(f.COUNTRY_NAME)) IN ('AUSTRALIA', 'NEW ZEALAND')                    THEN 'ANZ'
+    WHEN UPPER(TRIM(f.COUNTRY_NAME)) IN ('SINGAPORE', 'MALAYSIA', 'INDONESIA',
+                                         'THAILAND', 'VIET NAM', 'VIETNAM',
+                                         'PHILIPPINES')                                THEN 'ASEAN'
+    WHEN UPPER(TRIM(f.COUNTRY_NAME)) = 'INDIA'                                         THEN 'SAARC'
+    WHEN UPPER(TRIM(f.COUNTRY_NAME)) IN ('CHINA', 'MAINLAND CHINA', 'TAIWAN',
+                                         'HONG KONG')                                  THEN 'GCR'
+    WHEN UPPER(TRIM(f.COUNTRY_NAME)) = 'JAPAN'                                         THEN 'JP'
+    ELSE 'OTHER'
+  END AS MARKET
 FROM `bidbrain-analytics.raw_snowflake.salesforce_cs_apac_all` f
 -- INNER JOIN = the scope gate AND the theatre resolver in one step. An unlisted campaign is
 -- dropped, never defaulted onto a theatre.
@@ -137,6 +206,7 @@ CREATE OR REPLACE VIEW `client_cloudflare.cs_enriched_daily` AS
 SELECT
   DAY,
   THEATRE,
+  MARKET,
   CAMPAIGN_ID,
   -- One CAMPAIGN string per id, so the id can be labelled without a second join. MIN(), not
   -- ANY_VALUE(): a deterministic spelling, so the label cannot flicker between runs.
@@ -147,7 +217,7 @@ SELECT
   COUNTIF(ENRICHED_STATE = 'DASH')     AS DASH_COUNT,
   COUNTIF(ENRICHED_STATE = 'NA')       AS NA_COUNT
 FROM `client_cloudflare.cs_enriched_leads`
-GROUP BY DAY, THEATRE, CAMPAIGN_ID;
+GROUP BY DAY, THEATRE, MARKET, CAMPAIGN_ID;
 
 
 -- ISO week rollup, so WEEK_START is always a Monday and lines up with the Monday anchor every
@@ -157,13 +227,15 @@ CREATE OR REPLACE VIEW `client_cloudflare.cs_enriched_weekly` AS
 SELECT
   DATE_TRUNC(DAY, ISOWEEK)                        AS WEEK_START,
   THEATRE,
+  MARKET,
   CAMPAIGN_ID,
   MIN(CAMPAIGN)                                   AS CAMPAIGN,
   COUNT(*)                                        AS LEAD_COUNT,
   COUNTIF(ENRICHED_PHONE IS NOT NULL)             AS ENRICHED_COUNT,
-  -- The rate at THIS grain (week x theatre x campaign). SAFE_DIVIDE, so an empty week is NULL,
+  -- The rate at THIS grain (week x theatre x market x campaign). SAFE_DIVIDE, so an empty
+  -- week is NULL,
   -- never a divide-by-zero. Anything aggregating across campaigns MUST re-derive the rate from
   -- the two summed counts and never average these -- a rate is not additive (repo-wide rule).
   SAFE_DIVIDE(COUNTIF(ENRICHED_PHONE IS NOT NULL), COUNT(*)) AS ENRICHMENT_RATE
 FROM `client_cloudflare.cs_enriched_leads`
-GROUP BY WEEK_START, THEATRE, CAMPAIGN_ID;
+GROUP BY WEEK_START, THEATRE, MARKET, CAMPAIGN_ID;
