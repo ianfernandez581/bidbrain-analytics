@@ -1378,8 +1378,11 @@
         that are shown at 0% rather than hidden, so the start of the feed stays visible.
         A value counts as enriched only if it is a real number - the source writes
         <b>&quot;-&quot;</b> and the literal string <b>&quot;NA&quot;</b> for &quot;not
-        enriched&quot;, and both are excluded. Enrichment is not run on every offer, so the
-        blended rate sits below the offers it is bought on - see the split by offer below.</span>
+        enriched&quot;, and both are excluded. Enrichment is only run on <b>pulse survey</b> and
+        <b>qualification questions</b> leads, so the blended rate sits below the offers it is
+        bought on - see the split by offer below. Precision MQL is not enriched and reads zero:
+        the only numbers it ever carried arrived in a single batch on 21 July 2026 and are
+        excluded.</span>
       </div>
 
       <div class="kpis" id="enrKpis" style="grid-template-columns:repeat(4,1fr)"></div>
@@ -1394,14 +1397,15 @@
            array, because whether VRSM's Lead Magnet belongs in it is still open. -->
       <div class="card hidden" id="enrBenchCard" style="margin-top:var(--gap-lg)">
         <div class="card-head">
-          <div><h3>Against benchmark <span class="pill" style="font-size:10px">staff only</span></h3>
-          <div class="hint">Every accepted lead on <b id="enrBenchOffers">-</b> is expected to
-            carry an enriched number, so that count is the target. Scoped by the date range,
-            campaign and market selections above.
-            <br><b>Not shown in the client view</b> (client request, 2026-09-10): VRSM's Pulse
-            Survey and Qualification Questions leads cannot be told apart from its Lead Magnet
-            leads, so this target covers 4 of the 5 enriched campaigns and understates what
-            should be enriching.</div></div>
+          <div><h3>Enriched vs available to enrich <span class="pill" style="font-size:10px">internal</span></h3>
+          <div class="hint">Accepted <b id="enrBenchOffers">-</b> leads are the ones enrichment is
+            run on, so that count is what was <b>available</b> to enrich. Not every lead can be
+            matched, so this is a share of what was available and <b>not a target</b>. Scoped by
+            the date range, campaign and market selections above.
+            <br><b>Not shown in the client view</b> (client request, 2026-09-10): it covers
+            Roverpath and Final Funnel only. VRSM runs both lead types through one campaign, and
+            the CQ tag on the campaign name identifies about 142 of its ~196 survey leads, so
+            folding it in would still understate what was available.</div></div>
         </div>
         <div id="enrBenchVals"></div>
       </div>
@@ -1495,8 +1499,16 @@
            default is hidden so any future path that forgets it fails CLOSED. -->
       <div class="card" id="enrDetailCard" style="display:none;margin-top:var(--gap-lg)">
         <div class="card-head">
-          <div><h3>Enriched leads</h3>
-          <div class="hint" id="enrDetailHint">Only the accepted leads that actually enriched.</div></div>
+          <div><h3>Enriched leads <span class="pill" style="font-size:10px">internal</span></h3>
+          <!-- The card was already BB_INTERNAL gated; what it had no marker for was a READER.
+               It prints per-lead PHONE NUMBERS, and it was the only one of this dashboard's three
+               internal cards carrying nothing on its face - the notes card says "never shown to
+               Cloudflare" in its own hint, and the benchmark card says so too. A gate stops the
+               card rendering on a client session; it does nothing about a staff member pasting a
+               screenshot of it into a client deck, which is the likelier way these numbers leave. -->
+          <div class="hint" id="enrDetailHint">Only the accepted leads that actually enriched.</div>
+          <div class="hint"><b>Internal view, never shown to Cloudflare</b> - this table lists
+            individual lead phone numbers.</div></div>
         </div>
         <div style="overflow:auto;max-height:560px">
           <table class="qoq-table bb-sortable" id="enrDetailTbl">
@@ -8410,6 +8422,31 @@ const enrEnr   = (r) => (+r.accepted_enriched_count || 0);
 const ENR_TARGET_OFFERS = ['Pulse Survey', 'Qualification Questions'];
 const enrIsTargetOffer = (o) => ENR_TARGET_OFFERS.indexOf(o) >= 0;
 
+// OFFERS ENRICHMENT IS NOT RUN ON (2026-09-10, client: "Precision MQL shouldn't have any
+// enriched leads. We are only enriching the leads that have filled out the pulse survey or
+// qualification questions"). Confirmed in the data: every Precision MQL lead carrying a real
+// number is dated 2026-07-21 - ONE day, 36 leads, none before it and none since, spread over 13
+// campaign strings, 4 assets and 7 countries, and none carrying the CQ tag that marks a survey
+// lead. Enrichment returns cluster on the same handful of dates across several campaigns, so it
+// is a batch that swept the wrong campaign in, not a lead type that quietly enriches.
+//
+// They are EXCLUDED FROM THE COUNTS, not from the data: `enriched_count` still ships and the
+// job's per-offer audit line still prints them, so the day it happens again it is visible to us
+// rather than silently absorbed. Never widen this list to hide an inconvenient number - the test
+// is "enrichment is not bought on this offer", not "this figure looks wrong".
+const ENR_NOT_ENRICHED_OFFERS = ['Precision MQL'];
+const enrOfferIsEnriched = (o) => ENR_NOT_ENRICHED_OFFERS.indexOf(o) < 0;
+// The scoped enriched count. Every headline figure uses THIS, never enrEnr() directly.
+const enrEnrScoped = (r) => enrOfferIsEnriched(r.offer_type) ? enrEnr(r) : 0;
+
+// DISPLAY NAMES for the offer column (2026-09-10, client: "we're mixing lead types with
+// vendors"). OFFER_TYPE carries three real lead types plus 'Lead Magnet', which is not a lead
+// type at all - it is VRSM's single campaign, holding pulse survey AND qualification questions
+// leads that nothing in the feed separates. Labelling it as a peer of the other three reads as a
+// fourth lead type. Renamed HERE and not in sql/10, whose OFFER_TYPE other surfaces depend on.
+const ENR_OFFER_LABELS = { 'Lead Magnet': 'VRSM (lead types not separated)' };
+const enrOfferLabel = (o) => ENR_OFFER_LABELS[o] || o || '(not recorded)';
+
 let enrMarketSel = {};
 function enrMarketActive(){ return Object.keys(enrMarketSel).filter(k => enrMarketSel[k]); }
 // A NULL market means the THEATRE has no resolver (EMEA today), which is NOT the same claim
@@ -8548,7 +8585,7 @@ function renderEnriched(){
     const k = isoMonday(r.day);
     const o = byWeek[k] || (byWeek[k] = { leads: 0, enriched: 0 });
     o.leads    += enrLeads(r);
-    o.enriched += enrEnr(r);
+    o.enriched += enrEnrScoped(r);
   }
   const weeks = Object.keys(byWeek).sort();
   const totL = weeks.reduce((a,k) => a + byWeek[k].leads, 0);
@@ -8574,9 +8611,18 @@ function renderEnriched(){
   // as 104% and AHEAD, while those offers are really 292 of 361, so 81% and 69 leads short.
   // That is why the target is rendered beside its own numerator, not under the headline.
   let tgtL = 0, tgtE = 0, tgtRows = 0;
+  const tgtWeek = {};
   for (const r of enrScopeRows()){
     if (!enrIsTargetOffer(r.offer_type)) continue;
-    tgtRows++; tgtL += enrLeads(r); tgtE += enrEnr(r);
+    tgtRows++; tgtL += enrLeads(r); tgtE += enrEnrScoped(r);
+    // WEEKLY, per the client (2026-09-10): "this number would ideally be shown on a weekly basis
+    // based on the volume of leads we got". Same isoMonday() the table above uses, so the two
+    // cannot bucket a lead into different weeks.
+    if (r.day){
+      const k = isoMonday(r.day);
+      const o = tgtWeek[k] || (tgtWeek[k] = { avail: 0, enr: 0 });
+      o.avail += enrLeads(r); o.enr += enrEnrScoped(r);
+    }
   }
   const tgtRate = tgtL ? tgtE / tgtL : null;
 
@@ -8609,17 +8655,42 @@ function renderEnriched(){
     // inspector away and read by any print stylesheet. Never build them at all.
     if (bv && !window.BB_INTERNAL) bv.innerHTML = '';
     else if (bv && tgtRows && tgtL){
-      const pct = Math.max(0, Math.min(100, tgtRate * 100));
+      // NOT A TARGET, and the wording is the client's own (2026-09-10): "a note to not present
+      // this number as the 'target' but rather x amount of leads enriched compared to the total
+      // leads available to be enriched. We know that not ALL the leads will be able to be
+      // enriched by Apollo, so we don't want to make it seem like we are not reaching an
+      // unattainable target". So: no "target", no "short", no shortfall figure, and the bar is a
+      // share of what was available rather than progress towards a goal.
+      let wk = '';
+      const wks = Object.keys(tgtWeek).sort();
+      for (const k of wks){
+        const o = tgtWeek[k];
+        // A week with NO available leads is not a 0% week, it is a week the question does not
+        // apply to - usually a part-week at the edge of the range. Drawing it as 0/0/- reads as
+        // a failed week. A week WITH leads and no enrichment still prints, as a real 0%.
+        if (!o.avail) continue;
+        const rr = o.avail ? o.enr / o.avail : null;
+        wk += '<tr><td>w/c ' + esc(k) + '</td>'
+           +  '<td class="num">' + fmtNum(o.avail) + '</td>'
+           +  '<td class="num">' + fmtNum(o.enr) + '</td>'
+           +  '<td class="num">' + (rr == null ? '-' : fmtPct2(rr, 1)) + '</td></tr>';
+      }
+      wk += '<tr class="total" style="font-weight:700"><td>Total</td>'
+         +  '<td class="num">' + fmtNum(tgtL) + '</td>'
+         +  '<td class="num">' + fmtNum(tgtE) + '</td>'
+         +  '<td class="num">' + (tgtRate == null ? '-' : fmtPct2(tgtRate, 1)) + '</td></tr>';
+
       bv.innerHTML =
           '<div class="kpis" style="grid-template-columns:repeat(3,1fr)">'
-        +   kpi('Target', fmtNum(tgtL), 'every accepted lead on these offers')
-        +   kpi('Enriched', fmtNum(tgtE), 'of the ' + fmtNum(tgtL) + ' expected', 'accent')
-        +   kpi('Against benchmark', fmtPct2(tgtRate, 1), fmtNum(tgtL - tgtE) + ' short')
+        +   kpi('Available to enrich', fmtNum(tgtL), 'accepted pulse survey + QQ leads')
+        +   kpi('Enriched', fmtNum(tgtE), 'of the ' + fmtNum(tgtL) + ' available', 'accent')
+        +   kpi('Enrichment rate', fmtPct2(tgtRate, 1), 'not every lead can be matched')
         + '</div>'
-        + '<div style="margin-top:var(--gap);height:10px;border-radius:6px;'
-        +      'background:rgba(255,255,255,.07);overflow:hidden">'
-        +   '<div style="height:100%;width:' + pct.toFixed(1) + '%;'
-        +        'background:var(--brand-accent);border-radius:6px"></div>'
+        + '<div style="overflow:auto;margin-top:var(--gap-lg)">'
+        +   '<table class="qoq-table bb-sortable"><thead><tr>'
+        +     '<th>Week</th><th class="num">Available</th><th class="num">Enriched</th>'
+        +     '<th class="num">Enrichment rate</th>'
+        +   '</tr></thead><tbody>' + wk + '</tbody></table>'
         + '</div>';
     }
     const bo = document.getElementById('enrBenchOffers');
@@ -8635,7 +8706,7 @@ function renderEnriched(){
     for (const r of enrScopeRows()){
       const key = r.offer_type || '(not recorded)';
       const o = byOff[key] || (byOff[key] = { leads: 0, enriched: 0 });
-      o.leads += enrLeads(r); o.enriched += enrEnr(r);
+      o.leads += enrLeads(r); o.enriched += enrEnrScoped(r);
     }
     const offs = Object.keys(byOff).sort((a,b) => byOff[b].leads - byOff[a].leads);
     const ob = document.querySelector('#enrOfferTbl tbody');
@@ -8648,8 +8719,8 @@ function renderEnriched(){
         const v = byOff[o];
         // A rate needs a denominator. No accepted leads prints a dash, never 0%.
         const rr = v.leads ? v.enriched / v.leads : null;
-        h += '<tr><td>' + esc(o)
-          +      (enrIsTargetOffer(o) ? ' <span class="pill" style="font-size:10px">benchmark</span>' : '')
+        h += '<tr><td>' + esc(enrOfferLabel(o))
+          +      (enrIsTargetOffer(o) ? ' <span class="pill" style="font-size:10px">enriched</span>' : '')
           +    '</td>'
           +  '<td class="num">' + fmtNum(v.leads) + '</td>'
           +  '<td class="num">' + fmtNum(v.enriched) + '</td>'
@@ -8673,7 +8744,7 @@ function renderEnriched(){
       const m = enrMarketKey(r.market);
       const o = byMkt[m] || (byMkt[m] = { leads: 0, enriched: 0 });
       o.leads    += enrLeads(r);
-      o.enriched += enrEnr(r);
+      o.enriched += enrEnrScoped(r);
     }
     const mkts = enrMarketSort(Object.keys(byMkt));
     const on   = enrMarketActive();
