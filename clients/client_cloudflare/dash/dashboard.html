@@ -1369,20 +1369,14 @@
     <!-- ============================================================ -->
     <div class="panel hidden" id="panel-enriched">
       <div class="qoq-note">
-        <b>Weekly enriched leads</b> - Content-Syndication leads that arrived with an <b>enriched
-        phone number</b> on top of the <b>PHONE</b> every lead already carries. Counted on
-        <b>accepted</b> leads across <b>every Core DG campaign</b>, bucketed by <b>lead date</b>
-        (ISO week, Monday start), so the lead totals here tie to the Content Syndication tab.
-        The <b>date picker</b> above scopes every figure on this tab.
-        <br><span style="color:var(--cf-mute)">Enrichment began <b id="enrFirst">-</b>; weeks before
-        that are shown at 0% rather than hidden, so the start of the feed stays visible.
-        A value counts as enriched only if it is a real number - the source writes
-        <b>&quot;-&quot;</b> and the literal string <b>&quot;NA&quot;</b> for &quot;not
-        enriched&quot;, and both are excluded. Enrichment is only run on <b>pulse survey</b> and
-        <b>qualification questions</b> leads, so the blended rate sits below the offers it is
-        bought on - see the split by offer below. Precision MQL is not enriched and reads zero:
-        the only numbers it ever carried arrived in a single batch on 21 July 2026 and are
-        excluded.</span>
+        <b>Weekly enriched leads</b> - Content Syndication leads that came through with an extra
+        phone number on top of the one every lead already has. Counted on <b>accepted</b> leads
+        across every Core DG campaign, so the totals here match the Content Syndication tab. The
+        date picker above scopes the whole tab.
+        <br><span style="color:var(--cf-mute)">Only <b>pulse survey</b> and <b>qualification
+        questions</b> leads get enriched, so the overall rate sits below those two. Precision MQL
+        reads zero. Enrichment started <b id="enrFirst">-</b>, and earlier weeks show as 0% rather
+        than being hidden.</span>
       </div>
 
       <div class="kpis" id="enrKpis" style="grid-template-columns:repeat(4,1fr)"></div>
@@ -2621,7 +2615,7 @@ window.DateRange = (function(){
     const k = detectPreset(selStart, selEnd);
     $('dpLabel').textContent = (k!=='custom')
       ? PRESETS.find(p=>p.k===k).label
-      : (sameDay(selStart,selEnd) ? fmt(selStart) : fmt(selStart)+' – '+fmt(selEnd));
+      : (sameDay(selStart,selEnd) ? fmt(selStart) : fmt(selStart)+' to '+fmt(selEnd));
   }
 
   return { init, toggle, setRange, getRange: () => ({ start: iso(selStart), end: iso(selEnd) }) };
@@ -3478,7 +3472,7 @@ function renderDateScope(){
       + 'The <b>Pacing detail</b> section is driven by its own week selector and is not affected by this range.';
   }
   note.style.display = 'block';
-  note.innerHTML = 'Filtered to <b>' + rangeStart + '</b> – <b>' + rangeEnd + '</b>. ' + scope;
+  note.innerHTML = 'Filtered to <b>' + rangeStart + '</b> to <b>' + rangeEnd + '</b>. ' + scope;
 }
 
 // ==========================================================================
@@ -7620,7 +7614,7 @@ function prettyCreative(raw) {
     extra.push(T);                                                           // e.g. AIF, AGL - keep verbatim & distinct
   }
   const msg = [msgAcq ? 'Acquisition' : null, msgCnc ? 'Connectivity Cloud' : null]
-    .filter(Boolean).join(' – ');
+    .filter(Boolean).join(', ');
   let fmtPart = '';
   if (fmt || sizeName || size) {
     fmtPart = [fmt, sizeName].filter(Boolean).join(' ');
@@ -8633,7 +8627,7 @@ function renderEnriched(){
     + kpi('Enriched leads', fmtNum(totE), 'accepted, with a real phone number', 'accent')
     + kpi('Enrichment rate', (rate == null ? '-' : fmtPct2(rate, 1)),
           (rate == null ? 'no accepted leads in scope' : fmtNum(totE) + ' of ' + fmtNum(totL)))
-    + kpi('Not enriched', fmtNum(totL - totE), 'dash or NA in the feed', 'warn');
+    + kpi('Not enriched', fmtNum(totL - totE), 'no phone number found', 'warn');
 
   // Benchmark card. HIDDEN rather than zeroed when the selection holds none of the target
   // offers (pick Precision MQL alone and there is no benchmark to show) - a target of 0 with a
