@@ -127,10 +127,38 @@ near-miss basis error as the CS by-market chart (md/AGENTS.md, "pace in the unit
 bought in"): a numerator and denominator drawn from different populations.
 
 **The target offer set is `ENR_TARGET_OFFERS`, a frontend array, deliberately not a number in the
-view.** OPEN with the client: Transmission (Nabeel, 2026-09-10) say **VRSM's Lead Magnet is
-enriched too**, which would make it 5 campaigns rather than the client's 4 - **827 accepted / 343
-enriched (41%)** instead of **361 / 292 (81%)**. Adding `'Lead Magnet'` to that array is the whole
-change; `OFFER_TYPE` sits in the daily grain precisely so the answer needs no SQL round.
+view.** Transmission (Nabeel, 2026-09-10) say **VRSM's Lead Magnet is enriched too**, which would
+make it 5 campaigns rather than the client's 4 - **827 accepted / 343 enriched (41%)** instead of
+**361 / 292 (81%)**. Adding `'Lead Magnet'` to that array is the whole change; `OFFER_TYPE` sits
+in the daily grain precisely so the answer needs no SQL round.
+
+**THE BENCHMARK CARD IS STAFF-ONLY, AND THAT IS A CLIENT INSTRUCTION** (2026-09-10, Jade: *"let's
+keep the target hidden in the client's view for now then. I'll message in the chat to see if Nabeel
+can help figure it out"*). **Do not un-hide it because the figure looks right.**
+
+Why she asked: neither offer set is the rate the end client cares about. **VRSM's Pulse Survey and
+Qualification Questions leads cannot be separated from its Lead Magnet leads**, so the 4-campaign
+target UNDERSTATES what should be enriching, and the 5-campaign one includes Lead Magnet leads that
+were never a PS/QQ buy. Checked from both ends before answering:
+
+- The mirror is **29 columns and none separates the two offers**. `DT_FILENAME` is the Snowflake
+  sync file, not the lead upload. `JOB_TITLE` / `JOB_FUNCTION` / `JOB_LEVEL` / `OPT_IN` /
+  `INDUSTRY_NAME` are 100% populated on every VRSM lead; `STATE` / `ANNUAL_REVENUE_` / `WEBSITE`
+  are 0%. Nothing differentiates.
+- **The asset is not a proxy either**: 21 of 27 distinct `ASSET_1` values carry BOTH offer types,
+  covering **1,462 of 1,495 leads (97.8%)**.
+- **Snowflake has no wider source.** Same 29 columns, no lead-level upload table in any accessible
+  database, and `CS_REPORTING.V_SALESFORCE_LEADS_LIVE`'s own `OFFER_TYPE` is a `CASE` on
+  `CAMPAIGN_ID` - so it can never split within one campaign, and VRSM is not even in its scope.
+
+So the split needs **a separate campaign ID per offer going forward, or a lead-type column added to
+the upload** - which is what Jade is taking to Nabeel. Un-hide the card when that lands.
+
+**Gated exactly like `#enrDetailCard`:** the markup ships `hidden`, `renderEnriched()` is the ONLY
+reveal and requires `window.BB_INTERNAL`, and `#enrBenchVals` is **never written on a client
+session** - hiding the card alone would leave the target in the DOM, one inspector away and read by
+any print stylesheet. The **by-offer table stays client-facing**: it states no target, and it is
+what makes the 20% headline legible.
 
 **Transmission's account of the field does not match the data - do not build on it.** Nabeel
 (2026-09-10): *"the EnrichedPhoneNumber field either has a phone number in it or has NA, there is
