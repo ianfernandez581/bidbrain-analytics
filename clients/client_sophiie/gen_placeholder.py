@@ -197,7 +197,7 @@ def main():
             "client": "sophiie",
             "title": "Sophiie AI",
             "currency": "AUD",
-            "action_source_label": "Sign up · TTD-attributed",
+            "action_source_label": "Try free click · TTD-attributed",
             "channel": "The Trade Desk (programmatic display)",
             # THE ONLY TELL. Real payloads have no such key, so the banner clears itself.
             "placeholder": True,

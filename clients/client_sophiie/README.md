@@ -3,7 +3,8 @@
 Sophiie AI (sophiie.ai) is a **100% Digital** client: an AI receptionist and back-office product for
 trades and service businesses - it answers their calls 24/7, books jobs, sends quotes and invoices,
 schedules crews and follows up with customers. The offer is a **free trial** (secondary: book a
-demo), so the campaign outcome is a **sign-up**.
+demo), and the outcome the campaign MEASURES is a **Try free click** - a click on the site's "Try
+free" button, NOT a completed trial sign-up (see "Try free clicks: what the number actually is").
 
 **Channel: The Trade Desk programmatic display - NOT Meta.** The dashboard was cloned from the
 geyervalmont/geocon **Meta** template and has since been rebuilt end to end onto TTD. One campaign,
@@ -12,15 +13,15 @@ audience tiers plus a retargeting ad group, Australia only, judged on the platfo
 
 | | KPI | Target | Status |
 |---|---|---|---|
-| Primary | Cost per sign-up (CPA) | A$150 | HARD - the campaign's own custom-CPA setting |
+| Primary | Cost per Try free click (CPA) | A$150 | HARD - the campaign's own custom-CPA setting |
 | Secondary | Cost per click | A$3.00 | HARD |
 | Tertiary | CTR | 0.15% | HARD |
-| | CPM / impression target / sign-up volume target | A$4.50 / 2,222,222 / 67 | **DERIVED by us** from the three above - the UI labels them, or a red delta accuses the campaign of missing a KPI nobody agreed to (the caltex rule) |
+| | CPM / impression target / Try free click volume target | A$4.50 / 2,222,222 / 67 | **DERIVED by us** from the three above - the UI labels them, or a red delta accuses the campaign of missing a KPI nobody agreed to (the caltex rule) |
 
 Flight **2026-09-03 -> 2026-10-03**, budget **A$10,000**.
 
 **Status (2026-09-05): LIVE on real data.** First delivery landed 2026-09-04 (55,348 impressions,
-100 clicks, A$337.46, 0 attributed sign-ups) and the dashboard is serving it - the sample banner has
+100 clicks, A$337.46, 0 attributed Try free clicks) and the dashboard is serving it - the sample banner has
 cleared itself. The portal tile is `active`.
 
 **There was never a grant problem.** Windsor grants the SEAT (`tradedesk__569`, "100% Digital"), not
@@ -47,7 +48,7 @@ unchanged - the channel swap did not touch the skin.
 | `dash/platform_sso.py`, `dash/bb_deck.js` | Vendored, unchanged from the template. |
 | `gen_placeholder.py` | Builds `dash/placeholder.json` from `targets/*.csv`. Deterministic (`random.seed(42)`). |
 | `creatives/` | The **supplied artwork**, version-controlled: `sophiie_logo.png` (the client's mark) and `100digital_light.jpg` (the agency mark, mirrored from `bidbrain-platform/Creatives/`). Both are inlined as base64 into `dash/dashboard.html`. |
-| `sql/01_stg_ttd.sql` | The client slice of `raw_windsor.perf_the_trade_desk` (advertiser `gjcl0pp`) + the audience-tier / funnel-stage parse + the sign-up conversion unpack. |
+| `sql/01_stg_ttd.sql` | The client slice of `raw_windsor.perf_the_trade_desk` (advertiser `gjcl0pp`) + the audience-tier / funnel-stage parse + the Try free click conversion unpack. |
 | `sql/02_fact.sql` | The single fact view, one row per (date x campaign x ad group x creative). **No rate is ever stored** - the dashboard recomputes every ratio from summed components, which is what makes any date sub-range exact. |
 | `sql/03_targets.sql`, `sql/04_budget.sql` | Thin pass-throughs over the `seed_*` tables. |
 | `sql/deploy_views_sophiie.ps1` | Reapply the views, then force a job run. |
@@ -403,14 +404,30 @@ seed.
 | `funnel_stage` | `stage` | `Awareness` / `Consideration` / `Conversion` / **`Unclassified`**. Must match `STAGE_COLORS` in the HTML. |
 | `spend`, `impressions`, `clicks` | same | AUD native, no FX. |
 | `video_starts`, `video_25/50/75`, `video_completes` | same | All zero on this display buy; the video card auto-hides via `hasAny()`. |
-| `post_view_conv` / `post_click_conv` | `pv_conv` / `pc_conv` | Sign-ups, kept apart by attribution path and summed to one figure on screen. |
+| `post_view_conv` / `post_click_conv` | `pv_conv` / `pc_conv` | Try free clicks, kept apart by attribution path and summed to one figure on screen (the browser-side key is still `signups`). |
 | `sampled_viewed` / `sampled_tracked` | `vw_viewed` / `vw_tracked` | Viewability **sample**, carried as the two components and never a stored rate. **NULL, not 0**, until viewability measurement is enabled on the ad groups - the UI must be able to say "not measured" rather than claim 0% viewable. |
 
 **No ratio is ever stored.** CTR / CPM / CPC / CPA / video completion are recomputed in the browser
 from summed components, which is what makes the date-range filter and the CSV export exact over any
 sub-range (`md/AGENTS.md`, "RATES MUST NEVER ENTER A FACT TABLE").
 
-### Sign-ups: what the number actually is
+### Try free clicks: what the number actually is
+
+**It is a click on the site's "Try free" button, not a sign-up (2026-09-11, client).** The Trade
+Desk conversion source is NAMED "Sign up", and the dashboard originally said "sign-ups" everywhere,
+but what the tracker records is the Try free button click - so every client-facing surface now says
+**Try free clicks** (KPI tiles, title, charts, tables, insights, the "How to read this" note, the job's
+`action_source_label` badge, CSV headers and the AI-deck prompts). Three rules follow:
+
+- **Never print "sign-up" for this figure again**, and never imply a trial was actually started -
+  nothing after the button click is visible to the ad platform. The deck prompts forbid it explicitly.
+- **Only the LABELS moved.** Every key is unchanged so nothing in the data contract shifted:
+  `pv_conv` / `pc_conv` (job + status checks), `signups` / `signups_target` / `signupsReported()` /
+  `renderSignups()` in the browser, and the deck payload's `signups*` / `click_to_signup` keys (report.py
+  reads them; the model only ever sees its labelled text brief). Where the TTD source is named in copy
+  it is quoted as the platform's name for the tracker ("named "Sign up" in The Trade Desk").
+- "Clicks" on their own mean **ad clicks**; the rate tile is "Click to Try free" (Try free clicks /
+  ad clicks). Its post-view share means it is not a true click-through rate - read it as a ratio.
 
 Windsor exposes TTD conversions only as **anonymous numbered slots** (`click_conversion_NN`,
 `view_through_conversion_NN`) - there is no pixel name or id in the connector. The campaign's
@@ -420,8 +437,8 @@ tell us which slot is which. So `sql/01` sums **all 12 slots per kind** (a secon
 be silently dropped) and carries `conv_slots`, the slot names that actually fired.
 
 **The export job prints those slots every run and WARNs when more than one is populated.** When that
-warning appears, identify the slots in The Trade Desk and **split the non-sign-up action out in
-`sql/01_stg_ttd.sql`** - never leave two different actions folded into one "sign-ups" figure. The
+warning appears, identify the slots in The Trade Desk and **split the other action out in
+`sql/01_stg_ttd.sql`** - never leave two different actions folded into one "Try free clicks" figure. The
 status-pipeline checks sum the same 12 slots, so both sides must move in the same change.
 `conversion_touch_NN` (total pixel fires, mostly not ad-attributed) is deliberately unused. And per
 the VMCH precedent: if `conv_slots` ever shows an ADJACENT PAIR, TTD is exporting one tracker as a
