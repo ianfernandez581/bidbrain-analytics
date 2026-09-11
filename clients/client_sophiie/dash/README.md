@@ -69,14 +69,14 @@ and strip count, never by darkening. One external chart library: Chart.js 4.5.0.
 **Sticky control bar:** the tab rail, a Looker-style date-range picker, funnel-stage chips, a search
 box, and CSV export ("this tab" / "all data"). Three tabs:
 
-1. **Overview** — the KPI row (sign-ups · cost per sign-up · clicks · ad spend) over a
-   delivery-quality row (impressions · CTR · CPM · click-to-sign-up); delivery over time with axis
+1. **Overview** — the KPI row (Try free clicks · cost per Try free click · clicks · ad spend) over a
+   delivery-quality row (impressions · CTR · CPM · click to Try free); delivery over time with axis
    and grain toggles; budget pacing and progress-to-goal; the cumulative on-track-to-goal chart
-   (which shows IMPRESSIONS until the first sign-up is attributed, then switches itself); the
+   (which shows IMPRESSIONS until the first Try free click is attributed, then switches itself); the
    response funnel; spend by audience tier; performance by funnel stage; creative formats; and an
    insight strip.
 2. **Paid Media** — performance vs targets by ad group, the CPC vs CTR efficiency map, CPC over
-   time, engagement over time, sign-ups over time (hidden until the first sign-up - a chart of zero
+   time, engagement over time, Try free clicks over time (hidden until the first one - a chart of zero
    bars under a CPA target line reads as a failed campaign), day-of-week, spend by ad group, spend
    vs delivery share, the per-creative table with a thin-volume guard, and the wear-out watch.
    The four period charts follow the window via `trendPeriod()`, and their captions are written

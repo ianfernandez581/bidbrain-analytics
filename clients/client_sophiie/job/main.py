@@ -7,6 +7,9 @@ tiers plus a retargeting ad group, and it is judged on the platform's own KPI la
     primary   CPA   A$150  (custom CPA, conversion source "Sign up")
     secondary CPC   A$3.00
     tertiary  CTR   0.15%
+The conversion source is NAMED "Sign up" in The Trade Desk, but what it records is a click on the
+"Try free" button on sophiie.ai - so everything client-facing calls it a "Try free click", never a
+sign-up (2026-09-11, client). Internal keys (signups_target, pv_conv / pc_conv) are unchanged.
 
 Single-fact-table architecture, same as every other lean client here: this job ships ONE compact
 per-(date x campaign x ad group x creative) fact array (`rows`) plus the flight/pacing context, the
@@ -67,10 +70,10 @@ def audit(fact):
        in The Trade Desk shows up as a named warning here and as a visible chip on the dashboard,
        instead of quietly filing a retargeting ad group under Awareness.
     2. CONVERSION SLOTS. Windsor reports TTD conversions as anonymous numbered slots and this
-       campaign has TWO conversion data sources attached ("Sign up +1"), so the sign-up total is a
-       sum over slots we cannot individually name. Printing which slots actually fire is the only
-       way to notice a second action arriving in a different slot - at which point it must be SPLIT
-       OUT in sql/01, never left folded into "sign-ups".
+       campaign has TWO conversion data sources attached ("Sign up +1"), so the Try free click total
+       is a sum over slots we cannot individually name. Printing which slots actually fire is the
+       only way to notice a second action arriving in a different slot - at which point it must be
+       SPLIT OUT in sql/01, never left folded into "Try free clicks".
     """
     unclassified = sorted({r.get("ad_group_name") for r in fact
                            if (r.get("funnel_stage") or "") == "Unclassified"})
@@ -82,11 +85,11 @@ def audit(fact):
     if slots:
         print(f"conversion slots reporting ({len(slots)}): " + ", ".join(slots))
         if len(slots) > 1:
-            print("WARNING: more than one TTD conversion slot is populated. Sign-ups are currently "
-                  "the SUM of every slot. Identify each slot in The Trade Desk and split any "
-                  "non-sign-up action out in sql/01_stg_ttd.sql before reporting it as sign-ups.")
+            print("WARNING: more than one TTD conversion slot is populated. Try free clicks are "
+                  "currently the SUM of every slot. Identify each slot in The Trade Desk and split any "
+                  "other action out in sql/01_stg_ttd.sql before reporting it as Try free clicks.")
     else:
-        print("conversion slots reporting: none yet (0 attributed sign-ups so far)")
+        print("conversion slots reporting: none yet (0 attributed Try free clicks so far)")
 
 
 def build_env(bq, observed):
@@ -200,11 +203,12 @@ def build_env(bq, observed):
             "client": CLIENT,
             "title": "Sophiie AI",
             "currency": (fact[0].get("currency") if fact else None) or "AUD",
-            # Badge under the "Sign-ups" KPI. Names WHAT is counted, not just the platform: these are
+            # Badge under the "Try free clicks" KPI. Names WHAT is counted, not just the platform:
             # The Trade Desk's own attributed conversions on the campaign's "Sign up" conversion
-            # source, post-click plus post-view. If a second tracker starts reporting (the job WARNs
-            # when it does) this label and the dashboard copy must be re-checked together.
-            "action_source_label": "Sign up · TTD-attributed",
+            # source, which fires on a click of the site's Try free button - post-click plus
+            # post-view. If a second tracker starts reporting (the job WARNs when it does) this
+            # label and the dashboard copy must be re-checked together.
+            "action_source_label": "Try free click · TTD-attributed",
             "channel": "The Trade Desk (programmatic display)",
             "last_updated": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
             "data_through": (lambda sf: max(sf).strftime("%Y-%m-%dT%H:%M:%SZ") if sf else None)(
@@ -234,7 +238,7 @@ def build_env(bq, observed):
             "video_starts": num(r.get("video_starts")), "video_25": num(r.get("video_25")),
             "video_50": num(r.get("video_50")), "video_75": num(r.get("video_75")),
             "video_completes": num(r.get("video_completes")),
-            # Sign-ups, split by attribution path. Summed to one "sign-ups" figure on screen; kept
+            # Try free clicks, split by attribution path. Summed to one figure on screen; kept
             # apart here so post-view and post-click can be told apart without a re-export.
             "pv_conv": num(r.get("post_view_conv")), "pc_conv": num(r.get("post_click_conv")),
             # Viewability sample. None (not 0) when TTD is not measuring it, so the UI can say
@@ -243,7 +247,7 @@ def build_env(bq, observed):
         } for r in fact],
     }
     summary = (f"{len(fact)} fact rows, {imps_total:,} impressions, {clicks_total:,} clicks, "
-               f"{round(signups_total,1)} sign-ups, "
+               f"{round(signups_total,1)} Try free clicks, "
                f"${round(spend_total,2)} spend ({env['meta']['date_min']}..{env['meta']['date_max']})")
     return env, summary
 
