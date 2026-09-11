@@ -65,7 +65,7 @@ $JOBS = @(
   # delimiter syntax (^;^) because the VALUE itself contains a comma. Retire this job if/when
   # the client grants ian@100.digital GA4 Viewer and the (already-created, currently failing)
   # DTS transfers for 550962241 / 551838402 take over.
-  @{ key="ga4";       dir="ingest/windsor_data_pull/ga4";       job="windsor-ga4-ingest";       mem="1Gi"; cpu="1"; cron="25 21 * * *"; env="^;^GA4_ACCOUNTS=550962241,551838402" }
+  @{ key="ga4";       dir="ingest/windsor_data_pull/ga4";       job="windsor-ga4-ingest";       mem="1Gi"; cpu="1"; cron="25 21 * * *"; env="^;^GA4_ACCOUNTS=550962241,551838402,468621509" }
 )
 
 # ---- one-time shared service account + least-privilege IAM (idempotent) --------------

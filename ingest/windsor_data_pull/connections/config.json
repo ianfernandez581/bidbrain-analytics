@@ -151,7 +151,9 @@
         { "id": "550962241", "name": "Geocon brand site", "client": "geocon", "label": "Geocon", "expected": "daily", "alerts": true, "consumers": ["geocon"] },
         { "id": "551838402", "name": "Gatewaybraddon (landing site)", "client": "geocon", "label": "Geocon", "expected": "daily", "alerts": true, "consumers": ["geocon"] },
         { "id": "287370621", "name": "VMCH", "client": "vmch", "label": "VMCH", "expected": "standby", "alerts": false, "consumers": ["vmch"],
-          "why": "laptop-run fallback path; vmch's GA4 is DTS-first (raw_ga4.perf_ga4)" }
+          "why": "laptop-run fallback path; vmch's GA4 is DTS-first (raw_ga4.perf_ga4)" },
+        { "id": "468621509", "name": "Sophiie", "client": "sophiie", "label": "Sophiie", "expected": "standby", "alerts": false, "consumers": [],
+          "why": "PULLED deliberately (in the deployed job's GA4_ACCOUNTS, landing to 2026-09-10) but read by nothing yet - sophiie-dash is 100% Trade Desk and has no GA4 reference in its sql or job. Listed here so it stops showing as 'Unconfigured', which is how a live feed hides. Flip to daily/alerts the day a GA4 lane lands on that dashboard. Its NATIVE transfer (dts_ga4, same property) is a separate row and is failing on a GA4 permission - that one nothing reads either." }
       ]
     },
     {
