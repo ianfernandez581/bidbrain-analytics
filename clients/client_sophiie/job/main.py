@@ -7,6 +7,9 @@ tiers plus a retargeting ad group, and it is judged on the platform's own KPI la
     primary   CPA   A$150  (custom CPA, conversion source "Sign up")
     secondary CPC   A$3.00
     tertiary  CTR   0.15%
+The conversion source is NAMED "Sign up" in The Trade Desk, but what it records is a click on the
+"Try free" button on sophiie.ai - so everything client-facing calls it a "Try free click", never a
+sign-up (2026-09-11, client). Internal keys (signups_target, pv_conv / pc_conv) are unchanged.
 
 Single-fact-table architecture, same as every other lean client here: this job ships ONE compact
 per-(date x campaign x ad group x creative) fact array (`rows`) plus the flight/pacing context, the
@@ -67,10 +70,10 @@ def audit(fact):
        in The Trade Desk shows up as a named warning here and as a visible chip on the dashboard,
        instead of quietly filing a retargeting ad group under Awareness.
     2. CONVERSION SLOTS. Windsor reports TTD conversions as anonymous numbered slots and this
-       campaign has TWO conversion data sources attached ("Sign up +1"), so the sign-up total is a
-       sum over slots we cannot individually name. Printing which slots actually fire is the only
-       way to notice a second action arriving in a different slot - at which point it must be SPLIT
-       OUT in sql/01, never left folded into "sign-ups".
+       campaign has TWO conversion data sources attached ("Sign up +1"), so the Try free click total
+       is a sum over slots we cannot individually name. Printing which slots actually fire is the
+       only way to notice a second action arriving in a different slot - at which point it must be
+       SPLIT OUT in sql/01, never left folded into "Try free clicks".
     """
     unclassified = sorted({r.get("ad_group_name") for r in fact
                            if (r.get("funnel_stage") or "") == "Unclassified"})
@@ -82,11 +85,11 @@ def audit(fact):
     if slots:
         print(f"conversion slots reporting ({len(slots)}): " + ", ".join(slots))
         if len(slots) > 1:
-            print("WARNING: more than one TTD conversion slot is populated. Sign-ups are currently "
-                  "the SUM of every slot. Identify each slot in The Trade Desk and split any "
-                  "non-sign-up action out in sql/01_stg_ttd.sql before reporting it as sign-ups.")
+            print("WARNING: more than one TTD conversion slot is populated. Try free clicks are "
+                  "currently the SUM of every slot. Identify each slot in The Trade Desk and split any "
+                  "other action out in sql/01_stg_ttd.sql before reporting it as Try free clicks.")
     else:
-        print("conversion slots reporting: none yet (0 attributed sign-ups so far)")
+        print("conversion slots reporting: none yet (0 attributed Try free clicks so far)")
 
 
 def build_env(bq, observed):
@@ -144,7 +147,6 @@ def build_env(bq, observed):
         else:
             days_elapsed = max(0, days_elapsed)
     daily_pace = benchmarks["daily_pace"] or (budget / days_total if (budget and days_total) else None)
-    pace_expected = (daily_pace * days_elapsed) if (daily_pace and days_elapsed) else None
 
     # PROJECTION RUNS ON THE DELIVERING WINDOW, NOT THE ELAPSED FLIGHT (md/AGENTS.md, "PACE AGAINST
     # THE BUDGET THAT CAN ACTUALLY SPEND"; reference impl clients/client_geocon/job/main.py).
@@ -164,6 +166,35 @@ def build_env(bq, observed):
     first_delivery = dates_with_delivery[0] if dates_with_delivery else None
     last_delivery = dates_with_delivery[-1] if dates_with_delivery else None
     run_days = ((last_delivery - first_delivery).days + 1) if first_delivery else None
+
+    # PACE THE ACTUALS AGAINST THE WINDOW THE ACTUALS COVER (2026-09-11).
+    #
+    # `pace_expected` used to be `daily_pace * days_elapsed`, and `days_elapsed` counts to TODAY.
+    # Spend can only ever cover days that have been DELIVERED AND LOADED, and this feed is
+    # structurally 1-2 days behind (The Trade Desk refuses same-day data, and the Windsor loader
+    # walks back from yesterday). So the numerator and the denominator measured different windows
+    # and the card read "behind" permanently, by construction.
+    #
+    # Live case that found it: day 9 of the flight, spend A$1,688.70 covering 09-04..09-08 was
+    # divided by 9 days of expectation (A$2,903.22) and reported 58% of pace - "Under pace" - on a
+    # campaign delivering A$337.7/day against a A$322.58/day plan, i.e. slightly AHEAD. A Windsor
+    # read pause had frozen the feed one extra day, which widened the gap but did not create it.
+    #
+    # `days_covered` runs from the FLIGHT START (not first delivery) to the last day the data
+    # covers, so a flight that opened before delivery began still counts those days as a real
+    # shortfall against the plan - that miss is genuine and must not be hidden. What is removed is
+    # only the part of the gap that is measurement lag rather than performance.
+    #
+    # `days_elapsed` is UNCHANGED and still counts to today: it is the honest answer to "how far
+    # into the flight are we" and drives the "Day N of M" chip. The two are deliberately different
+    # numbers, and `pace_through` is emitted so the UI can name the date the expectation is drawn
+    # to, instead of the old label's claim of "today".
+    pace_ref = last_delivery or (min(dates_with_delivery) if dates_with_delivery else None)
+    days_covered = None
+    if fstart and pace_ref:
+        days_covered = (pace_ref - fstart).days + 1
+        days_covered = max(0, min(days_covered, days_total) if days_total else max(0, days_covered))
+    pace_expected = (daily_pace * days_covered) if (daily_pace and days_covered) else None
     days_remaining = max(0, days_total - days_elapsed) if (days_total and days_elapsed) else None
     if run_days and days_remaining is not None and days_elapsed and run_days < days_elapsed:
         # Late start (or a gap): project the OBSERVED daily rate across the days still to run.
@@ -178,6 +209,8 @@ def build_env(bq, observed):
         "start": iso(fstart), "end": iso(fend),
         "budget": budget, "days_total": days_total, "days_elapsed": days_elapsed,
         "daily_pace": daily_pace, "pace_expected": pace_expected,
+        # The window pace_expected is drawn to - NOT days_elapsed. See the note above.
+        "days_covered": days_covered, "pace_through": iso(pace_ref),
         "projected_spend": projected_spend, "spend_to_date": round(spend_total, 2),
         # What the projection was computed FROM, so the dashboard can say so on screen instead of
         # leaving the reader to assume it is the elapsed flight (md/AGENTS.md: name the basis).
@@ -200,14 +233,24 @@ def build_env(bq, observed):
             "client": CLIENT,
             "title": "Sophiie AI",
             "currency": (fact[0].get("currency") if fact else None) or "AUD",
-            # Badge under the "Sign-ups" KPI. Names WHAT is counted, not just the platform: these are
+            # Badge under the "Try free clicks" KPI. Names WHAT is counted, not just the platform:
             # The Trade Desk's own attributed conversions on the campaign's "Sign up" conversion
-            # source, post-click plus post-view. If a second tracker starts reporting (the job WARNs
-            # when it does) this label and the dashboard copy must be re-checked together.
-            "action_source_label": "Sign up · TTD-attributed",
+            # source, which fires on a click of the site's Try free button - post-click plus
+            # post-view. If a second tracker starts reporting (the job WARNs when it does) this
+            # label and the dashboard copy must be re-checked together.
+            "action_source_label": "Try free click · TTD-attributed",
             "channel": "The Trade Desk (programmatic display)",
             "last_updated": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-            "data_through": (lambda sf: max(sf).strftime("%Y-%m-%dT%H:%M:%SZ") if sf else None)(
+            # DATA COVERAGE, not "when we last looked". This was the max of the freshness-PROBE
+            # timestamps, which advances on every run that touches the mirror - including a run
+            # that loads nothing. On 2026-09-10 a Windsor read pause returned an error payload
+            # instead of rows; the probe timestamp still moved, so this read 2026-09-10 while the
+            # newest delivery in the fact was 2026-09-08. That is the same trap md/AGENTS.md
+            # already documents for Google Ads DTS (`__TABLES__.last_modified` advances through an
+            # outage and reports green), in a second pipeline.
+            # The probe timestamp is still emitted, under a name that says what it is.
+            "data_through": iso(max(dates)) if dates else None,
+            "upstream_checked_at": (lambda sf: max(sf).strftime("%Y-%m-%dT%H:%M:%SZ") if sf else None)(
                 [observed[k] for k in WINDSOR_TABLES if observed.get(k)]),
             "date_min": iso(min(dates)) if dates else None,
             "date_max": iso(max(dates)) if dates else None,
@@ -234,7 +277,7 @@ def build_env(bq, observed):
             "video_starts": num(r.get("video_starts")), "video_25": num(r.get("video_25")),
             "video_50": num(r.get("video_50")), "video_75": num(r.get("video_75")),
             "video_completes": num(r.get("video_completes")),
-            # Sign-ups, split by attribution path. Summed to one "sign-ups" figure on screen; kept
+            # Try free clicks, split by attribution path. Summed to one figure on screen; kept
             # apart here so post-view and post-click can be told apart without a re-export.
             "pv_conv": num(r.get("post_view_conv")), "pc_conv": num(r.get("post_click_conv")),
             # Viewability sample. None (not 0) when TTD is not measuring it, so the UI can say
@@ -243,7 +286,7 @@ def build_env(bq, observed):
         } for r in fact],
     }
     summary = (f"{len(fact)} fact rows, {imps_total:,} impressions, {clicks_total:,} clicks, "
-               f"{round(signups_total,1)} sign-ups, "
+               f"{round(signups_total,1)} Try free clicks, "
                f"${round(spend_total,2)} spend ({env['meta']['date_min']}..{env['meta']['date_max']})")
     return env, summary
 

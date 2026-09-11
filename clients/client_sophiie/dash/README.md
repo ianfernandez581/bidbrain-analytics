@@ -16,6 +16,97 @@ the Trade Desk advertiser `gjcl0pp` has not been granted to the Windsor connecto
 refuses to publish an empty fact, so the sample stays up and the banner clears ITSELF on the first
 tick after real rows land. See [`../README.md`](../README.md) → GO-LIVE.
 
+## TRY FREE CLICKS ARE OFF THE DASHBOARD (client request, 2026-09-11) - read this first
+
+**Every client-facing Try free click and CPA surface is withheld behind ONE flag**,
+`SIGNUPS_REPORTABLE` in [`dashboard.html`](dashboard.html). It is a **client instruction, not a
+measurement judgement** - do not re-add a surface because the numbers look right. Set the flag back
+to `true` and every one of them returns, correctly labelled; that is a dash deploy and nothing else.
+
+**This sits ON TOP of the Try free relabel, not instead of it.** The relabel (246e0d3, same day)
+established what the metric actually is; this withholds it while the tagging is settled. Every
+string behind the flag says "Try free click", so flipping it on reveals the CORRECT label rather
+than restoring the old "sign-ups" wording. Keep it that way if you edit either.
+
+**Do NOT put the reason on the page.** The withheld copy says only what the dashboard *does* report.
+No surface, caption, footnote, CSV or deck may mention tagging, tracking, pixels, a pause or a
+pending fix, and `report.py` is instructed not to speculate about the absence either.
+
+**The data path is deliberately UNTOUCHED.** `sql/*`, `job/main.py` and the published `sophiie.json`
+still carry `pv_conv` / `pc_conv` in full, and they MUST: the two status-pipeline accuracy checks
+(`Trade Desk - Sign-ups post-view` / `post-click`, `status_dashboard/job/main.py`) compare
+`rows[].pv_conv` / `pc_conv` against BigQuery, so stripping the pipeline would turn the accuracy
+monitor red. This is the caltex site-visits precedent, built as geocon's one-flag pattern.
+
+### The two predicates, and why there are two
+
+| Predicate | Gates | Meaning |
+|---|---|---|
+| `signupsMeasured()` | nothing directly | what the FEED reports (`pv_conv`/`pc_conv` non-zero) |
+| `signupsReported()` | RENDERING | measured AND publishable - the old gate, semantics unchanged |
+| `signupsWithheld()` | COPY | the flag is off, so the wording must not imply "not yet attributed" |
+
+The copy gate exists because the pre-existing not-yet-attributed wording ("none attributed yet",
+"it switches ... on the first one") is **true of an early flight and false here** - The Trade Desk
+*is* attributing these, we are simply not publishing them. Reusing it would put a false claim on
+screen.
+
+### What the flag moves
+
+`renderSignupScope()` is the single application point: it toggles `body.no-signups` (one CSS rule
+hides every `.c-sign` table cell), hides the attribution donut and the weekly card, and rewrites the
+five captions that name the metric in prose. Beyond that -
+
+- **KPI band** - the outcome pair is REPLACED by impressions + CTR (a two-tile band reads as a
+  broken page); click-to-Try-free leaves the context row.
+- **Overview** - the goal bar, the third funnel step and the signal insight card go; pace-to-goal
+  runs on impressions with its own third wording branch.
+- **Delivery** - the Try free clicks / CPA / delta columns hide; `readFor()` drops its two CPA
+  verdict arms ("Scale it", "No Try free clicks yet") because a verdict states the count in words.
+- **CSV** - all four exports drop the columns and SWAP in delivery ones, so none is left thin.
+- **AI deck** - `signFields()` DELETES the keys from every payload object rather than asking the
+  model not to use them (the prompt is a request, an absent key is a fact), and `_scope_directive()`
+  in [`report.py`](report.py) appends an authoritative block to BOTH system prompts on BOTH
+  providers. `signups_reported` crosses to the server and defaults `True` there, so a stale cached
+  client build still renders correctly.
+
+### `syncGrids()` - a hidden card must not strand its partner
+
+Cards hide for several independent reasons (metric withheld, no video on a display buy, no
+attribution data), and each left its two-column row half empty, which reads as a panel that failed
+to load. `syncGrids()` collapses any `.grid.cols-2` down to one column when a single card survives.
+It runs LAST in `render()` **and again on every tab switch** - a card inside a `display:none` pane
+computes `display:none` itself, so a grid measured while its tab was hidden reports zero visible
+cards and would never be collapsed. This also fixes the pre-existing ragged row left by the
+auto-hiding video card.
+
+Verified headless against data carrying 123 Try free clicks: zero occurrences of "Try free", "CPA"
+or "sign-up" across all three tabs, zero ragged grids, all four CSV headers clean, every deck object
+stripped, and flipping the flag back restores all of it under the correct label.
+
+## Pacing is measured to the DATA date, not to today (2026-09-11)
+
+`pace_expected` is `daily_pace * days_covered`, where `days_covered` runs from the flight start to
+**the last day the delivery data covers** (`flight.pace_through`). It is deliberately NOT
+`days_elapsed`, which still counts to today and drives the "Day N of M" chip.
+
+Why: this feed is structurally 1-2 days behind (TTD refuses same-day data, the Windsor loader walks
+back from yesterday), so dividing spend-to-date by an expectation that includes days no data exists
+for reported **58% of pace - "Under pace"** on a campaign running at **105% of plan rate**. The two
+figures measured different windows. A Windsor read pause on 2026-09-10 had frozen the feed one
+extra day, which widened the gap but did not cause it.
+
+`days_covered` starts at the FLIGHT START, not first delivery - the campaign's flight opened 09-03
+and first delivered 09-04, and that missed day is a genuine shortfall that must stay counted. It is
+why the corrected reading is 87%, not 105%.
+
+`projected_spend` was already correct (it divides by `delivering_days`) and is unchanged.
+
+**`meta.data_through` now states DATA COVERAGE** (max fact date). It used to be the max of the
+freshness-probe timestamps, which advance on any run that touches the mirror - including the failed
+Windsor run of 2026-09-10, which pushed it to 09-10 while the newest delivery was 09-08. The probe
+timestamp is still emitted as `meta.upstream_checked_at`.
+
 ## What's in here
 
 | File | What it does |
@@ -69,14 +160,14 @@ and strip count, never by darkening. One external chart library: Chart.js 4.5.0.
 **Sticky control bar:** the tab rail, a Looker-style date-range picker, funnel-stage chips, a search
 box, and CSV export ("this tab" / "all data"). Three tabs:
 
-1. **Overview** — the KPI row (sign-ups · cost per sign-up · clicks · ad spend) over a
-   delivery-quality row (impressions · CTR · CPM · click-to-sign-up); delivery over time with axis
+1. **Overview** — the KPI row (Try free clicks · cost per Try free click · clicks · ad spend) over a
+   delivery-quality row (impressions · CTR · CPM · click to Try free); delivery over time with axis
    and grain toggles; budget pacing and progress-to-goal; the cumulative on-track-to-goal chart
-   (which shows IMPRESSIONS until the first sign-up is attributed, then switches itself); the
+   (which shows IMPRESSIONS until the first Try free click is attributed, then switches itself); the
    response funnel; spend by audience tier; performance by funnel stage; creative formats; and an
    insight strip.
 2. **Paid Media** — performance vs targets by ad group, the CPC vs CTR efficiency map, CPC over
-   time, engagement over time, sign-ups over time (hidden until the first sign-up - a chart of zero
+   time, engagement over time, Try free clicks over time (hidden until the first one - a chart of zero
    bars under a CPA target line reads as a failed campaign), day-of-week, spend by ad group, spend
    vs delivery share, the per-creative table with a thin-volume guard, and the wear-out watch.
    The four period charts follow the window via `trendPeriod()`, and their captions are written

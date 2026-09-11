@@ -28,9 +28,9 @@ filtering and shaping. This job just reads those views and serialises the result
 `sophiie.json` = `{meta, flight, benchmarks, targets, rows[]}`:
 
 - **meta** - client/title/currency (AUD), `channel` ("The Trade Desk (programmatic display)"),
-  `action_source_label` ("Sign up . TTD-attributed"), `last_updated`, `data_through`,
+  `action_source_label` ("Try free click . TTD-attributed"), `last_updated`, `data_through`,
   `date_min`/`date_max`, `row_count`, and `conversion_slots` (which anonymous Trade Desk conversion
-  slots are actually reporting - see the sign-up note below). The baked placeholder adds
+  slots are actually reporting - see the Try free click note below). The baked placeholder adds
   `placeholder: true`, which is the ONLY tell the dashboard uses to show its sample-data banner.
 - **flight** - full-flight pacing (independent of the dashboard's date filter): start/end/budget/
   days, `daily_pace`, `pace_expected`, `projected_spend`, `spend_to_date`, `impressions_to_date`,
@@ -39,7 +39,7 @@ filtering and shaping. This job just reads those views and serialises the result
   `impressions_target`, `signups_target`, `daily_pace`, `flight_budget`.
 - **targets** - the raw seed rows `{key: {value, status}}`. `status` is load-bearing: `HARD` = the
   campaign's own committed KPI settings in The Trade Desk (CPA / CPC / CTR / budget / flight dates);
-  `DERIVED` = our own arithmetic on those (CPM, the impression target, the sign-up volume target),
+  `DERIVED` = our own arithmetic on those (CPM, the impression target, the Try free click volume target),
   which every dashboard surface LABELS so a red delta never accuses the campaign of missing a KPI
   nobody agreed to; `PENDING` = a planning assumption awaiting sign-off.
 - **rows[]** - the fact, one row per (date x campaign x ad group x creative): `date`,
@@ -50,13 +50,15 @@ filtering and shaping. This job just reads those views and serialises the result
   Ratios (CTR/CPM/CPC/CPA/completion) are NEVER shipped - the dashboard recomputes them from summed
   components so any date sub-range is exact.
 
-**SIGN-UPS.** `pv_conv` + `pc_conv` are the conversions The Trade Desk attributed to this campaign
-on its "Sign up" conversion source, post-view and post-click. Windsor exposes TTD conversions only
+**TRY FREE CLICKS.** `pv_conv` + `pc_conv` are the conversions The Trade Desk attributed to this
+campaign on its "Sign up" conversion source, post-view and post-click. Despite that name, the
+tracker records a click on the site's "Try free" button, so every client-facing label says "Try
+free clicks", never sign-ups (2026-09-11; keys unchanged). Windsor exposes TTD conversions only
 as anonymous NUMBERED slots with no pixel name, and this campaign has TWO conversion sources
 attached ("Sign up +1"), so `sql/01_stg_ttd.sql` sums all 12 slots per kind and carries the slot
 names forward. **The job WARNs whenever more than one slot reports** - when that happens, identify
-each slot in The Trade Desk and SPLIT the non-sign-up action out in `sql/01`, rather than leaving
-two different actions folded into one "sign-ups" number.
+each slot in The Trade Desk and SPLIT the other action out in `sql/01`, rather than leaving
+two different actions folded into one "Try free clicks" number.
 
 **FUNNEL STAGE.** `sql/01` maps the ad group's trailing token (`AWR` / `CONSID` / `CONV`) and sends
 anything else to `Unclassified` rather than defaulting it to a real stage - so a rename in The Trade
