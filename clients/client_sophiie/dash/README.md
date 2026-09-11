@@ -107,6 +107,80 @@ freshness-probe timestamps, which advance on any run that touches the mirror - i
 Windsor run of 2026-09-10, which pushed it to 09-10 while the newest delivery was 09-08. The probe
 timestamp is still emitted as `meta.upstream_checked_at`.
 
+## Website analytics (GA4) - whole-site CONTEXT, never attribution (2026-09-11)
+
+`sql/05_stg_ga4` + `06_stg_ga4_events` over `raw_windsor.perf_ga4(+events)`, property **468621509**
+-> job `ga4` block -> the **Website** tab, which auto-hides on a payload without it.
+
+**The property was always connected; we were not pulling it.** Windsor has ~18 months of history
+(from 2024-12-12) and the loaders' hardcoded `SELECT_ACCOUNTS` always included it - the June 2026
+data came from a laptop run. Scheduling the job in August pinned it to the two Geocon properties via
+`GA4_ACCOUNTS` before `client_sophiie` existed, so it stopped at 2026-06-01. Fixed 2026-09-11 by
+adding the id to the pin in `scripts/deploy_ingest_jobs.ps1`. **Do not tell the client GA4 is not
+connected - it is, and has been all along.**
+
+### Why this tab reads as context and makes no attribution claim
+
+Measured 2026-09-11 over 09-04..09-10, and this is the whole reason for the framing:
+
+| | |
+|---|---|
+| GA4 **Display** sessions | 1,071 |
+| GA4 conversions attributed to Display | **0** |
+| The Trade Desk's claimed attributed conversions | **518** (86% post-view) |
+| GA4 site-wide `sign_up`, EVERY source | 15-87/day |
+
+The ad platform is claiming up to **11x more ad-attributed conversions than the entire site records
+from every source combined**, and GA4 credits Display with none. Both numbers can be internally
+consistent - they measure different things with different attribution models - but it means **GA4
+may never be presented as confirming or refuting the Trade Desk figure**, in either direction. The
+footer note on the tab says exactly that. Display also engages at **5.8%** against 59-64% for Direct
+and Organic Search.
+
+### The pre-flight vs in-flight card is the point of the lane
+
+Geocon's GA4 properties were days old, so its Website tab can only show "traffic since we started".
+This one has 18 months, which makes an equal-window baseline possible - the flight window against
+the same number of days immediately before it. That is the only defensible read for an awareness
+display buy, where last-click badly understates delivery (the VMCH precedent).
+Its movement column is deliberately **grey, never green/red**: a verdict colour would make the
+attribution claim the caption spends a paragraph refusing to make.
+
+### Everything conversion-shaped is gated on SIGNUPS_REPORTABLE
+
+GA4's `conversions` field and the key-event counts (`sign_up` and 8 others) are conversion metrics,
+and `sign_up` is a BETTER one than the Try free click the client asked us to withhold - which makes
+surfacing it worse, not better. Five surfaces are gated, all on the existing `body.no-signups` class
+via a new `.c-conv` rule beside `.c-sign`:
+
+| Surface | Gate |
+|---|---|
+| "Site conversions" KPI tile | not emitted at all (`signupsReported() ? {...} : null`) |
+| Conversions column, channel table | `.c-conv` th/td pair |
+| Conversions column, source table | `.c-conv` th/td pair |
+| "On-site actions" key-events card | `class="card c-conv"` AND `renderGaEvents()` returns early, so the counts never reach the DOM |
+| Website CSV export | column dropped from the array |
+
+Verified headless against the live payload: 28 `.c-conv` elements present, **0 visible**, 0 event
+rows in the DOM, and zero occurrences of "conversion", "sign-up", "Try free" or "CPA" anywhere on
+the tab. All five return with no further edit when the flag flips.
+
+### The gate and the freshness stamp read different lists, deliberately
+
+`GATING_TABLES` is `WINDSOR_TABLES + GA4_TABLES` (a GA4-only advance must still rebuild the JSON),
+but `meta.upstream_checked_at` stamps from `WINDSOR_TABLES` **only**. GA4 and Trade Desk load on
+different schedules, so a union stamp would advance whenever GA4 ticked - including while the paid
+feed was frozen - which is precisely the "freshness looks healthy while the numbers are stale"
+confusion the same-day `data_through` fix removed. This dashboard's fact is Trade Desk.
+
+### Two typing traps in the source
+
+`user_engagement_duration` and `conversions` are **NUMERIC** in the mirror. Both are cast to FLOAT64
+in `sql/05` - a NUMERIC leaking downstream serialises as a STRING through the BigQuery client and
+breaks arithmetic in `job/main.py` silently. `engagement_sec` is seconds; divide at render time.
+`perf_ga4_events` has `property_id` but **no `account_name`**, so its junk-row guard can only test
+the property id.
+
 ## What's in here
 
 | File | What it does |

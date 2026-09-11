@@ -475,6 +475,13 @@
   #kpiGrid  .kpi:nth-child(2){background-position:68% 34%}
   #kpiGrid  .kpi:nth-child(3){background-position:44% 84%}
   #kpiGrid  .kpi:nth-child(4){background-position:88% 18%}
+  /* The Website tab's strip is the same KPI surface, so it needs its own five crops for the same
+     reason - a repeated vein across a grid gives the texture file away. */
+  #gaKpis   .kpi:nth-child(1){background-position:8% 18%}
+  #gaKpis   .kpi:nth-child(2){background-position:62% 72%}
+  #gaKpis   .kpi:nth-child(3){background-position:30% 8%}
+  #gaKpis   .kpi:nth-child(4){background-position:92% 60%}
+  #gaKpis   .kpi:nth-child(5){background-position:50% 40%}
 
   /* 1. eyebrow label */
   /* .18em rather than .24em, and a min-height of two lines: at 4-up a label like
@@ -610,6 +617,27 @@
   .vs{font-size:9.5px;color:var(--muted2)} .tiny{font-size:10px;color:var(--muted2);margin-top:2px}
   .good-text{color:var(--good);font-weight:500} .warn-text{color:var(--warn);font-weight:500} .bad-text{color:var(--bad);font-weight:500} .muted-text{color:var(--muted2)}
   body.no-signups .c-sign{display:none}
+  /* `.c-conv` is the GA4 twin of `.c-sign`: a Google Analytics conversion / key event is a
+     CONVERSION METRIC, and a better-evidenced one than the figure the client asked us to withhold,
+     so it rides the SAME body class and can never outlive it on the tab next door. */
+  body.no-signups .c-conv{display:none}
+  /* The paid-fact filters do not act on GA4 - hidden on the Website view, not left inert. */
+  body.ga-view .paid-filter{display:none}
+
+  /* PRE-FLIGHT vs IN-FLIGHT comparison (Website tab). Plain rows on the card surface: no marble
+     behind them, since this is a figure grid, and no chart - two bars per metric would dress a
+     two-number comparison as a trend. */
+  .ffrow{display:grid;grid-template-columns:1.2fr 1fr 1fr 1fr;gap:10px;align-items:baseline;
+       padding:12px 0;border-bottom:.5px solid var(--rule)}
+  .ffrow:last-child{border-bottom:0}
+  .ffrow.head{padding-bottom:8px;border-bottom:.5px solid var(--rule-strong)}
+  .ffrow.head span{font-family:var(--f-ui);font-size:9px;font-weight:500;letter-spacing:.22em;
+       text-transform:uppercase;color:var(--ink-3)}
+  .ffrow .m{font-family:var(--f-display);font-size:15px;font-weight:500;color:var(--ink)}
+  .ffrow .v{font-family:var(--f-mono);font-variant-numeric:tabular-nums;font-size:14px;
+       letter-spacing:-.02em;text-align:right;color:var(--ink-2)}
+  .ffrow .v.now{color:var(--ink)}
+  .ffrow .d{font-family:var(--f-mono);font-variant-numeric:tabular-nums;font-size:14px;text-align:right}
   .warn-chip{font-size:9px;font-weight:500;color:var(--warn);border:1px solid color-mix(in srgb,var(--warn) 40%,transparent);border-radius:4px;padding:0 4px}
 
   /* creative gallery */
@@ -763,6 +791,9 @@
           <button class="tab" data-view="overview">Overview</button>
           <button class="tab" data-view="paid">Paid Media</button>
           <button class="tab" data-view="creative">Creative</button>
+          <!-- Website (GA4): shows itself only when the payload carries ga4 rows, so an older
+               JSON (no ga4 block) renders exactly as it does today. -->
+          <button class="tab" data-view="website" id="tabWebsiteBtn" style="display:none">Website</button>
         </div>
         <div class="tabs-right">
           <span class="ctrl-note" id="ctrlNote">&nbsp;</span>
@@ -790,10 +821,15 @@
             </div>
           </div>
         </div>
-        <div class="fdiv"></div>
-        <div class="filter-grp"><span class="lbl">Stage</span><div class="chips" id="stageChips"></div></div>
-        <div class="fdiv"></div>
-        <div class="filter-grp">
+        <!-- The stage chips and the search act on the PAID fact only. GA4 is whole-site and carries
+             no ad group, tier or creative, so on the Website tab they would be two controls that
+             move nothing - worse than absent (md/AGENTS.md: a figure that moves with an invisible
+             control is bad; a control that moves no figure is the same fault reversed). The DATE
+             range does apply there, so it stays. -->
+        <div class="fdiv paid-filter"></div>
+        <div class="filter-grp paid-filter"><span class="lbl">Stage</span><div class="chips" id="stageChips"></div></div>
+        <div class="fdiv paid-filter"></div>
+        <div class="filter-grp paid-filter">
           <span class="search-wrap" id="searchWrap">
             <input class="search" id="searchBox" type="text" placeholder="Search ad group / creative / tier…" autocomplete="off">
             <span class="search-hint">/</span>
@@ -802,7 +838,7 @@
         </div>
         <button class="reset-btn" id="resetBtn" type="button" title="Clear the date range, stage filter and search">
           Reset<span class="cnt" id="resetCnt">0</span></button>
-        <span class="scope-note" id="scopeNote">&nbsp;</span>
+        <span class="scope-note paid-filter" id="scopeNote">&nbsp;</span>
       </div>
     </div>
 
@@ -914,6 +950,63 @@
     <section id="tab-creative" class="tabpane">
       <div class="section first"><h2>Creative - top 10</h2><span class="sub">The 10 highest-spend creatives in the selected range. The Trade Desk reports creative <b>names, formats and delivery</b> (not image previews), so each card is a branded tile carrying the real creative's numbers - click for detail.</span></div>
       <div class="creative-grid" id="creativeGrid" style="margin-top:16px"></div>
+    </section>
+
+    <!-- ============ WEBSITE (GA4) ============
+         WHOLE-SITE Google Analytics for sophiie.ai. It is CONTEXT, never attribution: over
+         2026-09-04..09-10 GA4 attributed 1,071 Display sessions and ZERO conversions to this
+         campaign while The Trade Desk claimed 518 - the two measurement systems do not agree and
+         cannot be reconciled here (third-party cookies, view-through credit, GA4's last-click
+         model). That comparison stays in this comment; it is never put on a client surface, and
+         nothing on this tab may credit the display buy from a GA4 figure.
+         The pane hides itself when the payload has no ga4 rows, so an older JSON renders as today. -->
+    <section id="tab-website" class="tabpane">
+      <div class="section first">
+        <h2>Website analytics</h2>
+        <span class="sub" id="gaIntro"></span>
+      </div>
+
+      <div class="kpis" id="gaKpis" style="margin-top:18px"></div>
+
+      <div class="card" id="gaFlightCard" style="margin-top:16px">
+        <h3 id="gaFlightTitle">Site traffic before and during the flight</h3>
+        <div class="hint" id="gaFlightHint"></div>
+        <div id="gaFlightRows" style="margin-top:6px"></div>
+        <div class="hint" id="gaFlightFoot" style="margin-top:12px"></div>
+      </div>
+
+      <div class="card" style="margin-top:16px">
+        <h3>Sessions by channel over time</h3>
+        <div class="hint" id="gaTrendHint"></div>
+        <div class="chartbox tall"><canvas id="gaTrendChart"></canvas></div>
+        <div class="chart-empty" id="gaTrendEmpty" style="display:none">No website sessions in this range.</div>
+      </div>
+
+      <div class="grid cols-2">
+        <div class="card"><h3>Traffic by channel</h3>
+          <div class="hint">GA4 default channel groups for the selected date range. Engagement rate = engaged sessions &divide; sessions.</div>
+          <div class="tablewrap" style="margin-top:6px"><table id="gaChanTable"><thead><tr>
+            <th>Channel</th><th class="num">Sessions</th><th class="num">Share</th>
+            <th class="num">Engagement rate</th><th class="num">Users</th>
+            <th class="num c-conv">Conversions</th></tr></thead><tbody></tbody></table></div></div>
+        <div class="card"><h3>Top sources</h3>
+          <div class="hint">Where the sessions came from (GA4 session source and channel), selected range.</div>
+          <div class="tablewrap" style="margin-top:6px"><table id="gaSourceTable"><thead><tr>
+            <th>Source / channel</th><th class="num">Sessions</th><th class="num">Share</th>
+            <th class="num">Engagement rate</th>
+            <th class="num c-conv">Conversions</th></tr></thead><tbody></tbody></table></div></div>
+      </div>
+
+      <!-- ON-SITE ACTIONS. GA4 key events ARE the conversion metric, so this whole card is gated on
+           the same flag as the Try free click surfaces and is not written to the DOM at all while
+           the metric is withheld. It returns, with its own data, the moment the flag flips. -->
+      <div class="card c-conv" id="gaEventsCard" style="margin-top:16px">
+        <h3>On-site actions</h3><div class="hint" id="gaEvHint"></div>
+        <div class="tablewrap" style="margin-top:6px"><table id="gaEventsTable"><thead><tr>
+          <th>Event</th><th class="num">Count</th></tr></thead><tbody></tbody></table></div>
+      </div>
+
+      <div class="info-note" id="gaNote"></div>
     </section>
 
     <footer id="footerNote"></footer>
@@ -1384,7 +1477,7 @@ function render(){
   [renderPlaceholderBanner,renderSignupScope,renderHeader,renderKpis,renderTrend,renderPacing,renderGoalProgress,renderPaceToGoal,renderTierDonut,
    renderFunnel,renderStageTable,renderFormats,renderAttribution,renderInsights,renderNote,
    renderBenchTable,renderEffScatter,renderCpcTrend,renderClicksCtr,renderSignups,renderVideo,renderDow,
-   renderSegment,renderTables,renderFatigue,renderBurn,renderCreative,renderFooter,renderDateScope,renderControlState,syncGrids]
+   renderSegment,renderTables,renderFatigue,renderBurn,renderCreative,renderWebsite,renderFooter,renderDateScope,renderControlState,syncGrids]
     .forEach(fn=>{try{fn();}catch(e){console.error('render step failed:',fn.name,e);}});
 }
 // ONE place decides what the withheld state does to the page: the body class driving every tagged
@@ -1422,7 +1515,7 @@ function syncGrids(){
 function renderHeader(){
   const f=flight();
   $('topPeriod').textContent=`${fmtDate(f.start)} - ${fmtDate(f.end)}`;
-  const notes={overview:signupsWithheld()?'Reach & efficiency':'Try free clicks & efficiency',paid:'Delivery & efficiency',creative:'Creative library'};
+  const notes={overview:signupsWithheld()?'Reach & efficiency':'Try free clicks & efficiency',paid:'Delivery & efficiency',creative:'Creative library',website:'Website analytics (GA4) - whole site'};
   $('ctrlNote').textContent=notes[STATE.view]||'';
 }
 function renderPlaceholderBanner(){
@@ -1993,6 +2086,206 @@ function renderControlState(){
     : `${pl(all,'row')} &middot; ${pl(days,'day')} &middot; ${pl(groups,'ad group')} &middot; all filters off`;
 }
 
+// ============================== WEBSITE (GA4) ==============================
+// WHOLE-SITE Google Analytics for sophiie.ai (one property). This tab is CONTEXT, not attribution,
+// and the framing is deliberate:
+//   over 2026-09-04..09-10 GA4 credited the campaign 1,071 Display sessions and ZERO conversions,
+//   while The Trade Desk claimed 518. Two measurement systems, two models (GA4 is last-click on a
+//   first-party cookie; TTD counts post-view credit across a 3P graph) - they cannot be reconciled
+//   from this payload, and neither number proves the other wrong.
+// That comparison lives HERE, in the source, and must never appear on a client surface. Nothing on
+// this tab may credit the display buy from a GA4 figure, and no GA4 figure may be presented as the
+// campaign's outcome.
+//
+// CONVERSION METRICS ARE WITHHELD WITH THE REST (SIGNUPS_REPORTABLE, client 2026-09-11). GA4's
+// `conversions` column and its key events are conversion metrics - a GA4 `sign_up` is a BETTER
+// outcome figure than the one the client asked us to take off the page, which makes surfacing it
+// worse, not better (the geocon precedent: the withheld figure reappearing on the tab next door
+// under a different heading). They are GATED, never deleted, and return when the flag flips.
+const GA_CHAN_COLORS={'Display':MC.imps,'Paid Search':MC.cyan,'Paid Social':MC.purple,
+  'Organic Search':MC.clicks,'Direct':MC.muted2,'Referral':MC.ctr,'Organic Social':MC.pink,
+  'Email':MC.teal,'Unassigned':MC.muted2};
+const gaChanColor=(c,i)=>GA_CHAN_COLORS[c]||CHART_SERIES[i%CHART_SERIES.length];
+const gaBlock=()=>DATA.ga4||{};
+const gaAll=()=>gaBlock().rows||[];
+const gaEventsAll=()=>gaBlock().events||[];
+const gaHas=()=>gaAll().length>0;
+// Honours the page's DATE range (the one filter that does apply here). Stage and search act on the
+// paid fact and are hidden on this view.
+const gaRows=()=>gaAll().filter(r=>inRange(r.date));
+const gaSum=(rows,k)=>rows.reduce((a,r)=>a+n(r[k]),0);
+
+function renderWebsite(){
+  const btn=$('tabWebsiteBtn');
+  const has=gaHas();
+  if(btn)btn.style.display=has?'':'none';
+  if(!has){
+    // An older payload has no ga4 block at all. Leave the tab off and, if someone was parked on it,
+    // fall back rather than showing an empty pane.
+    if(STATE.view==='website'){STATE.view='overview';renderViewState();}
+    return;
+  }
+  const rows=gaRows(),all=gaAll();
+  const dmin=gaBlock().date_min||[...all.map(r=>r.date)].sort()[0];
+  const dmax=gaBlock().date_max||[...all.map(r=>r.date)].sort().slice(-1)[0];
+  const sessions=gaSum(rows,'sessions'),eng=gaSum(rows,'engaged'),users=gaSum(rows,'users'),
+        nu=gaSum(rows,'new_users'),pv=gaSum(rows,'pageviews'),secs=gaSum(rows,'engagement_sec');
+
+  const intro=$('gaIntro');
+  if(intro)intro.innerHTML=`Google Analytics for <b>sophiie.ai</b> - the <b>whole site</b>, every visitor from every `
+    +`source, not a campaign-attributed slice. It is <b>not</b> scoped by the stage filter or the search box `
+    +`(GA4 carries no ad group, tier or creative), and it is not the display campaign's results: treat it as `
+    +`<b>context</b> for what the site was doing while the campaign ran. The date range does apply. `
+    +`Analytics history runs from <b>${fmtDate(dmin)}</b> to <b>${fmtDate(dmax)}</b>.`;
+
+  $('gaKpis').innerHTML=[
+    {color:MC.imps,label:'Sessions',value:int(sessions),sub:`${int(pv)} page views`},
+    {color:MC.clicks,label:'Engaged sessions',value:int(eng),
+      sub:sessions?`engagement rate ${pct(eng/sessions,1)}`:'engaged for 10s+, 2+ views or a key event'},
+    {color:MC.cyan,label:'Users',value:int(users),sub:`${int(nu)} new`},
+    {color:MC.purple,label:'Avg engagement / session',value:sessions?Math.round(secs/sessions)+'s':'-',
+      sub:'time actively engaged'},
+    // The GA4 conversion tile sits HERE and is withheld with every other conversion figure on this
+    // dashboard. `.filter(Boolean)` drops it entirely rather than rendering a blank tile.
+    signupsReported()
+      ? {color:MC.signups,label:'Site conversions',value:int(gaSum(rows,'conversions')),
+         sub:'GA4 key events, whole site - not campaign-attributed'}
+      : null,
+  ].filter(Boolean).map(kpiCard).join('');
+
+  renderGaFlight();
+  renderGaTrend();
+  renderGaChanTable(rows,sessions);
+  renderGaSources(rows,sessions);
+  renderGaEvents();
+  const note=$('gaNote');
+  if(note)note.innerHTML=`<b>How to read this.</b> These are <b>Google Analytics</b> figures for the whole of `
+    +`sophiie.ai, measured on the site itself - a different system from The Trade Desk, with a different `
+    +`model of who gets the credit. The two will not agree, and neither is a correction of the other. `
+    +`<b>A display campaign cannot be judged from this tab</b>: site traffic moves with search, referrals, `
+    +`email, PR and seasonality at the same time, so a rise during the flight is movement, not proof. The `
+    +`campaign's own delivery and engagement are on the <b>Overview</b> and <b>Paid Media</b> tabs, as The `
+    +`Trade Desk measures them.`;
+}
+
+// THE HEADLINE PANEL: what the site was doing BEFORE the flight opened vs during it. The property
+// carries roughly eighteen months of history, so the baseline is a real one rather than a partial
+// first week. It is deliberately NOT a chart - two numbers per metric drawn as a trend would invite
+// the reader to see a slope where there are only two points.
+// STRICTLY NOT ATTRIBUTION, and the caption says so: an equal-length before/after on whole-site
+// traffic cannot separate the display buy from search, referral, PR or seasonality.
+function renderGaFlight(){
+  const card=$('gaFlightCard');if(!card)return;
+  const f=flight(),all=gaAll();
+  const dmin=[...all.map(r=>String(r.date).slice(0,10))].sort()[0];
+  const dmax=[...all.map(r=>String(r.date).slice(0,10))].sort().slice(-1)[0];
+  const fs=f.start?String(f.start).slice(0,10):null;
+  // The in-flight window closes at the last day GA4 actually covers, never at the flight's planned
+  // end - comparing a part-window against a full one understates it (md/AGENTS.md: pace over the
+  // window the actuals cover).
+  const fe=[f.end?String(f.end).slice(0,10):null,dmax].filter(Boolean).sort()[0];
+  if(!fs||!fe||!dmin||fe<fs){card.style.display='none';return;}
+  const len=daysBetween(fs,fe)+1;
+  const addDays=(d,k)=>{const t=new Date(d+'T00:00:00Z');t.setUTCDate(t.getUTCDate()+k);return t.toISOString().slice(0,10);};
+  const preEnd=addDays(fs,-1),preStart=addDays(preEnd,-(len-1));
+  // A baseline shorter than the flight window would flatter the comparison, so say so rather than
+  // silently comparing unequal windows.
+  if(preStart<dmin){card.style.display='none';return;}
+  card.style.display='';
+  const inRows=all.filter(r=>{const d=String(r.date).slice(0,10);return d>=fs&&d<=fe;});
+  const preRows=all.filter(r=>{const d=String(r.date).slice(0,10);return d>=preStart&&d<=preEnd;});
+  const metrics=[
+    {label:'Sessions',key:'sessions'},
+    {label:'Users',key:'users'},
+    {label:'Engaged sessions',key:'engaged'},
+  ];
+  const delta=(a,b)=>{if(!b)return '<span class="muted-text">-</span>';
+    const d=a/b-1;const txt=`${d>=0?'+':''}${(d*100).toFixed(0)}%`;
+    // A neutral movement figure, NOT a verdict: green would read as "the campaign did this", which
+    // is exactly the claim this panel refuses to make.
+    return `<span class="muted-text">${txt}</span>`;};
+  $('gaFlightRows').innerHTML=
+    `<div class="ffrow head"><span>Metric</span><span style="text-align:right">Before</span>`
+    +`<span style="text-align:right">During</span><span style="text-align:right">Movement</span></div>`
+    +metrics.map(m=>{const b=gaSum(preRows,m.key),a=gaSum(inRows,m.key);
+      return `<div class="ffrow"><span class="m">${m.label}</span><span class="v">${int(b)}</span>`
+        +`<span class="v now">${int(a)}</span><span class="d">${delta(a,b)}</span></div>`;}).join('');
+  $('gaFlightHint').innerHTML=`Whole-site traffic over the <b>${len}</b> days of the flight so far `
+    +`(<b>${fmtDate(fs)} - ${fmtDate(fe)}</b>) against the <b>${len}</b> days immediately before it `
+    +`(<b>${fmtDate(preStart)} - ${fmtDate(preEnd)}</b>). Equal windows, same site, same measurement.`;
+  $('gaFlightFoot').innerHTML=`<b>This is movement, not attribution.</b> Everything that reaches the site `
+    +`is in both columns - search, direct, referrals, email, PR and seasonality as well as the campaign - `
+    +`so a rise here <b>cannot be credited to the display buy</b>, and a flat line does not disprove it. `
+    +`Read it as the backdrop the campaign ran against. This panel is always the full flight window and `
+    +`ignores the date filter.`;
+}
+
+function renderGaTrend(){
+  if(!gaHas()||!$('gaTrendChart'))return;
+  const rows=gaRows();
+  const days=[...new Set(rows.map(r=>String(r.date).slice(0,10)))].sort();
+  if(chartEmpty('gaTrendChart','gaTrendEmpty',!days.length)){destroyChart('gaTrendChart');
+    const h=$('gaTrendHint');if(h)h.textContent='';return;}
+  const tot=c=>rows.filter(r=>(r.channel||'Unassigned')===c).reduce((a,r)=>a+n(r.sessions),0);
+  const chans=[...new Set(rows.map(r=>r.channel||'Unassigned'))].sort((a,b)=>tot(b)-tot(a));
+  const byKey=new Map();
+  rows.forEach(r=>{const k=String(r.date).slice(0,10)+'|'+(r.channel||'Unassigned');byKey.set(k,(byKey.get(k)||0)+n(r.sessions));});
+  makeChart('gaTrendChart',{type:'bar',
+    data:{labels:days.map(fmtDate),datasets:chans.map((c,i)=>({label:c,data:days.map(d=>byKey.get(d+'|'+c)||0),
+      backgroundColor:gaChanColor(c,i),borderWidth:0,stack:'s',borderRadius:2,maxBarThickness:30}))},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:legendTop()},
+      scales:{x:axis({stacked:true,grid:{display:false}}),y:axis({stacked:true,beginAtZero:true})}}});
+  const h=$('gaTrendHint');
+  if(h)h.textContent='Daily website sessions, stacked by GA4 default channel group. Whole site, honours the date range.';
+}
+function renderGaChanTable(rows,total){
+  const t=$('gaChanTable');if(!t)return;
+  const m=new Map();
+  rows.forEach(r=>{const c=r.channel||'Unassigned';const o=m.get(c)||{c,s:0,e:0,u:0,cv:0};
+    o.s+=n(r.sessions);o.e+=n(r.engaged);o.u+=n(r.users);o.cv+=n(r.conversions);m.set(c,o);});
+  const list=[...m.values()].sort((a,b)=>b.s-a.s);
+  // The conversions cell is tagged `.c-conv`, so the withheld body class removes the whole column -
+  // header and cells together - exactly as `.c-sign` does on the paid tables.
+  t.querySelector('tbody').innerHTML=list.map(o=>
+    `<tr><td>${safeName(o.c)}</td><td class="num">${int(o.s)}</td><td class="num">${total?pct(o.s/total,1):'-'}</td>`
+    +`<td class="num">${o.s?pct(o.e/o.s,1):'-'}</td><td class="num">${int(o.u)}</td>`
+    +`<td class="num c-conv">${int(o.cv)}</td></tr>`).join('');
+}
+function renderGaSources(rows,total){
+  const t=$('gaSourceTable');if(!t)return;
+  const m=new Map();
+  rows.forEach(r=>{const k=`${r.source||'(not set)'} / ${r.channel||'Unassigned'}`;
+    const o=m.get(k)||{k,s:0,e:0,cv:0};o.s+=n(r.sessions);o.e+=n(r.engaged);o.cv+=n(r.conversions);m.set(k,o);});
+  const list=[...m.values()].sort((a,b)=>b.s-a.s).slice(0,12);
+  t.querySelector('tbody').innerHTML=list.map(o=>
+    `<tr><td class="name-cell" title="${safeName(o.k)}">${safeName(o.k)}</td><td class="num">${int(o.s)}</td>`
+    +`<td class="num">${total?pct(o.s/total,1):'-'}</td><td class="num">${o.s?pct(o.e/o.s,1):'-'}</td>`
+    +`<td class="num c-conv">${int(o.cv)}</td></tr>`).join('');
+}
+// GA4 KEY EVENTS = a conversion metric. The card is not merely hidden while the metric is withheld:
+// its rows are never written to the DOM, so the figures do not ship inside the page a client can
+// view-source (the same treatment the staff-only tables get elsewhere in the estate).
+function renderGaEvents(){
+  const card=$('gaEventsCard');if(!card)return;
+  const on=signupsReported();
+  card.style.display=on?'':'none';
+  const body=$('gaEventsTable')&&$('gaEventsTable').querySelector('tbody');
+  if(!on){if(body)body.innerHTML='';const h0=$('gaEvHint');if(h0)h0.innerHTML='';return;}
+  const rows=gaEventsAll().filter(r=>inRange(r.date));
+  const m=new Map();
+  rows.forEach(r=>{const e=r.event||'(unnamed)';const o=m.get(e)||{event:e,key:!!r.key,count:0};
+    o.count+=n(r.count);if(r.key)o.key=true;m.set(e,o);});
+  const list=[...m.values()].sort((a,b)=>b.count-a.count);
+  if(body)body.innerHTML=list.map(o=>
+    `<tr><td>${safeName(o.event)}${o.key?' <span class="muted-text">&middot; key event</span>':''}</td>`
+    +`<td class="num">${int(o.count)}</td></tr>`).join('');
+  const h=$('gaEvHint');
+  if(h)h.innerHTML='Google Analytics events recorded on sophiie.ai in the selected range - <b>whole site</b>, '
+    +'from every source. These are site-measured actions, not Trade Desk attributed outcomes, and the two '
+    +'are never added together.';
+}
+
+// ---------- controls ----------
 function bindControls(){
   document.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>{STATE.view=b.dataset.view;renderViewState();}));
   document.querySelectorAll('#grainSeg button').forEach(b=>b.addEventListener('click',()=>{STATE.grain=b.dataset.grain;document.querySelectorAll('#grainSeg button').forEach(x=>x.classList.toggle('on',x.dataset.grain===STATE.grain));renderTrend();wireKpiToggles();}));
@@ -2018,11 +2311,15 @@ function renderViewCharts(){
   // canvas, so every chart on the newly-shown tab is recreated here.)
   const R={overview:[renderTrend,renderPaceToGoal,renderTierDonut,renderFormats,renderAttribution],
            paid:[renderEffScatter,renderCpcTrend,renderClicksCtr,renderSignups,renderVideo,renderDow,renderSegment],
+           website:[renderGaTrend],
            creative:[]};
   (R[STATE.view]||[]).forEach(fn=>{try{fn();}catch(e){console.error('view chart render failed:',fn.name,e);}});
 }
 function renderViewState(){
   document.querySelectorAll('[data-view]').forEach(b=>b.classList.toggle('on',b.dataset.view===STATE.view));
+  // The stage chips, the search box and the row-count readout act on the PAID fact and do nothing
+  // to GA4, so they are hidden on the Website view rather than left sitting there inert.
+  document.body.classList.toggle('ga-view',STATE.view==='website');
   document.querySelectorAll('.tabpane').forEach(v=>v.style.display=(v.id==='tab-'+STATE.view)?'block':'none');
   renderHeader();
   // A Chart.js chart drawn into a display:none pane renders into a 0x0 canvas and stays BLANK when
@@ -2077,6 +2374,10 @@ function exportThisTab(){
   const[a,b]=rangeBounds();const stamp=(a&&b?a+'_'+b:'all');
   if(STATE.view==='overview'){const cols=[{label:'date',key:'date'},{label:'spend',key:'spend'},{label:'impressions',key:'impressions'},{label:'clicks',key:'clicks'},{label:'cum_impressions',key:'cum_imps'}].concat(signupsWithheld()?[]:[{label:'try_free_clicks',key:'signups'},{label:'cum_try_free_clicks',key:'cum_signups'}]);downloadCSV(`sophiie_daily_${stamp}.csv`,toCSV(dailyOf(scoped()),cols));}
   else if(STATE.view==='creative'){const cols=[{label:'creative',key:'creative'},{label:'ad_group_primary',key:'ad_group'},{label:'ad_groups_total',key:'ad_group_n'},{label:'ad_format',key:'ad_format'},{label:'spend',key:'spend'},{label:'impressions',key:'impressions'},{label:'cpm',key:'cpm'},{label:'clicks',key:'clicks'},{label:'ctr',key:'ctr'},{label:'cpc',key:'cpc'}].concat(signupsWithheld()?[]:[{label:'try_free_clicks',key:'signups'}]);downloadCSV(`sophiie_creative_${stamp}.csv`,toCSV(byCreative(searched(scoped())),cols));}
+  // Website: the GA4 day x channel x source fact for the range. `conversions` is a conversion
+  // metric and is dropped with every other one while SIGNUPS_REPORTABLE is off - a CSV outlives the
+  // page, so an export is the last place the withheld figure may survive.
+  else if(STATE.view==='website'){const cols=[{label:'date',key:'date'},{label:'channel',key:'channel'},{label:'source',key:'source'},{label:'campaign',key:'campaign'},{label:'sessions',key:'sessions'},{label:'engaged_sessions',key:'engaged'},{label:'users',key:'users'},{label:'new_users',key:'new_users'},{label:'pageviews',key:'pageviews'},{label:'engagement_sec',key:'engagement_sec'}].concat(signupsWithheld()?[]:[{label:'conversions',key:'conversions'}]);downloadCSV(`sophiie_website_ga4_${stamp}.csv`,toCSV(gaRows(),cols));}
   else{const cols=[{label:'ad_group',key:'ad_group'},{label:'tier',key:'tier'},{label:'stage',key:'stage'},{label:'spend',key:'spend'},{label:'impressions',key:'impressions'},{label:'cpm',key:'cpm'},{label:'clicks',key:'clicks'},{label:'ctr',key:'ctr'},{label:'cpc',key:'cpc'}].concat(signupsWithheld()?[]:[{label:'try_free_clicks',key:'signups'},{label:'cpa',key:'cpa'}]);downloadCSV(`sophiie_by_ad_group_${stamp}.csv`,toCSV(byAdGroup(searched(scoped())),cols));}
 }
 

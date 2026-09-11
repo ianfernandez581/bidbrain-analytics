@@ -59,12 +59,15 @@ $JOBS = @(
   @{ key="reddit";    dir="ingest/windsor_data_pull/reddit";    job="windsor-reddit-ingest";    mem="1Gi"; cpu="1"; cron="50 21 * * *" },
   @{ key="linkedin";  dir="ingest/windsor_data_pull/linkedin";  job="windsor-linkedin-ingest";  mem="1Gi"; cpu="1"; cron="40 21 * * *" },
   @{ key="hubspot";   dir="ingest/windsor_data_pull/hubspot";   job="windsor-hubspot-ingest";   mem="1Gi"; cpu="1"; cron="55 21 * * *" },
-  # GA4 (2026-08-31): PINNED to the two Geocon properties via GA4_ACCOUNTS - the loaders' full
+  # GA4 (2026-08-31): PINNED to an EXPLICIT property list via GA4_ACCOUNTS - the loaders' full
   # laptop lists include ~20 properties whose GA4 comes via DTS (or is dormant), and a scheduled
   # unpinned run would attempt full backfills for all of them. `env` uses gcloud's custom
   # delimiter syntax (^;^) because the VALUE itself contains a comma. Retire this job if/when
   # the client grants ian@100.digital GA4 Viewer and the (already-created, currently failing)
   # DTS transfers for 550962241 / 551838402 take over.
+  # 468621509 = Sophiie (added 2026-09-11). It was ALWAYS in the loaders' hardcoded lists, so the
+  # June 2026 history came from a laptop run; scheduling in August pinned the job to Geocon before
+  # client_sophiie existed, which is why its GA4 stopped at 2026-06-01 rather than being dropped.
   @{ key="ga4";       dir="ingest/windsor_data_pull/ga4";       job="windsor-ga4-ingest";       mem="1Gi"; cpu="1"; cron="25 21 * * *"; env="^;^GA4_ACCOUNTS=550962241,551838402,468621509" }
 )
 

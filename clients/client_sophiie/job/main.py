@@ -29,8 +29,18 @@ from freshness import probe_bq_last_modified, read_watermark, write_watermark, i
 # Freshness gate (see md/AGENTS.md "Freshness contract"): rebuild only when the upstream raw table
 # this job reads has advanced. The raw layer IS raw_windsor.perf_the_trade_desk. GATING_TABLES is
 # the "dataset.table" id probed via BQ __TABLES__.last_modified; watermark = GCS sidecar.
+# THE GATE AND THE STAMP READ DIFFERENT LISTS, DELIBERATELY (2026-09-11).
+# GATING is the union: a GA4-only advance must still rebuild the JSON, or the Website tab sits a
+# tick behind its own source on every refresh.
+# `meta.upstream_checked_at` stamps from the PAID list ONLY. GA4 and Trade Desk load on different
+# schedules, so a union stamp would advance whenever GA4 ticked - including while the Trade Desk
+# feed was frozen - which is exactly the "freshness looks healthy while the numbers are stale"
+# confusion the same-day `data_through` fix was written to remove. This dashboard's fact IS Trade
+# Desk; the honest answer to "when did we last hear from the source behind these numbers" is the
+# Trade Desk probe. (`meta.data_through` is unaffected either way - it is max(fact date).)
 WINDSOR_TABLES = ["raw_windsor.perf_the_trade_desk"]
-GATING_TABLES = WINDSOR_TABLES
+GA4_TABLES = ["raw_windsor.perf_ga4", "raw_windsor.perf_ga4_events"]
+GATING_TABLES = WINDSOR_TABLES + GA4_TABLES
 WATERMARK_OBJECT = "_freshness.json"
 
 PROJECT = "bidbrain-analytics"
@@ -101,6 +111,31 @@ def build_env(bq, observed):
     tgt  = rows(bq, f"SELECT * FROM {t('targets')}")
     bud  = rows(bq, f"SELECT * FROM {t('budget')} WHERE campaign_key = '{FLIGHT_KEY}' LIMIT 1")
     audit(fact)
+
+    # GA4 website analytics (2026-09-11), property 468621509, Windsor-fed. Read inside a try so a
+    # MISSING VIEW CANNOT STOP THE EXPORT: the views land in BigQuery after this job ships, and a
+    # dashboard frozen on its last good JSON is a far worse failure than a Website tab that has not
+    # arrived yet (the estate's silent-freeze trap - md/AGENTS.md, "SELECT * mirror"). The dashboard
+    # hides the tab on `enabled: false`, so an empty block degrades cleanly.
+    try:
+        ga4 = rows(bq, f"SELECT * FROM {t('stg_ga4')} ORDER BY date, channel_group, source_medium")
+        ga4_ev = rows(bq, f"SELECT * FROM {t('stg_ga4_events')} ORDER BY date, event")
+    except Exception as e:
+        print(f"  ga4 views unavailable ({e}) -> emitting an empty block; Website tab hides itself")
+        ga4, ga4_ev = [], []
+    if ga4:
+        ga4_dates = [r["date"] for r in ga4 if r.get("date")]
+        ga4_sessions = sum(int(num(r.get("sessions")) or 0) for r in ga4)
+        ga4_channels = {r.get("channel_group") for r in ga4 if r.get("channel_group")}
+        # Display specifically: this is the ONLY GA4 channel the TTD buy can plausibly show up in,
+        # so it is the cheap cross-check that the campaign's traffic is reaching the site at all.
+        # It is NOT an attribution figure - GA4 last-click and TTD post-view measure different
+        # things and will never agree; a zero here is a tagging question, not a delivery one.
+        ga4_display = sum(int(num(r.get("sessions")) or 0) for r in ga4
+                          if (r.get("channel_group") or "") == "Display")
+        print(f"ga4: {ga4_sessions:,} sessions across {len(ga4_channels)} channels "
+              f"({iso(min(ga4_dates))}..{iso(max(ga4_dates))}), Display {ga4_display:,} sessions "
+              f"| WHOLE-SITE, not campaign-scoped - sophiie.ai traffic from every source")
 
     # --- targets: flat {key: {value, status}}; value parsed to float where possible (dates stay str)
     def tgt_value(raw):
@@ -284,6 +319,40 @@ def build_env(bq, observed):
             # "not measured" instead of claiming 0% viewable.
             "vw_viewed": num(r.get("sampled_viewed")), "vw_tracked": num(r.get("sampled_tracked")),
         } for r in fact],
+        # GA4 website analytics - WHOLE-SITE sophiie.ai traffic, not campaign-scoped, so every
+        # caption reading these must say so or a reader will take site sessions for campaign clicks.
+        # `enabled` is derived from the rows rather than seeded, so the tab lights up on its own the
+        # first tick after the views are applied and needs no second deploy.
+        #
+        # CONVERSION FIELDS ARE GATED DOWNSTREAM, NOT HERE. `rows[].conversions` and every
+        # `events[]` count (key events especially) ARE conversion metrics, and this dashboard
+        # WITHHOLDS its conversion metric from the client behind SIGNUPS_REPORTABLE in
+        # dash/dashboard.html (client instruction, 2026-09-11). They are emitted because the job is
+        # the data layer and stripping the pipeline is what turns the status-pipeline accuracy
+        # checks red - the same reason `pv_conv`/`pc_conv` above are still published. While that
+        # flag is false NOTHING derived from these two may reach a client surface: no KPI, chart,
+        # caption, CSV column or AI-deck key. Do not add a code path here that publishes them on
+        # their own, and do not read them into a client-facing payload elsewhere.
+        "ga4": {
+            "enabled": bool(ga4),
+            "property": "468621509",
+            "date_min": iso(min([r["date"] for r in ga4 if r.get("date")], default=None)),
+            "date_max": iso(max([r["date"] for r in ga4 if r.get("date")], default=None)),
+            "rows": [{
+                "date": iso(r["date"]),
+                "channel": r.get("channel_group"), "source": r.get("source_medium"),
+                "campaign": r.get("campaign"),
+                "sessions": num(r.get("sessions")), "engaged": num(r.get("engaged_sessions")),
+                "users": num(r.get("users")), "new_users": num(r.get("new_users")),
+                "pageviews": num(r.get("pageviews")),
+                "engagement_sec": num(r.get("engagement_sec")),
+                "conversions": num(r.get("conversions")),
+            } for r in ga4],
+            "events": [{
+                "date": iso(r["date"]), "event": r.get("event"),
+                "key": bool(r.get("is_key")), "count": num(r.get("count")),
+            } for r in ga4_ev],
+        },
     }
     summary = (f"{len(fact)} fact rows, {imps_total:,} impressions, {clicks_total:,} clicks, "
                f"{round(signups_total,1)} Try free clicks, "
