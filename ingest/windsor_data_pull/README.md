@@ -96,6 +96,37 @@ GA4 adds one wrinkle on top of this shared model — each chunk is fetched in **
 passes** (the GA4 Data API caps a request at 9 dims / 10 metrics) and merged before the MERGE.
 See [`ga4/README.md`](ga4/README.md).
 
+**A Windsor 200 is not proof of data (added 2026-09-11).** Every loader calls
+`assert_not_reads_paused(rows, tag)` immediately after parsing `payload["data"]`, and **before
+the chunk is cached**. Windsor signals an account-wide read pause *in the data*, not in the
+status code: on 2026-09-10 a plan limit ("you have 8 data sources connected and your Standard
+plan includes 7") produced `HTTP 200`, valid JSON, and one well-formed row whose every string
+field was the notice text, metrics `0`. Unrecognised, each loader wrote that row to BigQuery and
+**exited 0** — measured on 2026-09-11, five of the six Windsor jobs reported `succeededCount: 1`
+on runs that landed nothing else, for two consecutive days. A green job is this estate's only
+"ingest is healthy" signal, so this is the failure mode the guard exists for. Three notes:
+
+* It **raises**, and the raise is deliberately not caught. The per-chunk handler catches only
+  `ChunkFetchError` and `main()` only `AccountUnavailableError`, so the job exits non-zero and
+  goes red. That is the whole point — the rows themselves were harmless (client SQL filters on
+  ids, so the notice never reached a fact table or a client's screen).
+* It aborts the run rather than continuing. A pause is account-wide, so every remaining account
+  and chunk would return the same notice. Trade Desk's backward walk would grind through the
+  whole range; GA4's actually did, for **2h 00m** back toward 2015 on 2026-09-10, because
+  `process_backward_walk()` stops on *empty* chunks and an error row is one row, not zero.
+  `STOP_AFTER_EMPTY_CHUNKS` is deliberately left alone — refusing the payload removes the cause,
+  and a backfill termination condition is not something to change as a side effect of a bug fix.
+* It matches the two prose fragments Windsor repeats (`not your real numbers` / `reads are
+  paused`), **not** the whole sentence — the counts and plan name in it change — and it scans the
+  first few *rows* rather than the raw response body, so a legitimate response that merely quotes
+  the phrase cannot trip it. Verified against 200 real pre-outage rows from
+  `perf_the_trade_desk` / `perf_meta`, which it accepts.
+
+The Grid's Connections tab has the matching account-level state (`billing_blocked`) so the pause
+is *reported* as one account-wide cause rather than N per-connector symptoms — see
+[`connections/README.md`](connections/README.md). The two are independent: the guard stops the row
+being written, the probe stops the tab being fooled by one that already was.
+
 **Runtime artifacts** (cached chunk JSON, logs, temp NDJSON) are written to a `_run/` folder
 **next to each loader**, anchored via `__file__` — never the repo root, never committed
 (`_run/` is gitignored).

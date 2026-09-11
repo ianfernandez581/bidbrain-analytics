@@ -210,6 +210,66 @@ logging.basicConfig(
 log = logging.getLogger("ga4_loader")
 
 # ---------- Helpers ----------
+# ---------------------------------------------------------------------------
+# ACCOUNT-WIDE READ PAUSE (2026-09-10..11)
+#
+# Windsor stopped serving the WHOLE account over a plan limit and said so in the only
+# place nothing checks: the DATA. HTTP 200, valid JSON, one well-formed row whose every
+# string field is the notice -
+#
+#   "Uh-oh! These are not your real numbers: reads are paused because you have 8 data
+#    sources connected and your Standard plan includes 7 data sources. To resume,
+#    disconnect 1 data source at ... or upgrade at .../manage-subscription"
+#
+# - and metrics 0. Nothing in the request/response shape says anything is wrong, so this
+# loader WROTE IT TO BIGQUERY as a row, one per run, and exited 0. Measured 2026-09-11:
+# five of the six Windsor loaders reported succeededCount=1 on runs that landed nothing
+# but that row. A green job is this estate's only "ingest is healthy" signal, and it lied
+# for two days.
+#
+# So: a response carrying the notice is NOT data. Refuse it, and fail the run LOUDLY.
+# The raise propagates (the per-chunk handlers catch only ChunkFetchError, and main()
+# catches only AccountUnavailableError), so the job exits non-zero and goes red - which
+# is the entire point. It also aborts immediately rather than walking the rest of the
+# range: on 2026-09-10 the GA4 loader spent 2h00m walking back to 2015 re-fetching this
+# same notice, because its backward walk stops on EMPTY chunks and an error row is one
+# row, not zero.
+#
+# Matched on the two prose fragments Windsor repeats, not the whole sentence: the counts
+# ("8", "7", "Standard") change with the plan and an exact match would go silent the day
+# someone adds a ninth source. Scanned over the first few ROWS rather than the raw body,
+# so a legitimate response that merely quotes the phrase somewhere cannot trip it.
+class WindsorReadsPausedError(RuntimeError):
+    """Windsor served its account-wide read-pause notice in place of data."""
+
+
+_READS_PAUSED_RE = re.compile(r"not your real numbers|reads are paused", re.I)
+
+
+def assert_not_reads_paused(rows, tag=""):
+    """Raise if Windsor answered with the account-wide pause notice instead of data.
+
+    The notice is always a single row, so only the first few are scanned - a real chunk
+    can carry tens of thousands and this must not become a per-row cost.
+    """
+    for row in rows[:3]:
+        if not isinstance(row, dict):
+            continue
+        for value in row.values():
+            if isinstance(value, str) and _READS_PAUSED_RE.search(value):
+                raise WindsorReadsPausedError(
+                    (f"[{tag}] " if tag else "")
+                    + "Windsor is not serving data: it returned its account-wide "
+                    + "read-pause notice instead. This is a BILLING/plan block on the "
+                    + "whole account, NOT a grant on this connector - re-granting "
+                    + "cannot fix it. Disconnect a data source at "
+                    + "https://onboard.windsor.ai/app/ or upgrade the plan at "
+                    + "https://onboard.windsor.ai/app/manage-subscription. Nothing was "
+                    + "written; everything backfills on the first run after it clears. "
+                    + "Windsor said: " + value[:240]
+                )
+
+
 def get_secret(name):
     """Read the latest version of a Secret Manager secret via Application
     Default Credentials -- same ADC the BigQuery/Storage clients use. No gcloud
@@ -308,6 +368,9 @@ def fetch_chunk(api_key, d_from, d_to, idx, total, select_accounts, cache_tag, f
             rows = payload.get("data", [])
             if "data" not in payload:
                 log.warning(f"    no 'data' key (keys: {list(payload)[:5]}) -- treating as 0 rows")
+            # BEFORE the cache write below, or the notice is cached and replayed on every
+            # subsequent run even after Windsor recovers.
+            assert_not_reads_paused(rows, label)
             total_elapsed = time.monotonic() - start
             log.info(f"  [{label}] SUCCESS: {len(rows)} rows in {total_elapsed:.1f}s")
             cache_file.write_text(json.dumps(rows), encoding="utf-8")

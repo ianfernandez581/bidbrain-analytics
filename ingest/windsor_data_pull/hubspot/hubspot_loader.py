@@ -24,6 +24,7 @@ Key from Secret Manager (windsor-api-key) via ADC -- never inline it. Run:
     .\\.venv\\Scripts\\python.exe ingest\\windsor_data_pull\\hubspot\\hubspot_loader.py
 """
 import json
+import re
 import sys
 import time
 
@@ -135,6 +136,44 @@ def get_secret(name):
     return c.access_secret_version(name=p).payload.data.decode("utf-8").strip()
 
 
+# ---------------------------------------------------------------------------
+# ACCOUNT-WIDE READ PAUSE (2026-09-10..11). Windsor stopped serving the WHOLE account over
+# a plan limit and said so in the DATA: HTTP 200, valid JSON, one row whose every string
+# field is the notice ("Uh-oh! These are not your real numbers: reads are paused because
+# you have 8 data sources connected and your Standard plan includes 7..."), metrics 0.
+# Nothing in the response shape says anything is wrong, so this loader wrote it to
+# BigQuery as a row and exited 0 - and a green job is this estate's only "ingest is
+# healthy" signal. Refuse it and fail LOUDLY instead: the raise reaches main() uncaught,
+# so the job goes red. Matched on the two prose fragments Windsor repeats (the plan counts
+# in it change), scanned over rows rather than the raw body so a response that merely
+# quotes the phrase cannot trip it. Same guard, same wording, in every Windsor loader.
+class WindsorReadsPausedError(RuntimeError):
+    """Windsor served its account-wide read-pause notice in place of data."""
+
+
+_READS_PAUSED_RE = re.compile(r"not your real numbers|reads are paused", re.I)
+
+
+def assert_not_reads_paused(rows, tag=""):
+    """Raise if Windsor answered with the account-wide pause notice instead of data."""
+    for row in rows[:3]:
+        if not isinstance(row, dict):
+            continue
+        for value in row.values():
+            if isinstance(value, str) and _READS_PAUSED_RE.search(value):
+                raise WindsorReadsPausedError(
+                    (f"[{tag}] " if tag else "")
+                    + "Windsor is not serving data: it returned its account-wide "
+                    + "read-pause notice instead. This is a BILLING/plan block on the "
+                    + "whole account, NOT a grant on this connector - re-granting "
+                    + "cannot fix it. Disconnect a data source at "
+                    + "https://onboard.windsor.ai/app/ or upgrade the plan at "
+                    + "https://onboard.windsor.ai/app/manage-subscription. Nothing was "
+                    + "written; everything backfills on the first run after it clears. "
+                    + "Windsor said: " + value[:240]
+                )
+
+
 def fetch(api_key, fields, retries=5):
     """GET the connector with capped-backoff retries; fail-fast on 4xx (bad field)."""
     backoff = 5
@@ -149,7 +188,9 @@ def fetch(api_key, fields, retries=5):
             print(f"  attempt {attempt} failed ({type(e).__name__}); retry in {backoff}s")
             time.sleep(backoff); backoff = min(backoff * 2, 120); continue
         if r.status_code == 200:
-            return r.json().get("data", [])
+            rows = r.json().get("data", [])
+            assert_not_reads_paused(rows, "hubspot")
+            return rows
         if 400 <= r.status_code < 500 and r.status_code != 429:
             raise RuntimeError(f"Windsor /hubspot HTTP {r.status_code}: {r.text[:600]}")
         if attempt == retries:
