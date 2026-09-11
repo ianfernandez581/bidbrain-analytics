@@ -379,8 +379,18 @@
       '</div>';
   }
 
+  // Set by the shell on every render: the rail's selection, and the callback that writes a
+  // change back to it. Kept module-level so the select handler can reach it.
+  var RAIL_AGENCY = null, ON_CLIENT_CHANGE = null;
+
   function render(opts) {
     opts = opts || {};
+    // The rail is the source of truth. Assigning on every render is what makes the two
+    // surfaces incapable of disagreeing - Central's dropdown is a view of F.client, not a
+    // second copy of it.
+    if (opts.client !== undefined) CS.client = opts.client;
+    RAIL_AGENCY = opts.railAgency || null;
+    ON_CLIENT_CHANGE = opts.onClientChange || null;
     injectCss();
     var mount = document.getElementById('view-central');
     if (!mount) return;
@@ -464,11 +474,22 @@
       '</div>';
     // status-view chips (LIVE-FIRST) with counts + client filter
     var svChips = [['live', 'Live', liveN], ['Active', 'Active', sCount('Active')], ['Paused', 'Paused', sCount('Paused')],
-      ['Not Active', 'Not Active', sCount('Not Active')], ['Ended', 'Ended', sCount('Ended')], ['all', 'All', totalN], ['archived', 'Archived', archivedN]];
+      ['Not Active', 'Not Active', sCount('Not Active')], ['Ended', 'Ended', sCount('Ended')]];
+    // 'Draft' has been in STATUSES all along but was in no chip, so a draft row was counted in
+    // All and reachable from nowhere - the chips summed to one less than the total they sit
+    // beside. Conditional, so a workspace with no drafts does not carry a permanent zero.
+    if (sCount('Draft')) svChips.push(['Draft', 'Draft', sCount('Draft')]);
+    svChips.push(['all', 'All', totalN], ['archived', 'Archived', archivedN]);
     html += '<div class="ct-filters">';
     html += '<div class="ct-chipset ct-statusview" id="ct-fstatus">' + svChips.map(function (c) { return '<button class="ct-chip' + (CS.statusView === c[0] ? ' on' : '') + '" data-v="' + esc(c[0]) + '">' + esc(c[1]) + ' <span class="ct-chipn">' + c[2] + '</span></button>'; }).join('') + '</div>';
     html += '<label class="ct-fld"><span>Client</span><select id="ct-fclient" class="ct-select"><option value="all"' + (CS.client === 'all' ? ' selected' : '') + '>All clients</option>' +
       clients.map(function (c) { return '<option value="' + esc(c) + '"' + (CS.client === c ? ' selected' : '') + '>' + esc(c) + '</option>'; }).join('') + '</select></label>';
+    // An agency selection in the rail has no expression in a single-value client filter.
+    // Silently dropping it is the bug this change exists to fix, so state it instead.
+    if (RAIL_AGENCY) {
+      html += '<span class="ct-railnote">Rail is on ' + esc(RAIL_AGENCY)
+        + ' - Central has no agency filter, so it is showing every client</span>';
+    }
     // Manager filter + campaign search (ported from Register / the old top bar)
     html += '<label class="ct-fld"><span>Manager</span><select id="ct-fmgr" class="ct-select"><option value="all"' + (CS.mgr === 'all' ? ' selected' : '') + '>All mgrs</option>' +
       mgrs.map(function (m) { return '<option value="' + esc(m) + '"' + (CS.mgr === m ? ' selected' : '') + '>' + esc(m) + '</option>'; }).join('') + '</select></label>';
@@ -775,7 +796,12 @@
       });
     });
     // client filter
-    var fc = mount.querySelector('#ct-fclient'); if (fc) fc.addEventListener('change', function () { CS.client = fc.value; paint(mount); });
+    var fc = mount.querySelector('#ct-fclient'); if (fc) fc.addEventListener('change', function () {
+      CS.client = fc.value;
+      // Hand it to the rail and let the shell re-render: it calls back into render() with the
+      // new value, so painting here as well would paint twice.
+      if (ON_CLIENT_CHANGE) ON_CLIENT_CHANGE(fc.value); else paint(mount);
+    });
     // status-view chips (live-first)
     mount.querySelectorAll('#ct-fstatus .ct-chip').forEach(function (b) { b.addEventListener('click', function () { CS.statusView = b.dataset.v; paint(mount); }); });
     // health chips (click active clears)
@@ -944,6 +970,7 @@
     var s = document.createElement('style'); s.id = 'ct-css';
     s.textContent = [
       '.ct-wrap{padding-top:16px}',
+      '.ct-railnote{font-size:11px;color:var(--ink-3);align-self:center;padding-left:2px;max-width:44ch;line-height:1.4}',
       '.ct-toolbar{display:flex;align-items:flex-end;justify-content:space-between;gap:14px;flex-wrap:wrap;padding:6px 0 10px}',
       '.ct-title h2{font-family:"Space Grotesk";font-size:22px;font-weight:600;margin:0;letter-spacing:-.5px}.ct-titsub{font-size:12px;color:var(--ink-2)}',
       '.ct-tools{display:flex;align-items:center;gap:9px;flex-wrap:wrap}',

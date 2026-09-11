@@ -28,6 +28,9 @@
     err: null,
     fetchedAt: null,
     filter: { state: null, ds: null, q: '', showIdle: false },
+    // The rail's client scope, pushed in by the shell. Held in state rather than passed as
+    // an argument because wire()'s handlers re-enter render(mount) with no opts.
+    rail: { key: null, label: null },
     expanded: {},       // 'ds:group' -> true when a collapsed group row has been opened
     openFeed: {},       // 'f:<ds>' -> true when a feed row is expanded
     probing: false,
@@ -88,11 +91,16 @@
     '#view-connections .cx-est{font-size:8.5px;font-weight:700;letter-spacing:.07em;padding:2px 5px;border-radius:4px;background:var(--grp);color:var(--ink-3);margin-left:5px}',
     '#view-connections .cx-tilefoot{display:flex;flex-wrap:wrap;gap:4px 20px;font-size:11.5px;color:var(--ink-3);padding:0 3px;margin-top:-7px}',
     '#view-connections .cx-tilefoot b{color:var(--ink-2);font-weight:600;font-variant-numeric:tabular-nums}',
+    '#view-connections .cx-tilefoot button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer;text-decoration:underline;text-decoration-color:var(--line-2);text-underline-offset:3px}',
+    '#view-connections .cx-tilefoot button:hover b,#view-connections .cx-tilefoot button[aria-pressed="true"] b{color:var(--tx)}',
+    '#view-connections .cx-tilefoot button:focus-visible{outline:2px solid var(--brand);outline-offset:2px;border-radius:3px}',
     // Every track count below divides SIX evenly. auto-fit was tried first and orphaned the
     // expiry tile on its own row at the widths where only five tracks fit.
     '@media(max-width:1280px){#view-connections .cx-tiles{grid-template-columns:repeat(3,minmax(0,1fr))}}',
     '@media(max-width:1100px){#view-connections .cx-tiles{grid-template-columns:repeat(2,minmax(0,1fr))}}',
     '@media(max-width:560px){#view-connections .cx-tiles{grid-template-columns:1fr}}',
+    '#view-connections .cx-railnote{padding:13px 17px;font-size:12.5px;color:var(--ink-2);line-height:1.55}',
+    '#view-connections .cx-railnote b{color:var(--ink)}',
     // ===== problem cards =====
     // The collapsed card's list of affected properties. Sits in the same grid area the single
     // card uses for its table row.
@@ -242,6 +250,15 @@
 
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function fmtDay(d) { if (!d) return '-'; var t = new Date(d + 'T00:00:00Z'); if (isNaN(t)) return esc(d); return t.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' }); }
+  // Short form for a date in the CURRENT year, full form otherwise. A bare "25 Aug" for a
+  // 2027 date reads as thirteen days ago, which is how the re-auth cell came to contradict
+  // its own "in 352 d" sub-line.
+  function fmtDaySmart(d) {
+    if (!d) return '-';
+    var t = new Date(d + 'T00:00:00Z');
+    if (isNaN(t)) return esc(d);
+    return t.getUTCFullYear() === new Date().getUTCFullYear() ? fmtDay(d) : fmtDayY(d);
+  }
   function fmtDayY(d) { if (!d) return '-'; var t = new Date(d + 'T00:00:00Z'); if (isNaN(t)) return esc(d); return t.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }); }
   function fmtWhen(iso) { if (!iso) return '-'; var t = new Date(iso); if (isNaN(t)) return esc(iso); return t.toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }); }
   function ago(iso) {
@@ -258,12 +275,28 @@
   function clientColor(name) { try { if (name && window.BrainColors && window.BrainColors.getClientColor) return window.BrainColors.getClientColor(String(name).toLowerCase()).fg; } catch (e) { } return 'var(--ink-3)'; }
   function stateOf(s) { return STATE[s] || STATE.error; }
 
-  function allAccounts(doc) {
+  // Connections keys clients on a registry SLUG ('tlm') with a display label ('The Little
+  // Marionette'); the rail uses the sheet's name ('The Little Marionette'). Normalising to
+  // lowercase-alphanumeric matches both, so no alias table is needed here either.
+  function cKey(s) { return String(s == null ? '' : s).toLowerCase().replace(/[^a-z0-9]/g, ''); }
+
+  function allAccountsRaw(doc) {
     var out = [];
     ((doc && doc.datasources) || []).forEach(function (ds) {
       (ds.accounts || []).forEach(function (a) { out.push({ ds: ds, a: a }); });
     });
     return out;
+  }
+  function inRail(a) {
+    var k = S.rail && S.rail.key;
+    if (!k) return true;
+    return cKey(a.client) === k || cKey(a.client_label) === k;
+  }
+  // EVERY summary on this tab derives from here - counts, tiles, problem cards, feed rollup -
+  // so a scoped band can never contradict a scoped table. The nav badge deliberately does
+  // NOT use this (see redCount).
+  function allAccounts(doc) {
+    return allAccountsRaw(doc).filter(function (x) { return inRail(x.a); });
   }
   function counts(doc) {
     var c = { ok: 0, frozen: 0, quiet: 0, not_granted: 0, broken: 0, error: 0, idle: 0, total: 0 };
@@ -282,7 +315,9 @@
     return true;
   }
   function redCount(doc) {
-    return allAccounts(doc).filter(function (x) { return RED[x.a.state] && x.a.alerts; }).length;
+    // UNSCOPED on purpose. The badge is the estate-wide alarm in the top nav; scoping it
+    // would let a client selection hide another client's dead feed completely.
+    return allAccountsRaw(doc).filter(function (x) { return RED[x.a.state] && x.a.alerts; }).length;
   }
   function paintNavBadge(doc) {
     var b = document.getElementById('navConnBadge'); if (!b) return;
@@ -337,11 +372,9 @@
         // need a capital once a client name and a full stop sit in front of them.
         sub = uniq.length ? esc(uniq.join(', ')) + '. ' + v.d.charAt(0).toUpperCase() + v.d.slice(1)
                           : v.d;
-        // `error` still has no tile of its own, so it stays a footnote - on not_granted only,
-        // or both tiles would claim the same errors.
-        if (k === 'not_granted' && c.error) {
-          sub += ' &middot; plus ' + c.error + ' error' + (c.error === 1 ? '' : 's');
-        }
+        // `error` used to be appended here as "plus N errors" - a figure for a DIFFERENT
+        // state, printed on a tile that today counts zero. It is a band-level fact, so it
+        // now sits in the tile footer with the other band-level facts (see cx-tilefoot).
       }
       h += '<button class="cx-scard' + (n ? '' : ' zero') + '" data-state="' + k + '" aria-pressed="' + (S.filter.state === k) + '">'
         + '<div class="base" style="background:' + v.c + '"></div>'
@@ -363,9 +396,18 @@
     }
     h += '</div>';
     var muted = allAccounts(doc).filter(function (x) { return RED[x.a.state] && !x.a.alerts; }).length;
+    // WATCHED IS NOT THE TOTAL. The idle accounts on the same line are idle BY DESIGN - not
+    // watched - so printing c.total here had the sentence contradicting itself and the feeds
+    // table below it, whose live/watched column sums to exactly this figure.
+    var watched = c.total - c.idle;
     h += '<div class="cx-tilefoot"><span><b>' + c.idle + '</b> idle by design</span>'
       + (muted ? '<span><b>' + muted + '</b> known and muted</span>' : '')
-      + '<span><b>' + c.total + '</b> accounts watched across ' + ((doc.datasources || []).length) + ' feeds</span></div>';
+      // The five tiles cover five states; `error` is the sixth and has no tile, so without
+      // this chip the band silently sums to less than the watched count above.
+      + (c.error ? '<button data-state="error" aria-pressed="' + (S.filter.state === 'error') + '"'
+          + ' title="The connector itself answered with an error, so no state could be read. Not covered by the tiles above - click to filter."><b>'
+          + c.error + '</b> in error</button>' : '')
+      + '<span><b>' + watched + '</b> accounts watched across ' + ((doc.datasources || []).length) + ' feeds</span></div>';
     return h;
   }
 
@@ -511,6 +553,12 @@
       .map(function (a) { return (a.data || {}).days_behind; })
       .filter(function (v) { return v != null; });
     var wb = behinds.length ? Math.max.apply(null, behinds) : null;
+    // Accounts with NO table report null, so they never reach the max above. Excluding them
+    // silently let a feed with eight dead accounts print "0 d" from the ones still landing
+    // data - so the unmeasurable count is carried and shown next to it.
+    var nomeasure = accs.filter(function (a) {
+      return a.state !== 'idle' && (a.data || {}).days_behind == null;
+    }).length;
     var pct = watched ? Math.round(live / watched * 100) : 100;
     var g = ds.grant || {}, due = g.expiry_estimate, dueD = due ? daysUntil(due) : null;
     var sv = stateOf(worst);
@@ -523,8 +571,12 @@
       + '<span class="fsub">' + (ds.source === 'dts' ? 'native BigQuery transfer' : 'Windsor connector') + ' &middot; ' + accs.length + ' accounts</span></td>'
       + '<td><span class="cx-verd" style="background:' + sv.soft + ';color:' + sv.c + '"><span class="cx-dot" style="background:' + sv.c + '"></span>' + sv.lbl + '</span></td>'
       + '<td><span class="fh"><span class="fbar' + (pct < 100 ? ' bad' : '') + '"><i style="width:' + pct + '%"></i></span><span class="ft">' + live + '/' + watched + '</span></span></td>'
-      + '<td class="r">' + (wb == null ? '<span class="fdim">no data</span>' : '<span class="aval">' + wb + ' d</span>') + '</td>'
-      + '<td>' + (due ? '<span class="aval">' + fmtDay(due) + '</span><span class="fsub2">' + (dueD != null ? (dueD < 0 ? 'overdue' : 'in ' + dueD + ' d') : '') + '</span>' : '<span class="fdim">no clock</span>') + '</td></tr>';
+      + '<td class="r">' + (wb == null
+          ? '<span class="fdim">no data</span>'
+          : '<span class="aval">' + wb + ' d</span>'
+            + (nomeasure ? '<span class="fsub2" title="These accounts have no table at all, so there is no lag to measure - they are not included in the figure above.">' + nomeasure + ' with no data</span>' : ''))
+        + '</td>'
+      + '<td>' + (due ? '<span class="aval">' + fmtDaySmart(due) + '</span><span class="fsub2">' + (dueD != null ? (dueD < 0 ? 'overdue' : 'in ' + dueD + ' d') : '') + '</span>' : '<span class="fdim">no clock</span>') + '</td></tr>';
     if (open) {
       var st = ds.connector || {};
       var cs = st.state || 'ok';
@@ -550,6 +602,19 @@
     return h;
   }
 
+  // Which control is responsible for an empty feed table, in the order a reader would clear
+  // them. Listing every active filter at once reads as noise; naming the one that emptied it is
+  // what makes the message actionable.
+  function emptyWhy() {
+    var f = S.filter, bits = [];
+    if (f.state) bits.push('state <b>' + esc(stateOf(f.state).lbl) + '</b>');
+    if (f.ds) bits.push('feed <b>' + esc(f.ds) + '</b>');
+    if (f.q) bits.push('search <b>' + esc(f.q) + '</b>');
+    if (S.rail && S.rail.key) bits.push('client <b>' + esc(S.rail.label || S.rail.key) + '</b>');
+    if (!bits.length) return 'No accounts to show.';
+    return 'No accounts match ' + bits.join(' + ') + '.';
+  }
+
   function feedCard(doc) {
     var dss = (doc && doc.datasources) || [];
     var rows = dss.map(feedRow).join('');
@@ -566,7 +631,10 @@
       + '<div class="cx-card-sub">One row per feed. Freshness is measured on the table each dashboard reads.</div>'
       + '<div class="cx-chipbar">' + chips + '</div>'
       + '<div class="cx-tbl-wrap"><table class="cx"><thead><tr><th>Feed</th><th>Worst state</th><th>Accounts live</th><th class="r">Furthest behind</th><th>Re-auth due</th></tr></thead>'
-      + '<tbody>' + (rows || '<tr><td colspan="5"><div class="cx-empty">Nothing matches that search.</div></td></tr>') + '</tbody></table></div>'
+      // Name the control that actually emptied it. This said "that search" whatever the cause,
+      // so filtering by a state with no accounts blamed a search box the reader had not typed in -
+      // the same misattribution the Executive empty state had.
+      + '<tbody>' + (rows || '<tr><td colspan="5"><div class="cx-empty">' + emptyWhy() + '</div></td></tr>') + '</tbody></table></div>'
       + '<div class="cx-foot">Showing <b>' + shown.length + '</b> of ' + all.length + ' accounts. Accounts marked '
       + '<span class="cx-silent">silent</span> show here but never email; nothing on a client dashboard reads them.</div></div>';
   }
@@ -610,7 +678,38 @@
     wire(mount);
   }
 
-  function render(mount) {
+  // What the rail scope is hiding, per category. A hidden dead feed is the exact failure
+  // this tab exists to prevent, so this line is load-bearing rather than cosmetic.
+  function railBanner(doc) {
+    var k = S.rail && S.rail.key;
+    // An AGENCY selection is not a scope here - Connections has no agency dimension - but the
+    // rail stays highlighted on it, so saying nothing left a page answering for every client
+    // under a menu that looked filtered. Central's note is the precedent.
+    if (!k && S.rail && S.rail.agency) {
+      return '<div class="cx-card cx-railnote">The left menu is on <b>' + esc(S.rail.agency)
+        + '</b> - Connections has no agency dimension, so it is showing every client.</div>';
+    }
+    if (!k) return '';
+    var raw = allAccountsRaw(doc), mine = raw.filter(function (x) { return inRail(x.a); });
+    var unmapped = raw.filter(function (x) { return !x.a.client && !inRail(x.a); }).length;
+    var others = raw.length - mine.length - unmapped;
+    var lbl = esc(S.rail.label || S.rail.key);
+    if (!mine.length) {
+      return '<div class="cx-card cx-railnote"><b>' + lbl + '</b> has no Windsor accounts in the probe config, '
+        + 'so there is nothing to report for it here. The left menu is scoped to it - pick <b>All clients</b> '
+        + 'to see the ' + raw.length + ' accounts that are watched.</div>';
+    }
+    var hid = [];
+    if (others) hid.push(others + ' on other clients');
+    if (unmapped) hid.push(unmapped + ' unmapped');
+    return '<div class="cx-card cx-railnote">Scoped to <b>' + lbl + '</b> by the left menu &middot; '
+      + mine.length + ' of ' + raw.length + ' accounts'
+      + (hid.length ? ' &middot; hidden: ' + hid.join(', ') : '')
+      + '. The nav badge still counts every client.</div>';
+  }
+
+  function render(mount, opts) {
+    if (opts && opts.rail !== undefined) S.rail = opts.rail || { key: null, label: null };
     if (!S.mounted) { var st = document.createElement('style'); st.id = 'connections-css'; st.textContent = CSS; document.head.appendChild(st); S.mounted = true; }
     if (!S.doc && !S.err) {
       (S.pending || load()).then(function () { render(mount); });
@@ -624,14 +723,20 @@
     var doc = S.doc;
     if (!doc || doc.never_run) return never(mount);
     paintNavBadge(doc);
-    mount.innerHTML = hero(doc) + tiles(doc) + problems(doc) + feedCard(doc) + horizon(doc);
+    // A scope with no accounts renders the banner ALONE: a band of zeros and an empty table
+    // read as an outage rather than as "this client has no connectors".
+    if (S.rail && S.rail.key && !allAccounts(doc).length) {
+      mount.innerHTML = hero(doc) + railBanner(doc);
+      wire(mount); return;
+    }
+    mount.innerHTML = hero(doc) + railBanner(doc) + tiles(doc) + problems(doc) + feedCard(doc) + horizon(doc);
     wire(mount);
   }
 
   function wire(mount) {
     var pb = mount.querySelector('#cxProbe');
     if (pb) pb.addEventListener('click', function () { probe(mount, pb); });
-    mount.querySelectorAll('.cx-scard[data-state]').forEach(function (b) {
+    mount.querySelectorAll('[data-state]').forEach(function (b) {
       b.addEventListener('click', function () { S.filter.state = S.filter.state === b.dataset.state ? null : b.dataset.state; render(mount); });
     });
     mount.querySelectorAll('.cx-pill[data-ds]').forEach(function (b) {
@@ -695,7 +800,9 @@
   function startTimer(mount) { if (S.timer) return; S.timer = setInterval(function () { if (document.getElementById('view-connections') && document.getElementById('view-connections').style.display !== 'none') load().then(function () { render(mount); }); }, 5 * 60000); if (S.timer.unref) S.timer.unref(); }
 
   window.Connections = {
-    render: function (mount) { startTimer(mount); render(mount); },
+    // opts carries the rail's client scope - the wrapper MUST forward it, or the shell's
+    // scope is silently dropped at the module boundary and every summary reads unscoped.
+    render: function (mount, opts) { startTimer(mount); render(mount, opts); },
     reload: function (mount) { S.doc = null; render(mount); },
     // called at boot by the-grid.html so the nav badge is right before the tab is ever opened
     warm: function () { if (!S.doc && !S.loading) load(); },

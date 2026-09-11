@@ -59,7 +59,15 @@
   function wire(mount, ctx) {
     mount.querySelector('[data-act="home"]').addEventListener('click', ctx.back);
     mount.querySelector('[data-act="brain"]').addEventListener('click', ctx.back);
-    mount.querySelector('#bh-client').addEventListener('change', function (e) { state.clientId = e.target.value; state.selected = null; try { location.hash = '#view=historical&hc=' + state.clientId; } catch (x) { } render(mount, ctx); });
+    mount.querySelector('#bh-client').addEventListener('change', function (e) {
+      state.clientId = e.target.value; state.selected = null;
+      // Hand it to the shell where one is wired: it owns the rail + the hash and re-renders
+      // this tab, so doing either here as well would fight it. The standalone path (no shell)
+      // keeps the old local behaviour.
+      if (ctx.onClientChange) { ctx.onClientChange(state.clientId); return; }
+      try { location.hash = '#view=historical&hc=' + state.clientId; } catch (x) { }
+      render(mount, ctx);
+    });
     mount.querySelector('#bh-chan').addEventListener('change', function (e) { state.channelHint = e.target.value; });
     var drop = mount.querySelector('#bh-drop'), input = mount.querySelector('#bh-input');
     drop.addEventListener('click', function () { input.click(); });

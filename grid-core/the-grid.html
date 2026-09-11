@@ -808,6 +808,57 @@ let BF={client:'all',platform:'all',type:'all',min_conf:'0.6',sort:'impact',r:nu
 // Brain V3 historical-upload route state.
 let HV={client:'resetdata'};
 
+// ---- one client scope across the tabs, three identifier spaces ---------------
+// The rail + Central use the sheet's display name ("ResetData"); Brain uses a slug
+// client_id ("resetdata") beside a client_name; Connections uses a registry slug ("tlm")
+// beside a client_label ("The Little Marionette"). Normalising to lowercase-alphanumeric
+// matches every real pair in the live data, tlm included, so there is no alias table here
+// to fall out of date when a client is renamed.
+function cKey(s){return String(s==null?'':s).toLowerCase().replace(/[^a-z0-9]/g,'');}
+function railIsAgency(){return AG_ORDER.includes(F.client);}
+function railClientKey(){return (F.client==='all'||railIsAgency())?null:cKey(F.client);}
+// The rail stores an agency SHOUTED ('TRANSMISSION'); every other surface spells it
+// 'Transmission'. One helper, so the four tabs cannot word the same fact three ways - and so
+// nothing compares the two spellings raw, which is exactly how Executive came to match none.
+function railAgencyLabel(){return railIsAgency()?((AG_META[F.client]&&AG_META[F.client].label)||F.client):null;}
+function brainRecs(){try{return (window.BrainData&&window.BrainData.getFilteredRecommendations)
+  ?window.BrainData.getFilteredRecommendations({}):[];}catch(e){return [];}}
+// Rail selection -> Brain's client_id, or 'all' when the rail is on an agency or on a client
+// Brain has no recommendations for. Passing a key nothing can match would render an empty
+// tab that reads as broken rather than as empty.
+function railToBrainId(){
+  const k=railClientKey();if(!k)return 'all';
+  const recs=brainRecs();
+  for(let i=0;i<recs.length;i++){const r=recs[i];
+    if(cKey(r.client_id)===k||cKey(r.client_name)===k)return r.client_id;}
+  return 'all';
+}
+// Rail -> a Brain CLIENT_META id. Deliberately separate from railToBrainId(), which
+// resolves through RECOMMENDATIONS: a client can have historical files and no recommendations,
+// and resolving an upload target through the wrong roster would fall back to the hardcoded
+// default - which is the bug this exists to prevent. Returns null when the rail names no
+// single client (All clients, or an agency), because an upload target must not be guessed.
+function railToBrainMetaId(){
+  const k=railClientKey(); if(!k) return null;
+  try{
+    const meta=(window.BrainData&&window.BrainData.CLIENT_META)||{};
+    const ids=Object.keys(meta);
+    for(let i=0;i<ids.length;i++){
+      if(cKey(ids[i])===k||cKey(meta[ids[i]]&&meta[ids[i]].name)===k) return ids[i];
+    }
+  }catch(e){}
+  return null;
+}
+// Brain's client_id -> the rail's display name, so Brain's own dropdown writes back.
+function brainIdToRail(id){
+  if(!id||id==='all')return 'all';
+  const k=cKey(id),advs=DATA.map(c=>c.advertiser);
+  for(let i=0;i<advs.length;i++)if(cKey(advs[i])===k)return advs[i];
+  const recs=brainRecs();
+  for(let i=0;i<recs.length;i++){const r=recs[i];
+    if(cKey(r.client_id)===k){for(let j=0;j<advs.length;j++)if(cKey(advs[j])===cKey(r.client_name))return advs[j];}}
+  return 'all';
+}
 function visible(){const isAg=AG_ORDER.includes(F.client);return DATA.filter(c=>{
   if(F.client!=='all'){if(isAg){if(c.agency!==F.client)return false;}else if(c.advertiser!==F.client)return false;}
   if(F.status!=='all'&&(c.status||'').toLowerCase()!==F.status.toLowerCase())return false;
@@ -872,26 +923,34 @@ function renderKPIs(rows){
   // Counting it drags the portfolio % down and invents an underspend, so it is out
   // of every total here and reported as its own count instead.
   const base=all.filter(c=>!c.notLaunched),nNL=all.length-base.length;
-  const allInClient=DATA.filter(c=>(F.client==='all'||c.advertiser===F.client)&&(F.mgr==='all'||c.managedBy===F.mgr));
+  // LIVE MEANS ACTIVE, and SHOWN MEANS SHOWN. This card used to print base.length as
+  // "currently running" - every row the status filter admits - which read 80 running with the
+  // filter on All while 41 of those had ended or were paused. Its "of N shown" printed a
+  // client-wide count that ignored the status filter, claiming 87 rows on screen when 39 were.
+  const nLive=base.filter(c=>c.status==='Active').length,nShown=all.length;
   const sum=k=>base.reduce((a,c)=>a+(c[k]||0),0);
   const budget=sum('budget'),spent=sum('spent'),deliv=budget>0?spent/budget:0;
   const risk=base.reduce((a,c)=>a+(c.d.marginAtRisk||0),0);
   const nEst=base.filter(c=>c.d.marginAtRisk!=null&&!c.d.marginKnown).length;
-  // FIX 4: this sum ADDS currencies. campaigns.currency is now measured rather than NULL
-  // (config/currency-map.json, via scripts/backfill_currency.js), and it shows the risk
-  // figure mixes AUD with USD while ~half of it sits on rows whose source table records NO
-  // currency at all (LinkedIn/Reddit have no currency column). We do NOT invent an FX rate:
-  // the arithmetic is left alone and the label says plainly that it is not converted.
+  // FIX 4: this sum ADDS currencies, and we do NOT invent an FX rate - the arithmetic is
+  // left alone and the label says so. But "mixed" and "unrecorded" are DIFFERENT claims and
+  // this used to print the first for both: measured 2026-09-10 on the local dataset, 0 of 87
+  // rows carry a currency at all, so nothing is known to be mixed. (An earlier note here
+  // asserted currency was already measured via scripts/backfill_currency.js; that is not true
+  // of the data this renders, so the wording now follows what the rows actually carry.)
   const riskRows=base.filter(c=>c.d.marginAtRisk!=null&&c.d.marginAtRisk!==0);
   const curKnown=[...new Set(riskRows.map(c=>c.currency).filter(Boolean))].sort();
   const curUnrec=riskRows.some(c=>!c.currency);
-  const mixNote=(curKnown.length>1||curUnrec)
-    ?` · <span title="Adds ${curKnown.join(' + ')||'money'}${curUnrec?' plus rows whose source records no currency':''}. No FX rate is applied - converting would require one we do not have." style="color:var(--warn)">mixed currencies, not converted</span>`:'';
+  const mixNote=curKnown.length>1
+    ?` · <span title="Adds ${curKnown.join(' + ')}${curUnrec?', plus rows whose source records no currency':''}. No FX rate is applied - converting would require one we do not have." style="color:var(--warn)">mixed currencies, not converted</span>`
+    :curUnrec
+      ?` · <span title="No row behind this figure records a currency, so it cannot be shown to be one currency or several. The numbers are added as they are and no FX rate is applied." style="color:var(--warn)">currency not recorded</span>`
+      :'';
   const flagged=base.filter(c=>c.d.paceState==='under'||c.d.paceState==='over').length;
   const nlNote=nNL?` · <b>${nNL} not launched</b> excluded`:'';
   const single=F.client!=='all'&&!AG_ORDER.includes(F.client);const advLabel=single?`${new Set(base.map(c=>c.channel)).size} channels`:`${new Set(base.map(c=>c.advertiser)).size} advertisers`;
   const cards=[
-    {eb:'Live campaigns',big:String(base.length),sub:`currently running, of <b>${allInClient.length}</b> shown${nNL?` · <b>${nNL}</b> not launched`:''}`,cls:'accent'},
+    {eb:'Live campaigns',big:String(nLive),sub:`currently running, of <b>${nShown}</b> shown${nNL?` · <b>${nNL}</b> not launched`:''}`,cls:'accent'},
     {eb:'Total budget',big:moneyK(budget),sub:advLabel+(nNL?` · unlaunched budget excluded`:'')},
     {eb:'Spent so far',big:moneyK(spent),sub:`<b>${pctP(deliv)}</b> of planned budget${nlNote}`,spark:pctP(deliv)},
     {eb:'Profit at risk',big:moneyK(risk),sub:(nEst?`profit we may lose at this pace (${nEst} est. at ${Math.round(ASSUMED_MARGIN*100)}%)`:`profit we may lose if pacing does not correct`)+mixNote,cls:'money',money:true},
@@ -1325,9 +1384,21 @@ function renderExec(){
   const mount=document.getElementById('execMount');if(!mount)return;
   if(!EX_TRIED){EX_TRIED=true;exLoadLive(renderExec);}   // fire once; re-renders if the live file lands
   EXC.forEach(c=>c._v=exStat(c));
-  const cnt={ok:0,watch:0,behind:0,risk:0};EXC.forEach(c=>cnt[c._v]++);
   const agencies=[...new Set(EXC.map(c=>c.agency))];
-  const showF=c=>(!EXF.verdict||c._v===EXF.verdict)&&(!EXF.agency||c.agency===EXF.agency)&&(!EXF.objective||c.group===EXF.objective);
+  // The rail scopes Executive too: a client selection to that client's card, an agency
+  // selection to that agency. Executive is the at-a-glance across everyone, so "All clients"
+  // remains its natural state - it is just no longer the ONLY state.
+  const exRailK=railClientKey(),exRailAg=railIsAgency()?F.client:null;
+  // SCOPE vs VERDICT, kept apart on purpose. The four summary tiles ARE the verdict filter,
+  // so they count the scope with the verdict left OUT - counting `shown` would zero the other
+  // three the moment one is clicked. Everything else (rail, agency, objective) must reach them,
+  // or the band describes the estate while the grid below shows one client, which is what it
+  // did: one Cloudflare card under "At risk 1 / Behind 1 / Watch 4 / On track 3".
+  const scopeF=c=>(!EXF.agency||c.agency===EXF.agency)&&(!EXF.objective||c.group===EXF.objective)
+    &&(!exRailK||cKey(c.name)===exRailK)&&(!exRailAg||cKey(c.agency)===cKey(exRailAg));
+  const scoped=EXC.filter(scopeF);
+  const cnt={ok:0,watch:0,behind:0,risk:0};scoped.forEach(c=>cnt[c._v]++);
+  const showF=c=>scopeF(c)&&(!EXF.verdict||c._v===EXF.verdict);
   const shown=EXC.filter(showF);
   const bySev=(a,b)=>EXS[b._v].r-EXS[a._v].r;
   const GRP=[['lead','Acquisition','the signal is leads / signups'],['reach','Awareness & Traffic','the signal is reach, clicks & site traffic'],['sales','Sales','the signal is ROAS']];
@@ -1345,13 +1416,33 @@ function renderExec(){
     +agencies.map(a=>'<button class="ex-pill'+(EXF.agency===a?' on':'')+'" data-ag="'+exEsc(a)+'">'+exEsc(a)+'</button>').join('')
     +'<a class="ex-alllink" href="'+exEsc(allLink)+'" target="_blank" rel="noopener" title="Open the platform front-door with all client dashboards">All dashboards ↗</a>'
     +'<span class="ex-count" id="exCount"></span><button class="ex-clear" id="exClear"'+((EXF.verdict||EXF.agency||EXF.objective)?'':' hidden')+'>Clear</button></div>';
+  // Four rail clients have no executive card at all. Naming the client beats an empty page
+  // that reads as a broken tab.
+  // Tests the SCOPE, not `shown`. Keyed on shown.length this fired whenever the verdict or
+  // objective filter emptied a scoped page, blaming the rail for it: "No executive card for
+  // Cloudflare - pick All clients", on a client that HAS a card, when the actual cause was the
+  // At-risk tile and clearing the rail would have changed nothing. If the scope holds cards and
+  // a filter emptied it, the generic "no match" state (with its Clear button) is the true one.
+  if((exRailK||exRailAg)&&!scoped.length){
+    h+='<div class="ex-sec"><div style="padding:22px 4px;font-size:13px;color:var(--ink-2)">'
+      +'No executive card for <b>'+exEsc(exRailAg?railAgencyLabel():F.client)+'</b>. The left menu is scoped to it - pick '
+      +'<b>All clients</b> to see everyone.</div></div>';
+  }else if(exRailK){
+    h+='<div style="font-size:11.5px;color:var(--ink-3);padding:0 4px 6px">Scoped to <b>'
+      +exEsc(F.client)+'</b> by the left menu.</div>';
+  }else if(exRailAg){
+    h+='<div style="font-size:11.5px;color:var(--ink-3);padding:0 4px 6px">Scoped to <b>'
+      +exEsc(railAgencyLabel())+'</b> by the left menu.</div>';
+  }
   const flagged=shown.filter(c=>c._v!=='ok').sort(bySev);
   if(!EXF.verdict&&flagged.length){h+='<div class="ex-sec ex-att"><div class="ex-sec-h"><span class="adot" style="background:'+EXS.risk.c+'"></span><h3>Needs attention</h3><span class="d">off target or trending down</span><span class="c">'+flagged.length+' of '+shown.length+'</span></div><div class="ex-grid">'+flagged.map(exCard).join('')+'</div></div>';}
   GRP.forEach(g=>{const items=shown.filter(c=>c.group===g[0]).sort(bySev);if(!items.length)return;h+='<div class="ex-sec"><div class="ex-sec-h"><h3>'+g[1]+'</h3><span class="d">'+g[2]+'</span><span class="c">'+items.length+' client'+(items.length===1?'':'s')+'</span></div><div class="ex-grid">'+items.map(exCard).join('')+'</div></div>';});
   if(!shown.length)h+='<div class="ex-empty">No clients match the current filters.</div>';
   mount.innerHTML=h;
-  const cntEl=mount.querySelector('#exCount'),active=(EXF.verdict?1:0)+(EXF.agency?1:0)+(EXF.objective?1:0);
-  if(cntEl)cntEl.innerHTML=active?'Showing <b>'+shown.length+'</b> of '+EXC.length:'<b>'+EXC.length+'</b> clients';
+  // The rail counts as a narrowing too - without it this said "9 clients" over a single card.
+  const cntEl=mount.querySelector('#exCount');
+  const narrowed=(EXF.verdict?1:0)+(EXF.agency?1:0)+(EXF.objective?1:0)+((exRailK||exRailAg)?1:0);
+  if(cntEl)cntEl.innerHTML=narrowed?'Showing <b>'+shown.length+'</b> of '+EXC.length:'<b>'+EXC.length+'</b> clients';
   mount.querySelectorAll('#exSeg button').forEach(b=>b.addEventListener('click',()=>{EXG=b.dataset.g;renderExec();}));
   mount.querySelectorAll('.ex-scard').forEach(b=>b.addEventListener('click',()=>{EXF.verdict=EXF.verdict===b.dataset.verd?null:b.dataset.verd;renderExec();}));
   mount.querySelectorAll('.ex-pill[data-ag]').forEach(b=>b.addEventListener('click',()=>{EXF.agency=b.dataset.ag||null;renderExec();}));
@@ -1403,7 +1494,14 @@ function renderContent(){
 // Connections tab - module in src/connections/connections.js (classic script, same shape as Greenlight)
 function renderConnections(){
   const mount=document.getElementById('connectionsMount');
-  if(window.Connections&&window.Connections.render)window.Connections.render(mount);
+  if(window.Connections&&window.Connections.render){
+    // An AGENCY selection is passed as no scope: Connections has no agency dimension, and
+    // guessing one from the client list would be a second, disagreeing definition of it.
+    const rk=railClientKey();
+    window.Connections.render(mount,{rail:rk
+      ?{key:rk,label:F.client,agency:null}
+      :{key:null,label:null,agency:railAgencyLabel()}});
+  }
   else mount.innerHTML='<div class="empty">Connections module failed to load. Check that src/connections/ is served alongside the-grid.html.</div>';
 }
 // Greenlight tab - module in src/greenlight/greenlight.js (Brain-style classic script)
@@ -1415,7 +1513,16 @@ function renderGreenlight(){
 function render(){renderRail();renderContent();}
 // Central tab — owns its own state + rendering (src/central/render-central.js)
 function renderCentral(){
-  if(window.CentralView&&window.CentralView.render)window.CentralView.render();
+  if(window.CentralView&&window.CentralView.render){
+    // The rail owns the client scope. F.client can hold an AGENCY as well as an advertiser,
+    // and Central's filter is single-value, so an agency is passed separately for Central to
+    // report rather than silently swallowed.
+    window.CentralView.render({
+      client: railIsAgency()?'all':F.client,
+      railAgency: railAgencyLabel(),
+      onClientChange: function(v){F.client=v||'all';syncControls();render();}
+    });
+  }
   else document.getElementById('view-central').innerHTML='<div class="empty">Central module failed to load. Check that src/central/ is served alongside the-grid.html.</div>';
 }
 function renderTableOnly(){renderPulseTable(visible());}   // Pulse-only since the Register merge (Phase 2)
@@ -1483,9 +1590,24 @@ function makeBrainCtx(){
   return {
     data:window.BrainData, colors:window.BrainColors, toast:window.toast, theme:brainTheme(),
     recId:BF.r,
-    filters:{client:BF.client,platform:BF.platform,type:BF.type,min_conf:BF.min_conf,sort:BF.sort},
+    // The rail is the source of truth for the client; BF keeps only Brain's own
+    // dimensions. BF.client survives as the hash key `bc` for older links.
+    filters:{client:railToBrainId(),platform:BF.platform,type:BF.type,min_conf:BF.min_conf,sort:BF.sort},
+    // Brain has no agency dimension, so an agency selection is deliberately NOT a filter here -
+    // it is passed so the tab can SAY it is showing every client rather than imply the rail
+    // applied. Central set this precedent; silence was the bug.
+    railAgency:railAgencyLabel(),
     // filter change: update state + URL, re-render the landing in place (no history entry)
-    setFilters:function(patch){Object.assign(BF,patch);writeHash();renderBrain();},
+    setFilters:function(patch){
+      // A client change belongs to the rail, not to Brain's local state - otherwise the two
+      // hold separate copies and drift apart, which is what this whole change is undoing.
+      // Full render() rather than renderBrain(), so the rail highlight follows.
+      if(Object.prototype.hasOwnProperty.call(patch,'client')){
+        const p=Object.assign({},patch);const cl=p.client;delete p.client;
+        F.client=brainIdToRail(cl);Object.assign(BF,p);
+        writeHash();syncControls();render();return;
+      }
+      Object.assign(BF,patch);writeHash();renderBrain();},
     // open a drill-down / go back: set the hash so hashchange re-renders AND back/forward work
     open:function(id){BF.r=id;location.hash=hashString();},
     back:function(){BF.r=null;location.hash=hashString();},
@@ -1497,7 +1619,17 @@ function renderHistorical(){
   const mount=document.getElementById('view-historical');
   if(!window.BrainHistorical){mount.innerHTML='<div class="empty">Historical module failed to load.</div>';return;}
   window.BrainHistorical.render(mount,{
-    data:window.BrainData, toast:window.toast, theme:brainTheme(), clientId:HV.client,
+    data:window.BrainData, toast:window.toast, theme:brainTheme(),
+    // The rail wins where it names a client; otherwise the tab keeps its own last choice.
+    clientId:(railToBrainMetaId()||HV.client),
+    // The tab's selector writes back to the rail instead of only setting the hash, so the
+    // rail, HV and the module's state cannot become three copies of one fact.
+    onClientChange:function(cid){
+      HV.client=cid||'resetdata';
+      const disp=brainIdToRail(HV.client);
+      if(disp&&disp!=='all')F.client=disp;
+      writeHash();syncControls();render();
+    },
     back:function(){F.view='brain';BF.r=null;location.hash=hashString();}
   });
 }
