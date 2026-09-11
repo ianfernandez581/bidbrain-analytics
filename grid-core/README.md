@@ -582,6 +582,19 @@ PDF/DOC with no LLM key falls through to an empty panel for manual entry — nev
   edit (dropdown or contenteditable → the whitelisted field route). Never on [DERIVED]
   (their "—" is correct output) or [API] (the sync's job). Agency grouping is
   case-insensitive so the sheet's UPPERCASE agencies group correctly.
+- **A tab's summary band derives from the SAME scoped set as its content** (2026-09-10). The
+  rail's client scope, an agency selection and any tab-local filter must reach the tiles,
+  counts and heading too - never only the table or cards below them. Scope once, at the one
+  function every summary reads (`allAccounts()` on Connections, `scopeF` on Executive,
+  `kpiCards(data, clientId)` on Brain), and let a filter that IS a tile (Executive's verdict
+  tiles) scope everything except itself, or clicking one zeroes the others. Seven bugs in one
+  pass were bands describing the estate over content describing one client - four of them
+  introduced by wiring the rail scope to the content and stopping there.
+- **An empty state names the control that emptied it** (2026-09-10). Test the SCOPE, not the
+  final row set: with the rail on a client that has a card and the At-risk tile pressed,
+  `!shown.length` blamed the rail ("pick All clients") when clearing the rail would have
+  changed nothing. Connections builds the message from the active filters (`emptyWhy()`);
+  Executive tests `scoped.length` before it blames the rail.
 
 ## Test
 ```
