@@ -18,11 +18,14 @@
   "digest_hour_utc": 22,
   "expiry_warn_days": 14,
   "expiry_milestones": [14, 7, 3, 2, 1],
+  "_frozen_after_doc": "frozen_after_days is the anti-flap tolerance: how many days behind a feed may be before it stops reading 'ok'. It is now a DEFAULT that each datasource may override, because one value has to be sized for the slowest feed - which is how Meta and GA4 came to carry three days of slack they do not need, and why the 2026-09-10 Windsor pause read 'ok' on every live Trade Desk client while the feed was dead (at 2 days behind, inside the tolerance). The floor is set by the probe's own request window: Trade Desk is asked for `today-2` (TTD refuses days it has not finalised) so it can never be fresher than 1 day behind; every other connector is asked for `today-1`, floor 0. The per-datasource values below are ONE day of slack past a missed nightly run, REASONED from that arithmetic and the daily schedules - NOT measured. A measurement is not currently possible: `ingested_at` is in each loader's _MERGE_SET_COLS, so a re-fetch rewrites it and MIN(ingested_at) is the last touch rather than the first (checked 2026-09-11 - it reports an 8-day p50 lag on a feed that lands daily). If a per-feed value proves too tight, raise that ONE feed rather than the default.",
   "frozen_after_days": 3,
   "probe_window_days": 3,
   "datasources": [
     {
       "ds": "facebook",
+      "frozen_after_days": 2,
+      "_frozen_after_why": "Meta is asked for `today-1`, so a healthy feed is 0-1 days behind; 2 gives a missed nightly run one day of grace.",
       "label": "Meta Ads",
       "endpoint": "https://connectors.windsor.ai/all",
       "prefix": "facebook__",
@@ -48,6 +51,8 @@
     },
     {
       "ds": "tradedesk",
+      "frozen_after_days": 3,
+      "_frozen_after_why": "The ONE feed that needs the extra day: the probe asks TTD for `today-2` because it refuses days it has not finalised, so a perfectly healthy Trade Desk feed already sits 1 day behind. Do not tighten this to 2 without re-checking that window in probe_account().",
       "label": "The Trade Desk",
       "endpoint": "https://connectors.windsor.ai/tradedesk",
       "prefix": "",
@@ -66,12 +71,16 @@
         { "id": "mor6pp1", "name": "The Little Marionette", "client": "tlm", "label": "The Little Marionette", "expected": "daily", "alerts": true, "consumers": ["tlm"] },
         { "id": "sif8zx0", "name": "VMCH", "client": "vmch", "label": "VMCH", "expected": "daily", "alerts": true, "consumers": ["vmch"] },
         { "id": "tg1ubik", "name": "Geocon Group", "client": "geocon", "label": "Geocon", "expected": "daily", "alerts": true, "consumers": ["geocon"] },
+        { "id": "gjcl0pp", "name": "Sophiie AI (the seat spells it 'Sohiie AI')", "client": "sophiie", "label": "Sophiie", "expected": "daily", "alerts": true, "consumers": ["sophiie"],
+          "why": "the ONLY feed sophiie-dash reads - campaign SOPHIIE_2026-Q3_TTD_AU_DISPLAY_PROSPECTING, live on real data since 2026-09-05. A gap here empties the whole dashboard, so it alerts." },
         { "id": "l4dj1fw", "name": "City Perfume", "client": "cityperfume", "label": "City Perfume", "expected": "ended", "alerts": false, "consumers": ["cityperfume"],
           "why": "client offboarded 2026-09-01" }
       ]
     },
     {
       "ds": "linkedin",
+      "frozen_after_days": 2,
+      "_frozen_after_why": "Asked for `today-1`; floor 0.",
       "label": "LinkedIn Ads",
       "endpoint": "https://connectors.windsor.ai/all",
       "prefix": "linkedin__",
@@ -82,7 +91,7 @@
       "schedule": "21:40 UTC daily",
       "loader_file": "ingest/windsor_data_pull/linkedin/linkedin_loader.py",
       "grant": { "last_reauth": "2026-08-25", "reauth_by": "Calvin", "token_lifetime_days": 365,
-                 "note": "LinkedIn refresh tokens last 365 days. Only 4 of 34 configured accounts came back on 2026-08-25; the LinkedIn dashboards read Transmission's Snowflake mirror, so none of these is on a client's critical path today - it becomes one the day geocon's LinkedIn lane goes live." },
+                 "note": "LinkedIn refresh tokens last 365 days. Only 4 of 34 configured accounts came back on 2026-08-25. The Transmission accounts are all standby (those dashboards read Snowflake), but this connector IS on a critical path as of 2026-09: geocon's LinkedIn lane went live on account 556629043 and gates that dashboard's rebuild. The old wording here said nothing was critical 'until geocon goes live', and then geocon went live and the note stayed - which is why the account sat unmonitored." },
       "accounts": [
         { "id": "520254094", "name": "Cloudflare APAC", "client": "cloudflare", "label": "Cloudflare", "expected": "standby", "alerts": false, "consumers": [], "why": "cloudflare reads raw_snowflake.linkedin_ads_apac" },
         { "id": "517045062", "name": "Schneider (AUD)", "client": "schneider", "label": "Schneider", "expected": "standby", "alerts": false, "consumers": [], "why": "schneider reads raw_snowflake.linkedin_ads_apac" },
@@ -94,6 +103,8 @@
         { "id": "513554482", "name": "HireRight", "client": "hireright", "label": "HireRight", "expected": "standby", "alerts": false, "consumers": [], "why": "hireright reads raw_snowflake" },
         { "id": "516746102", "name": "Reset Data", "client": "resetdata", "label": "Reset Data", "expected": "standby", "alerts": false, "consumers": [], "why": "resetdata has no LinkedIn lane on the dashboard" },
         { "id": "507877947", "name": "Cisco APJC", "client": null, "label": "Unmapped (Transmission)", "expected": "standby", "alerts": false },
+        { "id": "556629043", "name": "Geocon Group - AUD", "client": "geocon", "label": "Geocon", "expected": "daily", "alerts": true, "consumers": ["geocon"],
+          "why": "geocon's LinkedIn lane went LIVE 2026-09 (sql/07_stg_linkedin.sql, and the table is in geocon's WINDSOR_TABLES so it gates the rebuild). Until 2026-09-11 no entry here covered it, so the tab showed it as 'Unconfigured / idle' with a fix line claiming linkedin_loader.py does not list it - it has since :114. Same shape as the sophiie/tradedesk gap found the same day." },
         { "id": "502299829", "name": "mongodb AWS Immersion Day (Windsor 500s on 'start')", "client": "mongodb", "label": "MongoDB", "expected": "daily", "alerts": false, "consumers": ["mongodb"],
           "why": "the ONE LinkedIn account a dashboard reads from Windsor; the connector has 500'd on it since 2026-07 (Windsor-side bug), mongodb's LinkedIn tab auto-hides until it lands. alerts off until Windsor fixes it - flipping to true is the way to be told when it does" }
       ],
@@ -102,6 +113,8 @@
     },
     {
       "ds": "reddit",
+      "frozen_after_days": 2,
+      "_frozen_after_why": "Asked for `today-1`; floor 0.",
       "label": "Reddit Ads",
       "endpoint": "https://connectors.windsor.ai/all",
       "prefix": "reddit__",
@@ -121,6 +134,8 @@
     },
     {
       "ds": "googleanalytics4",
+      "frozen_after_days": 2,
+      "_frozen_after_why": "Asked for `today-1`; floor 0.",
       "label": "Google Analytics 4",
       "endpoint": "https://connectors.windsor.ai/googleanalytics4",
       "prefix": "",
@@ -236,7 +251,7 @@
         { "id": "254028250", "name": "City Perfume", "client": "cityperfume", "label": "City Perfume", "expected": "ended", "alerts": false, "consumers": [],
           "why": "client offboarded 2026-09-01; dashboards deleted, data retained. Stopped advancing 2026-07-02 and that no longer matters." },
         { "id": "468621509", "name": "Sophiie", "client": "sophiie", "label": "Sophiie", "expected": "standby", "alerts": false, "consumers": [],
-          "why": "sophiie is a PREVIEW dashboard with no pipeline, dataset or job yet" },
+          "why": "standby because NOTHING reads it, not because the client is a preview - sophiie-dash has been LIVE on real data since 2026-09-05 and is 100% Trade Desk (see the tradedesk entry for advertiser gjcl0pp). No GA4 reference exists anywhere in clients/client_sophiie/sql or job/ as of 2026-09-11, so this property is on no critical path. Flip to daily/alerts the day a GA4 lane is added to that dashboard." },
         { "id": "273098216", "name": "Atlantis Reservations", "client": null, "label": "Unmapped", "expected": "standby", "alerts": false },
         { "id": "506931798", "name": "ChocolateGrove", "client": null, "label": "Unmapped", "expected": "standby", "alerts": false },
         { "id": "341832593", "name": "atlantisevents.com", "client": null, "label": "Unmapped", "expected": "standby", "alerts": false },

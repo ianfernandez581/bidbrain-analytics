@@ -75,6 +75,40 @@ WORKERS = int(os.environ.get("PROBE_WORKERS", "6"))
 _CONFIGURED_RE = re.compile(r"configured accounts? (?:is|are):\s*([A-Za-z0-9_\-,\s]+)", re.I)
 _UNPUBLISHED_RE = re.compile(r"not provide report data|must be yesterday or earlier", re.I)
 
+# ACCOUNT-WIDE READ PAUSE (2026-09-10). Windsor stopped serving the WHOLE account over a plan
+# limit and answered HTTP 200 with one data row whose every string field is the notice:
+#
+#   "Uh-oh! These are not your real numbers: reads are paused because you have 8 data sources
+#    connected and your Standard plan includes 7 data sources. To resume, disconnect 1 data
+#    source at https://onboard.windsor.ai/app/ or upgrade at .../manage-subscription"
+#
+# Nothing about that is an error to a naive reader: 200, valid JSON, one row. Unrecognised it
+# read as "granted, no delivery for this account today" on every connector at once - so a dead
+# feed showed `ok` on the tab while the loaders wrote the notice into BigQuery as a row.
+# Verified live 2026-09-11 13:30 AEST against connectors.windsor.ai/tradedesk (still blocked).
+#
+# Matched on the two prose fragments Windsor repeats rather than on the whole sentence: the
+# counts ("8", "7", "Standard") change with the plan, and an exact match would go silent the
+# day someone adds a ninth source. A real account NAMED this is not a case worth hedging for.
+_BLOCKED_RE = re.compile(r"not your real numbers|reads are paused", re.I)
+BLOCK_FIX = ("Windsor has paused reads for the WHOLE account over its plan limit, so every "
+             "connector below is answering with a notice instead of numbers. Re-granting any "
+             "single connector cannot fix this. Disconnect a data source at "
+             "https://onboard.windsor.ai/app/ or upgrade the plan at "
+             "https://onboard.windsor.ai/app/manage-subscription. Everything backfills on its "
+             "own the first night after it clears.")
+BLOCK_URL = "https://onboard.windsor.ai/app/manage-subscription"
+
+
+def block_message(body: str) -> str:
+    """The notice itself, lifted out of whatever shape it arrived in, so the tab and the email
+    quote Windsor rather than paraphrasing it (the plan numbers are the actionable part)."""
+    m = re.search(r"(Uh-oh![^\"]{0,400})", body or "")
+    if m:
+        return m.group(1).strip()
+    m = _BLOCKED_RE.search(body or "")
+    return (body or "")[max(0, m.start() - 40):m.start() + 320].strip() if m else "Windsor reads are paused."
+
 
 def log(msg: str) -> None:
     print(f"[{dt.datetime.now(dt.timezone.utc):%H:%M:%S}] {msg}", flush=True)
@@ -124,6 +158,16 @@ def probe_account(api_key: str, ds: dict, acct_id: str, window: int) -> dict:
         out["ms"] = int((time.time() - t0) * 1000)
         body = r.text or ""
         low = body.lower()
+        # CHECKED BEFORE the status branches, and on the RAW BODY. Windsor delivers the
+        # account-wide read pause as a 200 with a well-formed row, so every branch below would
+        # accept it as data - and the tradedesk branch in build() would then count 0 rows for
+        # each advertiser and read the whole dead seat as "granted, nothing delivered today".
+        # rows is left None so no caller can use the notice row as a delivery count.
+        if _BLOCKED_RE.search(body):
+            out["verdict"] = "billing_blocked"
+            out["rows"] = None
+            out["note"] = block_message(body)
+            return out
         if r.status_code == 200:
             try:
                 data = r.json().get("data", [])
@@ -323,7 +367,16 @@ def newest_days(bq: bigquery.Client, ds: dict) -> dict:
         if ds.get("key_col"):
             sql = f"SELECT CAST({ds['key_col']} AS STRING) AS k, MAX(metric_date) AS d FROM {table} WHERE {ds['key_col']} IS NOT NULL GROUP BY k"
             rows = bq.query(sql, location=LOCATION).result()
-            return {r["k"]: r["d"].isoformat() for r in rows if r["d"]}
+            # POISON ROWS. While the account-wide pause was unrecognised the loaders wrote
+            # Windsor's notice into BigQuery as a ROW - the notice text sitting in the key
+            # column, dated TODAY, metrics 0. Grouped by key it becomes its own account, so
+            # `sibling_newest_day` reported today's date on tables whose newest real delivery
+            # was 2026-09-08 and the whole connector looked fresh. Dropped here rather than in
+            # SQL so every key_col datasource is covered by one rule. This is display-only
+            # today (classify() reads an account's OWN key, never the siblings) and it stays
+            # worth dropping: the row is not data, and the next reader of that date is human.
+            return {r["k"]: r["d"].isoformat() for r in rows
+                    if r["d"] and not _BLOCKED_RE.search(str(r["k"]))}
         col = ds.get("snapshot_col", "_pulled_at")
         sql = f"SELECT MAX(DATE({col})) AS d FROM {table}"
         for r in bq.query(sql, location=LOCATION).result():
@@ -395,6 +448,23 @@ def classify(acct: dict, probe: dict, newest: str | None, frozen_after: int, pre
                           "the real cause sits in the per-run log. A lost upstream permission is the "
                           "usual reason.")
 
+    # ---- account-wide read pause ----------------------------------------------
+    # BEFORE the freshness branches, and deliberately NOT subject to frozen_after_days. That
+    # tolerance exists to stop a normal day of feed lag flapping the tab; a billing block is
+    # certain on its FIRST occurrence, so waiting three days to say so is the anti-flap delay
+    # applied to the one signal that never flaps. Left unhandled this account sat at 2 days
+    # behind and read `ok` while the feed was dead (2026-09-10 -> 09-11).
+    if v == "billing_blocked":
+        # standby joins ended/retired here, unlike the `broken` DTS case. A block reaches every
+        # connector at once, so scoring all 30-odd standby LinkedIn paths as blocked would put
+        # the estate's loudest state on 30 rows nobody reads (they serve off Snowflake) and bury
+        # the five accounts a client dashboard is actually waiting on. Same reason the rest of
+        # this function sends standby to idle: worth SEEING, not worth the tile.
+        if expected in ("ended", "retired", "standby", "unconfigured"):
+            return "idle", (f"Windsor reads are paused account-wide, but nothing on a client dashboard "
+                            f"reads this one - {acct.get('why') or expected}.")
+        return "billing_blocked", BLOCK_FIX
+
     if v == "not_granted":
         if expected in ("ended", "retired"):
             return "idle", f"Not granted in Windsor, and that is expected - {acct.get('why') or expected + ' account'}."
@@ -410,10 +480,25 @@ def classify(acct: dict, probe: dict, newest: str | None, frozen_after: int, pre
         return "not_granted", fix
 
     if v == "error":
-        # one transient error is not news; two consecutive probes are
-        if prev_state == "error" or "'start'" in (probe.get("note") or ""):
+        # One transient error is not news; two consecutive probes are. That two-strike rule is
+        # right and is kept - but it used to be implemented by reporting the FIRST error as
+        # `ok` (or `quiet`), which is the same lie as the one that let a dead Trade Desk feed
+        # read Healthy: the tab printed "granted and delivering" about a connector that had
+        # just errored, and only the fix column said otherwise.
+        #
+        # `checking` separates the two questions that were tangled together. WHAT WE KNOW is
+        # "the connector errored once" - so it is never again reported as healthy. WHETHER TO
+        # PAGE stays exactly as before: `checking` is absent from RED_STATES/BAD_STATES, so it
+        # emails nobody, and the second consecutive error produces a real checking -> error
+        # transition that alerts through the existing change machinery. No new alert path, no
+        # change in email volume - just an honest pill in the meantime.
+        if prev_state in ("error", "checking") or "'start'" in (probe.get("note") or ""):
             return "error", f"Windsor answered with an error: {probe.get('note') or 'unknown'}. If it repeats, raise it with Windsor support - the grant itself may be fine."
-        return ("ok" if (behind is not None and behind <= frozen_after) else "quiet"), f"Windsor answered with an error on this probe ({(probe.get('note') or '')[:90]}); watching for a repeat before calling it."
+        behind_note = (f" BigQuery is {behind} day(s) behind." if behind is not None and behind > frozen_after
+                       else " BigQuery is still current, so nothing is affected yet.")
+        return "checking", (f"Windsor answered with an error on this probe ({(probe.get('note') or '')[:90]}). "
+                            f"One error is not news - the next hourly probe decides whether this is real, and "
+                            f"nobody is emailed until it repeats.{behind_note}")
 
     # granted
     if expected == "snapshot":
@@ -461,7 +546,15 @@ def expiry_estimate(grant: dict) -> str | None:
 # ----------------------------------------------------------------------------- main
 def build(cfg: dict, api_key: str, bq: bigquery.Client | None, prev: dict | None) -> dict:
     window = int(cfg.get("probe_window_days", 3))
-    frozen_after = int(cfg.get("frozen_after_days", 3))
+    # Per-datasource, falling back to the global. A single value has to be sized for the
+    # SLOWEST feed, which is how Meta and GA4 came to carry three days of slack they do not
+    # need: Trade Desk is asked for `today-2` (TTD refuses days it has not finalised) so its
+    # structural floor is 1 day behind, while every other connector is asked for `today-1`,
+    # floor 0. See the per-datasource notes in config.json.
+    global_frozen_after = int(cfg.get("frozen_after_days", 3))
+
+    def frozen_after_for(ds: dict) -> int:
+        return int(ds.get("frozen_after_days", global_frozen_after))
     prev_acc = {}
     prev_ds_map = {}
     for d in (prev or {}).get("datasources", []):
@@ -509,7 +602,7 @@ def build(cfg: dict, api_key: str, bq: bigquery.Client | None, prev: dict | None
 
     # 3. assemble
     out_ds = []
-    counts = {"ok": 0, "frozen": 0, "quiet": 0, "not_granted": 0, "broken": 0, "error": 0, "idle": 0}
+    counts = {"ok": 0, "frozen": 0, "quiet": 0, "not_granted": 0, "billing_blocked": 0, "broken": 0, "error": 0, "checking": 0, "idle": 0}
     changes = []       # for the email: (ds_label, acct, old, new)
     for ds in cfg["datasources"]:
         nd = newest.get(ds["ds"], {})
@@ -528,12 +621,16 @@ def build(cfg: dict, api_key: str, bq: bigquery.Client | None, prev: dict | None
             synthetic = {"http": None, "ms": None, "rows": None, "by_key": {},
                          "verdict": "granted", "note": "", "configured": None}
             for a in ds["accounts"]:
-                accts_out.append(_account_row(ds, a, synthetic, nd, frozen_after, prev_acc, today, changes, counts,
+                accts_out.append(_account_row(ds, a, synthetic, nd, frozen_after_for(ds), prev_acc, today, changes, counts,
                                               tstates.get(str(a["id"]))))
         elif ds["ds"] == "tradedesk":
             seat = results[(ds["ds"], ds["seat"])]
             latencies.append(seat["ms"])
-            if seat["verdict"] == "not_granted":
+            if seat["verdict"] == "billing_blocked":
+                connector = {"state": "blocked", "latency_ms": seat["ms"], "configured_in_windsor": None,
+                             "note": ("Windsor is answering with an account-wide read-pause notice instead of data. "
+                                      "The seat grant is not the problem.")}
+            elif seat["verdict"] == "not_granted":
                 connector = {"state": "denied", "latency_ms": seat["ms"], "configured_in_windsor": seat.get("configured"),
                              "note": f"Seat {ds['seat']} is not granted. " + (f"Windsor holds: {', '.join(seat['configured'])}." if seat.get("configured") else "")}
             elif seat["verdict"] == "error":
@@ -543,7 +640,7 @@ def build(cfg: dict, api_key: str, bq: bigquery.Client | None, prev: dict | None
             for a in ds["accounts"]:
                 per = dict(seat)
                 per["rows"] = seat["by_key"].get(a["id"], 0) if seat["verdict"] == "granted" and seat["rows"] is not None else seat["rows"]
-                accts_out.append(_account_row(ds, a, per, nd, frozen_after, prev_acc, today, changes, counts))
+                accts_out.append(_account_row(ds, a, per, nd, frozen_after_for(ds), prev_acc, today, changes, counts))
         else:
             for a in ds["accounts"] + [{"id": x, "name": "Transmission account (unmapped)", "client": None, "label": "Unmapped (Transmission)",
                                         "expected": "standby", "alerts": False, "_extra": True} for x in ds.get("extra_configured_ids", [])]:
@@ -552,9 +649,17 @@ def build(cfg: dict, api_key: str, bq: bigquery.Client | None, prev: dict | None
                     latencies.append(pr["ms"])
                 if pr.get("configured") is not None and connector["configured_in_windsor"] is None:
                     connector["configured_in_windsor"] = pr["configured"]
-                accts_out.append(_account_row(ds, a, pr, nd, frozen_after, prev_acc, today, changes, counts))
+                accts_out.append(_account_row(ds, a, pr, nd, frozen_after_for(ds), prev_acc, today, changes, counts))
             granted = [x for x in accts_out if x["state"] not in ("not_granted",)]
-            if ds["accounts"] and not any(r["verdict"] == "granted" for (k, r) in results.items() if k[0] == ds["ds"]):
+            # "no account resolves" is a CONNECTOR finding. Under an account-wide pause no
+            # account resolves on ANY connector, which would have printed "the whole grant has
+            # lapsed" on all six feeds at once - six wrong causes, each with a re-grant button
+            # that cannot help. The block is reported once, at account level, below.
+            if any(r["verdict"] == "billing_blocked" for (k, r) in results.items() if k[0] == ds["ds"]):
+                connector["state"] = "blocked"
+                connector["note"] = ("Windsor is answering with an account-wide read-pause notice "
+                                     "instead of data. The grant on this connector is not the problem.")
+            elif ds["accounts"] and not any(r["verdict"] == "granted" for (k, r) in results.items() if k[0] == ds["ds"]):
                 connector["state"] = "denied" if any(r["verdict"] == "not_granted" for (k, r) in results.items() if k[0] == ds["ds"]) else "error"
                 connector["note"] = "No configured account resolves on this connector - the whole grant has lapsed." if connector["state"] == "denied" else "Every probe on this connector errored."
             connector["latency_ms"] = int(sum(latencies) / len(latencies)) if latencies else None
@@ -604,16 +709,63 @@ def build(cfg: dict, api_key: str, bq: bigquery.Client | None, prev: dict | None
             "accounts": accts_out,
         })
 
-    worst = next((s for s in ("not_granted", "broken", "error", "frozen", "quiet", "ok") if counts[s]), "ok")
+    # ---- the account-wide block, stated ONCE ----------------------------------------
+    # An account-wide cause presenting as scattered per-connector symptoms is the thing this
+    # is here to stop. On 2026-09-10 the pause showed up as three unrelated "frozen since
+    # 09-10" accounts on three different connectors, and the tab's advice on each of them was
+    # to go re-grant that connector - three actions, none of which could have worked. So the
+    # block is one object at DOCUMENT level: the tab renders one banner from it, the mailer
+    # sends one email about it, and the per-account rows exist only so no row claims `ok`.
+    blocked_on = sorted({k[0] for k, r in results.items() if r.get("verdict") == "billing_blocked"})
+    prev_block = (prev or {}).get("account_block") or {}
+    if blocked_on:
+        msg = next((r.get("note") for k, r in results.items()
+                    if r.get("verdict") == "billing_blocked" and r.get("note")), "Windsor reads are paused.")
+        account_block = {
+            "active": True,
+            # Carried forward so the banner can say how long this has been true. A block that
+            # clears and returns starts a new episode, which is also what re-arms the email.
+            "since": prev_block.get("since") if prev_block.get("active") and prev_block.get("since") else today,
+            "message": msg,
+            "detected_on": blocked_on,
+            "affected_accounts": counts["billing_blocked"],
+            "fix": BLOCK_FIX,
+            "url": BLOCK_URL,
+            "clear_runs": 0,
+        }
+        account_block["since_days"] = (today_utc() - dt.date.fromisoformat(account_block["since"])).days
+        log(f"ACCOUNT-WIDE BLOCK since {account_block['since']} on {', '.join(blocked_on)}: {msg[:120]}")
+    elif prev_block.get("active"):
+        # NOT cleared on the strength of one run. Measured 2026-09-11 while the block was live:
+        # Windsor answers INCONSISTENTLY under it - the same probe minutes apart returned the
+        # notice on one connector, real 200s on another, and a 150s timeout on Trade Desk. A run
+        # that happens to see no notice is therefore not evidence the block is gone, and
+        # declaring it cleared would mail "Windsor reads have resumed" into an ongoing outage
+        # AND re-arm the block email, so the pair would alternate hourly for as long as Windsor
+        # stayed flaky. Two consecutive clear runs (so at most an hour late) is the cheap fix.
+        clear_runs = int(prev_block.get("clear_runs") or 0) + 1
+        if clear_runs < 2:
+            account_block = dict(prev_block, clear_runs=clear_runs)
+            log.info(f"block not seen this run ({clear_runs}/2 clear runs) - holding, "
+                     f"Windsor answers inconsistently under a block")
+        else:
+            account_block = {"active": False, "cleared_on": today}
+            log.info("ACCOUNT-WIDE BLOCK CLEARED (2 consecutive clear runs)")
+    else:
+        account_block = {"active": False, "cleared_on": prev_block.get("cleared_on")}
+
+    worst = next((s for s in ("not_granted", "billing_blocked", "broken", "error", "frozen", "checking", "quiet", "ok") if counts[s]), "ok")
     doc = {
         "generated_at": now_iso(),
         "probe_version": 1,
         "summary": dict(counts, total=sum(counts.values()), worst=worst),
+        "account_block": account_block,
         "datasources": out_ds,
         "alerts": dict((prev or {}).get("alerts") or {}, recipients=cfg["recipients"]),
         "notes": [
             "States are decided here, by the probe, once an hour. The tab renders them; the alert emails quote them. Both always agree.",
             "'Frozen' means Windsor still has rows we are not landing (our loader). 'Quiet' means Windsor itself reports no delivery - check the platform, not the grant.",
+            "'Reads paused' is Windsor blocking the WHOLE account (a plan limit), not a per-connector grant. It is reported once, at the top, because re-granting any single connector cannot fix it.",
             "Expiry is an ESTIMATE: last re-authorisation date + the platform's typical token lifetime, both kept by hand in config.json. Windsor publishes no expiry.",
         ],
         "_changes": changes,      # consumed by the mailer, stripped before upload
@@ -656,16 +808,36 @@ def _account_row(ds, a, pr, nd, frozen_after, prev_acc, today, changes, counts, 
 # ----------------------------------------------------------------------------- alerts
 def decide_alerts(cfg: dict, doc: dict, prev: dict | None) -> list[dict]:
     """Which emails this run sends. Returns a list of {kind, subject, html, text}."""
-    from mailer import render_change_email, render_digest_email, render_expiry_email  # local module
+    from mailer import (render_block_email, render_change_email, render_digest_email,  # local module
+                        render_expiry_email)
 
     out = []
     al = doc["alerts"]
     # "broken" is red for anything that ALERTS. The standby properties stay silent not
     # because of the state but because their own alerts flag is false, which is the decision
     # already recorded in config.json: worth seeing, not worth paging.
-    RED_STATES = ("not_granted", "broken", "frozen", "error")
+    RED_STATES = ("not_granted", "billing_blocked", "broken", "frozen", "error")
     red = [(d, a) for d in doc["datasources"] for a in d["accounts"] if a["alerts"] and a["state"] in RED_STATES]
     changes = [c for c in doc["_changes"] if c["alerts"] and (c["new"] in RED_STATES or c["old"] in RED_STATES)]
+
+    # ---- the account-wide block: ONE email per episode, and it REPLACES the per-account mail.
+    # Without this the block sends what it sent nothing of last time because it was invisible -
+    # and once it IS visible, it is five accounts x six connectors changing state in one run,
+    # i.e. one storm carrying six different wrong fixes. The per-account transitions in and out
+    # of billing_blocked are therefore dropped from `changes` entirely: they are all the same
+    # fact, and it is stated once below. They still show on the tab and in the digest.
+    blk = doc.get("account_block") or {}
+    changes = [c for c in changes if "billing_blocked" not in (c["old"], c["new"])]
+    if blk.get("active"):
+        # Keyed on the episode's start date, so a block that clears and comes back mails again
+        # while one that simply persists does not mail hourly. The daily digest is what keeps
+        # an unresolved block from going quiet.
+        if al.get("block_notified_since") != blk.get("since"):
+            out.append(dict(kind="block", **render_block_email(blk, doc, GRID_URL)))
+            al["block_notified_since"] = blk.get("since")
+    elif al.get("block_notified_since"):
+        out.append(dict(kind="block_cleared", **render_block_email(blk, doc, GRID_URL, cleared=True)))
+        al["block_notified_since"] = None
 
     # FLAP DAMPING. A change email fires on every transition, which is right for a real
     # ok -> not_granted and wrong for an account that cannot make up its mind. The realistic
@@ -818,7 +990,9 @@ def main() -> int:
     bq = None if args.no_bq else bigquery.Client(project=PROJECT, location=LOCATION)
     doc = build(cfg, api_key, bq, prev)
     s = doc["summary"]
-    log(f"summary: ok={s['ok']} frozen={s['frozen']} quiet={s['quiet']} not_granted={s['not_granted']} broken={s['broken']} error={s['error']} idle={s['idle']} worst={s['worst']}")
+    log(f"summary: ok={s['ok']} frozen={s['frozen']} quiet={s['quiet']} not_granted={s['not_granted']} "
+        f"reads_paused={s['billing_blocked']} broken={s['broken']} error={s['error']} checking={s['checking']} "
+        f"idle={s['idle']} worst={s['worst']}")
     for c in doc["_changes"]:
         log(f"  CHANGE {c['ds']} / {c['client']} / {c['account']}: {c['old']} -> {c['new']}{'' if c['alerts'] else ' (no alert - account not on a critical path)'}")
 

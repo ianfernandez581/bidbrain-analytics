@@ -43,13 +43,24 @@
     frozen:      { lbl: 'Frozen',       c: 'var(--warn)',  soft: 'var(--warn-soft)', d: 'Windsor has rows our loader is not landing' },
     quiet:       { lbl: 'Quiet',        c: '#7E93AD',      soft: 'rgba(126,147,173,.16)', d: 'granted, but the platform reports no delivery' },
     not_granted: { lbl: 'Not granted',  c: 'var(--bad)',   soft: 'var(--bad-soft)',  d: 'Windsor no longer holds this account' },
+    // Its own colour on purpose. Painted in the not-granted red it would read as N lapsed
+    // grants, which is the exact wrong conclusion: the grants are fine and re-granting them
+    // is wasted work. Magenta is used nowhere else on this tab.
+    billing_blocked: { lbl: 'Reads paused', c: '#9D174D', soft: 'rgba(157,23,77,.13)', d: 'Windsor has paused reads for the whole account' },
     broken:      { lbl: 'Transfer failing', c: '#C2410C', soft: 'rgba(194,65,12,.14)', d: 'the BigQuery transfer itself is failing' },
     error:       { lbl: 'Error',        c: 'var(--tx)',    soft: 'var(--tx-soft)',   d: 'the connector answered with an error' },
+    // Grey, not amber. This is 'we do not know yet', not 'something is wrong' - it emails
+    // nobody and usually clears on the next probe. Colouring it as a warning would make a
+    // single transient blip look like a finding, which is what the two-strike rule exists to
+    // avoid. What it must never do is read as HEALTHY, which is what it used to do.
+    checking:    { lbl: 'Checking',     c: '#6B7280',      soft: 'rgba(107,114,128,.14)', d: 'errored once; confirming before calling it' },
     idle:        { lbl: 'Idle',         c: 'var(--ink-3)', soft: 'var(--line-2)',    d: 'expected to be quiet - campaign ended or retired' }
   };
   // broken sits beside not_granted: both mean no new data is arriving at all, which is
-  // worse than a loader that is merely behind.
-  var SEV = { not_granted: 0, broken: 1, error: 2, frozen: 3, quiet: 4, ok: 5, idle: 6 };
+  // worse than a loader that is merely behind. billing_blocked outranks every one of them:
+  // it is the only state that means NOTHING is arriving on ANY feed, so it has to win the
+  // per-feed "worst state" roll-up or a blocked connector reports itself as merely frozen.
+  var SEV = { billing_blocked: 0, not_granted: 1, broken: 2, error: 3, frozen: 4, checking: 5, quiet: 6, ok: 7, idle: 8 };
 
   var CSS = [
     // ===== page shell: the mockup's measure, centred, with real side padding =====
@@ -191,6 +202,8 @@
     '#view-connections table.atbl tbody td.r{text-align:right}',
     '#view-connections table.atbl tbody tr td:first-child{box-shadow:inset 3px 0 0 var(--rt,transparent);padding-left:20px}',
     '#view-connections table.atbl tr.s-not_granted{--rt:var(--bad)}',
+    '#view-connections table.atbl tr.s-billing_blocked{--rt:#9D174D}',
+    '#view-connections table.atbl tr.s-checking{--rt:#6B7280}',
     '#view-connections table.atbl tr.s-frozen{--rt:var(--warn)}',
     '#view-connections table.atbl tr.s-error{--rt:var(--tx)}',
     '#view-connections table.atbl tr.s-quiet{--rt:#7E93AD}',
@@ -243,10 +256,23 @@
     '#view-connections .cx-prob .ptbl code{transition:background .13s ease,color .13s ease}',
     '#view-connections .cx-prob .ptbl code:hover{background:color-mix(in oklab,var(--brand) 12%,var(--grp));color:var(--ink)}',
     '#view-connections .cx-pill:focus-visible,#view-connections .cx-scard:focus-visible,#view-connections .cx-sync:focus-visible,#view-connections .cx-prob .pgo:focus-visible{outline:2px solid var(--brand);outline-offset:2px}',
+    // The account-block banner. Solid magenta ground rather than the soft pill wash every
+    // other state uses: this is the one notice that must not be scannable-past, and the tiles
+    // directly under it are all soft grounds.
+    '#view-connections .cx-block{background:#9D174D;border:0;border-radius:14px;padding:18px 20px 19px;color:#fff}',
+    '#view-connections .cx-block .be{font-size:10.5px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;opacity:.82}',
+    '#view-connections .cx-block h3{margin:5px 0 0;font-size:18px;font-weight:600;letter-spacing:-.01em;color:#fff}',
+    '#view-connections .cx-block .bq{margin:11px 0 0;padding:10px 13px;border-radius:9px;background:rgba(255,255,255,.13);font-size:12.5px;line-height:1.55}',
+    '#view-connections .cx-block .bq b{font-weight:600}',
+    '#view-connections .cx-block .bm{margin:11px 0 0;font-size:13px;line-height:1.6;opacity:.95}',
+    '#view-connections .cx-block .bf{display:flex;flex-wrap:wrap;gap:9px 16px;align-items:center;margin:14px 0 0}',
+    '#view-connections .cx-block .bgo{display:inline-block;padding:9px 15px;border-radius:7px;background:#fff;color:#9D174D;font-size:12px;font-weight:600;text-decoration:none}',
+    '#view-connections .cx-block .bgo:hover{filter:brightness(.96)}',
+    '#view-connections .cx-block .bmeta{font-size:11.5px;opacity:.82}',
     '@media(prefers-reduced-motion:reduce){#view-connections *{transition:none!important;animation:none!important}#view-connections .cx-scard:hover,#view-connections .cx-prob:hover,#view-connections .cx-sync:hover{translate:none!important}}'
   ].join('\n');
 
-  var RED = { not_granted: 1, broken: 1, frozen: 1, error: 1 };
+  var RED = { not_granted: 1, billing_blocked: 1, broken: 1, frozen: 1, error: 1 };
 
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function fmtDay(d) { if (!d) return '-'; var t = new Date(d + 'T00:00:00Z'); if (isNaN(t)) return esc(d); return t.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' }); }
@@ -299,7 +325,7 @@
     return allAccountsRaw(doc).filter(function (x) { return inRail(x.a); });
   }
   function counts(doc) {
-    var c = { ok: 0, frozen: 0, quiet: 0, not_granted: 0, broken: 0, error: 0, idle: 0, total: 0 };
+    var c = { ok: 0, frozen: 0, quiet: 0, not_granted: 0, billing_blocked: 0, broken: 0, error: 0, checking: 0, idle: 0, total: 0 };
     allAccounts(doc).forEach(function (x) { c[x.a.state] = (c[x.a.state] || 0) + 1; c.total++; });
     return c;
   }
@@ -404,6 +430,15 @@
       + (muted ? '<span><b>' + muted + '</b> known and muted</span>' : '')
       // The five tiles cover five states; `error` is the sixth and has no tile, so without
       // this chip the band silently sums to less than the watched count above.
+      // Same reason as the error chip: the five tiles cover five states, so a sixth with a
+      // non-zero count would silently vanish from the band's arithmetic. The banner above is
+      // what shouts; this is what makes the numbers add up and gives the reader the filter.
+      + (c.billing_blocked ? '<button data-state="billing_blocked" aria-pressed="' + (S.filter.state === 'billing_blocked') + '"'
+          + ' title="Windsor has paused reads for the whole account - see the banner at the top. Click to filter."><b>'
+          + c.billing_blocked + '</b> waiting on paused reads</button>' : '')
+      + (c.checking ? '<button data-state="checking" aria-pressed="' + (S.filter.state === 'checking') + '"'
+          + ' title="The connector errored on one probe. Not called yet - the next hourly probe decides. Emails nobody. Click to filter."><b>'
+          + c.checking + '</b> being checked</button>' : '')
       + (c.error ? '<button data-state="error" aria-pressed="' + (S.filter.state === 'error') + '"'
           + ' title="The connector itself answered with an error, so no state could be read. Not covered by the tiles above - click to filter."><b>'
           + c.error + '</b> in error</button>' : '')
@@ -415,6 +450,7 @@
   function ledeFor(ds, a) {
     var who = a.client_label || a.client || 'An unmapped account';
     var feed = String(ds.label || '').replace(/ \(.*\)$/, '');
+    if (a.state === 'billing_blocked') return 'Windsor is not serving ' + who + "'s " + feed + ' data - reads are paused account-wide';
     if (a.state === 'not_granted' && ds.source === 'dts') return who + "'s " + feed + ' has never delivered any data';
     if (a.state === 'not_granted') return 'Windsor no longer holds ' + who + "'s " + ds.label + ' account';
     if (a.state === 'frozen') return ds.label + ' is answering, but ' + who + "'s data has stopped arriving";
@@ -430,6 +466,9 @@
     return who + ' needs attention on ' + ds.label;
   }
   function destFor(ds, a) {
+    // Checked BEFORE the re-grant link. Offering "Re-grant in Windsor" under a billing block
+    // sends the reader to do the one thing that provably cannot help.
+    if (a.state === 'billing_blocked') return { href: 'https://onboard.windsor.ai/app/manage-subscription', text: 'Manage the Windsor subscription' };
     if (ds.source === 'dts') return { href: 'https://console.cloud.google.com/bigquery/transfers?project=bidbrain-analytics', text: 'Open BigQuery Data Transfers' };
     if (a.state === 'not_granted') return { href: ds.reauth_url || 'https://onboard.windsor.ai', text: 'Re-grant in Windsor' };
     return null;
@@ -437,6 +476,7 @@
   // What the collapsed card says for each state. Reusing the pill label reads as broken
   // grammar ("8 GA4 feeds are transfer failing").
   var GRP_PHRASE = {
+    billing_blocked: 'feeds are waiting on a paused Windsor account',
     broken: 'transfers are failing',
     not_granted: 'accounts are no longer granted in Windsor',
     frozen: 'feeds have stopped arriving',
@@ -444,7 +484,12 @@
   };
 
   function problems(doc) {
-    var hits = allAccounts(doc).filter(function (x) { return RED[x.a.state]; });
+    // billing_blocked accounts are deliberately excluded. They all share ONE cause and ONE
+    // fix, already stated in full by blockBanner() above; rendering them here would put five
+    // or six identical paragraphs between the banner and the real per-client findings - which
+    // is the "account-wide cause presenting as scattered symptoms" failure, reintroduced one
+    // layer down. They remain on the feeds table, in the counts, and in the digest email.
+    var hits = allAccounts(doc).filter(function (x) { return RED[x.a.state] && x.a.state !== 'billing_blocked'; });
     if (!hits.length) return '';
     hits.sort(function (x, y) { return (y.a.alerts - x.a.alerts) || (SEV[x.a.state] - SEV[y.a.state]); });
     // An ALERTING account always gets its own card - it is the thing someone has to act on.
@@ -580,7 +625,8 @@
     if (open) {
       var st = ds.connector || {};
       var cs = st.state || 'ok';
-      var cv = cs === 'ok' ? STATE.ok : cs === 'denied' ? STATE.not_granted : STATE.error;
+      var cv = cs === 'ok' ? STATE.ok : cs === 'denied' ? STATE.not_granted
+             : cs === 'blocked' ? STATE.billing_blocked : STATE.error;
       var reauthUrl = ds.reauth_url || ('https://onboard.windsor.ai?datasource=' + encodeURIComponent(ds.ds));
       var rows = shown.slice().sort(function (x, y) {
         return (SEV[x.state] - SEV[y.state]) || String(x.client_label || x.client).localeCompare(String(y.client_label || y.client));
@@ -590,8 +636,11 @@
         + (st.latency_ms != null ? '<span>connector answered in <b>' + (st.latency_ms / 1000).toFixed(1) + ' s</b></span>' : '')
         + (ds.table ? '<span>lands in <b>' + esc(ds.table) + '</b></span>' : '')
         + '<span class="cx-verd" style="background:' + cv.soft + ';color:' + cv.c + '"><span class="cx-dot" style="background:' + cv.c + '"></span>'
-        + (cs === 'ok' ? 'Connector up' : cs === 'denied' ? 'Connector denied' : 'Connector error') + '</span>'
-        + (ds.source === 'dts' ? '' : '<a class="cx-link" href="' + esc(reauthUrl) + '" target="_blank" rel="noopener">Re-grant in Windsor &#8599;</a>')
+        + (cs === 'ok' ? 'Connector up' : cs === 'denied' ? 'Connector denied'
+           : cs === 'blocked' ? 'Reads paused account-wide' : 'Connector error') + '</span>'
+        // The re-grant link is withheld under a block. The connector's grant is not the
+        // problem, and this link is the single most available wrong action on the page.
+        + (ds.source === 'dts' || cs === 'blocked' ? '' : '<a class="cx-link" href="' + esc(reauthUrl) + '" target="_blank" rel="noopener">Re-grant in Windsor &#8599;</a>')
         + '</div>';
       body += rows.length
         ? '<table class="atbl"><thead><tr><th>Client</th><th>Account</th><th>State</th><th class="r">Newest data</th><th class="r">Behind</th><th>Since</th><th>What to do</th></tr></thead><tbody>'
@@ -678,6 +727,42 @@
     wire(mount);
   }
 
+  // ---------- account-wide block ----------
+  // THE point of this banner: on 2026-09-10 an account-wide Windsor pause presented on this
+  // tab as three unrelated "frozen since 09-10" accounts on three different connectors, while
+  // Trade Desk still read `ok` on every live client. Whoever read that was led to go and
+  // re-grant three connectors, none of which could have helped. One cause, stated once, with
+  // the only remedy that exists - and the per-account problem cards for it are suppressed
+  // below, because six cards carrying the same paragraph is how the tab hides a cause.
+  function blockBanner(doc) {
+    var b = doc && doc.account_block;
+    if (!b || !b.active) return '';
+    // Scoped like everything else on the tab, but the SENTENCE is unscoped: the block is not
+    // this client's problem, it is the account's, and a rail selection must not make it read
+    // as one client's outage.
+    var hit = allAccountsRaw(doc).filter(function (x) { return x.a.state === 'billing_blocked'; });
+    var who = hit.map(function (x) { return x.a.client_label || x.a.client; }).filter(Boolean);
+    var uniq = who.filter(function (w, i) { return who.indexOf(w) === i; });
+    var feeds = (b.detected_on || []).length;
+    var d = b.since_days;
+    return '<div class="cx-card cx-block">'
+      + '<div class="be">Account-wide &middot; not a connector grant</div>'
+      + '<h3>Windsor has paused reads for the whole account</h3>'
+      + '<div class="bm">Every Windsor feed is answering with a notice instead of numbers'
+      + (feeds ? ' (' + feeds + ' connector' + (feeds === 1 ? '' : 's') + ' confirmed)' : '')
+      + '. Re-granting a connector cannot fix this, and any Windsor feed reading healthy below '
+      + 'is reporting on data that stopped arriving.'
+      + (uniq.length ? ' Waiting on real numbers: <b>' + esc(uniq.join(', ')) + '</b>.' : '')
+      + '</div>'
+      + (b.message ? '<div class="bq"><b>Windsor says:</b> ' + esc(b.message) + '</div>' : '')
+      + '<div class="bf"><a class="bgo" href="' + esc(b.url || 'https://onboard.windsor.ai/app/')
+      + '" target="_blank" rel="noopener">Disconnect a source or upgrade the plan &rarr;</a>'
+      + '<span class="bmeta">Paused since ' + fmtDay(b.since)
+      + (d != null ? ' &middot; ' + d + ' day' + (d === 1 ? '' : 's') : '')
+      + ' &middot; everything backfills on its own the first night after it clears</span></div>'
+      + '</div>';
+  }
+
   // What the rail scope is hiding, per category. A hidden dead feed is the exact failure
   // this tab exists to prevent, so this line is load-bearing rather than cosmetic.
   function railBanner(doc) {
@@ -726,10 +811,10 @@
     // A scope with no accounts renders the banner ALONE: a band of zeros and an empty table
     // read as an outage rather than as "this client has no connectors".
     if (S.rail && S.rail.key && !allAccounts(doc).length) {
-      mount.innerHTML = hero(doc) + railBanner(doc);
+      mount.innerHTML = hero(doc) + blockBanner(doc) + railBanner(doc);
       wire(mount); return;
     }
-    mount.innerHTML = hero(doc) + railBanner(doc) + tiles(doc) + problems(doc) + feedCard(doc) + horizon(doc);
+    mount.innerHTML = hero(doc) + blockBanner(doc) + railBanner(doc) + tiles(doc) + problems(doc) + feedCard(doc) + horizon(doc);
     wire(mount);
   }
 

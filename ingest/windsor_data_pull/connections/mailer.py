@@ -37,14 +37,20 @@ DISPLAY = "Montserrat,'Segoe UI',Roboto,Helvetica,Arial,sans-serif"
 BODYF   = "Montserrat,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif"
 
 STATE_LABEL = {"ok": "healthy", "frozen": "frozen", "quiet": "quiet", "not_granted": "not granted",
-               "broken": "transfer failing", "error": "error", "idle": "idle"}
+               "billing_blocked": "reads paused", "broken": "transfer failing", "error": "error",
+               "checking": "checking", "idle": "idle"}
+# Its own colour, and deliberately not the not-granted red: the two look identical on a tab
+# and mean opposite things about what to do. This one is a magenta nobody else uses.
 STATE_COLOR = {"ok": "#0E9F6E", "frozen": "#B45309", "quiet": "#6F827A", "not_granted": "#D92D20",
-               "broken": "#C2410C", "error": "#4338CA", "idle": "#879089"}
+               "billing_blocked": "#9D174D", "broken": "#C2410C", "error": "#4338CA", "checking": "#6B7280",
+               "idle": "#879089"}
 STATE_MEANING = {
     "not_granted": "Windsor no longer holds this account. The loader skips it every night and the dashboard keeps serving the last data it landed.",
+    "billing_blocked": "Windsor has paused reads for the WHOLE account over a plan limit and is answering with a notice instead of numbers. This is not a grant problem and re-granting the connector cannot fix it.",
     "broken": "The BigQuery Data Transfer for this account is failing, so no new rows are arriving. Freshness alone could not tell this apart from a quiet account.",
     "frozen": "Windsor still returns rows, but our loader is not landing them in BigQuery. The grant is fine; the pipeline is ours to fix.",
     "error": "The connector has answered with an error on consecutive probes.",
+    "checking": "The connector errored on ONE probe. Not called yet - the next hourly probe decides whether it is real. Deliberately does not email.",
     "ok": "Granted and current in BigQuery.",
     "quiet": "Granted, but the platform reports no delivery for the window.",
     "idle": "Expected to be quiet.",
@@ -55,13 +61,14 @@ STATE_MEANING = {
 # reads as a failure or a recovery, and a state missing from it turns a still-broken account
 # into a "recovered" subject line. probe.decide_alerts keeps its own copy for the alerting
 # decision - if you add a state, move both.
-BAD_STATES = ("not_granted", "broken", "frozen", "error")
+BAD_STATES = ("not_granted", "billing_blocked", "broken", "frozen", "error")
 
 
 # soft ground + coloured text, the same pill the tab uses. White-on-solid read as a
 # notification badge; this reads as a state.
 STATE_SOFT = {"ok": "#E6F6EF", "frozen": "#FBF1E4", "quiet": "#EEF3F0", "not_granted": "#FCEBEA",
-              "broken": "#FBEDE4", "error": "#EEF0FF", "idle": "#EEF3F0"}
+              "billing_blocked": "#FBE9F1", "broken": "#FBEDE4", "error": "#EEF0FF", "checking": "#F1F2F4",
+              "idle": "#EEF3F0"}
 
 
 def _pill(state: str) -> str:
@@ -185,6 +192,55 @@ def _head(client: str, feed: str, account: str = "", acct_id: str = "") -> str:
               + (f' <span style="font-family:Consolas,Menlo,monospace;font-size:11px;color:{INK3}">'
                  f'{escape(acct_id)}</span>' if acct_id else '') + '</div>')
     return h
+
+
+def render_block_email(blk: dict, doc: dict, grid_url: str, cleared: bool = False) -> dict:
+    """ONE email for an account-wide Windsor read pause.
+
+    Deliberately not a change email per account. The block reaches every connector in the same
+    run, so the per-account form would send five or six cards that each name a different feed
+    and each carry a fix that cannot work - and the reader would go and re-grant three
+    connectors, which is exactly what happened on 2026-09-10 when the pause presented as three
+    unrelated frozen accounts. One email, the account-level cause, the one remedy that exists.
+    """
+    if cleared:
+        subj = "[Windsor] Reads have resumed - the account-wide pause has cleared"
+        intro = ("Windsor is serving real numbers again. The loaders backfill the gap on their own "
+                 "overnight runs; nothing needs re-granting.")
+        inner = (f'<div style="font-family:{DISPLAY};font-size:14.5px;font-weight:600;color:{INK}">'
+                 f'The account-wide read pause has cleared</div>'
+                 f'<div style="font-size:12.5px;color:{INK2};padding-top:6px;line-height:1.55">'
+                 f'Check the Connections tab tomorrow morning: any account still behind after the '
+                 f'next scheduled run is a separate problem that the pause was masking.</div>')
+        return {"subject": subj,
+                "html": _shell("Windsor reads have resumed", intro, _card(inner, STATE_COLOR["ok"]), grid_url),
+                "text": subj + f"\n\n{grid_url}"}
+
+    feeds = ", ".join(blk.get("detected_on") or []) or "every connector"
+    n = blk.get("affected_accounts") or 0
+    subj = "[Windsor] Reads are PAUSED for the whole account - every feed is affected"
+    intro = ("This is not a connector grant and not one client. Windsor has stopped serving data to the "
+             "entire account, so every feed below is answering with a notice where the numbers should be. "
+             "Re-granting a connector cannot fix it.")
+    inner = (f'<div style="font-family:{DISPLAY};font-size:14.5px;font-weight:600;color:{INK}">'
+             f'Windsor has paused reads account-wide</div>'
+             + '<table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="border-collapse:collapse;margin-top:6px">'
+             + _row("State", f"{_pill('billing_blocked')} &nbsp;<span style='color:#879089'>since {escape(blk.get('since') or '-')}"
+                             f" ({blk.get('since_days', 0)} d)</span>")
+             # Windsor's own words, not ours: the plan numbers in it are the actionable part and
+             # a paraphrase would go stale the moment the plan changes.
+             + _row("Windsor says", f'<span style="color:{INK2}">{escape(blk.get("message") or "")}</span>')
+             + _row("Feeds affected", escape(feeds))
+             + _row("Accounts on a dashboard", f"{n} waiting on real numbers")
+             + _row("Do this", escape(blk.get("fix") or "")
+                    + f' <a href="{escape(blk.get("url") or "https://onboard.windsor.ai/app/")}" '
+                      f'style="color:{BRAND_IN}">Manage the subscription</a>')
+             + "</table>")
+    html = _shell("Windsor reads are paused for the whole account", intro,
+                  _card(inner, STATE_COLOR["billing_blocked"]), grid_url)
+    text = (subj + "\n\n" + (blk.get("message") or "") + "\n\nFeeds affected: " + feeds
+            + "\n\n" + (blk.get("fix") or "") + f"\n\n{grid_url}")
+    return {"subject": subj, "html": html, "text": text}
 
 
 def render_change_email(changes: list[dict], red: list, doc: dict, grid_url: str) -> dict:

@@ -35,9 +35,59 @@ seat 569 so the loader stayed pinned to a dead id), LinkedIn (30 of 34 accounts 
 | `frozen` | granted AND Windsor still returns rows for the window, but BigQuery is behind -> **a loader fault, ours** | yes |
 | `quiet` | granted, Windsor returns NO rows for the window, BigQuery behind -> the platform reports no delivery (paused / finished campaign, or upstream) | no |
 | `not_granted` | Windsor no longer holds the account (400 "not available"); the body names what it DOES hold | yes |
+| `billing_blocked` | Windsor has paused reads for the WHOLE account (plan limit). Not a grant, and not per-connector | once per episode, at account level |
 | `broken` | DTS only: the transfer config's own last run is `FAILED`. The fix text carries the real error, read from that run's log | yes |
+| `checking` | connector errored on ONE probe. Held for one hour to see if it repeats | **no, by design** |
 | `error` | connector error on two consecutive probes (or LinkedIn's `'start'` 500) | yes |
 | `idle` | expected quiet: `expected` = `ended` / `retired` / `standby`, or an account Windsor holds that the loader does not list | never |
+
+`billing_blocked` is the only ACCOUNT-level state. On 2026-09-10 Windsor stopped serving the
+whole account over a plan limit and answered `HTTP 200` with one well-formed row whose every
+string field was the notice ("Uh-oh! These are not your real numbers: reads are paused because
+you have 8 data sources connected and your Standard plan includes 7..."). Unrecognised, that
+read as "granted, nothing delivered today" on every connector at once: Trade Desk showed `ok`
+for every live client while the feed was dead, and the block surfaced only as three unrelated
+`frozen` accounts on three different connectors - so the tab's advice was to go re-grant three
+connectors, none of which could have worked. Three rules follow, and they are the reason this
+is not just another state:
+
+* **Detected on the RAW BODY, before the status branches** (`_BLOCKED_RE` in `probe.py`), and
+  matched on the two prose fragments Windsor repeats, never the whole sentence - the plan
+  counts in it change. `rows` is forced to `None` so the notice row can never be counted as a
+  delivery.
+* **It bypasses `frozen_after_days`.** That tolerance exists so a normal day of feed lag does
+  not flap the tab; a billing block is certain on its first occurrence, so the anti-flap delay
+  would simply be three days of silence on the one signal that never flaps.
+* **Reported ONCE, at `account_block` in the payload** - one banner on the tab, one email per
+  episode, and the per-account problem cards for it are suppressed. Per-account rows still
+  carry the state so no row claims `ok`, and `standby`/`ended` accounts stay `idle` (a block
+  reaches them too, but nothing on a dashboard reads them). Re-grant links are withheld
+  wherever the state is live: under a block that is the most available wrong action on the page.
+
+The same notice was written into BigQuery as a ROW by the loaders, one per table per failed
+run, which made `sibling_newest_day` report today's date on tables whose newest real delivery
+was days earlier. `newest_days()` drops any key matching the sentinel. **Refusing to WRITE
+those rows is a loader fix and is not done here** - see the loaders, and purge the rows already
+written.
+
+`checking` exists because the two-strike rule used to be implemented by reporting the FIRST
+error as `ok` - so the tab printed "granted and delivering" about a connector that had just
+errored, and only the fix column disagreed. It splits the two questions that were tangled:
+**what we know** (it errored once, so never again call it healthy) from **whether to page**
+(unchanged - `checking` is in no BAD_STATES, and the second consecutive error produces a real
+`checking -> error` transition that alerts through the existing change machinery). Email volume
+is identical; only the pill in between is honest.
+
+**`frozen_after_days` is per-datasource** as of 2026-09-11, defaulting to the global 3. Trade
+Desk keeps 3 - the probe asks it for `today-2` because TTD refuses unfinalised days, so a
+healthy TTD feed already sits 1 day behind. Meta / GA4 / LinkedIn / Reddit are asked for
+`today-1` (floor 0) and drop to 2, which catches a stalled feed at **3 days behind instead of
+4**. Note what that does NOT do: a 2-day-behind feed still reads `ok`, which is exactly what
+the 2026-09-11 pause looked like - `billing_blocked` is what catches that, on the first probe,
+independent of this tolerance. The values are REASONED from the request windows and the daily
+schedules, not measured: `ingested_at` is in each loader's `_MERGE_SET_COLS`, so a re-fetch
+rewrites it and the tables cannot answer "what is normal lag?" (checked 2026-09-11 - it reports
+an 8-day median lag on a feed that lands daily).
 
 `broken` exists because freshness alone CANNOT see a failing transfer: a broken feed and a
 property with no traffic both land no rows, so eight failing GA4 transfers sat on the tab as
