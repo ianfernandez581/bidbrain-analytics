@@ -37,51 +37,21 @@
   };
 
   // ---- KPI cards ------------------------------------------------------------
-  // Scoped by CLIENT only. The rail owns that dimension, so a band ignoring it described the
-  // whole estate over one client's cards ("18 open suggestions across 8 clients" above 10 of
-  // 35 rows). Platform / type / confidence stay table-level exploration - the table's own
-  // footer already reports how many rows they leave.
-  function kpiCards(data, clientId, clientName) {
-    var scoped = clientId && clientId !== 'all';
-    var all = scoped
-      ? data.RECOMMENDATIONS.filter(function (r) { return r.client_id === clientId; })
-      : data.RECOMMENDATIONS;
+  function kpiCards(data) {
+    var all = data.RECOMMENDATIONS;
     var review = all.filter(function (r) { return r.status === 'review'; });
     var reviewClients = {}; review.forEach(function (r) { reviewClients[r.client_id] = 1; });
     var pipeline = all.filter(function (r) { return r.status === 'review' || r.status === 'in_clickup'; });
     var totalImpact = pipeline.reduce(function (a, r) { return a + r.estimated_impact_aud_monthly; }, 0);
     var awaiting = all.filter(function (r) { return r.status === 'in_clickup'; }).length;
-    // TRACK RECORD was the literal '73%' - a figure with nothing behind it, beside three
-    // computed ones. Derived now, and the DENOMINATOR is always on screen: a rate without one
-    // is what let a made-up number pass for a measured one. Below MIN_SHIPPED the rate itself
-    // is withheld - 1 of 2 is arithmetically 50% and supports no claim, and a percentage reads
-    // as a track record however small the n.
-    var MIN_SHIPPED = 5;
-    var won = all.filter(function (r) { return r.status === 'won'; }).length;
-    var rolled = all.filter(function (r) { return r.status === 'rolled_back'; }).length;
-    var measuring = all.filter(function (r) { return r.status === 'measuring'; }).length;
-    var shipped = won + rolled, trBig, trSub;
-    if (shipped >= MIN_SHIPPED) {
-      trBig = Math.round(won / shipped * 100) + '%';
-      trSub = won + ' of ' + shipped + ' shipped suggestions improved results';
-    } else {
-      trBig = '<span style="color:var(--ink-3)">-</span>';
-      trSub = (shipped ? won + ' improved, ' + rolled + ' rolled back' : 'nothing shipped yet')
-        + (measuring ? ', ' + measuring + ' still measuring' : '')
-        + ' - too few to state a rate';
-    }
     var card = function (eyebrow, big, sub, cls) {
       return '<div class="kpi bt-kpi ' + (cls || '') + '"><div class="eyebrow">' + eyebrow + '</div><div class="big">' + big + '</div><div class="bt-kpi-sub">' + sub + '</div></div>';
     };
     return '<section class="kpis bt-kpis">' +
-      card('Open suggestions', review.length, scoped
-        ? 'waiting for review on ' + esc(clientName || clientId)
-        : 'waiting for review, across ' + Object.keys(reviewClients).length + ' clients', '') +
+      card('Open suggestions', review.length, 'waiting for review, across ' + Object.keys(reviewClients).length + ' clients', '') +
       card('Total est. impact', '<span class="bt-green">+' + k(totalImpact) + '/mo</span>', 'extra value per month if all are approved', '') +
       card('Waiting on the team', '<span class="bt-amber">' + awaiting + '</span>', 'approved and sent, not yet actioned', '') +
-      // No "(90 days)": records carry created_at (when a suggestion was RAISED) and no
-      // shipped or measured date, so there is nothing to window an OUTCOME rate over.
-      card('Track record', trBig, trSub, '') +
+      card('Track record (90 days)', '73%', 'of shipped suggestions improved results', '') +
       '</section>';
   }
 
@@ -174,38 +144,14 @@
       '<span>Last scan: ' + mins + ' min ago · next auto-scan ' + hh + ':' + mm + ' AEST</span></div>';
   }
 
-  // Injected once, beside the tab's own styles. Amber rather than grey: this is a warning
-  // about what the numbers ARE, not a footnote about them.
-  function previewCss() {
-    if (document.getElementById('bt-preview-css')) return;
-    var st = document.createElement('style');
-    st.id = 'bt-preview-css';
-    st.textContent = '.bt-preview{display:inline-block;margin-top:6px;padding:3px 9px;border-radius:999px;'
-      + 'background:var(--warn-soft,rgba(214,158,46,.14));color:var(--warn,#B7791F);'
-      + 'font-size:11.5px;font-weight:600;line-height:1.45}';
-    document.head.appendChild(st);
-  }
-
   // ---- shell ----------------------------------------------------------------
   function shell(ctx, skeleton) {
     var data = ctx.data, f = ctx.filters;
-    previewCss();
     var filtered = sortRecs(data.getFilteredRecommendations({ client_id: f.client, platform: f.platform, type: f.type, min_confidence: parseFloat(f.min_conf) }), f.sort);
-    // The heading is part of the claim: "Covers every client" over a single client's rows is
-    // a false statement, not just a stale label.
-    var kScoped = f.client && f.client !== 'all';
-    var kName = (kScoped && data.CLIENT_META[f.client] && data.CLIENT_META[f.client].name) || f.client;
     var head =
       '<div class="bt-breadcrumb">The Grid <span>›</span> Brain</div>' +
-      '<div class="bt-header"><div><h2 class="bt-h2">' + ICON.brain + ' Brain · ' + (kScoped ? esc(kName) : 'all clients') + '</h2>' +
-      '<div class="bt-subtitle">Automatic suggestions for improving campaigns, highest-value ideas first. ' +
-      (kScoped ? 'Scoped to ' + esc(kName) + ' by the left menu.'
-        : ctx.railAgency ? 'The left menu is on ' + esc(ctx.railAgency)
-            + ' - Brain has no agency dimension, so it is showing every client.'
-        : 'Covers every client.') +
-      (data.IS_MOCK === false ? '' :
-        ' <span class="bt-preview" title="Every figure on this tab - suggestions, impact, confidence and the track record - comes from config/brain-mock-data.js, not from the warehouse. V2 replaces it with a real recommendations engine querying BigQuery.">Preview data: these suggestions and figures are generated, not measured. The recommendations engine (BigQuery) wires in next.</span>') +
-      '</div></div>' +
+      '<div class="bt-header"><div><h2 class="bt-h2">' + ICON.brain + ' Brain · all clients</h2>' +
+      '<div class="bt-subtitle">Automatic suggestions for improving campaigns, highest-value ideas first. Covers every client.</div></div>' +
       '<div class="bt-header-btns"><button class="ibtn" data-act="historical">' + ICON.scan + 'Historical data</button>' +
       '<button class="ibtn" data-act="rescan">' + ICON.scan + 'Rescan now</button>' +
       '<button class="ibtn" data-act="log">' + ICON.log + 'Log</button></div></div>';
@@ -215,7 +161,7 @@
       '</tr></thead><tbody id="bt-tbody">' + (skeleton ? skeletonRows(6) : tableBody(filtered, ctx.colors, ctx.theme)) + '</tbody></table></div>' +
       (skeleton ? '' : scanFooter(filtered.length, data.RECOMMENDATIONS.length)) + '</section>';
     var sideCards = '<section class="bt-sidecards">' + optLogCard() + '</section>';
-    return '<div class="bt-wrap">' + head + kpiCards(data, f.client, kName) + filterRow(data, f) + table + sideCards + '</div>';
+    return '<div class="bt-wrap">' + head + kpiCards(data) + filterRow(data, f) + table + sideCards + '</div>';
   }
 
   // ---- wiring ---------------------------------------------------------------

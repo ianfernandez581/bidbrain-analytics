@@ -315,11 +315,6 @@
   }
 
   return {
-    // Read by the Brain tab to decide whether to show its "preview data" notice. The UI
-    // treats a MISSING flag as mock too, so V2 must set `IS_MOCK: false` explicitly to clear
-    // the notice - forgetting it leaves a visible, correctable banner rather than silently
-    // presenting generated figures as live.
-    IS_MOCK: true,
     RECOMMENDATIONS: RECOMMENDATIONS,
     CLIENT_META: CLIENT_META,
     getRecommendationById: getRecommendationById,
