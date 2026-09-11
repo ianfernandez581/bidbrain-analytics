@@ -197,6 +197,14 @@ LinkedIn's certified attribution partners, so no app configuration on our side u
 export stays manual; everything after it does not. If access is ever granted, keep
 `tal_parse.normalise()` and swap the caller — the API's field names are already accepted as aliases.
 
+**Top-N control (2026-09-11, client: "which accounts are the Top 25-50 engagers"):** a `Top 25 /
+Top 50 / All` selector above the table, defaulting to **25**. It drives the **workbook as well as the
+screen** - a report headed "Top 25" that shipped every matched company is exactly the kind of file
+that gets forwarded to a client - so `talPayload()` sends `talRows()`, the `.xlsx` filename carries
+`_Top25`, and the cover subtitle states the selection and the full matched total. `TAL_ONSCREEN` (250)
+survives as a hard DOM ceiling under `All`, so a 1,629-row export cannot paint 1,629 rows. The rows
+arrive already sorted by paid impressions, so top-N is a slice, not a re-sort.
+
 The parser (`dash/tal_parse.py`) is deliberately tolerant: it accepts `.csv` and `.xlsx`, finds the
 header row by content (Campaign Manager prefixes a variable number of metadata lines), matches
 headers on a squashed key so "Paid Impressions" / "paid impressions" / "paidImpressions" all land in
@@ -343,6 +351,45 @@ and the delimiter, so Software First's retargeting ad set was reported as `Unspe
 `stg_linkedin.tactic` is the **single definition**: `05_linkedin_adsets` reads its `phase` from it
 rather than re-deriving the ladder, so the staff Reports tab and the delivery tables can never
 disagree about which stage an ad set sits in.
+
+### Channel phase is ONE label on screen (2026-09-11, client)
+The client reads the plan as a single dimension - "LinkedIn Awareness", "Trade Desk Consideration",
+"LinkedIn Retargeting" - so the **Channel phase performance** table (Overview) and **Campaign x
+channel phase** (Campaigns) print `<channel> - <line item>` in one column instead of two. It is a
+**presentation change only**: `tactic` and `platform` stay two separate dimensions in `sql/`,
+`job/main.py`, the payload, both CSV exports and the deck's `paid.by_line_item`, and every filter,
+chip and chart keys off them unchanged. The labels are built from aggregate keys that exist in the
+filtered rows, so a channel-phase combination with no delivery is never printed.
+
+`phaseLabel()` / `phasePill()` in `dash/dashboard.html` are the single definition; the pill takes the
+**line item's** colour so a row still reads against the line-item chips and the stacked chart.
+
+Enterprise IT's `Unspecified` rows now carry their explanation on BOTH tables, not just Campaigns:
+`tacticFootnotes()` is keyed on campaign, so the Overview table builds a campaign-grain aggregate
+(`ctCamp`) purely to feed it. The note names the verticals (Healthcare, Finance, Retail, Education,
+Manufacturing, Generic, Hero), because "Unspecified" without that reads as missing data.
+
+### Creative-tab axis labels are computed, never hardcoded (2026-09-11)
+The four Creative charts were unreadable on real data: `crLiConcept` plotted FULL AD COPY sentences
+as rotated x-axis labels that overlapped into a smear, `crTtdConcept` lost its distinguishing tail
+because every Enterprise IT creative shares the prefix `SE_EntIT_2026_`, and `crTopCtr` truncated
+from the FRONT, chopping off the brief and market - the worst end to cut.
+
+One shared helper set fixes all three: `labelPrefix()` computes the LONGEST COMMON PREFIX over the
+labels **in the current selection**, cut back to a `_`/`-`/space boundary and only applied when it
+is >=8 chars and every label keeps >=4 chars of tail; `clipEnd()` truncates the TAIL; `axisLabelSet()`
+combines them; `fullTitleCb()` restores the untruncated string via `plugins.tooltip.callbacks.title`
+(the ONLY safe home for a function - see the Chart.js v4 scriptable-option trap in `md/AGENTS.md`).
+**Never hardcode the prefix.** It is derived per render because 2463 and 2305 name their creatives
+completely differently, so a literal `SE_EntIT_2026_` would do nothing for them; when labels share
+no meaningful prefix, nothing is stripped. `labelNote()` names the removed prefix in the card hint
+so a shortened label is not mistaken for the real creative name.
+
+`crLiConcept` is now `indexAxis:'y'` (ad copy needs its own line; a prefix strip buys nothing on a
+sentence) with the wrap at 360px. `autoSkip:false` is set on the category axis of all three - Chart.js
+defaults it ON and will drop every other LABEL while still drawing every BAR, which is the same
+defect `md/AGENTS.md` records for `client_schneider`'s flight gantt. `crTtdFormat` was left alone:
+banner sizes are short labels with no shared prefix.
 
 ### Stated line items - when no name carries the stage (2026-09-03, agency)
 Brief 2305's LinkedIn **Conversion** line is the landing-page A/B test

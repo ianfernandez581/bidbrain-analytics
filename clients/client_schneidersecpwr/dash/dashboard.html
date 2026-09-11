@@ -362,6 +362,11 @@
   .card .hint{font-size:11.5px;color:var(--se-mute);margin:4px 0 10px 0}
   .card-tall .chart-wrap{height:300px}
   .chart-wrap{position:relative;flex:1;min-height:170px}
+  /* Empty states HIDE the canvas, they never replace it - overwriting a chart-wrap's innerHTML
+     deletes the <canvas> for the rest of the session, so the chart never comes back when the
+     filter is widened again and the next new Chart(null, ...) throws. See md/AGENTS.md. */
+  .chart-empty{display:flex;align-items:center;justify-content:center;height:100%;min-height:170px;
+    padding:40px 10px;text-align:center;color:var(--se-mute);font-size:12.5px}
   .chart-wrap::before{content:"";position:absolute;inset:0;pointer-events:none;border-radius:10px;
     background:radial-gradient(62% 62% at 50% 42%,rgba(0,149,48,.10),transparent 72%)}
   .chartctrls{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
@@ -702,7 +707,7 @@
         <div class="tabs-right">
           <span class="ctrl-note" id="ctrlNote">&nbsp;</span>
           <div class="exports">
-            <button class="export-btn" onclick="exportThisTab()" title="Download the rows behind this tab (honors the market & date filters) as CSV">
+            <button class="export-btn" onclick="exportThisTab()" title="Download the rows behind this tab (campaign, channel, line-item, market and date filters all applied) as CSV">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
               <span>Export this tab</span>
             </button>
@@ -774,9 +779,9 @@
         <table id="pmPlatTable"><thead><tr><th>Channel</th><th class="num">Spend</th><th class="num">Imps</th><th class="num">Clicks</th><th class="num">CTR</th><th class="num">CPM</th><th class="num">CPC</th></tr></thead><tbody></tbody></table>
       </div></div>
 
-      <div class="section" id="pmTacticSec"><h2 style="font-size:15px">Line item performance</h2><span class="sub">Every <b>media-plan line item</b> on the engine that carried it - the funnel stage each ad set was bought against. Awareness runs on both engines, so it appears once per engine, exactly as the plan books it.</span></div>
+      <div class="section" id="pmTacticSec"><h2 style="font-size:15px">Channel phase performance</h2><span class="sub">Every <b>media-plan line item</b> on the engine that carried it, read as one label: LinkedIn Awareness, Trade Desk Consideration, and so on. Awareness runs on both engines, so it appears once per engine, exactly as the plan books it.<span id="pmTacticNote"></span></span></div>
       <div class="card" id="pmTacticCard" style="margin-top:14px"><div style="overflow:auto">
-        <table id="pmTacticTable"><thead><tr><th>Line item</th><th>Channel</th><th class="num">Spend</th><th class="num">Imps</th><th class="num">Clicks</th><th class="num">CTR</th><th class="num">CPM</th><th class="num">CPC</th></tr></thead><tbody></tbody></table>
+        <table id="pmTacticTable"><thead><tr><th>Channel phase</th><th class="num">Spend</th><th class="num">Imps</th><th class="num">Clicks</th><th class="num">CTR</th><th class="num">CPM</th><th class="num">CPC</th></tr></thead><tbody></tbody></table>
       </div></div>
 
       <div class="section"><h2 style="font-size:15px">Spend &amp; geography</h2><span class="sub">Where the media budget went - by channel and by market (AUD).</span></div>
@@ -796,12 +801,12 @@
         <span class="sub">How the individual ads performed. <b>LinkedIn</b> ran 3 single-image message concepts; <b>The Trade Desk</b> ran 4 display concepts across 3 banner sizes. Reflects the selected markets &amp; date range.</span>
       </div>
       <div class="grid">
-        <div class="card card-tall"><h3>LinkedIn - message concepts</h3><div class="hint">Impressions &amp; clicks by ad message.</div><div class="chart-wrap"><canvas id="crLiConcept"></canvas></div></div>
-        <div class="card card-tall"><h3>Trade Desk - display concepts</h3><div class="hint">Impressions &amp; clicks by creative concept.</div><div class="chart-wrap"><canvas id="crTtdConcept"></canvas></div></div>
+        <div class="card card-tall"><h3>LinkedIn - message concepts</h3><div class="hint">Impressions &amp; clicks by ad message. Bars run horizontally because the labels are ad copy, not names. <span id="crLiConceptNote"></span></div><div class="chart-wrap" style="height:360px"><canvas id="crLiConcept"></canvas><div class="chart-empty" id="crLiConceptEmpty" style="display:none">No LinkedIn creatives in the current filter.</div></div></div>
+        <div class="card card-tall"><h3>Trade Desk - display concepts</h3><div class="hint">Impressions &amp; clicks by creative concept. <span id="crTtdConceptNote"></span></div><div class="chart-wrap"><canvas id="crTtdConcept"></canvas><div class="chart-empty" id="crTtdConceptEmpty" style="display:none">No Trade Desk creatives in the current filter.</div></div></div>
       </div>
       <div class="grid">
-        <div class="card card-tall"><h3>Trade Desk - banner format mix</h3><div class="hint">Share of impressions by ad size.</div><div class="chart-wrap"><canvas id="crTtdFormat"></canvas></div></div>
-        <div class="card card-tall"><h3>Best-performing creatives</h3><div class="hint">Top creatives by CTR (min 1,000 impressions).</div><div class="chart-wrap"><canvas id="crTopCtr"></canvas></div></div>
+        <div class="card card-tall"><h3>Trade Desk - banner format mix</h3><div class="hint">Share of impressions by ad size.</div><div class="chart-wrap"><canvas id="crTtdFormat"></canvas><div class="chart-empty" id="crTtdFormatEmpty" style="display:none">No Trade Desk display data in the current filter.</div></div></div>
+        <div class="card card-tall"><h3>Best-performing creatives</h3><div class="hint">Top creatives by CTR (min 1,000 impressions). <span id="crTopCtrNote"></span></div><div class="chart-wrap"><canvas id="crTopCtr"></canvas><div class="chart-empty" id="crTopCtrEmpty" style="display:none">Not enough impressions yet. Creatives need 1,000 impressions to be ranked by CTR.</div></div></div>
       </div>
       <div class="section"><h2 style="font-size:15px">Creative detail</h2><span class="sub">Every creative for the selected markets. Click a header to sort; search to filter.</span></div>
       <div class="card" style="margin-top:14px"><div style="overflow:auto">
@@ -822,7 +827,7 @@
         <table id="campPlatTable"><thead><tr><th>Campaign</th><th>Channel</th><th class="num">Spend</th><th class="num">Imps</th><th class="num">Clicks</th><th class="num">CTR</th><th class="num">CPM</th><th class="num">CPC</th></tr></thead><tbody></tbody></table>
       </div></div>
 
-      <div class="section" id="campTacticSec"><h2 style="font-size:15px">Campaign x line item</h2><span class="sub">Each brief split by <b>media-plan line item</b> and the engine that carried it.<span id="campTacticNote"></span></span></div>
+      <div class="section" id="campTacticSec"><h2 style="font-size:15px">Campaign x channel phase</h2><span class="sub">Each brief split by <b>media-plan line item</b> and the engine that carried it, read as one label.<span id="campTacticNote"></span></span></div>
       <div class="card" id="campTacticCard" style="margin-top:14px"><div style="overflow:auto">
         <table id="campTacticTable"><thead></thead><tbody></tbody></table>
       </div></div>
@@ -1276,7 +1281,7 @@ const MS={
     const L=MS.list();
     if(ev.key==='ArrowDown'){ ev.preventDefault(); MS.show(); MS.hi=Math.min(MS.hi+1,L.length-1); MS.render(); }
     else if(ev.key==='ArrowUp'){ ev.preventDefault(); MS.hi=Math.max(MS.hi-1,-1); MS.render(); }
-    else if(ev.key==='Enter'){ ev.preventDefault(); if(ev.metaKey||ev.ctrlKey||MS.hi<0||!L[MS.hi]) MS.apply(); else MS.tog(L[MS.hi].id); }
+    else if(ev.key==='Enter'){ ev.preventDefault(); if(ev.metaKey||ev.ctrlKey||MS.hi<0||!L[MS.hi]) MS.apply(); else MS.tog(L[MS.hi].key); }
     else if(ev.key==='Escape'){ ev.preventDefault(); MS.cancel(); }
     else if(ev.key==='Backspace' && !MS.q){ const s=campKeys().filter(id=>MS.scope().has(id)); if(s.length>1) MS.tog(s[s.length-1]); }
   },
@@ -1302,7 +1307,7 @@ const MS={
         +(hid.length?`<button type="button" class="ms-more" data-more="1" title="${esc(hid.map(c=>c.label).join(', '))}">+${hid.length}</button>`:'');
       tags.querySelectorAll('[data-rm]').forEach(x=>x.onclick=ev=>{ ev.stopPropagation();
         // Closed = a direct edit, so it commits; open = a draft edit like every other tick.
-        if(MS.open) MS.tog(x.getAttribute('data-rm')); else if(!locked) toggleProgram(x.getAttribute('data-rm')); });
+        if(MS.open) MS.tog(x.getAttribute('data-rm')); else if(!locked) toggleCampaign(x.getAttribute('data-rm')); });
       const more=tags.querySelector('[data-more]'); if(more) more.onclick=ev=>{ ev.stopPropagation(); MS.showAll=true; MS.render(); };
     }
     if(inp) inp.placeholder = sel.length?'':'Select campaigns';
@@ -1360,8 +1365,18 @@ function setScope(keys){
   activeCampaigns=new Set(keep);
   activeMarkets = new Set(marketRoster());
   activeTactics = new Set(tacticRoster());
+  // ...and the CHANNEL chips, for the same reason plus a worse failure mode. The chip row only
+  // renders the engines the selected scope actually ran and hides itself when one is left, so
+  // ticking LinkedIn only and then scoping to a Trade-Desk-only brief left every tab reading
+  // "No delivery in the current filter" with the control that caused it off the screen. An empty
+  // set means "all channels", so the incoming scope always starts fully open.
+  activeChannels = new Set();
   renderControls(); renderActive();
 }
+// Removing a tag's x while the popover is CLOSED is a direct edit, so it commits straight away -
+// every path still funnels through setScope(), which is what keeps the last campaign un-removable
+// and the market / line-item / channel rosters in step with the new scope.
+function toggleCampaign(k){ const s=new Set(activeCampaigns); s.has(k)?s.delete(k):s.add(k); setScope([...s]); }
 function setCampaign(v){ (!v||v===ALL_CAMPAIGNS)?setScope(campKeys()):setScope([v]); }   // legacy entry point
 // The markets worth showing for the current selection: the campaign's own when one is picked,
 // otherwise the full vocabulary.
@@ -1409,6 +1424,11 @@ function renderControls(){
     .filter(r=>campOk(r.campaign) && marketOk(r.market) && inRangeDate(r.date))
     .map(r=>r.platform));
   const shownPlats=PLATFORMS.filter(p=>livePlats.has(p.key));
+  // The same dead-end setScope() guards against can also be reached by narrowing MARKETS or the DATE
+  // RANGE: those shrink the roster too, and once the group hides itself there is no visible control
+  // left to undo the channel filter. If nothing on offer is ticked, re-open them all rather than
+  // leave the page blank with no way back.
+  if(activeChannels.size && shownPlats.length && !shownPlats.some(p=>platOk(p.key))) activeChannels=new Set();
   shownPlats.forEach(p=>{ const on=platOk(p.key);
     const b=document.createElement('button');
     b.className='chip'+(on?' on':'');
@@ -1498,7 +1518,7 @@ function tacticFootnotes(keys, agg){
   // row that is not its own (which is what this note did until 2026-09-03).
   const unspec=campsOn('Unspecified');
   if(unspec.includes('ent_it'))
-    notes.push('Enterprise IT names its ad sets by vertical rather than funnel stage, so its delivery sits under <i>Unspecified</i> - that is how the brief is built, not a gap in the data.');
+    notes.push('Brief 1958, Enterprise IT, names its ad sets by industry vertical (Healthcare, Finance, Retail, Education, Manufacturing, Generic and Hero) rather than by funnel stage, so its delivery sits under <i>Unspecified</i>. That is a true description of how the brief is built, not missing data.');
   unspec.filter(c=>c!=='ent_it').forEach(c=>
     notes.push(`${campLabel(c)} has delivery whose ad-set names carry no funnel-stage token, so it sits under <i>Unspecified</i> until that line item is confirmed.`));
   // Software First's Conversion line is the landing-page A/B test (Expert page vs Interactive Demo):
@@ -1509,6 +1529,15 @@ function tacticFootnotes(keys, agg){
   if(sfConv.length && !sfConv.some(k=>hasForm(agg[k])))
     notes.push('Software First\'s <i>Conversion</i> line is the landing-page A/B test (Expert page vs Interactive Demo) - a website-conversion buy with no lead form. LinkedIn\'s on-site conversion count is not carried in this feed, so the line reports reach, clicks and cost only.');
   return notes.length ? ' '+notes.join(' ') : '';
+}
+// The client reads the plan as ONE dimension: "LinkedIn Awareness", "Trade Desk Consideration".
+// Channel and line item stay separate in the model (sql -> job -> payload -> CSV -> deck all keep
+// both); this is only how the two line-item tables label a row. Built from aggregate keys that
+// exist, so a combination with no delivery is never printed.
+function phaseLabel(platform, tactic){ return `${PLAT_LABEL[platform]||platform} - ${tactic}`; }
+// Coloured by the LINE ITEM, so a row reads against the line-item chips and the stacked chart.
+function phasePill(platform, tactic){
+  return `<span class="pill"><span class="dot" style="background:${tacticColor(tactic)}"></span>${esc(phaseLabel(platform,tactic))}</span>`;
 }
 function platPill(p){ return `<span class="pill"><span class="dot" style="background:${p==='linkedin'?C.li:C.td}"></span>${PLAT_LABEL[p]||p}</span>`; }
 // Sort a set of "<tactic>||<platform>" keys down the funnel, then by channel - never by volume, so
@@ -1558,6 +1587,7 @@ function renderOverview(){
   // but this dashboard could only break delivery down by channel, so this table is the plan's own
   // view of itself. Sorted down the funnel, not by spend - see tacticKeysInFunnelOrder().
   const ct=aggBy(rows, r=>(r.tactic||'Unspecified')+'||'+r.platform);
+  const ctCamp=aggBy(rows, r=>r.campaign+'||'+(r.tactic||'Unspecified')+'||'+r.platform);
   const ctk=tacticKeysInFunnelOrder(Object.keys(ct));
   // Hide the whole section when there is only one line item to show: a single-row "breakdown" that
   // just restates the totals above it is noise (Enterprise IT on its own is exactly that).
@@ -1566,9 +1596,13 @@ function renderOverview(){
   el('pmTacticCard').style.display = oneLine ? 'none' : '';
   const ltb=el('pmTacticTable').querySelector('tbody');
   ltb.innerHTML = ctk.length ? ctk.map(k=>{ const [tk,pk]=k.split('||');
-      return `<tr><td>${tacticPill(tk)}</td><td>${platPill(pk)}</td>${effCells(ct[k])}</tr>`; }).join('')
-      + `<tr class="total"><td>Combined</td><td></td><td class="num">${money(t.spend)}</td><td class="num">${fmtN(t.imps)}</td><td class="num">${fmtN(t.clk)}</td><td class="num">${fmtPct(ctr,2)}</td><td class="num">${money(cpm,2)}</td><td class="num">${money(cpc,2)}</td></tr>`
-    : `<tr><td colspan="8" style="text-align:center;color:var(--se-mute);padding:14px">No delivery in the current filter.</td></tr>`;
+      return `<tr><td>${phasePill(pk,tk)}</td>${effCells(ct[k])}</tr>`; }).join('')
+      + `<tr class="total"><td>Combined</td><td class="num">${money(t.spend)}</td><td class="num">${fmtN(t.imps)}</td><td class="num">${fmtN(t.clk)}</td><td class="num">${fmtPct(ctr,2)}</td><td class="num">${money(cpm,2)}</td><td class="num">${money(cpc,2)}</td></tr>`
+    : `<tr><td colspan="7" style="text-align:center;color:var(--se-mute);padding:14px">No delivery in the current filter.</td></tr>`;
+  // H: the same per-brief footnotes the Campaigns tab carries, so an 'Unspecified' row is explained
+  // wherever it is shown. tacticFootnotes() is keyed on campaign, so it needs the campaign-grain
+  // aggregate, not this table's own.
+  el('pmTacticNote').innerHTML = tacticFootnotes(Object.keys(ctCamp), ctCamp);
 
   // delivery over time chart
   const m={};
@@ -1626,36 +1660,113 @@ function wireKpiToggles(){
 // CREATIVE
 //==============================================================================
 function conceptAgg(platform){ const o={}; crRows().filter(r=>r.platform===platform).forEach(r=>{ const e=o[r.concept]||(o[r.concept]={imps:0,clk:0,spend:0}); e.imps+=r.imps||0; e.clk+=r.clicks||0; e.spend+=r.spend_aud||0; }); return o; }
-function conceptBar(canvasId, agg){
+
+// ---- AXIS LABEL LEGIBILITY (one treatment, three charts) -------------------------------------
+// Creative and concept names here share a long brief prefix (SE_EntIT_2026_...) that eats the axis
+// width and squeezes out the distinguishing tail. Strip the prefix the labels in the CURRENT
+// selection actually share, computed at render time - never a hardcoded token, because the other
+// two briefs (2463 Industrial Edge, 2305 Software First) name their creatives nothing like this
+// one, so a literal would protect exactly one brief. Ported from client_sophiie's
+// computeCreativePrefix(). If the labels share nothing substantial, nothing is stripped.
+function labelPrefix(names){
+  const ns=[...new Set(names.filter(Boolean).map(String))];
+  if(ns.length<2) return '';
+  let p=ns[0];
+  for(const nm of ns.slice(1)){ let i=0; while(i<p.length&&i<nm.length&&p[i]===nm[i]) i++; p=p.slice(0,i); if(!p) break; }
+  const cut=Math.max(p.lastIndexOf('_'),p.lastIndexOf('-'),p.lastIndexOf(' '));
+  p = cut>0 ? p.slice(0,cut+1) : '';
+  // worth stripping only if it is substantial AND every label keeps a usable remainder
+  return (p.length>=8 && ns.every(nm=>nm.length-p.length>=4)) ? p : '';
+}
+// ALWAYS clip the TAIL, never the head: the front of these names carries the brief and the market,
+// which is the part a reader needs to tell two creatives apart.
+function clipEnd(v,max){ const t=String(v==null?'-':v); return t.length>max ? t.slice(0,max-1).replace(/[\s_\-]+$/,'')+'…' : t; }
+function axisLabelSet(fulls,max){
+  const full=fulls.map(v=>String(v==null?'-':v));
+  const pre=labelPrefix(full);
+  return { full, prefix:pre,
+           short: full.map(t=>clipEnd(pre&&t.startsWith(pre)?t.slice(pre.length):t, max)) };
+}
+// CHART.JS v4: a function may NEVER sit directly under options.plugins.<name> - it is treated as a
+// scriptable option, auto-invoked, throws, and silently blanks the whole chart. tooltip.callbacks
+// is the one safe home for one, which is why the untruncated name is restored there.
+function fullTitleCb(full){ return items=>full[items[0].dataIndex] || items[0].label; }
+// Say on screen that a name was shortened. A silently-trimmed label is indistinguishable from a
+// creative that is genuinely named that way.
+function labelNote(noteId, L, what){
+  const e=el(noteId); if(!e) return;
+  const bits=[];
+  if(L.prefix) bits.push('Shared prefix <code>'+esc(L.prefix)+'</code> removed from every '+what+'.');
+  if(L.short.some((t,i)=>t!==L.full[i])) bits.push('Long names are trimmed at the end.');
+  e.innerHTML = bits.length ? bits.join(' ')+' Hover a bar for the full name.' : '';
+}
+
+function conceptBar(canvasId, agg, opts){
+  opts=opts||{};
+  const horizontal=!!opts.horizontal;
+  const max=opts.maxLen||(horizontal?46:22);
   const keys=Object.keys(agg).sort((a,b)=>agg[b].imps-agg[a].imps);
-  charts[canvasId]=new Chart(el(canvasId),{ data:{ labels:keys, datasets:[
-    {type:'bar',label:'Impressions',data:keys.map(k=>agg[k].imps),backgroundColor:'#3E6396',borderRadius:3,yAxisID:'y',maxBarThickness:44},
-    {type:'line',label:'Clicks',data:keys.map(k=>agg[k].clk),borderColor:'#C4902E',backgroundColor:'#C4902E',borderWidth:2,pointRadius:3,tension:.3,yAxisID:'y1'} ]},
-    options:{ maintainAspectRatio:false, plugins:{legend:legendTop(),tooltip:{callbacks:{label:c=>` ${c.dataset.label}: ${fmtN(c.parsed.y)}`}}},
-      scales:{ x:axisX({ticks:{color:C.mute,font:{size:10},maxRotation:24,minRotation:0}}), y:gridY({ticks:{callback:v=>fmtM(v)}}), y1:{position:'right',grid:{display:false},border:{display:false},ticks:{color:C.mute,font:{size:10},callback:v=>fmtN(v)}} } } });
+  const L=axisLabelSet(keys,max);
+  labelNote(opts.noteId, L, opts.what||'label');
+  const bar={type:'bar',label:'Impressions',data:keys.map(k=>agg[k].imps),backgroundColor:'#3E6396',borderRadius:3,maxBarThickness:44};
+  const line={type:'line',label:'Clicks',data:keys.map(k=>agg[k].clk),borderColor:'#C4902E',backgroundColor:'#C4902E',borderWidth:2,pointRadius:3,tension:.3};
+  if(horizontal){ bar.xAxisID='x'; line.xAxisID='x1'; } else { bar.yAxisID='y'; line.yAxisID='y1'; }
+  // autoSkip:false everywhere on the category axis. Chart.js drops every other LABEL while still
+  // drawing every BAR, which reads as a chart that lost its axis (the client_schneider flight
+  // gantt defect in md/AGENTS.md).
+  const cat = horizontal
+    ? axisX({ticks:{color:C.ink,font:{size:10.5,...FONT},autoSkip:false}})
+    : axisX({ticks:{color:C.mute,font:{size:10,...FONT},autoSkip:false,maxRotation:45,minRotation:45}});
+  const valueAxis=gridY({ticks:{color:C.mute,font:{size:10,...FONT},callback:v=>fmtM(v)}});
+  const clickAxis={position:horizontal?'top':'right',grid:{display:false},border:{display:false},ticks:{color:C.mute,font:{size:10,...FONT},callback:v=>fmtN(v)}};
+  charts[canvasId]=new Chart(el(canvasId),{ data:{ labels:L.short, datasets:[bar,line] },
+    options:{ indexAxis:horizontal?'y':'x', maintainAspectRatio:false,
+      plugins:{ legend:legendTop(), tooltip:{callbacks:{
+        title:fullTitleCb(L.full),
+        label:c=>` ${c.dataset.label}: ${fmtN(horizontal?c.parsed.x:c.parsed.y)}` }} },
+      scales: horizontal
+        ? { y:cat, x:valueAxis, x1:clickAxis }
+        : { x:cat, y:valueAxis, y1:clickAxis } } });
+}
+// Toggle a canvas against its sibling empty state. NEVER touch the parent's innerHTML: that
+// removes the <canvas> permanently, so the card stays dead for the rest of the session.
+function chartEmpty(id, empty){
+  const c=el(id), e=el(id+'Empty');
+  if(c) c.style.display = empty ? 'none' : '';
+  if(e) e.style.display = empty ? 'flex' : 'none';
+  return !empty;
 }
 function renderCreative(){
   const li=conceptAgg('linkedin'), ttd=conceptAgg('tradedesk');
-  if(Object.keys(li).length) conceptBar('crLiConcept', li); else el('crLiConcept').parentElement.innerHTML='<div style="padding:40px 10px;text-align:center;color:var(--se-mute);font-size:12.5px">No LinkedIn creatives in the selected markets.</div>';
-  if(Object.keys(ttd).length) conceptBar('crTtdConcept', ttd); else el('crTtdConcept').parentElement.innerHTML='<div style="padding:40px 10px;text-align:center;color:var(--se-mute);font-size:12.5px">No Trade Desk creatives in the selected markets.</div>';
+  // LinkedIn concepts are AD COPY, not names, so a shared-prefix strip buys nothing and a rotated
+  // sentence is an illegible smear. Horizontal bars give each sentence a full line; colours,
+  // series and axes are unchanged.
+  if(chartEmpty('crLiConcept', !Object.keys(li).length)) conceptBar('crLiConcept', li, {horizontal:true, maxLen:42, noteId:'crLiConceptNote', what:'message'});
+  if(chartEmpty('crTtdConcept', !Object.keys(ttd).length)) conceptBar('crTtdConcept', ttd, {maxLen:22, noteId:'crTtdConceptNote', what:'creative name'});
 
   // Trade Desk format mix (banner sizes)
   const fmt={}; crRows().filter(r=>r.platform==='tradedesk').forEach(r=>{ fmt[r.format]=(fmt[r.format]||0)+(r.imps||0); });
   const fk=Object.keys(fmt).sort((a,b)=>fmt[b]-fmt[a]);
-  if(fk.length){
+  if(chartEmpty('crTtdFormat', !fk.length)){
     charts.crTtdFormat=new Chart(el('crTtdFormat'),{ type:'doughnut',
       data:{ labels:fk, datasets:[{ data:fk.map(k=>fmt[k]), backgroundColor:fk.map((_,i)=>PROG_PALETTE[i%PROG_PALETTE.length]), borderColor:'#fff', borderWidth:2 }]},
       options:{ maintainAspectRatio:false, cutout:'58%', plugins:{ legend:legendBottom(), bbCenter:{label:'Impressions',color:C.dark,labelColor:C.mute}, tooltip:{callbacks:{label:c=>` ${c.label}: ${fmtN(c.parsed)}`}} } } });
-  } else el('crTtdFormat').parentElement.innerHTML='<div style="padding:40px 10px;text-align:center;color:var(--se-mute);font-size:12.5px">No Trade Desk display data.</div>';
+  }
 
   // best creatives by CTR (min 1000 imps), aggregated by creative_name across markets
-  const byCr={}; crRows().forEach(r=>{ const key=r.platform+'|'+r.concept+'|'+r.format; const e=byCr[key]||(byCr[key]={platform:r.platform,label:(PLAT_LABEL[r.platform]||r.platform)+' · '+r.concept+(r.format&&r.format!=='Single image'?' '+r.format:''),imps:0,clk:0}); e.imps+=r.imps||0; e.clk+=r.clicks||0; });
+  const byCr={}; crRows().forEach(r=>{ const key=r.platform+'|'+r.concept+'|'+r.format; const e=byCr[key]||(byCr[key]={platform:r.platform,concept:r.concept,suffix:(r.format&&r.format!=='Single image'?' '+r.format:''),label:(PLAT_LABEL[r.platform]||r.platform)+' · '+r.concept+(r.format&&r.format!=='Single image'?' '+r.format:''),imps:0,clk:0}); e.imps+=r.imps||0; e.clk+=r.clicks||0; });
   const top=Object.values(byCr).filter(e=>e.imps>=1000).map(e=>({...e,ctr:pct(e.clk,e.imps)})).sort((a,b)=>b.ctr-a.ctr).slice(0,10);
-  if(top.length){
+  if(chartEmpty('crTopCtr', !top.length)){
+    // Same treatment as the concept charts: strip the prefix these creative names share, then clip
+    // the TAIL. The old labels were cut at the FRONT, which removed the brief and market - the only
+    // part that tells two of these apart. Full name restored in the tooltip title.
+    const CL=axisLabelSet(top.map(e=>e.concept), 34);
+    labelNote('crTopCtrNote', CL, 'creative name');
+    const shortLabels=top.map((e,i)=>(PLAT_LABEL[e.platform]||e.platform)+' · '+CL.short[i]+e.suffix);
     charts.crTopCtr=new Chart(el('crTopCtr'),{ type:'bar',
-      data:{ labels:top.map(e=>e.label), datasets:[{ label:'CTR', data:top.map(e=>e.ctr*100), backgroundColor:top.map(e=>e.platform==='linkedin'?C.li:C.td), borderRadius:4, maxBarThickness:22 }]},
-      options:{ indexAxis:'y', maintainAspectRatio:false, plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>` ${c.parsed.x.toFixed(2)}% CTR · ${fmtN(top[c.dataIndex].imps)} imps`}}}, scales:{ x:gridY({ticks:{callback:v=>v.toFixed(1)+'%'}}), y:axisX({ticks:{color:C.ink,font:{size:10.5}}}) } } });
-  } else el('crTopCtr').parentElement.innerHTML='<div style="padding:40px 10px;text-align:center;color:var(--se-mute);font-size:12.5px">Not enough impressions yet.</div>';
+      data:{ labels:shortLabels, datasets:[{ label:'CTR', data:top.map(e=>e.ctr*100), backgroundColor:top.map(e=>e.platform==='linkedin'?C.li:C.td), borderRadius:4, maxBarThickness:22 }]},
+      options:{ indexAxis:'y', maintainAspectRatio:false, plugins:{legend:{display:false},tooltip:{callbacks:{title:items=>top[items[0].dataIndex].label,label:c=>` ${c.parsed.x.toFixed(2)}% CTR · ${fmtN(top[c.dataIndex].imps)} imps`}}}, scales:{ x:gridY({ticks:{callback:v=>v.toFixed(1)+'%'}}), y:axisX({ticks:{color:C.ink,font:{size:10.5},autoSkip:false}}) } } });
+  }
 
   // creative detail table
   const rows=crRows().slice().sort((a,b)=>(b.imps||0)-(a.imps||0));
@@ -1713,15 +1824,15 @@ function renderCampaigns(){
   // hasForm() (module scope) decides whether a line shows lead-form ACTIVITY - see its comment.
   const anyLeads=ctckeys.some(k=>hasForm(ctc[k]));
   el('campTacticTable').querySelector('thead').innerHTML =
-    `<tr><th>Campaign</th><th>Line item</th><th>Channel</th><th class="num">Spend</th><th class="num">Imps</th>`
+    `<tr><th>Campaign</th><th>Channel phase</th><th class="num">Spend</th><th class="num">Imps</th>`
     + `<th class="num">Clicks</th><th class="num">CTR</th><th class="num">CPM</th><th class="num">CPC</th>`
     + (anyLeads?`<th class="num" title="LinkedIn on-platform lead-form leads - a paid metric, not Salesforce leads">Lead-form leads</th>`:'')
     + `</tr>`;
   const cttb=el('campTacticTable').querySelector('tbody');
   cttb.innerHTML = ctckeys.length ? ctckeys.map(k=>{ const [ck,tk,pk]=k.split('||'); const x=ctc[k];
-      return `<tr><td>${campLabel(ck)}</td><td>${tacticPill(tk)}</td><td>${platPill(pk)}</td>${effCells(x)}`
+      return `<tr><td>${campLabel(ck)}</td><td>${phasePill(pk,tk)}</td>${effCells(x)}`
            + (anyLeads?`<td class="num">${hasForm(x)?fmtN(x.leads):'-'}</td>`:'') + `</tr>`; }).join('')
-    : `<tr><td colspan="${anyLeads?10:9}" style="text-align:center;color:var(--se-mute);padding:14px">No delivery in the current filter.</td></tr>`;
+    : `<tr><td colspan="${anyLeads?9:8}" style="text-align:center;color:var(--se-mute);padding:14px">No delivery in the current filter.</td></tr>`;
 
   // --- impressions by campaign, stacked by line item ---
   // Only worth drawing when more than one stage is in play; otherwise it is a bar chart of the
@@ -1806,7 +1917,15 @@ let activeReport='targeting';
 let repSample=false;          // preview the targeting layout with illustrative values
 let talData=null;             // parsed Companies export, this session only (never uploaded anywhere)
 let talBusy=false, talError='';
-const TAL_ONSCREEN=250;       // the workbook carries every row; the DOM does not need to
+const TAL_ONSCREEN=250;       // hard DOM ceiling under the top-N control, so "All" can never paint 10k rows
+// "Which accounts are the top 25-50 engagers" (client). The list is already sorted by paid
+// impressions, so top-N is a slice - and it drives the WORKBOOK as well as the screen, because a
+// report headed "Top 25" that ships every matched company is the kind of thing that gets forwarded.
+let talTopN=25;               // 25 | 50 | 0 (= all)
+const TAL_TOPN=[25,50,0];
+function talRows(){ const r=(talData&&talData.rows)||[]; return talTopN?r.slice(0,talTopN):r; }
+function talTopLabel(){ return talTopN?`top ${talTopN}`:'all matched companies'; }
+function setTalTopN(v){ talTopN=Number(v)||0; renderTalReport(); }
 
 // Illustrative targeting, used ONLY behind the "Preview with sample data" toggle so the layout can be
 // checked before the real setup is recorded. Keyed by phase because that is what varies. Everything
@@ -1999,7 +2118,7 @@ function renderTalReport(){
     return;
   }
   const s=talData.summary||{}, rows=talData.rows||[], total=s.total||rows.length;
-  const shown=rows.slice(0,TAL_ONSCREEN);
+  const sel=talRows(), shown=sel.slice(0,TAL_ONSCREEN);
   const lvl=LEVELS.map(l=>{
     const n=(s.by_level||{})[l]||0, p=total?n/total:0;
     return `<tr><td>${l}</td><td class="num">${fmtN(n)}</td><td class="num">${fmtPct(p)}</td>
@@ -2027,7 +2146,11 @@ function renderTalReport(){
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
         <span>Export to Excel</span></button>
       <button class="btn-ghost" onclick="clearTal()">Use a different export</button>
-      <span class="rep-meta">${esc(repScopeLabel())} · ${esc(talData.source_filename||'uploaded export')} · ${fmtN(total)} companies</span>
+      <label class="rep-meta" style="display:inline-flex;align-items:center;gap:6px">Show
+        <select class="dash-select" style="padding:4px 8px" onchange="setTalTopN(this.value)" title="How many of the top engagers to show here and to carry into the workbook">
+          ${TAL_TOPN.map(n=>`<option value="${n}"${n===talTopN?' selected':''}>${n?'Top '+n:'All'}</option>`).join('')}
+        </select></label>
+      <span class="rep-meta">${esc(repScopeLabel())} · ${esc(talData.source_filename||'uploaded export')} · ${fmtN(total)} companies matched</span>
     </div>
     <div class="section"><h2 style="font-size:15px">Summary</h2><span class="sub">Sheet 1 of the workbook.</span></div>
     <div class="grid">
@@ -2045,7 +2168,7 @@ function renderTalReport(){
         ${s.unclassified?`<div class="rep-meta">${fmtN(s.unclassified)} company/ies carry a level this report does not band.</div>`:''}
       </div>
     </div>
-    <div class="section"><h2 style="font-size:15px">Matched companies</h2><span class="sub">Sorted by paid impressions, highest first. Sheet 2 of the workbook.${rows.length>TAL_ONSCREEN?` Showing the top ${TAL_ONSCREEN} on screen; the export carries all ${fmtN(rows.length)}.`:''}</span></div>
+    <div class="section"><h2 style="font-size:15px">Top engagers</h2><span class="sub">Sorted by paid impressions, highest first. Showing the <b>${esc(talTopLabel())}</b> of ${fmtN(total)} matched companies, and the workbook carries the same selection. Sheet 2 of the workbook.${sel.length>TAL_ONSCREEN?` Only the first ${TAL_ONSCREEN} are drawn on screen; the export carries all ${fmtN(sel.length)}.`:''}</span></div>
     <div class="card" style="margin-top:14px"><div style="overflow:auto">
       <table class="bb-sortable"><thead><tr>${cols.map((c,i)=>`<th${i>=3?' class="num"':''}>${c}</th>`).join('')}</tr></thead><tbody>${trs}</tbody></table>
     </div></div>`;
@@ -2112,11 +2235,13 @@ function targetingPayload(){
 function talPayload(){
   const stamp=new Date().toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'});
   return {
-    _filename:`${repFileSlug()}_Matched_TAL_Accounts.xlsx`,
+    _filename:`${repFileSlug()}_Matched_TAL_Accounts${talTopN?'_Top'+talTopN:''}.xlsx`,
     payload:{
       title:`${repScopeBrief()} - Matched TAL Report`,
-      subtitle:`LinkedIn Campaign Manager | Account 517045062 | Prepared ${stamp}`,
-      rows:talData.rows||[], summary:talData.summary||{},
+      // The row selection is stated on the cover line: a workbook holding 25 of 1,400 companies
+      // must never look like the whole list.
+      subtitle:`LinkedIn Campaign Manager | Account 517045062 | ${talTopN?`Top ${talTopN} by paid impressions of ${(talData.summary||{}).total||(talData.rows||[]).length} matched companies`:'All matched companies'} | Prepared ${stamp}`,
+      rows:talRows(), summary:talData.summary||{},
     }};
 }
 
@@ -2136,8 +2261,20 @@ function exportThisTab(){
     crRows().forEach(r=>rows.push([campLabel(r.campaign),r.tactic||'',r.platform,r.concept,r.format,r.market,r.imps,r.clicks,pct(r.clicks,r.imps),r.spend_aud]));
     dl('secpwr_creative.csv',rows);
   } else {
+    // Built from pmRows(), NOT from the payload's whole-flight campaign totals: those ignore the
+    // market, channel, line-item and date filters, so the file disagreed with the screen it was
+    // exported from while the button promised it honoured them. The channels / line items / markets
+    // columns likewise list what is IN the export, not everything the brief ever ran.
+    const fr=pmRows(), agg=aggBy(fr, r=>r.campaign);
+    const dims={};
+    fr.forEach(r=>{ const d=dims[r.campaign]||(dims[r.campaign]={plats:new Set(),tacs:new Set(),mkts:new Set(),first:null,last:null});
+      d.plats.add(PLAT_LABEL[r.platform]||r.platform); if(r.tactic) d.tacs.add(r.tactic); d.mkts.add(r.market);
+      const dt=String(r.date||'').slice(0,10); if(dt){ if(!d.first||dt<d.first) d.first=dt; if(!d.last||dt>d.last) d.last=dt; } });
     const rows=[['campaign','brief','channels','line_items','markets','first_delivery','last_delivery','imps','clicks','spend_aud']];
-    campaignList().filter(c=>campOk(c.key)).forEach(c=>rows.push([c.label,c.brief,(c.platforms||[]).join(' + '),(c.tactics||[]).join(' · '),(c.markets||[]).join(' · '),c.first_delivery,c.last_delivery,c.imps,c.clicks,c.spend_aud]));
+    campaignList().filter(c=>campOk(c.key) && agg[c.key]).forEach(c=>{ const x=agg[c.key], d=dims[c.key];
+      rows.push([c.label,c.brief,[...d.plats].sort().join(' + '),
+        [...d.tacs].sort((a,b)=>tacticRank(a)-tacticRank(b)).join(' · '),[...d.mkts].sort().join(' · '),
+        d.first,d.last,x.imps,x.clk,x.spend]); });
     dl('secpwr_campaigns.csv',rows);
   }
 }
