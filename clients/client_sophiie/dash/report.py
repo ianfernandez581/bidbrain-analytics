@@ -315,6 +315,10 @@ def _fmt_brief(s):
             spend_pct = (ov.get("spend") or 0) / budget
         except (TypeError, ZeroDivisionError):
             spend_pct = None
+    # Try free clicks can be WITHHELD (dashboard SIGNUPS_REPORTABLE): the browser then sends no
+    # signups / cpa / click_to_signup key at all. Default True so an older cached client build,
+    # which does not send the flag, still gets the full brief it always did.
+    sign_on = ctx.get("signups_reported", True)
     sign_target = tg.get("signups_target")
     sign_pct = None
     if sign_target:
@@ -339,17 +343,21 @@ def _fmt_brief(s):
     L.append(f"Elapsed: day {ctx.get('days_elapsed')} of {ctx.get('days_total')} "
              f"({_pct((ctx.get('days_elapsed') or 0)/ctx['days_total'],0) if ctx.get('days_total') else 'n/a'} of flight)")
     L.append(f"Data through: {ctx.get('data_through')}  |  Built: {ctx.get('last_updated')}")
-    L.append(f"Outcome labelling: Try free clicks are {action_label} - clicks on the site's 'Try free' "
-             "button that THE TRADE DESK attributed to this campaign (its conversion source is named "
-             "'Sign up' in the platform, but it fires on the button click), counted post-click AND "
-             "post-view. They are NOT completed trial sign-ups, NOT paying subscribers and NOT "
-             "CRM-qualified. 'Clicks' on their own below always means AD clicks. Trial starts, "
-             "trial-to-paid conversion, revenue, LTV, CAC and payback are NOT in this payload and "
-             "must never be asserted.")
-    if ctx.get("signups_reported") is False:
-        L.append("NOTE: NO Try free click has been attributed yet in this window. Treat Try free click "
-                 "efficiency as UNMEASURED rather than as poor, and judge the campaign on delivery, "
-                 "CTR and CPC.")
+    if sign_on:
+        L.append(f"Outcome labelling: Try free clicks are {action_label} - clicks on the site's 'Try free' "
+                 "button that THE TRADE DESK attributed to this campaign (its conversion source is named "
+                 "'Sign up' in the platform, but it fires on the button click), counted post-click AND "
+                 "post-view. They are NOT completed trial sign-ups, NOT paying subscribers and NOT "
+                 "CRM-qualified. 'Clicks' on their own below always means AD clicks. Trial starts, "
+                 "trial-to-paid conversion, revenue, LTV, CAC and payback are NOT in this payload and "
+                 "must never be asserted.")
+    if not sign_on:
+        # States the absence and nothing else - no reason, and none to be inferred. The old
+        # "none attributed yet" note would be a false claim here: the clicks exist, they are
+        # simply not published.
+        L.append("This brief carries NO Try free click, conversion, CPA or conversion-rate figure. "
+                 "Report reach, delivery and cost efficiency only, and do not speculate about the "
+                 "absence.")
     derived = ctx.get("derived_targets") or []
     if derived:
         L.append("DERIVED TARGETS (ours, not the client's commitments) - " + ", ".join(derived) +
@@ -357,13 +365,15 @@ def _fmt_brief(s):
                  "primary / secondary / tertiary KPI targets in The Trade Desk, as are the budget "
                  "and the flight dates. Never present a derived figure as a client commitment.")
     L.append("")
-    L.append("## OUTCOME \u2014 TRY FREE CLICKS & COST PER TRY FREE CLICK (the headline framing)")
-    L.append(f"Try free clicks: {_int(ov.get('signups'))}"
-             + (f"  vs the {_int(sign_target)} the budget implies ({_pct(sign_pct,1)})" if sign_target else "  (no Try free click volume target)")
-             + f"  |  post-click {_int(ov.get('signups_post_click'))}, post-view {_int(ov.get('signups_post_view'))}")
-    L.append(f"CPA (cost per Try free click): {_money2(ov.get('cpa'))}"
-             + (f"  vs the committed CPA target {_money2(tg.get('cpa_target'))}" if tg.get('cpa_target') else "  (no CPA target)"))
-    L.append(f"Ad-click-to-Try-free rate: {_pct(ov.get('click_to_signup'),2)}")
+    L.append("## OUTCOME \u2014 TRY FREE CLICKS & COST PER TRY FREE CLICK (the headline framing)" if sign_on
+             else "## OUTCOME \u2014 REACH & EFFICIENCY (the headline framing)")
+    if sign_on:
+        L.append(f"Try free clicks: {_int(ov.get('signups'))}"
+                 + (f"  vs the {_int(sign_target)} the budget implies ({_pct(sign_pct,1)})" if sign_target else "  (no Try free click volume target)")
+                 + f"  |  post-click {_int(ov.get('signups_post_click'))}, post-view {_int(ov.get('signups_post_view'))}")
+        L.append(f"CPA (cost per Try free click): {_money2(ov.get('cpa'))}"
+                 + (f"  vs the committed CPA target {_money2(tg.get('cpa_target'))}" if tg.get('cpa_target') else "  (no CPA target)"))
+        L.append(f"Ad-click-to-Try-free rate: {_pct(ov.get('click_to_signup'),2)}")
     L.append(f"Spend: {_money(ov.get('spend'))}"
              + (f"  vs budget {_money(budget)} ({_pct(spend_pct,0)} used)" if budget else "  (no budget seeded)"))
     L.append(f"Expected spend to date (pace): {_money(ov.get('pace_expected'))}; projected full-flight spend: {_money(ov.get('projected_spend'))}")
@@ -392,8 +402,8 @@ def _fmt_brief(s):
     for r in bstage:
         L.append(f"  - {r.get('stage')}: spend {_money(r.get('spend'))} ({_pct(r.get('spend_share'),0)} of media), "
                  f"impressions {_int(r.get('impressions'))} ({_pct(r.get('imp_share'),0)}), CPM {_money2(r.get('cpm'))}, "
-                 f"clicks {_int(r.get('clicks'))}, CTR {_pct(r.get('ctr'),3)}, CPC {_money2(r.get('cpc'))}, "
-                 f"Try free clicks {_int(r.get('signups'))}, CPA {_money2(r.get('cpa'))}")
+                 f"clicks {_int(r.get('clicks'))}, CTR {_pct(r.get('ctr'),3)}, CPC {_money2(r.get('cpc'))}"
+                 + (f", Try free clicks {_int(r.get('signups'))}, CPA {_money2(r.get('cpa'))}" if sign_on else ""))
     L.append("")
     bt = s.get("by_tier") or []
     if bt:
@@ -401,8 +411,8 @@ def _fmt_brief(s):
         for r in bt:
             L.append(f"  - {r.get('tier')} [{r.get('stage')}]: spend {_money(r.get('spend'))}, "
                      f"impressions {_int(r.get('impressions'))}, CPM {_money2(r.get('cpm'))}, "
-                     f"clicks {_int(r.get('clicks'))}, CTR {_pct(r.get('ctr'),3)}, CPC {_money2(r.get('cpc'))}, "
-                     f"Try free clicks {_int(r.get('signups'))}, CPA {_money2(r.get('cpa'))}")
+                     f"clicks {_int(r.get('clicks'))}, CTR {_pct(r.get('ctr'),3)}, CPC {_money2(r.get('cpc'))}"
+                     + (f", Try free clicks {_int(r.get('signups'))}, CPA {_money2(r.get('cpa'))}" if sign_on else ""))
         L.append("")
     bg = s.get("by_ad_group") or []
     if bg:
@@ -410,8 +420,8 @@ def _fmt_brief(s):
         for r in bg:
             L.append(f"  - {r.get('ad_group')} ({r.get('tier')}) [{r.get('stage')}]: spend {_money(r.get('spend'))}, "
                      f"impressions {_int(r.get('impressions'))}, CPM {_money2(r.get('cpm'))}, "
-                     f"CTR {_pct(r.get('ctr'),3)}, CPC {_money2(r.get('cpc'))}, "
-                     f"Try free clicks {_int(r.get('signups'))}, CPA {_money2(r.get('cpa'))}")
+                     f"CTR {_pct(r.get('ctr'),3)}, CPC {_money2(r.get('cpc'))}"
+                     + (f", Try free clicks {_int(r.get('signups'))}, CPA {_money2(r.get('cpa'))}" if sign_on else ""))
         L.append("")
     tc = s.get("top_creatives") or []
     if tc:
@@ -422,7 +432,8 @@ def _fmt_brief(s):
             L.append(f"  - {r.get('creative')} ({_ad_group_phrase(r)}, {r.get('ad_format')}) [{r.get('stage')}]: "
                      f"spend {_money(r.get('spend'))}, impressions {_int(r.get('impressions'))}, "
                      f"CPM {_money2(r.get('cpm'))}, clicks {_int(r.get('clicks'))}, CTR {_pct(r.get('ctr'),3)}, "
-                     f"CPC {_money2(r.get('cpc'))}, Try free clicks {_int(r.get('signups'))}")
+                     f"CPC {_money2(r.get('cpc'))}"
+                     + (f", Try free clicks {_int(r.get('signups'))}" if sign_on else ""))
         L.append("")
     fat = s.get("fatigue") or []
     if fat:
@@ -434,10 +445,13 @@ def _fmt_brief(s):
                      f"(WoW {_signed_pp(r.get('ctr_wow'))})")
         L.append("")
     L.append("These figures are authoritative ground truth. Do not alter them; web research is for "
-             "explanation/context only. Try free clicks are Trade-Desk-attributed clicks on the "
-             "site's 'Try free' button (post-click and post-view) - never describe them as "
-             "sign-ups, trials, sales, paying customers or CRM-qualified leads, and never count "
-             "ad clicks or impressions as Try free clicks.")
+             "explanation/context only."
+             + (" Try free clicks are Trade-Desk-attributed clicks on the site's 'Try free' button "
+                "(post-click and post-view) - never describe them as sign-ups, trials, sales, "
+                "paying customers or CRM-qualified leads, and never count ad clicks or impressions "
+                "as Try free clicks." if sign_on else
+                " No conversion outcome is supplied: never count ad clicks or impressions as a "
+                "conversion, and do not infer one."))
     return "\n".join(L)
 
 
@@ -496,7 +510,36 @@ def _client():
     return anthropic.Anthropic(timeout=300.0, max_retries=0)
 
 
-def _research(client, brief):
+def _scope_directive(s):
+    """Withholding stated as SYSTEM text, not brief text.
+
+    The brief opens by declaring its own contents untrusted DATA, so a correction placed inside
+    it carries no authority. This goes on the system prompt of every stage and both providers.
+
+    Note what it does NOT say: it never gives a reason. The client asked for the figure to come
+    off the dashboard while the tagging is settled; that is not something to put in a client
+    deck, so the model is told the figures are absent and told not to speculate about why.
+    """
+    ctx = (s.get("context") or {})
+    if ctx.get("signups_reported", True):
+        return ""
+    return "\n".join([
+        "\n\nSCOPE OVERRIDE (authoritative - this supersedes any conflicting statement above):",
+        "- The brief supplies NO Try free click, conversion, cost-per-conversion, CPA or "
+        "conversion-rate figure, and no conversion volume target.",
+        "- Do NOT mention, estimate, infer, model or ask about Try free clicks, conversions, "
+        "cost per conversion, CPA or conversion volume anywhere in the report - not in the "
+        "headline, the KPIs, the drivers, the actions or the confidence note. Treat the absence "
+        "as an absence, never as zero, and never present it as a campaign shortfall.",
+        "- Do NOT speculate about WHY those figures are absent, and do not discuss conversion "
+        "tracking, tagging, pixels or measurement setup. Simply report what is supplied.",
+        "- This is a REACH AND DELIVERY report. The outcome measures are impressions against "
+        "the plan target, ad clicks, CTR, CPM, CPC and spend pacing across the flight. "
+        "`overall_status` and every KPI must be judged on those.",
+    ])
+
+
+def _research(client, brief, scope=""):
     """Stage A — web-grounded analyst notes + the sources actually used."""
     messages = [{"role": "user", "content":
                  brief + "\n\nResearch and write the analyst notes (headline, what happened, ranked "
@@ -504,7 +547,7 @@ def _research(client, brief):
     cited, retrieved, texts = [], [], []
     for _ in range(MAX_CONTINUATIONS + 1):
         with client.messages.stream(
-            model=MODEL, max_tokens=RESEARCH_MAX_TOKENS, system=STAGE_A_SYSTEM,
+            model=MODEL, max_tokens=RESEARCH_MAX_TOKENS, system=STAGE_A_SYSTEM + scope,
             messages=messages, tools=RESEARCH_TOOLS,
             thinking={"type": "adaptive"}, output_config={"effort": "high"},
         ) as stream:
@@ -522,14 +565,14 @@ def _research(client, brief):
     return notes, sources
 
 
-def _structure(client, brief, notes, sources):
+def _structure(client, brief, notes, sources, scope=""):
     """Stage B — strict slide JSON from the notes + numbers (no tools, so no citation conflict)."""
     src_lines = "\n".join(f"[{i}] {s['title']} :: {s['url']}" for i, s in enumerate(sources)) or "(none found)"
     user = (brief + "\n\n## ANALYST RESEARCH NOTES (Stage A)\n" + (notes or "(no notes produced)")
             + "\n\n## SOURCE URL LIST (the only URLs that exist; 0-based indices for source_index)\n"
             + src_lines + "\n\nReturn the report JSON.")
     resp = client.messages.create(
-        model=MODEL, max_tokens=STRUCTURE_MAX_TOKENS, system=STAGE_B_SYSTEM,
+        model=MODEL, max_tokens=STRUCTURE_MAX_TOKENS, system=STAGE_B_SYSTEM + scope,
         messages=[{"role": "user", "content": user}],
         thinking={"type": "adaptive"},
         output_config={"effort": "medium", "format": {"type": "json_schema", "schema": REPORT_SCHEMA}},
@@ -669,23 +712,23 @@ def _gemini_generate(model, system, user, max_tokens, grounding=False, json_mode
     return text, sources
 
 
-def _gemini_report(brief):
+def _gemini_report(brief, scope=""):
     """Regenerate the whole report on Gemini (Stage A grounded research -> Stage B JSON)."""
     model = os.environ.get("GEMINI_MODEL", GEMINI_DEFAULT_MODEL)
     research_msg = ("\n\nResearch and write the analyst notes (headline, what happened, ranked "
                     "drivers, recommended actions, sources used) per your instructions.")
     try:
-        notes, raw_sources = _gemini_generate(model, GEMINI_STAGE_A_SYSTEM, brief + research_msg,
+        notes, raw_sources = _gemini_generate(model, GEMINI_STAGE_A_SYSTEM + scope, brief + research_msg,
                                               max_tokens=24000, grounding=True)
     except Exception:  # noqa: BLE001 — grounding may be unavailable; degrade to no live web
-        notes, raw_sources = _gemini_generate(model, GEMINI_STAGE_A_SYSTEM,
+        notes, raw_sources = _gemini_generate(model, GEMINI_STAGE_A_SYSTEM + scope,
                                               brief + research_msg, max_tokens=24000, grounding=False)
     sources = _sanitize_sources(raw_sources)
     src_lines = "\n".join(f"[{i}] {s['title']} :: {s['url']}" for i, s in enumerate(sources)) or "(none found)"
     user = (brief + "\n\n## ANALYST RESEARCH NOTES (Stage A)\n" + (notes or "(no notes produced)")
             + "\n\n## SOURCE URL LIST (the only URLs that exist; 0-based indices for source_index)\n"
             + src_lines + "\n\nReturn the report JSON.")
-    text, _ = _gemini_generate(model, STAGE_B_SYSTEM, user, max_tokens=48000, json_mode=True, schema=_VERTEX_REPORT_SCHEMA)
+    text, _ = _gemini_generate(model, STAGE_B_SYSTEM + scope, user, max_tokens=48000, json_mode=True, schema=_VERTEX_REPORT_SCHEMA)
     try:
         report = json.loads(text)
     except Exception as e:  # noqa: BLE001
@@ -700,16 +743,18 @@ def generate_report(summary):
     key is configured, the whole report regenerates on Gemini so a report still comes back. Any
     other Claude failure propagates (so real bugs aren't masked)."""
     brief = _fmt_brief(summary)
+    # Appended to BOTH system prompts, both providers - see _scope_directive.
+    scope = _scope_directive(summary)
     # DEFAULT = Gemini on Vertex AI (billed to this project; no prepay key). Claude Opus is an
     # OPTIONAL fallback, tried only if ANTHROPIC_API_KEY is configured AND Vertex fails.
     try:
-        return _gemini_report(brief)
+        return _gemini_report(brief, scope)
     except Exception as ge:
         if os.environ.get("ANTHROPIC_API_KEY"):
             try:
                 client = _client()
-                notes, sources = _research(client, brief)
-                report = _structure(client, brief, notes, sources)
+                notes, sources = _research(client, brief, scope)
+                report = _structure(client, brief, notes, sources, scope)
                 return _finalize(report, sources, MODEL, "claude")
             except Exception:  # noqa: BLE001 -- both providers failed; surface the Gemini error
                 pass

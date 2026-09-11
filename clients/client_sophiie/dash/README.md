@@ -16,6 +16,74 @@ the Trade Desk advertiser `gjcl0pp` has not been granted to the Windsor connecto
 refuses to publish an empty fact, so the sample stays up and the banner clears ITSELF on the first
 tick after real rows land. See [`../README.md`](../README.md) → GO-LIVE.
 
+## TRY FREE CLICKS ARE OFF THE DASHBOARD (client request, 2026-09-11) - read this first
+
+**Every client-facing Try free click and CPA surface is withheld behind ONE flag**,
+`SIGNUPS_REPORTABLE` in [`dashboard.html`](dashboard.html). It is a **client instruction, not a
+measurement judgement** - do not re-add a surface because the numbers look right. Set the flag back
+to `true` and every one of them returns, correctly labelled; that is a dash deploy and nothing else.
+
+**This sits ON TOP of the Try free relabel, not instead of it.** The relabel (246e0d3, same day)
+established what the metric actually is; this withholds it while the tagging is settled. Every
+string behind the flag says "Try free click", so flipping it on reveals the CORRECT label rather
+than restoring the old "sign-ups" wording. Keep it that way if you edit either.
+
+**Do NOT put the reason on the page.** The withheld copy says only what the dashboard *does* report.
+No surface, caption, footnote, CSV or deck may mention tagging, tracking, pixels, a pause or a
+pending fix, and `report.py` is instructed not to speculate about the absence either.
+
+**The data path is deliberately UNTOUCHED.** `sql/*`, `job/main.py` and the published `sophiie.json`
+still carry `pv_conv` / `pc_conv` in full, and they MUST: the two status-pipeline accuracy checks
+(`Trade Desk - Sign-ups post-view` / `post-click`, `status_dashboard/job/main.py`) compare
+`rows[].pv_conv` / `pc_conv` against BigQuery, so stripping the pipeline would turn the accuracy
+monitor red. This is the caltex site-visits precedent, built as geocon's one-flag pattern.
+
+### The two predicates, and why there are two
+
+| Predicate | Gates | Meaning |
+|---|---|---|
+| `signupsMeasured()` | nothing directly | what the FEED reports (`pv_conv`/`pc_conv` non-zero) |
+| `signupsReported()` | RENDERING | measured AND publishable - the old gate, semantics unchanged |
+| `signupsWithheld()` | COPY | the flag is off, so the wording must not imply "not yet attributed" |
+
+The copy gate exists because the pre-existing not-yet-attributed wording ("none attributed yet",
+"it switches ... on the first one") is **true of an early flight and false here** - The Trade Desk
+*is* attributing these, we are simply not publishing them. Reusing it would put a false claim on
+screen.
+
+### What the flag moves
+
+`renderSignupScope()` is the single application point: it toggles `body.no-signups` (one CSS rule
+hides every `.c-sign` table cell), hides the attribution donut and the weekly card, and rewrites the
+five captions that name the metric in prose. Beyond that -
+
+- **KPI band** - the outcome pair is REPLACED by impressions + CTR (a two-tile band reads as a
+  broken page); click-to-Try-free leaves the context row.
+- **Overview** - the goal bar, the third funnel step and the signal insight card go; pace-to-goal
+  runs on impressions with its own third wording branch.
+- **Delivery** - the Try free clicks / CPA / delta columns hide; `readFor()` drops its two CPA
+  verdict arms ("Scale it", "No Try free clicks yet") because a verdict states the count in words.
+- **CSV** - all four exports drop the columns and SWAP in delivery ones, so none is left thin.
+- **AI deck** - `signFields()` DELETES the keys from every payload object rather than asking the
+  model not to use them (the prompt is a request, an absent key is a fact), and `_scope_directive()`
+  in [`report.py`](report.py) appends an authoritative block to BOTH system prompts on BOTH
+  providers. `signups_reported` crosses to the server and defaults `True` there, so a stale cached
+  client build still renders correctly.
+
+### `syncGrids()` - a hidden card must not strand its partner
+
+Cards hide for several independent reasons (metric withheld, no video on a display buy, no
+attribution data), and each left its two-column row half empty, which reads as a panel that failed
+to load. `syncGrids()` collapses any `.grid.cols-2` down to one column when a single card survives.
+It runs LAST in `render()` **and again on every tab switch** - a card inside a `display:none` pane
+computes `display:none` itself, so a grid measured while its tab was hidden reports zero visible
+cards and would never be collapsed. This also fixes the pre-existing ragged row left by the
+auto-hiding video card.
+
+Verified headless against data carrying 123 Try free clicks: zero occurrences of "Try free", "CPA"
+or "sign-up" across all three tabs, zero ragged grids, all four CSV headers clean, every deck object
+stripped, and flipping the flag back restores all of it under the correct label.
+
 ## What's in here
 
 | File | What it does |

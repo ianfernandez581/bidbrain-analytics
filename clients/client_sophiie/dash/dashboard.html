@@ -390,6 +390,8 @@
      rule, not in an earlier override: the stylesheet is one cascade and a later `.grid` would win. */
   .grid{display:grid;gap:16px;margin-top:18px;background:none;border:0;border-radius:0}
   .cols-2{grid-template-columns:1fr 1fr} .cols-2-1{grid-template-columns:1.9fr 1fr} .cols-1-2{grid-template-columns:1fr 1.9fr}
+  /* A hidden card must not leave its partner stranded in half a row - see syncGrids(). */
+  .grid.one-up{grid-template-columns:1fr}
   @media(max-width:900px){.cols-2,.cols-2-1,.cols-1-2{grid-template-columns:1fr}}
   .card{background:var(--paper);border:0;border-radius:var(--radius);padding:26px;
         box-shadow:var(--elev-1);display:flex;flex-direction:column;min-width:0;position:relative;
@@ -607,6 +609,7 @@
   .pillc .dot{width:8px;height:8px;border-radius:50%}
   .vs{font-size:9.5px;color:var(--muted2)} .tiny{font-size:10px;color:var(--muted2);margin-top:2px}
   .good-text{color:var(--good);font-weight:500} .warn-text{color:var(--warn);font-weight:500} .bad-text{color:var(--bad);font-weight:500} .muted-text{color:var(--muted2)}
+  body.no-signups .c-sign{display:none}
   .warn-chip{font-size:9px;font-weight:500;color:var(--warn);border:1px solid color-mix(in srgb,var(--warn) 40%,transparent);border-radius:4px;padding:0 4px}
 
   /* creative gallery */
@@ -808,11 +811,11 @@
     <!-- ============ OVERVIEW ============ -->
     <section id="tab-overview" class="tabpane">
       <div class="section first" data-eyebrow="The Trade Desk programmatic display &middot; all figures AUD">
-        <h2>Sophiie AI <span class="t2">- Try free clicks at an efficient cost</span></h2>
+        <h2>Sophiie AI <span class="t2" id="ovTitleSuffix">- Try free clicks at an efficient cost</span></h2>
       </div>
 
       <div id="ovNorth">
-        <div class="nsband">Campaign goal &middot; Try free clicks from Australian trades &amp; service businesses</div>
+        <div class="nsband" id="ovGoalBand">Campaign goal &middot; Try free clicks from Australian trades &amp; service businesses</div>
         <div class="kpis nsrow" id="kpiGridN"></div>
         <div class="kpis" id="kpiGrid"></div>
       </div>
@@ -841,13 +844,13 @@
       <div class="card marble goal" style="margin-top:16px"><h3>On track to goal?</h3><div class="hint" id="goalHint"></div><div class="chartbox tall"><canvas id="paceGoal"></canvas></div><div class="chart-empty" id="paceGoalEmpty" style="display:none"></div></div>
 
       <div class="grid cols-2">
-        <div class="card"><h3>Response funnel</h3><div class="hint">Each bar = the <b>step conversion</b> (share carried from the previous stage), so drop-off stays visible instead of impressions flattening everything; the number is the count. Impressions &rarr; ad clicks &rarr; Try free clicks (a click on the site's <b>Try free</b> button). Display is a prospecting channel, so the click step is naturally small - judge it against the CTR target, not against 100%.</div><div id="funnelList" style="margin-top:6px"></div></div>
+        <div class="card"><h3>Response funnel</h3><div class="hint" id="funnelHint">Each bar = the <b>step conversion</b> (share carried from the previous stage), so drop-off stays visible instead of impressions flattening everything; the number is the count. Impressions &rarr; ad clicks &rarr; Try free clicks (a click on the site's <b>Try free</b> button). Display is a prospecting channel, so the click step is naturally small - judge it against the CTR target, not against 100%.</div><div id="funnelList" style="margin-top:6px"></div></div>
         <div class="card"><h3>Spend by audience tier</h3><div class="hint">Where the budget is going across the three prospecting tiers and retargeting. Click a legend item to hide or show a tier.</div><div class="chartbox" style="height:280px"><canvas id="tierDonut"></canvas></div></div>
       </div>
 
-      <div class="card" style="margin-top:16px"><h3>Performance by funnel stage</h3><div class="hint">Spend, share, delivery, engagement and Try free clicks per funnel stage, as named in the ad group. Prospecting tiers are Awareness; the retargeting ad group is Consideration. For the four-way tier split, see <b>Spend by audience tier</b> above.</div><div class="tablewrap" style="margin-top:6px"><table id="stageTable"><thead><tr><th>Stage</th><th class="num">Spend</th><th class="num">Share</th><th class="num">Impressions</th><th class="num">Clicks</th><th class="num">CTR</th><th class="num">CPC</th><th class="num">Try free clicks</th></tr></thead><tbody></tbody></table></div></div>
+      <div class="card" style="margin-top:16px"><h3>Performance by funnel stage</h3><div class="hint" id="stageHint">Spend, share, delivery, engagement and Try free clicks per funnel stage, as named in the ad group. Prospecting tiers are Awareness; the retargeting ad group is Consideration. For the four-way tier split, see <b>Spend by audience tier</b> above.</div><div class="tablewrap" style="margin-top:6px"><table id="stageTable"><thead><tr><th>Stage</th><th class="num">Spend</th><th class="num">Share</th><th class="num">Impressions</th><th class="num">Clicks</th><th class="num">CTR</th><th class="num">CPC</th><th class="num c-sign">Try free clicks</th></tr></thead><tbody></tbody></table></div></div>
 
-      <div class="section" data-eyebrow="Delivery detail &middot; honours the date filter"><h2>How it ran</h2><span class="sub">Creative formats and Try free click attribution for the Sophiie AI campaign - both honour the date filter.</span></div>
+      <div class="section" data-eyebrow="Delivery detail &middot; honours the date filter"><h2>How it ran</h2><span class="sub" id="howItRanSub">Creative formats and Try free click attribution for the Sophiie AI campaign - both honour the date filter.</span></div>
       <div class="grid cols-2">
         <div class="card"><h3>Creative formats</h3><div class="hint">Impressions by ad format - which banner shapes and placements carry the campaign.</div><div class="chartbox tall"><canvas id="formatChart"></canvas></div><div class="chart-empty" id="formatEmpty" style="display:none">No delivery in this range.</div></div>
         <div class="card" id="attrCard"><h3>Try free click attribution - post-click vs post-view</h3><div class="hint">How The Trade Desk credited each Try free click: the person <b>clicked</b> the ad first (post-click), or saw it and came back to the site later (post-view). Post-view is real but softer evidence - a display campaign earns most of its credit that way.</div><div class="chartbox" style="height:250px"><canvas id="attrChart"></canvas></div><div class="hint" id="attrNote" style="margin-top:8px"></div></div>
@@ -869,7 +872,7 @@
         <div class="tablewrap"><table id="benchTable"><thead><tr>
           <th>Ad group</th><th>Stage</th><th class="num">Spend</th><th class="num">Impressions</th>
           <th class="num">CTR</th><th class="num">&Delta;</th><th class="num">CPC</th><th class="num">&Delta;</th>
-          <th class="num">Try free clicks</th><th class="num">CPA</th><th class="num">&Delta;</th></tr></thead><tbody></tbody></table></div>
+          <th class="num c-sign">Try free clicks</th><th class="num c-sign">CPA</th><th class="num c-sign">&Delta;</th></tr></thead><tbody></tbody></table></div>
       </div>
 
       <div class="grid cols-2">
@@ -898,7 +901,7 @@
 
       <div class="card" style="margin-top:16px">
         <h3>Creative performance</h3><div class="hint">Per-creative delivery against the campaign's CPC and CTR targets, plus a thin-volume guard (&#9888; thin = under 5k impressions - treat its ratios as a weak signal).</div>
-        <div class="tablewrap"><table id="adTable"><thead><tr><th>Creative</th><th>Ad group</th><th>Stage</th><th>Format</th><th class="num">Spend</th><th class="num">Impressions</th><th class="num">Clicks</th><th class="num">CTR</th><th class="num">CPC</th><th class="num">Try free clicks</th><th>Read</th></tr></thead><tbody></tbody></table></div>
+        <div class="tablewrap"><table id="adTable"><thead><tr><th>Creative</th><th>Ad group</th><th>Stage</th><th>Format</th><th class="num">Spend</th><th class="num">Impressions</th><th class="num">Clicks</th><th class="num">CTR</th><th class="num">CPC</th><th class="num c-sign">Try free clicks</th><th>Read</th></tr></thead><tbody></tbody></table></div>
       </div>
 
       <div class="card" style="margin-top:16px">
@@ -1128,7 +1131,23 @@ function lowConfidence(r){if(n(r.impressions)<5000)return{low:true,why:'under 5k
 // named "Sign up", yet what it records is a click on the site's Try free button, not a completed
 // trial sign-up. Only the LABELS moved; never print "sign-up" for this figure again.
 function hasAny(f){return ROWS().some(r=>n(r[f])>0);}
-function signupsReported(){return hasAny('pv_conv')||hasAny('pc_conv');}
+
+// CLIENT INSTRUCTION 2026-09-11: report NO Try free click count and NO cost per Try free click
+// until the conversion tagging is settled. Flip this back to `true` and every surface returns
+// exactly as it was - a dashboard deploy and nothing else.
+// NOTHING UPSTREAM CHANGES: sql/*, job/main.py and the JSON still carry pv_conv/pc_conv in full,
+// which is REQUIRED - the two status-pipeline accuracy checks read rows[].pv_conv/pc_conv straight
+// out of the published payload, so stripping the data path would turn the accuracy monitor red.
+// The page must not SAY why it is withheld - do not add an on-screen explanation.
+const SIGNUPS_REPORTABLE = false;
+
+// TWO predicates, not one. `signupsReported` is the RENDER gate. `signupsWithheld` is the COPY
+// gate: the not-yet-attributed wording ("none attributed yet", "it switches ... on the first one")
+// is TRUE of an early flight and FALSE here - TTD IS attributing these, we are simply not
+// publishing them - so the withheld state must never borrow it.
+function signupsMeasured(){return hasAny('pv_conv')||hasAny('pc_conv');}
+function signupsReported(){return SIGNUPS_REPORTABLE&&signupsMeasured();}
+function signupsWithheld(){return !SIGNUPS_REPORTABLE;}
 
 function agg(rows){const s=k=>rows.reduce((a,r)=>a+n(r[k]),0);
   const spend=s('spend'),imp=s('impressions'),clicks=s('clicks'),vs=s('video_starts'),v25=s('video_25'),v50=s('video_50'),v75=s('video_75'),vc=s('video_completes'),pv=s('pv_conv'),pc=s('pc_conv');
@@ -1362,16 +1381,48 @@ function render(){
   // Each step is isolated: a single renderer throwing must NOT blank every chart after it (Chart.js
   // draws share one animation loop, so one uncaught throw in a draw callback can take down the whole
   // page). Wrapping per-step keeps the rest of the dashboard alive and logs the offender.
-  [renderPlaceholderBanner,renderHeader,renderKpis,renderTrend,renderPacing,renderGoalProgress,renderPaceToGoal,renderTierDonut,
+  [renderPlaceholderBanner,renderSignupScope,renderHeader,renderKpis,renderTrend,renderPacing,renderGoalProgress,renderPaceToGoal,renderTierDonut,
    renderFunnel,renderStageTable,renderFormats,renderAttribution,renderInsights,renderNote,
    renderBenchTable,renderEffScatter,renderCpcTrend,renderClicksCtr,renderSignups,renderVideo,renderDow,
-   renderSegment,renderTables,renderFatigue,renderBurn,renderCreative,renderFooter,renderDateScope,renderControlState]
+   renderSegment,renderTables,renderFatigue,renderBurn,renderCreative,renderFooter,renderDateScope,renderControlState,syncGrids]
     .forEach(fn=>{try{fn();}catch(e){console.error('render step failed:',fn.name,e);}});
+}
+// ONE place decides what the withheld state does to the page: the body class driving every tagged
+// column, the two whole cards, and the captions that name the metric in prose. A caption left
+// behind is the failure mode - it describes a panel that is no longer on screen.
+function renderSignupScope(){
+  const on=!signupsWithheld();
+  document.body.classList.toggle('no-signups',!on);
+  if(!on){destroyChart('attrChart');destroyChart('signupChart');}
+  const set=(id,html)=>{const e=$(id);if(e)e.innerHTML=html;};
+  [['attrCard',on],['signupCard',on]].forEach(([id,vis])=>{const e=$(id);if(e)e.style.display=vis?'':'none';});
+  set('ovTitleSuffix',on?'- Try free clicks at an efficient cost':'- reach and engagement');
+  set('ovGoalBand',on
+    ?'Campaign goal &middot; Try free clicks from Australian trades &amp; service businesses'
+    :'Campaign &middot; programmatic display to Australian trades &amp; service businesses');
+  set('funnelHint',on
+    ?'Each bar = the <b>step conversion</b> (share carried from the previous stage), so drop-off stays visible instead of impressions flattening everything; the number is the count. Impressions &rarr; clicks &rarr; Try free clicks. Display is a prospecting channel, so the click step is naturally small - judge it against the CTR target, not against 100%.'
+    :'Each bar = the <b>step conversion</b> (share carried from the previous stage), so drop-off stays visible instead of impressions flattening everything; the number is the count. Impressions &rarr; clicks. Display is a prospecting channel, so the click step is naturally small - judge it against the CTR target, not against 100%.');
+  set('stageHint',on
+    ?'Spend, share, delivery, engagement and Try free clicks per funnel stage, as named in the ad group. Prospecting tiers are Awareness; the retargeting ad group is Consideration. For the four-way tier split, see <b>Spend by audience tier</b> above.'
+    :'Spend, share, delivery and engagement per funnel stage, as named in the ad group. Prospecting tiers are Awareness; the retargeting ad group is Consideration. For the four-way tier split, see <b>Spend by audience tier</b> above.');
+  set('howItRanSub',on
+    ?'Creative formats and Try free click attribution for the Sophiie AI campaign - both honour the date filter.'
+    :'Creative formats for the Sophiie AI campaign - honours the date filter.');
+}
+// Cards hide for several independent reasons (metric withheld, no video on a display buy, no
+// attribution data), and each leaves its two-column row half empty - which reads as a panel that
+// failed to load. Runs LAST, after every renderer has decided.
+function syncGrids(){
+  document.querySelectorAll('.grid.cols-2').forEach(g=>{
+    const cards=[...g.children].filter(c=>getComputedStyle(c).display!=='none');
+    g.classList.toggle('one-up',cards.length===1);
+  });
 }
 function renderHeader(){
   const f=flight();
   $('topPeriod').textContent=`${fmtDate(f.start)} - ${fmtDate(f.end)}`;
-  const notes={overview:'Try free clicks & efficiency',paid:'Delivery & efficiency',creative:'Creative library'};
+  const notes={overview:signupsWithheld()?'Reach & efficiency':'Try free clicks & efficiency',paid:'Delivery & efficiency',creative:'Creative library'};
   $('ctrlNote').textContent=notes[STATE.view]||'';
 }
 function renderPlaceholderBanner(){
@@ -1406,7 +1457,23 @@ function renderKpis(){
   const budget=n(flight().budget);const spendPct=budget?Math.round(a.spend/budget*100):null;
   // NORTH BAND = the campaign's own KPI ladder in The Trade Desk: the outcome (Try free clicks), its
   // primary efficiency KPI (custom CPA A$150), its secondary (CPC A$3.00), and the money.
-  const north=[
+  // WITHHELD: the outcome pair (Try free clicks + CPA) is replaced by the delivery pair rather
+  // than leaving a two-tile band - a half-empty KPI row reads as a broken page, and the reader
+  // still needs a top-line volume figure to anchor the spend against.
+  const north=signupsWithheld()?[
+    {color:MC.imps,north:true,series:'imps',label:'Impressions',value:compact(a.impressions),
+      sub:(function(){const impT=bench('impressions_target');
+        return impT!=null?`${Math.round(a.impressions/impT*100)}% of the ${compact(impT)} the budget implies${targetDerived('impressions_target')?DERIVED_NOTE:''}`:'gross exposures bought';})()},
+    {color:MC.ctr,north:true,label:'CTR',value:pctr(a.ctr),
+      sub:ctrT!=null?`target ${pctr(ctrT)}${targetDerived('ctr_target')?DERIVED_NOTE:''}`:'clicks per impression'},
+    {color:MC.clicks,north:true,series:'clicks',label:'Clicks',value:int(a.clicks),
+      badge:(function(){const mo=clicksMomentum();if(!mo||Math.abs(mo.delta)<0.05)return null;
+        const up=mo.delta>0;return `<span class="mom ${up?'up':'down'}">${up?'&#9650;':'&#9660;'} ${Math.abs(mo.delta*100).toFixed(0)}% vs prior 7 days</span>`;})(),
+      sub:(function(){const mo=clicksMomentum();const base=a.cpc!=null?`${money(a.cpc,2)} per click${cpcT!=null?` vs ${money(cpcT,2)} target`:''}`:'no clicks yet';
+        return mo?`${base} · last 7 days ${int(mo.c1)} vs ${int(mo.c0)}`:base;})()},
+    {color:MC.accent,north:true,series:'spend',label:'Ad spend',value:money(a.spend),
+      sub:budget?`${spendPct}% of ${money(budget)} flight${targetPending('flight_budget_aud')?' (pending)':''}`:'budget not set'}
+  ]:[
     {color:MC.signups,north:true,series:'signups',label:'Try free clicks',value:int(a.signups),
       sub:(function(){
         if(n(a.signups)>0)return `${meta().action_source_label||'TTD-attributed'}${signT!=null?` · ${Math.round(a.signups/signT*100)}% of the ${int(signT)} the budget implies`:''}`;
@@ -1425,8 +1492,15 @@ function renderKpis(){
     {color:MC.accent,north:true,series:'spend',label:'Ad spend',value:money(a.spend),
       sub:budget?`${spendPct}% of ${money(budget)} flight${targetPending('flight_budget_aud')?' (pending)':''}`:'budget not set'}
   ];
-  // CONTEXT ROW - the delivery underneath the KPI ladder.
-  const ctx=[
+  // CONTEXT ROW - the delivery underneath the KPI ladder. Impressions and CTR move UP into the
+  // north band when the outcome is withheld, so they are dropped from here rather than printed
+  // twice on one screen; click-to-Try-free goes with the outcome pair.
+  const ctx=signupsWithheld()?[
+    {color:MC.cost,label:'CPM',value:a.cpm!=null?money(a.cpm,2):'-',sub:cpmT!=null?`target ${money(cpmT,2)}${targetDerived('cpm_target_aud')?DERIVED_NOTE:''}`:'cost per 1,000 impressions'},
+    {color:MC.purple,label:'CPC',value:a.cpc!=null?money(a.cpc,2):'-',sub:cpcT!=null?`target ${money(cpcT,2)}${targetDerived('cpc_target_aud')?DERIVED_NOTE:''}`:'cost per click'},
+    {color:MC.imps,label:'Viewability',value:a.viewability!=null?pctWhole(a.viewability):'-',
+      sub:a.viewability!=null?'sampled by The Trade Desk':'not measured on these ad groups'}
+  ]:[
     {color:MC.imps,series:'imps',label:'Impressions',value:compact(a.impressions),sub:'gross exposures bought'},
     {color:MC.ctr,label:'CTR',value:pctr(a.ctr),sub:ctrT!=null?`target ${pctr(ctrT)}${targetDerived('ctr_target')?DERIVED_NOTE:''}`:'clicks per impression'},
     {color:MC.cost,label:'CPM',value:a.cpm!=null?money(a.cpm,2):'-',sub:cpmT!=null?`target ${money(cpmT,2)}${targetDerived('cpm_target_aud')?DERIVED_NOTE:''}`:'cost per 1,000 impressions'},
@@ -1528,7 +1602,7 @@ function renderGoalProgress(){
     return `<div class="goal"><div class="gh"><span>${label}</span>${target!=null?`<span class="muted-text">plan ${F(target)}</span>`:'<span class="muted-text">not measured</span>'}</div>`
       +`<div class="gtrack"></div><div class="gcap">${note}</div></div>`;};
   $('goalProgress').innerHTML=`<div class="goal-title">Progress to goal · full flight</div>`
-    +bar('Try free clicks',a.signups,signT,MC.signups,signT!=null&&targetDerived('signups_target')?'volume implied by budget ÷ CPA target, not a committed number':'',int)
+    +(signupsWithheld()?'':bar('Try free clicks',a.signups,signT,MC.signups,signT!=null&&targetDerived('signups_target')?'volume implied by budget ÷ CPA target, not a committed number':'',int))
     +bar('Impressions',a.impressions,impT,MC.imps,impT!=null&&targetDerived('impressions_target')?'implied by budget ÷ CPM, not a committed number':'',compact)
     +(a.viewability!=null
         ?bar('Viewability',a.viewability,null,MC.imps,'sampled by The Trade Desk',v=>pctWhole(v))
@@ -1547,7 +1621,9 @@ function renderPaceToGoal(){
   const hint=$('goalHint');
   if(hint)hint.innerHTML=useSign
     ? `Cumulative <b>Try free clicks</b> across the flight vs the straight-line pace needed to reach ${target!=null?int(target):'the'} Try free clicks by the end date - <b>above the dashed line = ahead of pace</b>. Full-flight (independent of the date filter).`
-    : `No Try free click has been attributed yet, so this shows cumulative <b>impressions</b> - the delivery being bought while the Try free signal builds. It switches to Try free clicks automatically on the first one. Full-flight (independent of the date filter).`;
+    : signupsWithheld()
+      ? `Cumulative <b>impressions</b> across the flight vs the straight-line pace needed to reach ${target!=null?compact(target):'the'} impressions by the end date - <b>above the dashed line = ahead of pace</b>. Full-flight (independent of the date filter).`
+      : `No Try free click has been attributed yet, so this shows cumulative <b>impressions</b> - the delivery being bought while the Try free signal builds. It switches to Try free clicks automatically on the first one. Full-flight (independent of the date filter).`;
   if(!days.length){
     chartEmpty('paceGoal','paceGoalEmpty',true,'No delivery yet.');
     makeChart('paceGoal',{type:'line',data:{labels:[],datasets:[]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}}}});return;}
@@ -1572,8 +1648,8 @@ function renderTierDonut(){
 function renderFunnel(){
   const a=agg(scoped());
   const rows=[{name:'Impressions',value:n(a.impressions),color:MC.imps},
-              {name:'Clicks',value:n(a.clicks),color:MC.clicks},
-              {name:'Try free clicks',value:n(a.signups),color:MC.signups}];
+              {name:'Clicks',value:n(a.clicks),color:MC.clicks}]
+    .concat(signupsWithheld()?[]:[{name:'Try free clicks',value:n(a.signups),color:MC.signups}]);
   // Bar width = STEP CONVERSION (share carried from the previous stage), not absolute volume - so
   // the huge impressions->click drop does not flatten the later bars. Impressions is the 100%
   // baseline; each later bar shows how well that step converted (a 4% floor keeps tiny rates
@@ -1592,9 +1668,9 @@ function renderFunnel(){
 }
 function renderStageTable(){
   const rows=byStage(scoped());const total=rows.reduce((a,r)=>a+n(r.spend),0)||1;
-  const body=rows.map(r=>`<tr><td><span class="pillc"><span class="dot" style="background:${stageColor(r.stage)}"></span>${safeName(r.stage)}</span></td><td class="num">${money(r.spend)}</td><td class="num">${pct(n(r.spend)/total,0)}</td><td class="num">${compact(r.impressions)}</td><td class="num">${int(r.clicks)}</td><td class="num">${pctr(r.ctr)}</td><td class="num">${r.cpc!=null?money(r.cpc,2):'-'}</td><td class="num">${int(r.signups)}</td></tr>`).join('');
+  const body=rows.map(r=>`<tr><td><span class="pillc"><span class="dot" style="background:${stageColor(r.stage)}"></span>${safeName(r.stage)}</span></td><td class="num">${money(r.spend)}</td><td class="num">${pct(n(r.spend)/total,0)}</td><td class="num">${compact(r.impressions)}</td><td class="num">${int(r.clicks)}</td><td class="num">${pctr(r.ctr)}</td><td class="num">${r.cpc!=null?money(r.cpc,2):'-'}</td><td class="num c-sign">${int(r.signups)}</td></tr>`).join('');
   const t=agg(scoped());
-  const foot=`<tr class="total"><td>Total</td><td class="num">${money(t.spend)}</td><td class="num">100%</td><td class="num">${compact(t.impressions)}</td><td class="num">${int(t.clicks)}</td><td class="num">${pctr(t.ctr)}</td><td class="num">${t.cpc!=null?money(t.cpc,2):'-'}</td><td class="num">${int(t.signups)}</td></tr>`;
+  const foot=`<tr class="total"><td>Total</td><td class="num">${money(t.spend)}</td><td class="num">100%</td><td class="num">${compact(t.impressions)}</td><td class="num">${int(t.clicks)}</td><td class="num">${pctr(t.ctr)}</td><td class="num">${t.cpc!=null?money(t.cpc,2):'-'}</td><td class="num c-sign">${int(t.signups)}</td></tr>`;
   $('stageTable').querySelector('tbody').innerHTML=(body||`<tr><td colspan="8" style="text-align:center;color:var(--muted2);padding:20px">No delivery yet.</td></tr>`)+(body?foot:'');
 }
 function renderFormats(){
@@ -1610,7 +1686,7 @@ function renderFormats(){
 // be a titled blank box (md/AGENTS.md).
 function renderAttribution(){
   const card=$('attrCard');const a=agg(scoped());
-  const on=n(a.pv)+n(a.pc)>0;
+  const on=!signupsWithheld()&&n(a.pv)+n(a.pc)>0;
   if(card)card.style.display=on?'':'none';
   if(!on){destroyChart('attrChart');return;}
   const data=[n(a.pc),n(a.pv)],total=data[0]+data[1];
@@ -1629,7 +1705,12 @@ function renderInsights(){
   const items=[
     {label:'Cheapest clicks',value:cheapest?safeName(cheapest.tier):'-',copy:cheapest?`${money(cheapest.cpc,2)} per click at ${pctr(cheapest.ctr)} CTR - the tier buying engagement most efficiently.`:'Waiting for clicks.'},
     {label:'Most engaging tier',value:engaging?safeName(engaging.tier):'-',copy:engaging?`CTR ${pctr(engaging.ctr)} vs ${pctr(a.ctr)} campaign average - the audience responding best to the creative.`:'Waiting for an engagement signal.'},
-    {label:'Try free signal',value:int(a.signups),
+    // The signal card is replaced rather than blanked - a hole in the insight grid reads as a
+    // broken render. Its no-conversion copy also openly diagnosed the tracker, which must not
+    // appear on the client's screen.
+    signupsWithheld()?{label:'Best-value tier',value:cheapest?safeName(cheapest.tier):'-',
+      copy:cheapest?`${compact(cheapest.impressions)} impressions at ${money(cheapest.cpm,2)} CPM - the tier buying attention most cheaply. Read it beside the most engaging tier: the cheapest reach is not always the most responsive.`:'Waiting for delivery.'}
+    :{label:'Try free signal',value:int(a.signups),
       // The no-Try-free-click copy BRANCHES ON SPEND. "The first one is due around A$150 spent" is true
       // at A$50 and misleading at A$3,000; past roughly two CPA targets with nothing attributed the
       // honest read is that the conversion tracker is worth checking, not that it is early days.
@@ -1645,6 +1726,13 @@ function renderInsights(){
   $('insightGrid').innerHTML=items.map(i=>`<article class="insight"><div class="label">${i.label}</div><div class="value">${i.value}</div><div class="copy">${i.copy}</div></article>`).join('');
 }
 function renderNote(){
+  // WITHHELD FOOTNOTE. It must not name a reason: the client asked for the figure to come off the
+  // dashboard while the tagging is settled, and that is not something to publish on the page. So
+  // this says WHAT the page reports and stops - never "paused", "pending" or "tracking".
+  if(signupsWithheld()){
+    $('ovNote').innerHTML=`<b>How to read this.</b> This is <b>programmatic display prospecting</b> run through The Trade Desk against three audience tiers of Australian trades and service businesses, plus a retargeting line. <b>What this page reports</b> is delivery and engagement as The Trade Desk measures them - impressions, clicks, spend, and the CTR, CPM and CPC derived from them - against the campaign's committed <b>cost per click A$3.00</b> and <b>CTR 0.15%</b> targets, the A$10,000 budget and the 3 Sep - 3 Oct flight. <b>CPM and the impression target are our own arithmetic</b> on those numbers, not commitments, and every surface that shows one says so. All figures are ${meta().currency||'AUD'}; pacing is full-flight and independent of the date filter.`;
+    return;
+  }
   const slots=(meta().conversion_slots||[]).length;
   $('ovNote').innerHTML=`<b>How to read this.</b> This is <b>programmatic display prospecting</b> run through The Trade Desk against three audience tiers of Australian trades and service businesses, plus a retargeting line. The campaign is judged on its own KPI ladder: <b>cost per Try free click A$150</b> (primary), <b>cost per click A$3.00</b> (secondary) and <b>CTR 0.15%</b> (tertiary) - those three, the A$10,000 budget and the 3 Sep - 3 Oct flight are the campaign's committed settings. <b>CPM, the impression target and the Try free click volume target are our own arithmetic on those numbers</b>, not commitments, and every surface that shows one says so. <b>What is measured:</b> delivery and engagement as The Trade Desk reports them - impressions, clicks, spend and the ratios derived from them - plus <b>Try free clicks</b>: clicks on the site's Try free button that The Trade Desk attributed to the campaign (its conversion source is named "Sign up" in the platform), counted post-click and post-view. <b>What is not:</b> what happens after the Try free click. Whether a trial was actually started, trial-to-paid conversion, revenue and lifetime value are not visible to the ad platform and are never inferred here${slots?` · currently reporting through ${slots} Trade Desk conversion slot${slots===1?'':'s'}`:''}. All figures are ${meta().currency||'AUD'}; pacing is full-flight and independent of the date filter.`;
 }
@@ -1665,7 +1753,7 @@ function deltaCell(actual,target,lowerIsBetter,thin){if(actual==null||target==nu
 function renderBenchTable(){
   const rows=byAdGroup(searched(scoped()));const cT=bench('ctr'),cpcT=bench('cpc'),cpaT=bench('cpa');
   const h=$('benchHint');
-  if(h)h.innerHTML=`CTR / CPC / cost per Try free click per ad group, each against the campaign's own Trade Desk KPI target (green = beating target). A <b>-</b> in the CPA column means that ad group has no attributed Try free click yet, which is not the same as a bad CPA. A row marked <b>&#9888; thin</b> has under 5,000 impressions - its vs-target figures are shown uncoloured, because at that volume they are noise rather than a verdict.`;
+  if(h)h.innerHTML=signupsWithheld()?`CTR and CPC per ad group, each against the campaign's own Trade Desk KPI target (green = beating target). A row marked <b>&#9888; thin</b> has under 5,000 impressions - its vs-target figures are shown uncoloured, because at that volume they are noise rather than a verdict.`:`CTR / CPC / cost per Try free click per ad group, each against the campaign's own Trade Desk KPI target (green = beating target). A <b>-</b> in the CPA column means that ad group has no attributed Try free click yet, which is not the same as a bad CPA. A row marked <b>&#9888; thin</b> has under 5,000 impressions - its vs-target figures are shown uncoloured, because at that volume they are noise rather than a verdict.`;
   const body=rows.map(r=>{const lc=lowConfidence(r);const warn=lc.low?` <span class="warn-chip" title="Low confidence: ${lc.why} - the vs-target figures on this row are not a verdict">&#9888; thin</span>`:'';
     return `<tr>
     <td class="name-cell">${safeName(r.ad_group)}${warn}<div class="tiny">${safeName(r.tier)}</div></td>
@@ -1673,10 +1761,10 @@ function renderBenchTable(){
     <td class="num">${money(r.spend)}</td><td class="num">${compact(r.impressions)}</td>
     <td class="num">${pctr(r.ctr)}${vsLine(cT,v=>pctr(v))}</td><td class="num">${deltaCell(r.ctr,cT,false,lc.low)}</td>
     <td class="num">${r.cpc!=null?money(r.cpc,2):'-'}${vsLine(cpcT,v=>money(v,2))}</td><td class="num">${deltaCell(r.cpc,cpcT,true,lc.low)}</td>
-    <td class="num">${int(r.signups)}</td>
-    <td class="num">${r.cpa!=null?money(r.cpa,2):'<span class="muted-text">-</span>'}${vsLine(cpaT,v=>money(v,0))}</td><td class="num">${deltaCell(r.cpa,cpaT,true,lc.low)}</td></tr>`;}).join('');
+    <td class="num c-sign">${int(r.signups)}</td>
+    <td class="num c-sign">${r.cpa!=null?money(r.cpa,2):'<span class="muted-text">-</span>'}${vsLine(cpaT,v=>money(v,0))}</td><td class="num c-sign">${deltaCell(r.cpa,cpaT,true,lc.low)}</td></tr>`;}).join('');
   const tot=agg(searched(scoped()));
-  const foot=`<tr class="total"><td>Total</td><td></td><td class="num">${money(tot.spend)}</td><td class="num">${compact(tot.impressions)}</td><td class="num">${pctr(tot.ctr)}</td><td class="num">${deltaCell(tot.ctr,cT,false)}</td><td class="num">${tot.cpc!=null?money(tot.cpc,2):'-'}</td><td class="num">${deltaCell(tot.cpc,cpcT,true)}</td><td class="num">${int(tot.signups)}</td><td class="num">${tot.cpa!=null?money(tot.cpa,2):'-'}</td><td class="num">${deltaCell(tot.cpa,cpaT,true)}</td></tr>`;
+  const foot=`<tr class="total"><td>Total</td><td></td><td class="num">${money(tot.spend)}</td><td class="num">${compact(tot.impressions)}</td><td class="num">${pctr(tot.ctr)}</td><td class="num">${deltaCell(tot.ctr,cT,false)}</td><td class="num">${tot.cpc!=null?money(tot.cpc,2):'-'}</td><td class="num">${deltaCell(tot.cpc,cpcT,true)}</td><td class="num c-sign">${int(tot.signups)}</td><td class="num c-sign">${tot.cpa!=null?money(tot.cpa,2):'-'}</td><td class="num c-sign">${deltaCell(tot.cpa,cpaT,true)}</td></tr>`;
   $('benchTable').querySelector('tbody').innerHTML=(body||`<tr><td colspan="11" style="text-align:center;color:var(--muted2);padding:24px">No rows for the current filters.</td></tr>`)+(body?foot:'');
 }
 // Efficiency map: each creative plotted CPC (y, lower better) vs CTR% (x, higher better); bubble
@@ -1799,22 +1887,25 @@ function renderDow(){
 function renderSegment(){
   const groups=byAdGroup(searched(scoped())).filter(a=>n(a.spend)>0).slice(0,12);
   makeChart('segChart',{type:'bar',data:{labels:groups.map(a=>a.ad_group),datasets:[{label:'Spend',data:groups.map(a=>n(a.spend)),backgroundColor:groups.map(a=>stageColor(a.stage)),borderRadius:5}]},
-    options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>{const a=groups[c.dataIndex];return [`${safeName(a.ad_group)} (${a.stage})`,`Spend ${money(a.spend)} · ${compact(a.impressions)} imps · CTR ${pctr(a.ctr)} · ${int(a.signups)} Try free clicks`];}}}},
+    options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>{const a=groups[c.dataIndex];return [`${safeName(a.ad_group)} (${a.stage})`,`Spend ${money(a.spend)} · ${compact(a.impressions)} imps · CTR ${pctr(a.ctr)}${signupsWithheld()?'':` · ${int(a.signups)} Try free clicks`}`];}}}},
       scales:{x:axis({beginAtZero:true,ticks:{color:MC.muted2,font:{size:10,family:MONO},callback:v=>'A$'+compact(v)}}),y:{grid:{display:false},border:{display:false},ticks:{color:MC.muted2,font:{size:10},autoSkip:false,callback:function(v){const l=this.getLabelForValue(v);return l.length>26?l.slice(0,25)+'…':l;}}}}}});
 }
-function readFor(r){const ctrT=bench('ctr'),cpcT=bench('cpc'),cpaT=bench('cpa');
-  if(cpaT&&r.cpa!=null&&r.cpa<=cpaT)return['good-text','Scale it'];
+// The verdict is a sentence about the row, so the CPA arms are as much a disclosure as the CPA
+// cell itself - "Scale it" and "No Try free clicks yet" both state the count in words. Under
+// withholding the verdict falls back to the engagement KPIs, which the client still sees.
+function readFor(r){const ctrT=bench('ctr'),cpcT=bench('cpc'),cpaT=bench('cpa');const sw=signupsWithheld();
+  if(!sw&&cpaT&&r.cpa!=null&&r.cpa<=cpaT)return['good-text','Scale it'];
   if(ctrT&&r.ctr!=null&&r.ctr>=ctrT*1.1&&n(r.impressions)>=5000)return['good-text','Engaging'];
   // Only call a conversion problem once enough has been spent that a Try free click was actually DUE -
   // at the A$150 CPA target, judging a creative on A$40 of spend would flag every creative in week one.
-  if(cpaT&&n(r.spend)>=cpaT*2&&n(r.signups)===0&&n(r.clicks)>0)return['warn-text','No Try free clicks yet'];
+  if(!sw&&cpaT&&n(r.spend)>=cpaT*2&&n(r.signups)===0&&n(r.clicks)>0)return['warn-text','No Try free clicks yet'];
   if(ctrT&&r.ctr!=null&&r.ctr<ctrT*0.6&&n(r.spend)>100)return['bad-text','Refresh creative'];
   if(cpcT&&r.cpc!=null&&r.cpc>cpcT*1.3&&n(r.spend)>100)return['warn-text','Dear clicks'];
   return['muted-text','Monitor'];}
 function renderTables(){
   const rows=byCreative(searched(scoped()));
   $('adTable').querySelector('tbody').innerHTML=rows.length?rows.map(r=>{const[clsv,read]=readFor(r);const lc=lowConfidence(r);const warn=lc.low?` <span class="warn-chip" title="Low confidence: ${lc.why}">&#9888; thin</span>`:'';
-    return `<tr><td class="name-cell" title="${safeName(r.creative)}">${safeName(prettyCreative(r.creative))}${warn}</td><td class="name-cell">${multiLabel(r.ad_group,r.ad_group_n,'ad group')}</td><td><span class="pillc"><span class="dot" style="background:${stageColor(r.stage)}"></span>${safeName(r.stage)}</span>${r.stage_n>1?` <span class="muted-text" title="This creative also ran in ${r.stage_n-1} other funnel stage${r.stage_n-1>1?'s':''}">+${r.stage_n-1}</span>`:''}</td><td>${safeName(r.ad_format)}</td><td class="num">${money(r.spend)}</td><td class="num">${compact(r.impressions)}</td><td class="num">${int(r.clicks)}</td><td class="num">${pctr(r.ctr)}</td><td class="num">${r.cpc!=null?money(r.cpc,2):'<span class="muted-text">-</span>'}</td><td class="num">${int(r.signups)}</td><td class="${clsv}">${read}</td></tr>`;}).join('')
+    return `<tr><td class="name-cell" title="${safeName(r.creative)}">${safeName(prettyCreative(r.creative))}${warn}</td><td class="name-cell">${multiLabel(r.ad_group,r.ad_group_n,'ad group')}</td><td><span class="pillc"><span class="dot" style="background:${stageColor(r.stage)}"></span>${safeName(r.stage)}</span>${r.stage_n>1?` <span class="muted-text" title="This creative also ran in ${r.stage_n-1} other funnel stage${r.stage_n-1>1?'s':''}">+${r.stage_n-1}</span>`:''}</td><td>${safeName(r.ad_format)}</td><td class="num">${money(r.spend)}</td><td class="num">${compact(r.impressions)}</td><td class="num">${int(r.clicks)}</td><td class="num">${pctr(r.ctr)}</td><td class="num">${r.cpc!=null?money(r.cpc,2):'<span class="muted-text">-</span>'}</td><td class="num c-sign">${int(r.signups)}</td><td class="${clsv}">${read}</td></tr>`;}).join('')
     :`<tr><td colspan="11" style="text-align:center;color:var(--muted2);padding:28px">No creatives match the current filters.</td></tr>`;
 }
 // The ad group named beside a creative is resolved ONCE, over the selected range, and both creative
@@ -1851,7 +1942,7 @@ function renderCreative(){
 function openCreative(i){const r=CC_LIST[i];if(!r)return;const head=safeName(prettyCreative(r.creative));const full=safeName(r.creative);
   $('ccModalBody').innerHTML=`<div class="ccm-media"><div class="cc-fallback" style="border-radius:12px;min-height:240px"><div class="cc-fb-mark" role="img" aria-label="Sophiie AI"></div><div class="cc-fb-h">${head}</div></div></div>
     <div class="ccm-info"><h3 title="${full}">${head}</h3><p class="ccm-body">${multiLabel(r.ad_group,r.ad_group_n,'ad group')} · <span class="pillc"><span class="dot" style="background:${stageColor(r.stage)}"></span>${safeName(r.stage)}</span>${r.ad_format?` · ${safeName(r.ad_format)}`:''}${r.tier?` · ${safeName(r.tier)}`:''}</p>
-    <div class="ccm-metrics"><span>Spend <b>${money(r.spend)}</b></span><span>Impressions <b>${compact(r.impressions)}</b></span><span>CPM <b>${r.cpm!=null?money(r.cpm,2):'-'}</b></span><span>Clicks <b>${int(r.clicks)}</b></span><span>CTR <b>${pctr(r.ctr)}</b></span><span>CPC <b>${r.cpc!=null?money(r.cpc,2):'-'}</b></span><span>Try free clicks <b>${int(r.signups)}</b></span>${n(r.video_starts)?`<span>Video completion <b>${r.vcr!=null?pctWhole(r.vcr):'-'}</b></span>`:''}</div></div>`;
+    <div class="ccm-metrics"><span>Spend <b>${money(r.spend)}</b></span><span>Impressions <b>${compact(r.impressions)}</b></span><span>CPM <b>${r.cpm!=null?money(r.cpm,2):'-'}</b></span><span>Clicks <b>${int(r.clicks)}</b></span><span>CTR <b>${pctr(r.ctr)}</b></span><span>CPC <b>${r.cpc!=null?money(r.cpc,2):'-'}</b></span>${signupsWithheld()?'':`<span>Try free clicks <b>${int(r.signups)}</b></span>`}${n(r.video_starts)?`<span>Video completion <b>${r.vcr!=null?pctWhole(r.vcr):'-'}</b></span>`:''}</div></div>`;
   $('ccModal').classList.add('on');
 }
 function closeCreative(){$('ccModal').classList.remove('on');}
@@ -1932,7 +2023,7 @@ function renderViewState(){
   // before the pane has real dimensions). So RE-RENDER the now-visible tab's charts after the
   // browser has laid out the display change (double rAF = one frame to apply display, one to lay it
   // out), which recreates each chart at its true size.
-  requestAnimationFrame(()=>requestAnimationFrame(renderViewCharts));
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{renderViewCharts();syncGrids();}));
 }
 function renderStageChips(){
   const chips=['all'].concat(stages());
@@ -1970,12 +2061,16 @@ function downloadCSV(name,csv){const blob=new Blob(['﻿'+csv],{type:'text/csv;c
 // on `_rawSpend`, and a key-walking export would ship the raw media cost to the client.
 // CSV headers say "try_free_clicks" (the on-screen name); the row keys underneath stay signups /
 // pv_conv / pc_conv, which is the data contract and must not move.
-function exportAllData(){const lbl={pv_conv:'try_free_clicks_post_view',pc_conv:'try_free_clicks_post_click'};const cols=['date','campaign','ad_group','tier','market','creative','ad_format','stage','spend','impressions','clicks','pv_conv','pc_conv','video_starts','video_completes'].map(k=>({label:lbl[k]||k,key:k}));downloadCSV(`sophiie_ttd_all_${meta().date_max||'data'}.csv`,toCSV(ROWS(),cols));}
+// An export is a client-facing surface like any other: leaving the outcome columns in hands back
+// the exact figures the page withholds, in a file that outlives the page. They return with
+// SIGNUPS_REPORTABLE. Note the CSVs SWAP rather than just drop, so no export is left thin.
+function exportAllData(){const lbl={pv_conv:'try_free_clicks_post_view',pc_conv:'try_free_clicks_post_click'};const cols=['date','campaign','ad_group','tier','market','creative','ad_format','stage','spend','impressions','clicks']
+    .concat(signupsWithheld()?[]:['pv_conv','pc_conv']).concat(['video_starts','video_completes']).map(k=>({label:lbl[k]||k,key:k}));downloadCSV(`sophiie_ttd_all_${meta().date_max||'data'}.csv`,toCSV(ROWS(),cols));}
 function exportThisTab(){
   const[a,b]=rangeBounds();const stamp=(a&&b?a+'_'+b:'all');
-  if(STATE.view==='overview'){const cols=[{label:'date',key:'date'},{label:'spend',key:'spend'},{label:'impressions',key:'impressions'},{label:'clicks',key:'clicks'},{label:'try_free_clicks',key:'signups'},{label:'cum_impressions',key:'cum_imps'},{label:'cum_try_free_clicks',key:'cum_signups'}];downloadCSV(`sophiie_daily_${stamp}.csv`,toCSV(dailyOf(scoped()),cols));}
-  else if(STATE.view==='creative'){const cols=[{label:'creative',key:'creative'},{label:'ad_group_primary',key:'ad_group'},{label:'ad_groups_total',key:'ad_group_n'},{label:'ad_format',key:'ad_format'},{label:'spend',key:'spend'},{label:'impressions',key:'impressions'},{label:'cpm',key:'cpm'},{label:'clicks',key:'clicks'},{label:'ctr',key:'ctr'},{label:'cpc',key:'cpc'},{label:'try_free_clicks',key:'signups'}];downloadCSV(`sophiie_creative_${stamp}.csv`,toCSV(byCreative(searched(scoped())),cols));}
-  else{const cols=[{label:'ad_group',key:'ad_group'},{label:'tier',key:'tier'},{label:'stage',key:'stage'},{label:'spend',key:'spend'},{label:'impressions',key:'impressions'},{label:'cpm',key:'cpm'},{label:'clicks',key:'clicks'},{label:'ctr',key:'ctr'},{label:'cpc',key:'cpc'},{label:'try_free_clicks',key:'signups'},{label:'cpa',key:'cpa'}];downloadCSV(`sophiie_by_ad_group_${stamp}.csv`,toCSV(byAdGroup(searched(scoped())),cols));}
+  if(STATE.view==='overview'){const cols=[{label:'date',key:'date'},{label:'spend',key:'spend'},{label:'impressions',key:'impressions'},{label:'clicks',key:'clicks'},{label:'cum_impressions',key:'cum_imps'}].concat(signupsWithheld()?[]:[{label:'try_free_clicks',key:'signups'},{label:'cum_try_free_clicks',key:'cum_signups'}]);downloadCSV(`sophiie_daily_${stamp}.csv`,toCSV(dailyOf(scoped()),cols));}
+  else if(STATE.view==='creative'){const cols=[{label:'creative',key:'creative'},{label:'ad_group_primary',key:'ad_group'},{label:'ad_groups_total',key:'ad_group_n'},{label:'ad_format',key:'ad_format'},{label:'spend',key:'spend'},{label:'impressions',key:'impressions'},{label:'cpm',key:'cpm'},{label:'clicks',key:'clicks'},{label:'ctr',key:'ctr'},{label:'cpc',key:'cpc'}].concat(signupsWithheld()?[]:[{label:'try_free_clicks',key:'signups'}]);downloadCSV(`sophiie_creative_${stamp}.csv`,toCSV(byCreative(searched(scoped())),cols));}
+  else{const cols=[{label:'ad_group',key:'ad_group'},{label:'tier',key:'tier'},{label:'stage',key:'stage'},{label:'spend',key:'spend'},{label:'impressions',key:'impressions'},{label:'cpm',key:'cpm'},{label:'clicks',key:'clicks'},{label:'ctr',key:'ctr'},{label:'cpc',key:'cpc'}].concat(signupsWithheld()?[]:[{label:'try_free_clicks',key:'signups'},{label:'cpa',key:'cpa'}]);downloadCSV(`sophiie_by_ad_group_${stamp}.csv`,toCSV(byAdGroup(searched(scoped())),cols));}
 }
 
 // ================= AI REPORT PAYLOAD (headless portal deck path) =================
@@ -1989,32 +2084,41 @@ function buildReportPayload(){
   // ad group for a creative than the dashboard it is generated from.
   const agMap=new Map();byCreative(all).forEach(c=>agMap.set(c.creative_id||c.creative,{value:c.ad_group,count:c.ad_group_n}));
   const paceRatio=n(f.pace_expected)?n(f.spend_to_date)/n(f.pace_expected):null;
+  // WITHHOLDING A FIGURE MEANS NOT SENDING IT. The deck is a client deliverable, and a model
+  // handed `signups: 123` and `cpa: 3.06` will write a headline about them however firmly the
+  // prompt says not to - the prompt is a request, an absent key is a fact. So the outcome fields
+  // are dropped outright and the model is told what it is looking at instead. The note says what
+  // IS reported and never why the rest is missing; report.py must not narrate the reason either.
+  const sOn=!signupsWithheld();
+  const signFields=(o)=>{if(sOn)return o;const c=Object.assign({},o);
+    ['signups','signups_post_click','signups_post_view','cpa','click_to_signup','cpa_target','signups_target'].forEach(k=>delete c[k]);return c;};
+  const signNote=sOn?'':' This is a REACH AND DELIVERY report. No Try free click, conversion, cost-per-Try-free-click or CPA figure is supplied. Do NOT mention, estimate, infer or ask about Try free clicks, conversions or cost per conversion anywhere in the deck, and do not speculate about why they are absent or about conversion tracking - report impressions, clicks, CTR, CPM, CPC and spend pacing only.';
   return {client:'sophiie',generated_for:'Sophiie AI',currency:meta().currency||'AUD',
     context:{campaign:campaignLabel(),channel:meta().channel||'The Trade Desk (programmatic display)',
       window:{start:f.start,end:f.end,days:f.days_total},days_elapsed:f.days_elapsed,days_total:f.days_total,
       data_through:meta().data_through,last_updated:meta().last_updated,generated_at:new Date().toISOString(),
-      action_source_label:meta().action_source_label||'Try free click · TTD-attributed',
+      action_source_label:sOn?(meta().action_source_label||'Try free click · TTD-attributed'):null,
       // Two facts the deck must never contradict: Try free clicks are ad-platform ATTRIBUTED
       // (post-click + post-view), and nothing after the click - not even a started trial - is visible.
       // The payload keys still say `signups` (report.py reads them); the deck's WORDS come from
       // report.py's brief, which says Try free clicks.
-      signups_reported:signupsReported(),
-      measurement_note:'Try free clicks are clicks on the "Try free" button on the Sophiie site that The Trade Desk attributed to this campaign (the conversion source is named "Sign up" in the platform), counted post-click and post-view. They are NOT completed trial sign-ups. Trial starts, trial-to-paid conversion, revenue, LTV, CAC and payback are NOT visible to the ad platform and must never be asserted.',
-      derived_targets:['cpm_target_aud','impressions_target','signups_target']},
-    overview:{spend:r2(a.spend),budget:r2(n(f.budget)),pace_expected:r2(n(f.pace_expected)),projected_spend:r2(n(f.projected_spend)),pace_ratio:r2(paceRatio),
+      signups_reported:sOn,
+      measurement_note:(sOn?'Try free clicks are clicks on the "Try free" button on the Sophiie site that The Trade Desk attributed to this campaign (the conversion source is named "Sign up" in the platform), counted post-click and post-view. They are NOT completed trial sign-ups. Trial starts, trial-to-paid conversion, revenue, LTV, CAC and payback are NOT visible to the ad platform and must never be asserted.':'Delivery and engagement as The Trade Desk measures them.')+signNote,
+      derived_targets:sOn?['cpm_target_aud','impressions_target','signups_target']:['cpm_target_aud','impressions_target']},
+    overview:signFields({spend:r2(a.spend),budget:r2(n(f.budget)),pace_expected:r2(n(f.pace_expected)),projected_spend:r2(n(f.projected_spend)),pace_ratio:r2(paceRatio),
       impressions:a.impressions,clicks:a.clicks,ctr:r6(a.ctr),cpm:r2(a.cpm),cpc:r2(a.cpc),
       signups:a.signups,signups_post_click:a.pc,signups_post_view:a.pv,cpa:r2(a.cpa),click_to_signup:r6(a.cvr),
-      video_starts:a.video_starts,video_completes:a.video_completes,video_completion_rate:r6(a.vcr)},
-    targets:{cpa_target:bench('cpa'),cpc_target:bench('cpc'),ctr_target:bench('ctr'),cpm_target:bench('cpm'),
-      impressions_target:bench('impressions_target'),signups_target:bench('signups_target'),daily_pace:bench('daily_pace')},
-    by_stage:byS.map(r=>({stage:r.stage,spend:r2(r.spend),impressions:r.impressions,cpm:r2(r.cpm),clicks:r.clicks,ctr:r6(r.ctr),cpc:r2(r.cpc),signups:r.signups,cpa:r2(r.cpa),spend_share:r6(r.spend_share),imp_share:r6(r.imp_share)})),
-    by_tier:byT.map(r=>({tier:r.tier,stage:r.stage,spend:r2(r.spend),impressions:r.impressions,cpm:r2(r.cpm),clicks:r.clicks,ctr:r6(r.ctr),cpc:r2(r.cpc),signups:r.signups,cpa:r2(r.cpa)})),
-    by_ad_group:byG.map(r=>({ad_group:r.ad_group,tier:r.tier,stage:r.stage,spend:r2(r.spend),impressions:r.impressions,cpm:r2(r.cpm),ctr:r6(r.ctr),cpc:r2(r.cpc),signups:r.signups,cpa:r2(r.cpa)})),
+      video_starts:a.video_starts,video_completes:a.video_completes,video_completion_rate:r6(a.vcr)}),
+    targets:signFields({cpa_target:bench('cpa'),cpc_target:bench('cpc'),ctr_target:bench('ctr'),cpm_target:bench('cpm'),
+      impressions_target:bench('impressions_target'),signups_target:bench('signups_target'),daily_pace:bench('daily_pace')}),
+    by_stage:byS.map(r=>signFields({stage:r.stage,spend:r2(r.spend),impressions:r.impressions,cpm:r2(r.cpm),clicks:r.clicks,ctr:r6(r.ctr),cpc:r2(r.cpc),signups:r.signups,cpa:r2(r.cpa),spend_share:r6(r.spend_share),imp_share:r6(r.imp_share)})),
+    by_tier:byT.map(r=>signFields({tier:r.tier,stage:r.stage,spend:r2(r.spend),impressions:r.impressions,cpm:r2(r.cpm),clicks:r.clicks,ctr:r6(r.ctr),cpc:r2(r.cpc),signups:r.signups,cpa:r2(r.cpa)})),
+    by_ad_group:byG.map(r=>signFields({ad_group:r.ad_group,tier:r.tier,stage:r.stage,spend:r2(r.spend),impressions:r.impressions,cpm:r2(r.cpm),ctr:r6(r.ctr),cpc:r2(r.cpc),signups:r.signups,cpa:r2(r.cpa)})),
     // ad_group_primary, NOT ad_group: a TTD creative serves across several ad groups (every one
     // here runs in all four), so naming a single ad group is a claim the data does not support.
     // The key is named for what it is and ad_group_count says how many there were, so the model
     // cannot read it as the creative's only ad group.
-    top_creatives:crs.map(r=>({creative:r.creative,ad_group_primary:r.ad_group,ad_group_count:r.ad_group_n,ad_format:r.ad_format,stage:r.stage,stage_count:r.stage_n,spend:r2(r.spend),impressions:r.impressions,cpm:r2(r.cpm),clicks:r.clicks,ctr:r6(r.ctr),cpc:r2(r.cpc),signups:r.signups})),
+    top_creatives:crs.map(r=>signFields({creative:r.creative,ad_group_primary:r.ad_group,ad_group_count:r.ad_group_n,ad_format:r.ad_format,stage:r.stage,stage_count:r.stage_n,spend:r2(r.spend),impressions:r.impressions,cpm:r2(r.cpm),clicks:r.clicks,ctr:r6(r.ctr),cpc:r2(r.cpc),signups:r.signups})),
     fatigue:fad.map(r=>{const ag=agMap.get(r.key)||{value:r.ad_group,count:r.ad_group_n};
       return {creative:r.creative,ad_group_primary:ag.value,ad_group_count:ag.count,impressions:r.impressions,ctr:r6(r.ctr),ctr_wow:r6(r.ctr_wow),flag:r.flag};})};
 }
