@@ -98,6 +98,10 @@ BLOCK_FIX = ("Windsor has paused reads for the WHOLE account over its plan limit
              "https://onboard.windsor.ai/app/manage-subscription. Everything backfills on its "
              "own the first night after it clears.")
 BLOCK_URL = "https://onboard.windsor.ai/app/manage-subscription"
+# How many DISTINCT datasources must see the notice before it is called account-wide. The real
+# 2026-09-10 block was on all six at once; a single connector saying it is a connector finding,
+# not an account one. See the corroboration block in build().
+BLOCK_MIN_DATASOURCES = int(os.environ.get("BLOCK_MIN_DATASOURCES", "2"))
 
 
 def block_message(body: str) -> str:
@@ -588,6 +592,35 @@ def build(cfg: dict, api_key: str, bq: bigquery.Client | None, prev: dict | None
         for f in cf.as_completed(futs):
             results[futs[f]] = f.result()
 
+    # ---- CORROBORATE before calling it account-wide -------------------------------------
+    # "Account-wide" is a claim about the ACCOUNT, and one account's answer cannot support it.
+    # Caught in production 2026-09-11 07:44 UTC, an hour after the real block cleared: a single
+    # LinkedIn account (502299829 - the one with the known Windsor-side 'start' bug) still
+    # returned the pause notice while the other 102 probes were healthy. The probe declared an
+    # account-wide block on that one sighting and MAILED the team "Reads are PAUSED for the
+    # whole account - every feed is affected". A false page, from the machinery built to stop
+    # false pages.
+    #
+    # The real block hit all six Windsor connectors in the same run, so requiring corroboration
+    # on a SECOND datasource costs nothing against the event this exists for, and refuses the
+    # single-account case entirely. Below the threshold the sighting is not discarded - it is
+    # demoted to `error`, which is honest (Windsor answered with something that is not data) and
+    # flows through the existing two-strike rule, so it shows as `checking` first and pages
+    # nobody unless it repeats.
+    blocked_ds = {k[0] for k, r in results.items() if r.get("verdict") == "billing_blocked"}
+    if blocked_ds and len(blocked_ds) < BLOCK_MIN_DATASOURCES:
+        n = sum(1 for r in results.values() if r.get("verdict") == "billing_blocked")
+        log(f"read-pause notice seen on {n} account(s) across only {len(blocked_ds)} datasource(s) "
+                 f"({', '.join(sorted(blocked_ds))}) - below the {BLOCK_MIN_DATASOURCES}-datasource "
+                 f"threshold for an ACCOUNT-WIDE call, so it is reported per-account as an error "
+                 f"instead. A genuine account-wide pause reaches every connector at once.")
+        for key, r in results.items():
+            if r.get("verdict") == "billing_blocked":
+                r["verdict"] = "error"
+                r["note"] = ("Windsor returned its read-pause notice for THIS account only "
+                             "(no other connector saw it, so this is not the account-wide block): "
+                             + (r.get("note") or "")[:200])
+
     # 2. newest day per key from BigQuery
     newest: dict[str, dict] = {}
     for ds in cfg["datasources"]:
@@ -746,11 +779,11 @@ def build(cfg: dict, api_key: str, bq: bigquery.Client | None, prev: dict | None
         clear_runs = int(prev_block.get("clear_runs") or 0) + 1
         if clear_runs < 2:
             account_block = dict(prev_block, clear_runs=clear_runs)
-            log.info(f"block not seen this run ({clear_runs}/2 clear runs) - holding, "
+            log(f"block not seen this run ({clear_runs}/2 clear runs) - holding, "
                      f"Windsor answers inconsistently under a block")
         else:
             account_block = {"active": False, "cleared_on": today}
-            log.info("ACCOUNT-WIDE BLOCK CLEARED (2 consecutive clear runs)")
+            log("ACCOUNT-WIDE BLOCK CLEARED (2 consecutive clear runs)")
     else:
         account_block = {"active": False, "cleared_on": prev_block.get("cleared_on")}
 
