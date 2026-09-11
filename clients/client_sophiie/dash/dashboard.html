@@ -1555,7 +1555,14 @@ function renderPacing(){
   const actualPct=budget?Math.min(100,spend/budget*100):0,expectedPct=budget?Math.min(100,expected/budget*100):0;
   $('paceActual').style.width=actualPct+'%';$('paceActual').textContent=money(spend);
   $('paceExpected').style.left=expectedPct+'%';
-  $('paceExpectedLabel').textContent=`Expected today: ${money(expected)}`;$('paceBudgetLabel').textContent=`Budget: ${money(budget)}`;
+  // NAME THE WINDOW THE EXPECTATION IS DRAWN TO. `pace_expected` is measured to the last day the
+  // DATA covers, not to today - the feed runs 1-2 days behind, and pacing spend-to-date against an
+  // expectation that includes days no data exists for reported "Under pace" on a campaign that was
+  // ahead (see job/main.py). An older payload without `pace_through` keeps the previous wording.
+  $('paceExpectedLabel').textContent=f.pace_through
+    ? `Expected by ${fmtDate(f.pace_through)}: ${money(expected)}`
+    : `Expected today: ${money(expected)}`;
+  $('paceBudgetLabel').textContent=`Budget: ${money(budget)}`;
   const ratio=expected?spend/expected:null,projected=n(f.projected_spend);
   // VERDICT, deliberately lenient. What matters on a flight is whether it LANDS ON BUDGET by the end
   // date, not whether it sits exactly on the straight line today - programmatic delivery is lumpy
@@ -1584,7 +1591,7 @@ function renderPacing(){
   const basisChip=lateStart
     ? `<span class="pillc" title="${basisTip}">from ${runDays} delivering day${runDays===1?'':'s'}${runDays===1?' - early, treat as indicative':''}</span>`
     : '';
-  $('paceSummary').innerHTML=[`<span class="status ${verdict[0]}">${verdict[1]}</span>`,`<span class="pillc"${projNote}>Projected ${money(projected)}</span>`,basisChip,`<span class="pillc">Day ${int(f.days_elapsed)} of ${int(f.days_total)}</span>`].filter(Boolean).join('');
+  $('paceSummary').innerHTML=[`<span class="status ${verdict[0]}">${verdict[1]}</span>`,`<span class="pillc"${projNote}>Projected ${money(projected)}</span>`,basisChip,`<span class="pillc"${f.pace_through&&n(f.days_covered)&&n(f.days_covered)<n(f.days_elapsed)?` title="Delivery data covers ${int(f.days_covered)} of those days (through ${fmtDate(f.pace_through)}); the pace bar is measured over that window, not to today."`:''}>Day ${int(f.days_elapsed)} of ${int(f.days_total)}${f.pace_through&&n(f.days_covered)&&n(f.days_covered)<n(f.days_elapsed)?` &middot; data to ${fmtDate(f.pace_through)}`:''}</span>`].filter(Boolean).join('');
 }
 // Goal progress is FULL-FLIGHT (independent of the date/stage filter, like pacing).
 function renderGoalProgress(){

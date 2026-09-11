@@ -147,7 +147,6 @@ def build_env(bq, observed):
         else:
             days_elapsed = max(0, days_elapsed)
     daily_pace = benchmarks["daily_pace"] or (budget / days_total if (budget and days_total) else None)
-    pace_expected = (daily_pace * days_elapsed) if (daily_pace and days_elapsed) else None
 
     # PROJECTION RUNS ON THE DELIVERING WINDOW, NOT THE ELAPSED FLIGHT (md/AGENTS.md, "PACE AGAINST
     # THE BUDGET THAT CAN ACTUALLY SPEND"; reference impl clients/client_geocon/job/main.py).
@@ -167,6 +166,35 @@ def build_env(bq, observed):
     first_delivery = dates_with_delivery[0] if dates_with_delivery else None
     last_delivery = dates_with_delivery[-1] if dates_with_delivery else None
     run_days = ((last_delivery - first_delivery).days + 1) if first_delivery else None
+
+    # PACE THE ACTUALS AGAINST THE WINDOW THE ACTUALS COVER (2026-09-11).
+    #
+    # `pace_expected` used to be `daily_pace * days_elapsed`, and `days_elapsed` counts to TODAY.
+    # Spend can only ever cover days that have been DELIVERED AND LOADED, and this feed is
+    # structurally 1-2 days behind (The Trade Desk refuses same-day data, and the Windsor loader
+    # walks back from yesterday). So the numerator and the denominator measured different windows
+    # and the card read "behind" permanently, by construction.
+    #
+    # Live case that found it: day 9 of the flight, spend A$1,688.70 covering 09-04..09-08 was
+    # divided by 9 days of expectation (A$2,903.22) and reported 58% of pace - "Under pace" - on a
+    # campaign delivering A$337.7/day against a A$322.58/day plan, i.e. slightly AHEAD. A Windsor
+    # read pause had frozen the feed one extra day, which widened the gap but did not create it.
+    #
+    # `days_covered` runs from the FLIGHT START (not first delivery) to the last day the data
+    # covers, so a flight that opened before delivery began still counts those days as a real
+    # shortfall against the plan - that miss is genuine and must not be hidden. What is removed is
+    # only the part of the gap that is measurement lag rather than performance.
+    #
+    # `days_elapsed` is UNCHANGED and still counts to today: it is the honest answer to "how far
+    # into the flight are we" and drives the "Day N of M" chip. The two are deliberately different
+    # numbers, and `pace_through` is emitted so the UI can name the date the expectation is drawn
+    # to, instead of the old label's claim of "today".
+    pace_ref = last_delivery or (min(dates_with_delivery) if dates_with_delivery else None)
+    days_covered = None
+    if fstart and pace_ref:
+        days_covered = (pace_ref - fstart).days + 1
+        days_covered = max(0, min(days_covered, days_total) if days_total else max(0, days_covered))
+    pace_expected = (daily_pace * days_covered) if (daily_pace and days_covered) else None
     days_remaining = max(0, days_total - days_elapsed) if (days_total and days_elapsed) else None
     if run_days and days_remaining is not None and days_elapsed and run_days < days_elapsed:
         # Late start (or a gap): project the OBSERVED daily rate across the days still to run.
@@ -181,6 +209,8 @@ def build_env(bq, observed):
         "start": iso(fstart), "end": iso(fend),
         "budget": budget, "days_total": days_total, "days_elapsed": days_elapsed,
         "daily_pace": daily_pace, "pace_expected": pace_expected,
+        # The window pace_expected is drawn to - NOT days_elapsed. See the note above.
+        "days_covered": days_covered, "pace_through": iso(pace_ref),
         "projected_spend": projected_spend, "spend_to_date": round(spend_total, 2),
         # What the projection was computed FROM, so the dashboard can say so on screen instead of
         # leaving the reader to assume it is the elapsed flight (md/AGENTS.md: name the basis).
@@ -211,7 +241,16 @@ def build_env(bq, observed):
             "action_source_label": "Try free click · TTD-attributed",
             "channel": "The Trade Desk (programmatic display)",
             "last_updated": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-            "data_through": (lambda sf: max(sf).strftime("%Y-%m-%dT%H:%M:%SZ") if sf else None)(
+            # DATA COVERAGE, not "when we last looked". This was the max of the freshness-PROBE
+            # timestamps, which advances on every run that touches the mirror - including a run
+            # that loads nothing. On 2026-09-10 a Windsor read pause returned an error payload
+            # instead of rows; the probe timestamp still moved, so this read 2026-09-10 while the
+            # newest delivery in the fact was 2026-09-08. That is the same trap md/AGENTS.md
+            # already documents for Google Ads DTS (`__TABLES__.last_modified` advances through an
+            # outage and reports green), in a second pipeline.
+            # The probe timestamp is still emitted, under a name that says what it is.
+            "data_through": iso(max(dates)) if dates else None,
+            "upstream_checked_at": (lambda sf: max(sf).strftime("%Y-%m-%dT%H:%M:%SZ") if sf else None)(
                 [observed[k] for k in WINDSOR_TABLES if observed.get(k)]),
             "date_min": iso(min(dates)) if dates else None,
             "date_max": iso(max(dates)) if dates else None,

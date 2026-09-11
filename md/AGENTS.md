@@ -204,6 +204,32 @@ that contradicts the campaign's own run-rate argues for topping up a line that n
 Reference impl: `_flight()` in `clients/client_geocon/job/main.py` (`budget_in_market`, `pace_basis`,
 `plan_lines_live`).
 
+## PACE OVER THE WINDOW THE ACTUALS COVER, NOT UP TO TODAY (2026-09-11)
+The budget-axis rule above has a TIME-AXIS sibling, and it is easier to miss because both numbers
+look right on their own. `pace_expected = daily_pace * days_elapsed` where `days_elapsed` counts to
+TODAY, divided into a spend that can only cover days already DELIVERED AND LOADED, compares two
+different windows. Every ad feed lags (The Trade Desk refuses same-day data; the Windsor loaders
+walk back from yesterday), so the card reads "behind" permanently, by construction, and it is
+biased in the direction that makes the agency look like it is underdelivering.
+**Live case:** sophiie, day 9 of a 31-day flight. Spend A$1,688.70 covering 09-04..09-08 was divided
+by 9 days of expectation (A$2,903.22) and published **58% of pace - "Under pace"** on a campaign
+delivering A$337.74/day against a A$322.58/day plan, i.e. running at **105% of plan rate**. A
+Windsor read pause had frozen the feed one extra day, which WIDENED the gap but did not create it -
+3 of the 4 missing days were ordinary lag and a flight that opened a day before first delivery.
+**Rule: draw the expectation to the last day the DATA covers** (`days_covered`), keep `days_elapsed`
+for the honest "Day N of M" chip, and emit the date so the UI can name it - the old label said
+"Expected today" over a figure that was never about today. Measure `days_covered` from the FLIGHT
+START, not first delivery: a flight day with no delivery is a real miss and must stay counted (that
+is why the corrected sophiie figure is 87%, not 105%). Reference impl: `_flight()` in
+`clients/client_sophiie/job/main.py` (`days_covered` / `pace_through`) + `renderPacing()` in its
+dashboard.
+**And a freshness stamp must state DATA COVERAGE, not when you last looked.** sophiie's
+`meta.data_through` was the max of the freshness-PROBE timestamps, which advance on any run that
+touches the mirror - including one that loads nothing. A Windsor error payload on 2026-09-10 moved
+it to 09-10 while the newest delivery in the fact was 09-08. Same trap as the Google Ads DTS
+`last_modified` note above, in a second pipeline: **`data_through` = max fact date; emit the probe
+timestamp separately** (`upstream_checked_at`) if you need it.
+
 ## A WEEKLY TARGET AGAINST CONTINUOUS TIME MUST BE PRORATED (2026-08-27)
 Pacing compares actuals-to-date against target-to-date. Targets are almost always bought WEEKLY
 (or monthly); elapsed time is continuous. If target-to-date steps up by a whole week the moment

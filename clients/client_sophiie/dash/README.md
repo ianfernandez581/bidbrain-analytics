@@ -84,6 +84,29 @@ Verified headless against data carrying 123 Try free clicks: zero occurrences of
 or "sign-up" across all three tabs, zero ragged grids, all four CSV headers clean, every deck object
 stripped, and flipping the flag back restores all of it under the correct label.
 
+## Pacing is measured to the DATA date, not to today (2026-09-11)
+
+`pace_expected` is `daily_pace * days_covered`, where `days_covered` runs from the flight start to
+**the last day the delivery data covers** (`flight.pace_through`). It is deliberately NOT
+`days_elapsed`, which still counts to today and drives the "Day N of M" chip.
+
+Why: this feed is structurally 1-2 days behind (TTD refuses same-day data, the Windsor loader walks
+back from yesterday), so dividing spend-to-date by an expectation that includes days no data exists
+for reported **58% of pace - "Under pace"** on a campaign running at **105% of plan rate**. The two
+figures measured different windows. A Windsor read pause on 2026-09-10 had frozen the feed one
+extra day, which widened the gap but did not cause it.
+
+`days_covered` starts at the FLIGHT START, not first delivery - the campaign's flight opened 09-03
+and first delivered 09-04, and that missed day is a genuine shortfall that must stay counted. It is
+why the corrected reading is 87%, not 105%.
+
+`projected_spend` was already correct (it divides by `delivering_days`) and is unchanged.
+
+**`meta.data_through` now states DATA COVERAGE** (max fact date). It used to be the max of the
+freshness-probe timestamps, which advance on any run that touches the mirror - including the failed
+Windsor run of 2026-09-10, which pushed it to 09-10 while the newest delivery was 09-08. The probe
+timestamp is still emitted as `meta.upstream_checked_at`.
+
 ## What's in here
 
 | File | What it does |
