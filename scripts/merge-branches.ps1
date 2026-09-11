@@ -158,16 +158,20 @@ function Resolve-DeployPlan {
         elseif ($p -match '^clients/(client_[^/]+)/job/')          { $c = $Matches[1]; DirRow "clients/$c/job"  "client '$($c -replace '^client_','')' (export job)" 'deploy_job_*.ps1'   20 }
         elseif ($p -match '^clients/(client_[^/]+)/dash_total/')   { $c = $Matches[1]; DirRow "clients/$c/dash_total" "client '$($c -replace '^client_','')' (total dash fork)" 'deploy_dash_*.ps1' 35 }
         elseif ($p -match '^clients/(client_[^/]+)/dash/')         { $c = $Matches[1]; DirRow "clients/$c/dash" "client '$($c -replace '^client_','')' (dash service)" 'deploy_dash_*.ps1' 30 }
-        # ---- committed seed inputs: a targets/ CSV (mongodb/cloudflare pattern) OR a tracked
+        # ---- committed seed inputs: a targets/ CSV (mongodb/cloudflare pattern), a tracked
+        #      targeting/*.csv (schneidersecpwr's ad-set targeting seed -- it matched NO rule
+        #      until 2026-09-11, so a seed-only commit deployed nothing AND printed no note,
+        #      which is exactly the silent staleness this arm exists to prevent) OR a tracked
         #      data/*.csv (schneider/schneiderlqai consolidated their seed CSVs into data/ via
         #      .gitignore ! exceptions) re-seeds ONLY via the client's seed script
         #      (seed_static.py / load_seeds.py) then a FORCE_REBUILD job run -- NEITHER
         #      create_views.py NOR the job does it automatically, so we must NOT silently
         #      "deploy" (that would rebuild JSON against STALE seed tables). NOTE it.
-        elseif ($p -match '^clients/(client_[^/]+)/(targets/|data/[^/]+\.csv$)') {
+        elseif ($p -match '^clients/(client_[^/]+)/(targets/|targeting/[^/]+\.csv$|data/[^/]+\.csv$)') {
             $c = $Matches[1] -replace '^client_',''
-            Write-Host "    [note] seed inputs changed for client '$c' (targets/). Re-materialise the seed then rebuild:" -ForegroundColor Yellow
-            Write-Host "           .\.venv\Scripts\python.exe clients\$($Matches[1])\seed_static.py   (schneider: load_seeds.py)" -ForegroundColor Yellow
+            $seedDir = $Matches[2] -replace '[^/]+\.csv$',''
+            Write-Host "    [note] seed inputs changed for client '$c' ($seedDir). Re-materialise the seed then rebuild:" -ForegroundColor Yellow
+            Write-Host "           .\.venv\Scripts\python.exe clients\$($Matches[1])\seed_static.py   (schneider: load_seeds.py; schneidersecpwr: load_targeting.py)" -ForegroundColor Yellow
             Write-Host "           gcloud run jobs execute $c-export --region australia-southeast1 --update-env-vars FORCE_REBUILD=1 --wait" -ForegroundColor Yellow
         }
         # ---- platform front-door (dashboards.bidbrain.ai) -----------------------------------

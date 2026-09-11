@@ -458,6 +458,13 @@
   .tag{font-size:10px;font-weight:700;letter-spacing:.4px;padding:2px 8px;border-radius:999px;text-transform:uppercase;white-space:nowrap}
   .tag.live{background:rgba(0,149,48,.13);color:#0B6B2E;border:1px solid rgba(0,149,48,.3)}
   .tag.plan{background:#F1F3F5;color:var(--se-mute);border:1px solid var(--se-line)}
+  /* STAFF-ONLY marker. The Reports tab is gated on window.BB_INTERNAL, but a gate stops a
+     CLIENT SESSION rendering the tab and does nothing about a STAFF SCREENSHOT - which is
+     indistinguishable from a client-facing one without this. Same wording as client_cloudflare's
+     internal cards ('internal - not shown to client'), deliberately not a second phrase. */
+  .tag.internal{background:rgba(196,144,46,.14);color:#7A5510;border:1px solid rgba(196,144,46,.42)}
+  .rep-internal{display:flex;align-items:center;gap:8px;margin-top:10px;padding:8px 12px;border-radius:8px;
+    background:rgba(196,144,46,.08);border:1px solid rgba(196,144,46,.28);font-size:11.5px;color:#7A5510}
 
   .loading{padding:80px 20px;text-align:center;color:var(--on-canvas-mute)}
   .spinner{display:inline-block;width:34px;height:34px;border:3px solid var(--se-line);border-top-color:var(--se-green);border-radius:50%;animation:spin .8s linear infinite;margin-bottom:14px}
@@ -852,8 +859,9 @@
          Campaign Manager). Both download as .xlsx built by the service (dash/xlsx_reports.py). -->
     <div id="tab-reports" class="tabpane">
       <div class="section first">
-        <h2>Client reports</h2>
+        <h2>Client reports <span class="tag internal">internal - not shown to client</span></h2>
         <span class="sub">Two reports Campaign Manager cannot export in one click. Choose a campaign in the top bar, pick a report, then download it as a formatted workbook.</span>
+        <div class="rep-internal">This tab is for 100% Digital and the owning agency. The end client does not see it, and the ad-set targeting behind it is served from a separate staff-only object, not from <code>data.json</code>.</div>
       </div>
       <div class="rep-pick" id="repPick"></div>
       <div id="repBody"></div>

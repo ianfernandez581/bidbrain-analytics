@@ -369,6 +369,18 @@ Enterprise IT's `Unspecified` rows now carry their explanation on BOTH tables, n
 (`ctCamp`) purely to feed it. The note names the verticals (Healthcare, Finance, Retail, Education,
 Manufacturing, Generic, Hero), because "Unspecified" without that reads as missing data.
 
+### The Reports tab says on its face that it is internal (2026-09-11)
+The tab is gated on `window.BB_INTERNAL`, but **a gate stops a client SESSION rendering it and does
+nothing about a staff SCREENSHOT** - which was indistinguishable from a client-facing one. The
+section heading now carries `internal - not shown to client` (the exact wording `client_cloudflare`
+uses on its internal cards, deliberately not a second phrase) plus a banner naming who the tab is
+for and noting the targeting comes from a separate staff-only object, not `data.json`.
+
+This is a LABEL, not a permission. The underlying gap is unchanged and still open: the
+`/internal/reports.json` route authenticates but does not authorise by role, because the `bb_sso`
+cookie carries the allowed-CLIENT list and not the role. Closing that means putting the role in the
+SSO token in `platform_sso.py`, which is vendored into every dashboard.
+
 ### Creative-tab axis labels are computed, never hardcoded (2026-09-11)
 The four Creative charts were unreadable on real data: `crLiConcept` plotted FULL AD COPY sentences
 as rotated x-axis labels that overlapped into a smear, `crTtdConcept` lost its distinguishing tail
