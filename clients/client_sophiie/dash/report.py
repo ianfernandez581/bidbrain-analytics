@@ -189,6 +189,32 @@ Populate every required field from the inputs, conform EXACTLY to the schema, an
 # back. Same prompts + brief + slide shape; web research uses Google Search grounding instead of
 # Anthropic web_search. Plain REST via httpx (already a dep) — no extra SDK, no guessed bindings.
 # Enabled iff GEMINI_API_KEY is set; model via GEMINI_MODEL (default below).
+# SIGN-UPS WITHHELD (2026-09-11). The conversion source attached to this campaign in The Trade
+# Desk is the "Page Land" SITE VISIT pixel (57o4sz8), not the free-trial sign-up action, so the
+# figure the platform reports is not a sign-up count. The dashboard withholds it and
+# buildReportPayload() DELETES every sign-up-derived key before the payload is sent - an absent key
+# is a fact, a prompt is only a request. Both prompts above still describe sign-ups as THE outcome
+# throughout, so rather than re-template them mid-incident this block is appended LAST to each,
+# where it overrides them. Remove it when the tracking is corrected and re-template properly.
+_SIGNUPS_WITHHELD = """
+
+=== AUTHORITATIVE OVERRIDE - READ LAST, OVERRIDES ANYTHING ABOVE ===
+SIGN-UPS AND COST PER SIGN-UP ARE WITHHELD and are ABSENT from the numeric brief. The conversion
+source attached to this campaign in The Trade Desk is a SITE VISIT pixel on the homepage, not the
+free-trial sign-up action, so no sign-up figure exists to report.
+- Do NOT state, estimate, infer or imply any sign-up count, conversion count, CPA, cost per
+  sign-up, conversion rate or click-to-sign-up rate. Not in the headline, a KPI, an insight, a
+  recommendation or a caveat.
+- Where the sections above say to lead with the outcome, lead with DELIVERY AND ENGAGEMENT instead:
+  impressions, clicks, CTR, CPC, CPM and spend, against the campaign CPC and CTR targets and its
+  budget pace. Judge the campaign on those.
+- Do NOT explain the absence, speculate about tracking, or tell the reader a figure is missing.
+  Write it as a delivery-and-engagement report.
+- overall_status must follow delivery pace, CTR and CPC against target, never an outcome figure.
+"""
+STAGE_A_SYSTEM += _SIGNUPS_WITHHELD
+STAGE_B_SYSTEM += _SIGNUPS_WITHHELD
+
 GEMINI_DEFAULT_MODEL = "gemini-2.5-pro"
 # Gemini runs on VERTEX AI, billed to THIS GCP project via the runtime SA's ADC (no prepay AI-Studio
 # API key -- those credits run dry). Region australia-southeast1; runtime SA needs roles/aiplatform.user.

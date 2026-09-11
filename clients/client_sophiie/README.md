@@ -410,6 +410,48 @@ seed.
 from summed components, which is what makes the date-range filter and the CSV export exact over any
 sub-range (`md/AGENTS.md`, "RATES MUST NEVER ENTER A FACT TABLE").
 
+### Sign-ups are WITHHELD (2026-09-11) - the reported conversions were SITE VISITS
+
+**The 148 "sign-ups" the dashboard showed were homepage landings, double counted.** The Trade Desk
+campaign has two image pixels attached as conversion data sources:
+
+| Pixel | ID | TTD event type | Reporting columns | CPA credit |
+|---|---|---|---|---|
+| **Page Land** | `57o4sz8` | **Site visit** (sophiie.ai homepage) | **3 and 4** | 0.03 |
+| **Try Free Button Clicks** | `s6yku20` | Other (the real sign-up action) | 1 and 2 | 1.00 |
+
+Columns 3 and 4 are the SAME pixel under two cross-device concepts (Person, and Household), so it
+reports twice. Our feed showed exactly `click_conversion_03/04` and `view_through_conversion_03/04`
+and nothing else - **100% of the campaign's attributed conversions are Page Land, and Try Free
+Button Clicks has attributed nothing.** Of the 148, 134 were post-view.
+
+The tells were all in the numbers before anyone opened the TTD UI: **A$11.41 per "sign-up" against
+a A$150 target**, a **63.8% click-to-sign-up rate** on prospecting display, and 148 against a 67
+target eight days into a 31-day flight. An outcome rate that good is a measurement artefact until
+proven otherwise.
+
+**`SIGNUPS_REPORTABLE=false` in `dash/dashboard.html` is the ONE knob.** It forces the production
+"no sign-ups yet" path the page already had, so the hero series, attribution donut, weekly chart
+and goal chart needed no new code. What comes off with it: the Sign-ups and Cost-per-sign-up KPI
+tiles (the band becomes Impressions / Clicks / CTR / Spend, with CPM and cost per click beneath),
+the funnel step, the goal bar, the Sign-up-signal insight, the CPA-driven creative verdicts, the
+sign-up columns on the stage / ad-group / creative tables (hidden by column CSS, so every totals
+row and colspan stays intact), both CSV exports, and the AI-deck payload - which **DELETES** the
+keys via `scrubSignups()` rather than sending them with an instruction not to use them, because a
+model handed `signups:148` writes a headline about it however firmly the prompt says otherwise.
+`report.py` gets an authoritative override appended to BOTH system prompts.
+
+**The data path is deliberately untouched** - `sql/*`, `job/main.py` and `sophiie.json` still carry
+the slots in full, so there is no re-seed, no forced export and no history lost. Turning it back on
+is `true` plus a dash deploy, but **only after BOTH**: the conversion sources are corrected in The
+Trade Desk, and `sql/01_stg_ttd.sql` splits the slots so a site visit can never be summed into a
+sign-up again.
+
+**The job had been warning about this on every run.** `WARNING: more than one TTD conversion slot
+is populated` is exactly this condition, and it fired from the first attributed conversion. The
+safeguard worked; nobody read it. If that warning is printing, stop and identify the slots before
+anything downstream is believed.
+
 ### Sign-ups: what the number actually is
 
 Windsor exposes TTD conversions only as **anonymous numbered slots** (`click_conversion_NN`,
