@@ -10,6 +10,10 @@
 -- is the repo-wide "names are not stable keys" rule.
 --
 -- THREE STATES, AND TWO OF THEM MUST NEVER LOOK ALIKE ON SCREEN:
+-- `plan_match` describes ONLY the plan join, and `has_delivery` is separate, because the two are
+-- genuinely independent: a buy can be planned and not yet reporting (Innovation Aus is booked but not
+-- live). Folding "no delivery" into the enum threw away whether the plan_channel had resolved, which
+-- is the one thing the tab needs in order to pace the line when its first report lands.
 --   matched             - plan_channel names a real line. Delivery paces against it.
 --   no_plan_row         - plan_channel is BLANK. A deliberate statement that this buy was never in
 --                         the media plan (Westwick-Farrow). The tab shows the actuals flagged
@@ -72,9 +76,10 @@ SELECT
   COALESCE(p.n_unknown_unit, 0)                               AS n_unknown_unit,
   p.first_period_start,
   p.last_period_end,
+  -- Delivery presence is its own flag, NOT an arm of plan_match - see the header note.
+  (p.campaign IS NOT NULL)                                    AS has_delivery,
   CASE
     WHEN m.campaign IS NULL             THEN 'NO_META_ROW'
-    WHEN p.campaign IS NULL             THEN 'NO_DELIVERY_ROWS'
     WHEN m.plan_channel IS NULL         THEN 'no_plan_row'
     WHEN EXISTS (SELECT 1
                  FROM `bidbrain-analytics.client_schneider.seed_media_plan` mp

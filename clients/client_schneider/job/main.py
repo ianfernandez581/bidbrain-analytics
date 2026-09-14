@@ -182,8 +182,9 @@ def main():
             elif m["plan_match"] == "NO_META_ROW":
                 print(f"WARNING: publisher {pub} ({cid}) has delivery rows but no row in "
                       f"publisher_report_meta.csv - the card has no heading, source or plan match.")
-            elif m["plan_match"] == "NO_DELIVERY_ROWS":
-                print(f"publisher {pub} ({cid}): meta row present, no delivery keyed in yet.")
+            if not m["has_delivery"]:
+                print(f"publisher {pub} ({cid}, {m['plan_match']}): plan line only, no report keyed "
+                      f"in yet (status {m['delivery_status']}).")
             if not m["campaign_known"]:
                 print(f"WARNING: publisher {pub} names campaign {cid!r}, which is not in "
                       f"seed_campaign_map - its rows would render on no campaign at all.")
@@ -208,6 +209,8 @@ def main():
         # the impressions column alone. Solus sends and sponsored-article views are printed beside
         # them precisely so it stays obvious they are not in that first figure.
         for m in pub_meta:
+            if not m["has_delivery"]:
+                continue                     # already reported above; nothing to total
             mine = [r for r in pub_rows
                     if r["campaign"] == m["campaign"] and r["publisher"] == m["publisher"]]
             imps = sum(r["impressions"] or 0 for r in mine)
@@ -491,6 +494,9 @@ def main():
             # carried: this dashboard has no staff/client session distinction, so anything in the
             # payload is on the client's screen (or one devtools tab away from it).
             "status_note": m["status_note"], "plan_match": m["plan_match"],
+            # A publisher can be planned and not yet reporting; the tab paces the plan line and
+            # renders no card for it, so the two facts have to travel separately.
+            "has_delivery": m["has_delivery"],
         } for m in pub_meta],
         "ga4_enabled": ga4_enabled,
         "ga4": ga4,

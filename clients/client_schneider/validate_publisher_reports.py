@@ -30,7 +30,8 @@ CMAP = os.path.join(DATA, "campaign_map.csv")
 # Closed vocabulary - see sql/25_publisher_delivery.sql. ONLY 'impressions' may enter an impression
 # total; 'sends' and 'article_views' are delivery in other units; 'rate' is never summed at all.
 UNITS = {"impressions", "sends", "article_views", "rate"}
-STATUSES = {"complete", "in_progress"}
+# not_live = booked but not yet running, so a meta row with no delivery rows is EXPECTED for it.
+STATUSES = {"complete", "in_progress", "not_live"}
 
 FACT_COLS = ["internal_campaign_id", "publisher", "period_label", "period_start", "period_end",
              "placement_group", "placement", "unit", "metric", "quantity", "clicks",
@@ -86,7 +87,7 @@ def num(s, field, where, required=False, integer=True):
     return v
 
 
-def check_meta(meta, plan_lines, known_campaigns, has_plan):
+def check_meta(meta, plan_lines, known_campaigns, has_plan, status_by_key):
     seen_seq, meta_keys = Counter(), set()
     for i, r in enumerate(meta.itertuples(), start=2):
         where = "publisher_report_meta.csv line %d (%s)" % (i, r.publisher or "?")
@@ -97,6 +98,7 @@ def check_meta(meta, plan_lines, known_campaigns, has_plan):
         if key in meta_keys:
             err("%s: duplicate meta row for %s / %s" % (where, key[0], key[1]))
         meta_keys.add(key)
+        status_by_key[key] = (r.delivery_status or "").lower()
         if r.publisher != r.publisher.lower() or " " in r.publisher:
             err("%s: publisher must be a lowercase key with no spaces (got %r)" % (where, r.publisher))
         if not r.publisher_label:
@@ -172,6 +174,9 @@ def check_fact(fact):
             if unit == "article_views" and b is None:
                 warn("%s: article_views with no booked_quantity - booked vs delivered cannot be "
                      "shown for this article" % where)
+            if unit == "article_views" and q is None and b is not None:
+                print("note: %s: booked with nothing delivered yet - counted in booked, not in "
+                      "delivered." % where)
             if unit != "article_views" and b is not None:
                 warn("%s: booked_quantity on a %s row is only rendered for article_views"
                      % (where, unit))
@@ -205,7 +210,8 @@ def main():
     if plan is not None:
         plan_lines = set((r.internal_campaign_id, r.channel.lower()) for r in plan.itertuples())
 
-    meta_keys = check_meta(meta, plan_lines, known_campaigns, plan is not None)
+    status_by_key = {}
+    meta_keys = check_meta(meta, plan_lines, known_campaigns, plan is not None, status_by_key)
     fact_keys, tot = check_fact(fact)
 
     # The two files must describe the same publishers, or a card loses its heading / its data.
@@ -213,8 +219,14 @@ def main():
         err("publisher_report_meta.csv: no meta row for %r on %r, which has delivery rows. Without "
             "one the card has no heading, source or plan match" % (k[1], k[0]))
     for k in sorted(meta_keys - fact_keys):
-        warn("publisher_report_meta.csv: %r on %r has a meta row but no delivery rows yet - it will "
-             "not render until a report is keyed in" % (k[1], k[0]))
+        st = status_by_key.get(k, "")
+        if st == "not_live":
+            print("note: %r on %r is marked not_live - a plan line with no report yet, which is the "
+                  "point of that status. It renders on the plan table with no card." % (k[1], k[0]))
+        else:
+            warn("publisher_report_meta.csv: %r on %r has a meta row but no delivery rows yet - it "
+                 "will not render a card until a report is keyed in. Set delivery_status=not_live if "
+                 "that is deliberate" % (k[1], k[0]))
 
     # Reconciliation print: check this against the report that was just keyed in.
     if tot:

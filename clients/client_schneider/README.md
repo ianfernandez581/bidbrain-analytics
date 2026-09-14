@@ -344,6 +344,64 @@ precision the **publisher** stated. Capital Brief reports whole percentages, so 
 54% and 56% prints **55%** - which is exactly what its own summary slide says. Printing 55.3% would
 appear to contradict the publisher with precision we do not have.
 
+### Plan targets come from the 2061 AET media plan (reconciled 2026-09-15)
+The plan of record is `2061_SE_ANZ_Advancing Energy Technology Activation - Media Plan - r1.xlsx`,
+sheet **"Media Plan $257K"** (a copy of the r1 PDF is in `raw_files/`). Its per-publisher line items
+are seeded into `data/media_plan.csv` as `global_rebrand` rows.
+
+**Capital Brief's click target was 12,000 and is now 3,500.** 12,000 was **InnovationAus's Reach
+Estimate** (same sheet, one row up) mis-mapped onto Capital Brief's click target; the number appears
+nowhere on Capital Brief's own row, which reads 912,000 impressions / 300,000 reach / **3,500
+clicks** / A$80,000. It is now seeded where it belongs, as Innovation Aus's `reach_target`. The
+consequence is not cosmetic: against 12,000 the delivered 3,856 clicks read **32%, under-delivery**;
+against the real 3,500 it reads **110%, over-delivery**. Every other seeded target on this campaign
+reconciles to the plan exactly (Innovation Aus 24,880 / 1,234, Capital Brief 912,000 impressions,
+Energy Magazine 220,248 / 374, Search 1,222), which is what made the one outlier findable.
+
+| Plan line | Impressions | Clicks | Media cost | Seeded as |
+|---|---|---|---|---|
+| Capital Brief | 912,000 | 3,500 | A$80,000 | `Capital Brief` |
+| ECD Online (wfmedia) | 216,009 | 367 | A$23,450 | combined -> `ECD Online and Sustainability Matters` |
+| Sustainability Matters (wfmedia) | 109,449 | 186 | A$27,800 | (same row: 325,458 / 553 / A$51,250) |
+| Energy Magazine | 220,248 | 374 | A$21,354 | `Energy Magazine` |
+| InnovationAus | 24,880 | 1,234 | A$39,000 | `Innovation Aus` |
+
+**Westwick-Farrow is ONE row, not two.** The publisher reports ECD Online and Sustainability Matters
+as a single report, so its two plan lines are combined into one `media_plan` row and the per-masthead
+split is kept in that row's `note`. That row is what `plan_channel` binds to, which is what replaced
+its "missing plan row" flag with real pacing.
+
+**Spend is the plan's `Total Media Cost` column (ex fee), the same basis `seed_plan_budget` uses.**
+Only the five PUBLISHER lines are seeded. **LinkedIn (A$26,000) and Search (A$11,000) plan spend are
+still blank**, so `budgetPace().other` is A$191,604 and `.total` is the same figure - it is NOT the
+plan's full A$228,604 media cost (A$257,000 with fees). That matters because `plan.budget.*` reaches
+the AI deck payload. Seeding those two is a two-cell CSV edit, but note they are `paid` group, and
+this dashboard's `bbApplySpendMult` deliberately grosses paid plan budgets - so seeding them makes a
+grossed plan figure reachable, which is why it was left out of this pass rather than done quietly.
+
+**Two plan quirks, deliberately NOT "fixed":**
+- **Innovation Aus's 1,234 click estimate** breaks the plan's own 0.17% CTR pattern (24,880 x 0.17%
+  is ~42). Believed a typo in the plan itself; raised with the account team and left as planned.
+- **LinkedIn's seeded 390,625 / 88,542 / 1,393** does not match this file's three LinkedIn lines
+  (406,250 / 92,083 / 1,449). The seed came from this plan's lineage, not this revision. Out of
+  scope for the publisher work; worth reconciling when someone next touches the paid targets.
+
+### Mid-flight, and a booking that has not started
+`delivery_status` now has three values. `complete`, `in_progress` (Capital Brief has September
+buyouts booked, Westwick runs to October, Energy Magazine to September - all three are mid-flight,
+so their KPI reads "Impressions to date") and **`not_live`** - booked but not yet running.
+
+Innovation Aus is `not_live`: it carries a `publisher_report_meta` row with **no delivery rows at
+all**, purely so the tab can say "Booking not yet live" instead of "Plan only - no feed". That is
+why `plan_match` and **`has_delivery` are now separate columns** on `sql/26`: the old enum folded
+"no delivery" into the plan-join result and so threw away whether `plan_channel` had resolved, which
+is precisely what the tab needs in order to pace the line the day its first report lands.
+
+**Westwick's articles pace against 14,000, not 7,000.** The plan books 14 hosted articles across the
+flight; 7 are published. The remaining 7 are carried as ONE fact row with a **blank** quantity (not
+yet reported - never 0) and `booked_quantity` 7,000, so booked totals 14,000 while delivered stays at
+the 8,324 the publisher actually reported. One source for both figures, so they cannot drift.
+
 ### Client-facing copy vs agency commentary
 The tab carries **one status per publisher**, in the plan table's Status column. The cards repeat
 only `In progress`, because that qualifies the card's own "Impressions to date" heading; earlier

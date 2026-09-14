@@ -3122,7 +3122,11 @@ function pubStatusChip(m, hasActuals){
     return `<span class="plan-badge bad" title="plan_channel &quot;${escH(m.plan_channel||'')}&quot; matches no media-plan line - a typo or a renamed plan line, not a buy without a plan">Actuals · plan line not found</span>`;
   if(m.plan_match==='no_plan_row')
     return '<span class="plan-badge warn">Actuals · missing plan row</span>';
-  if(!hasActuals) return '<span class="plan-badge">Plan only · no feed</span>';
+  // A line whose booking has not gone live is not the same as one with no feed: the account team
+  // has confirmed it is coming, so say that rather than implying nothing will ever report.
+  if(!hasActuals) return m.delivery_status==='not_live'
+    ? '<span class="plan-badge">Booking not yet live</span>'
+    : '<span class="plan-badge">Plan only · no feed</span>';
   return m.delivery_status==='in_progress'
     ? '<span class="plan-badge info">Actuals below &darr; · in progress</span>'
     : '<span class="plan-badge ok">Actuals below &darr;</span>';
@@ -3180,8 +3184,14 @@ function renderOther(){
     const delImp = a && a.hasImps ? a.imps : null;
     const delClk = a && a.hasClicks ? a.clicks : (art ? art.clicks : null);
     const pace = pubPace(c.imp_target, delImp, c.click_target, delClk);
+    // `a` is an agg object even for a publisher with no rows, so it is NOT a proxy for "has
+    // actuals" - test the measures. Without this, a booked-but-unstarted line reads "no plan target
+    // to pace against" while its plan targets sit in the two columns to the left.
+    const hasActuals = !!(a && (a.hasImps || a.hasClicks)) || !!art;
     let note=null;
-    if(!pace) note = (a||art) ? 'no plan target to pace against' : 'no report yet';
+    if(!pace) note = (m && m.delivery_status==='not_live') ? 'booking not yet live'
+                   : hasActuals ? 'no plan target to pace against'
+                   : 'no report yet';
     else if(m && m.delivery_status==='in_progress') note='still running';
     else if(art && art.partial) note='flight in progress';
     if(c.imp_target>0 && delImp!=null && c.click_target>0 && delClk!=null){
@@ -3194,7 +3204,7 @@ function renderOther(){
       `<td><span class="pill"><span class="dot" style="background:${campColor(c._prog)}"></span>${campLabel(c._prog)}</span></td>`,
       escH(c.name), sub, c.line_type, c.imp_target, delImp, c.click_target, delClk,
       c.lead_target, c.spend, pace, note,
-      art ? '<span class="plan-badge ok">Actuals below &darr;</span>' : pubStatusChip(m, !!(a&&(a.hasImps||a.hasClicks))));
+      art ? '<span class="plan-badge ok">Actuals below &darr;</span>' : pubStatusChip(m, hasActuals));
     tb.appendChild(tr);
   });
 
@@ -3294,8 +3304,11 @@ function renderPublisherCard(m){
       const vals=arts.map(r=>r.article_views), lo=Math.min(...vals), hi=Math.max(...vals);
       const bk=arts.map(r=>r.booked_quantity).filter(v=>v!=null);
       const allOver=bk.length===arts.length && arts.every(r=>r.article_views>=r.booked_quantity);
-      notes.push(`${arts.length} sponsored article${arts.length>1?'s':''} delivered `
-        +(lo===hi?`${fmtN(lo)} views each`:`between ${fmtN(lo)} and ${fmtN(hi)} views`)
+      // "published so far", not "delivered": more articles can be booked than have run, and the
+      // booked total on this card counts all of them. Saying "7 articles delivered X" beside a
+      // 14,000 booked figure would read as though 7 were the whole booking.
+      notes.push(`The ${arts.length} article${arts.length>1?'s':''} published so far delivered `
+        +(lo===hi?`${fmtN(lo)} views each`:`between ${fmtN(lo)} and ${fmtN(hi)} views each`)
         +(bk.length?` against ${fmtN(bk[0])} booked each${allOver?' - all over-delivered':''}`:'')+'.');
     }
   }
