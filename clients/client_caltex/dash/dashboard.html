@@ -673,10 +673,10 @@
 
       <div class="grid cols-2">
         <div class="card"><h3>Attention funnel</h3><div class="hint">Each bar = the <b>step conversion</b> (share carried from the previous stage), so drop-off is visible; the number is the count. Impressions → clicks: how much of the attention bought went on to a click. Display is upper-funnel, so the click step is naturally small - judge it against the CTR target, not against 100%.</div><div id="funnelList" style="margin-top:6px"></div></div>
-        <div class="card"><h3>Spend by tactic</h3><div class="hint">Where the budget is going across the three buying tactics. Click a legend item to hide or show a tactic.</div><div class="chartbox" style="height:280px"><canvas id="tacticDonut"></canvas></div></div>
+        <div class="card"><h3>Spend by tactic</h3><div class="hint">Where the budget is going across the buying tactics. Click a legend item to hide or show a tactic.</div><div class="chartbox" style="height:280px"><canvas id="tacticDonut"></canvas></div></div>
       </div>
 
-      <div class="card" style="margin-top:16px"><h3>Performance by funnel stage</h3><div class="hint">Spend, share, delivery and engagement per funnel stage, as set in The Trade Desk. <b>All three ad groups are currently set to Awareness</b>, so this shows a single row - it splits out automatically when a consideration phase is added. For the three-way tactic split, see <b>Spend by tactic</b> above.</div><div class="tablewrap" style="margin-top:6px"><table id="stageTable"><thead><tr><th>Stage</th><th class="num">Spend</th><th class="num">Share</th><th class="num">Impressions</th><th class="num">CPM</th><th class="num">Clicks</th><th class="num">CTR</th></tr></thead><tbody></tbody></table></div></div>
+      <div class="card" style="margin-top:16px"><h3>Performance by funnel stage</h3><div class="hint">Spend, share, delivery and engagement per funnel stage, <b>as set in The Trade Desk</b> - never inferred from the ad-group name. An ad group whose funnel location we have not been told shows as <b>Unclassified</b> rather than being folded into a stage it may not belong to, so a new line is visible here from its first impression. For the tactic split, see <b>Spend by tactic</b> above.</div><div class="tablewrap" style="margin-top:6px"><table id="stageTable"><thead><tr><th>Stage</th><th class="num">Spend</th><th class="num">Share</th><th class="num">Impressions</th><th class="num">CPM</th><th class="num">Clicks</th><th class="num">CTR</th></tr></thead><tbody></tbody></table></div></div>
 
       <div class="section"><h2>Where it ran</h2><span class="sub">Delivery by market and by creative format for the Caltex campaign - honours the date filter.</span></div>
       <div class="grid cols-2">
@@ -723,7 +723,7 @@
       <div class="card" style="margin-top:16px"><h3>Delivery by day of week</h3><div class="hint">Impressions (bars) and CTR (line) by weekday across the selected range - when Caltex is seen, and when the ads get clicked.</div><div class="chartbox tall"><canvas id="dowChart"></canvas></div></div>
 
       <div class="grid cols-2-1">
-        <div class="card"><h3>Spend by ad group</h3><div class="hint">The three buying tactics by spend, coloured by funnel stage.</div><div class="chartbox tall"><canvas id="segChart"></canvas></div></div>
+        <div class="card"><h3>Spend by ad group</h3><div class="hint">Each buying tactic by spend, coloured by funnel stage.</div><div class="chartbox tall"><canvas id="segChart"></canvas></div></div>
         <div class="card"><h3>Spend vs delivery share</h3><div class="hint">Spend share vs impression share, per ad group - a gap means that tactic buys dearer (or cheaper) attention.</div><div id="burnList" style="margin-top:6px"></div></div>
       </div>
 
@@ -765,7 +765,10 @@ const $ = id => document.getElementById(id);
 const cv = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 const MC = {actions:cv('--qualified'),clicks:cv('--leads'),spend:cv('--spend'),cost:cv('--cost'),ctr:cv('--ctr'),imps:cv('--reach'),video:cv('--lpv'),
   accent:cv('--accent'),accent2:cv('--accent2'),forest:cv('--forest'),ink:cv('--ink'),muted:cv('--muted'),muted2:cv('--muted2'),good:cv('--good')};
-const STAGE_COLORS = {Awareness:MC.forest,Consideration:MC.clicks,Other:MC.muted2};
+// 'Unclassified' is a real, expected value here (an ad group whose TTD funnel location has not
+// been confirmed), so it gets a deliberate muted colour instead of a hashed one - it should read
+// as 'not yet answered', not as another funnel stage competing with Awareness.
+const STAGE_COLORS = {Awareness:MC.forest,Consideration:MC.clicks,Unclassified:MC.muted2,Other:MC.muted2};
 const TACTIC_COLORS = {'Display Standard':MC.imps,'AI Contextual':MC.clicks,'Attention-Optimised':MC.accent,'Retargetting':MC.ctr,'Retargeting':MC.ctr};
 const CHART_SERIES = [MC.accent,MC.clicks,MC.video,MC.forest,MC.ctr,MC.actions,MC.imps];
 
@@ -877,7 +880,7 @@ function daysBetween(a,b){return Math.round((new Date(b+'T00:00:00Z')-new Date(a
 // ---------- fact rollups (everything derives from rows[]) ----------
 const ROWS=()=>DATA.rows||[];
 function rowsInRange(){return ROWS().filter(r=>inRange(r.date));}
-function scoped(){const st=STATE.stage;return rowsInRange().filter(r=>st==='all'||(r.stage||'Awareness')===st);}
+function scoped(){const st=STATE.stage;return rowsInRange().filter(r=>st==='all'||(r.stage||'Unclassified')===st);}
 function searched(rows){const q=STATE.search.toLowerCase();if(!q)return rows;return rows.filter(r=>[r.campaign,r.ad_group,r.creative,r.tactic].join(' ').toLowerCase().includes(q));}
 function lowConfidence(r){if(n(r.impressions)<5000)return{low:true,why:'under 5k impressions'};return{low:false,why:''};}
 function agg(rows){const s=k=>rows.reduce((a,r)=>a+n(r[k]),0);
@@ -890,13 +893,13 @@ function agg(rows){const s=k=>rows.reduce((a,r)=>a+n(r[k]),0);
     vw_viewed:vwv,vw_tracked:vwt,viewability:vwt?vwv/vwt:null,
     ctr:imp?clicks/imp:null,cpm:imp?spend/imp*1000:null,cpc:clicks?spend/clicks:null,cpa:actions?spend/actions:null,vcr:vs?vc/vs:null,count:rows.length};}
 function groupRollup(rows,keyFn,metaFn){const m=new Map();rows.forEach(r=>{const k=keyFn(r);if(!m.has(k))m.set(k,[]);m.get(k).push(r);});const out=[];m.forEach(rs=>out.push(Object.assign({},metaFn(rs[0],rs),agg(rs))));return out;}
-function byStage(rows){const g=groupRollup(rows,r=>r.stage||'Awareness',r0=>({stage:r0.stage||'Awareness'}));const ts=g.reduce((a,x)=>a+n(x.spend),0)||1,ti=g.reduce((a,x)=>a+n(x.impressions),0)||1;g.forEach(x=>{x.spend_share=n(x.spend)/ts;x.imp_share=n(x.impressions)/ti;});return g.sort((a,b)=>n(b.spend)-n(a.spend));}
-function byTactic(rows){return groupRollup(rows,r=>r.tactic||'Other',r0=>({tactic:r0.tactic||'Other',stage:r0.stage||'Awareness'})).sort((a,b)=>n(b.spend)-n(a.spend));}
-function byAdGroup(rows){return groupRollup(rows,r=>r.ad_group_id||r.ad_group,r0=>({ad_group:r0.ad_group,tactic:r0.tactic,market:r0.market,stage:r0.stage||'Awareness'})).sort((a,b)=>n(b.spend)-n(a.spend));}
+function byStage(rows){const g=groupRollup(rows,r=>r.stage||'Unclassified',r0=>({stage:r0.stage||'Unclassified'}));const ts=g.reduce((a,x)=>a+n(x.spend),0)||1,ti=g.reduce((a,x)=>a+n(x.impressions),0)||1;g.forEach(x=>{x.spend_share=n(x.spend)/ts;x.imp_share=n(x.impressions)/ti;});return g.sort((a,b)=>n(b.spend)-n(a.spend));}
+function byTactic(rows){return groupRollup(rows,r=>r.tactic||'Other',r0=>({tactic:r0.tactic||'Other',stage:r0.stage||'Unclassified'})).sort((a,b)=>n(b.spend)-n(a.spend));}
+function byAdGroup(rows){return groupRollup(rows,r=>r.ad_group_id||r.ad_group,r0=>({ad_group:r0.ad_group,tactic:r0.tactic,market:r0.market,stage:r0.stage||'Unclassified'})).sort((a,b)=>n(b.spend)-n(a.spend));}
 function byMarket(rows){return groupRollup(rows,r=>r.market||'All markets',r0=>({market:r0.market||'All markets'})).sort((a,b)=>n(b.impressions)-n(a.impressions));}
 function byFormat(rows){return groupRollup(rows,r=>r.ad_format||'unknown',r0=>({ad_format:r0.ad_format||'unknown'})).sort((a,b)=>n(b.impressions)-n(a.impressions));}
 function latest(rs,key){for(let i=rs.length-1;i>=0;i--){if(rs[i][key])return rs[i][key];}return null;}
-function byCreative(rows){return groupRollup(rows,r=>r.creative_id||r.creative,(r0,rs)=>({creative:r0.creative,ad_group:r0.ad_group,tactic:r0.tactic,market:r0.market,stage:r0.stage||'Awareness',ad_format:latest(rs,'ad_format')})).sort((a,b)=>n(b.spend)-n(a.spend));}
+function byCreative(rows){return groupRollup(rows,r=>r.creative_id||r.creative,(r0,rs)=>({creative:r0.creative,ad_group:r0.ad_group,tactic:r0.tactic,market:r0.market,stage:r0.stage||'Unclassified',ad_format:latest(rs,'ad_format')})).sort((a,b)=>n(b.spend)-n(a.spend));}
 function dailyOf(rows){const m=new Map();rows.forEach(r=>{const d=String(r.date).slice(0,10);if(!m.has(d))m.set(d,[]);m.get(d).push(r);});const days=[...m.keys()].sort().map(d=>Object.assign({date:d},agg(m.get(d))));
   let cs=0,ci=0,ca=0;days.forEach(d=>{cs+=n(d.spend);ci+=n(d.impressions);ca+=n(d.actions);d.cum_spend=cs;d.cum_imps=ci;d.cum_actions=ca;});return days;}
 function isoWeek(d){const dt=new Date(d+'T00:00:00Z');dt.setUTCDate(dt.getUTCDate()-((dt.getUTCDay()+6)%7));return dt.toISOString().slice(0,10);}
@@ -910,7 +913,7 @@ function fatigueOf(rows){const m=new Map();rows.forEach(r=>{const k=(r.creative_
     const rel=(cw!=null&&n(prev.ctr)>0)?cw/prev.ctr:null;const flag=(rel!=null&&rel<=-0.2)?'FADING':'OK';
     out.push({creative:cur.creative,ad_group:cur.ad_group,week_start:cur.week,impressions:cur.impressions,ctr:cur.ctr,ctr_wow:cw,flag});}});
   return out.sort((a,b)=>n(a.ctr_wow)-n(b.ctr_wow));}
-function stages(){const s=new Set();ROWS().forEach(r=>s.add(r.stage||'Awareness'));return [...s].filter(Boolean);}
+function stages(){const s=new Set();ROWS().forEach(r=>s.add(r.stage||'Unclassified'));return [...s].filter(Boolean);}
 // The real TTD campaign name (e.g. "Caltex Star Card | QLD+WA | Jul-Oct 2026"), read from the data
 // rather than hardcoded, so the header + AI deck always name the live campaign. Falls back for the
 // sample payload / a multi-campaign future.
@@ -1085,7 +1088,15 @@ function renderHeader(){
   const _geo=geoRows().filter(r=>r.impressions>0).map(r=>r.code);
   const mk=_geo.length?_geo.join(' · ')
     :([...new Set(ROWS().map(r=>r.market).filter(Boolean))].join(' · ')||'QLD+WA');
-  $('introCopy').innerHTML=`The Trade Desk programmatic display for <b>${safeName(campaignLabel())}</b> - a <b>brand awareness</b> campaign in ${safeName(mk)}, bought three ways (standard display, AI contextual, attention-optimised) - all three ad groups are set to Awareness in The Trade Desk, with a consideration phase planned. Showing <b>${rangeLabel()}</b> - ${compact(a.impressions)} impressions · ${int(a.clicks)} clicks · ${money(a.spend)} spend.`;
+  const _tacs=[...new Set(ROWS().map(r=>r.tactic).filter(Boolean))];
+  const _tacList=_tacs.length?_tacs.join(', '):'a single tactic';
+  const _stgs=[...new Set(ROWS().map(r=>r.stage).filter(Boolean))];
+  const _known=_stgs.filter(x=>x!=='Unclassified');
+  const _unk=_stgs.includes('Unclassified');
+  const _stgTxt=_known.length===1
+    ?`every classified ad group is set to <b>${safeName(_known[0])}</b> in The Trade Desk`
+    :`ad groups span <b>${safeName(_known.join(' and '))}</b> in The Trade Desk`;
+  $('introCopy').innerHTML=`The Trade Desk programmatic display for <b>${safeName(campaignLabel())}</b> - a <b>brand awareness</b> campaign in ${safeName(mk)}, bought across ${safeName(_tacList)} - ${_stgTxt}${_unk?', with one ad group awaiting its funnel location':''}. Showing <b>${rangeLabel()}</b> - ${compact(a.impressions)} impressions · ${int(a.clicks)} clicks · ${money(a.spend)} spend.`;
 }
 function renderPlaceholderBanner(){
   // Show the "sample data" banner + flip the topbar pill to "Preview" whenever the payload is the
@@ -1236,7 +1247,7 @@ function renderGoalProgress(){
       +`<div class="gtrack"></div><div class="gcap">${note}</div></div>`;};
   $('goalProgress').innerHTML=`<div class="goal-title">Progress to goal · full flight</div>`
     +bar('Impressions',a.impressions,impT,MC.imps,impHi!=null?`plan range to ${compact(impHi)}`:'',compact)
-    +(signT!=null?caveat('Star Card sign-ups',signT,'not measured yet - needs the application tag on the form container'):'')
+    +(signT!=null?caveat('Star Card sign-ups',signT,'not reported yet - the application tag is live on the site, but no sign-up is attributed to this campaign in The Trade Desk so far'):'')
     +(a.viewability!=null
         ?bar('Viewability',a.viewability,bench('viewability_target'),MC.imps,'sampled by The Trade Desk',v=>pctWhole(v))
         :caveat('Viewability',bench('viewability_target'),'no sample returned - viewability measurement is not enabled on these ad groups in The Trade Desk',v=>pctWhole(v)));
@@ -1369,7 +1380,7 @@ function renderInsights(){
   $('insightGrid').innerHTML=items.map(i=>`<article class="insight"><div class="label">${i.label}</div><div class="value">${i.value}</div><div class="copy">${i.copy}</div></article>`).join('');
 }
 function renderNote(){
-  $('ovNote').innerHTML=`<b>How to read this.</b> This is <b>upper-funnel programmatic display</b>: judge the awareness lane on cost-efficient attention (impressions and CPM vs target) and the consideration lane on engagement quality (CTR and CPC vs target). <b>What is measured:</b> ad delivery and engagement, as reported by The Trade Desk - impressions, clicks, spend and the ratios derived from them. <b>What is not:</b> on-site outcomes. Neither Star Card <b>applications</b> nor site visits are reported here - the application step sits on a separate domain the tracking pixel is not installed on, so any outcome after the click has to be read from Caltex's own analytics, not from this dashboard. All figures are ${meta().currency||'AUD'}; pacing is full-flight and independent of the date filter. The impression, CPM, CTR and budget targets come from the <b>signed media plan</b> (A$5,000/month); the <b>CPC target is our own estimate</b>, not a plan commitment, and is labelled as such wherever it appears. The plan was written for <b>QLD+WA</b>; <b>South Australia was added afterwards at the client's request</b>, so the plan figures still describe the original two-state buy while the <b>States reached</b> card shows where delivery actually went. Two of its KPIs are <b>not measurable from this feed</b> and are shown as plan-only: <b>Star Card sign-ups</b> (needs the pixel installed on the application domain) and <b>viewability</b> (IAS / DoubleVerify verification is not in the Trade Desk feed; report it from those tools).`;
+  $('ovNote').innerHTML=`<b>How to read this.</b> This is <b>upper-funnel programmatic display</b>: judge the awareness lane on cost-efficient attention (impressions and CPM vs target) and the consideration lane on engagement quality (CTR and CPC vs target). <b>What is measured:</b> ad delivery and engagement, as reported by The Trade Desk - impressions, clicks, spend and the ratios derived from them. <b>What is not:</b> on-site outcomes. Neither Star Card <b>applications</b> nor site visits are reported here. The application tracking tag is now live on the application site, but The Trade Desk is not yet attributing any sign-up to this campaign, so there is no figure we can stand behind - until there is, any outcome after the click has to be read from Caltex's own analytics, not from this dashboard. All figures are ${meta().currency||'AUD'}; pacing is full-flight and independent of the date filter. The impression, CPM, CTR and budget targets come from the <b>signed media plan</b> (A$5,000/month); the <b>CPC target is our own estimate</b>, not a plan commitment, and is labelled as such wherever it appears. The plan was written for <b>QLD+WA</b>; <b>South Australia was added afterwards at the client's request</b>, so the plan figures still describe the original two-state buy while the <b>States reached</b> card shows where delivery actually went. Two of its KPIs are <b>not yet reportable from this feed</b> and are shown as plan-only: <b>Star Card sign-ups</b> (the tag is live on the application site; no sign-up is attributed to this campaign yet) and <b>viewability</b> (IAS / DoubleVerify verification is not in the Trade Desk feed; report it from those tools).`;
 }
 
 // ---- Delivery ----
@@ -1394,7 +1405,7 @@ function renderBenchTable(){
 // size = spend, colour = funnel stage. Dashed lines mark the CPM + CTR targets → lower-right wins.
 function renderEffScatter(){
   const crs=byCreative(searched(scoped())).filter(x=>n(x.spend)>0&&x.cpm!=null&&x.ctr!=null);
-  const grouped={};crs.forEach(x=>{const s=x.stage||'Awareness';(grouped[s]=grouped[s]||[]).push({x:n(x.ctr)*100,y:x.cpm,r:Math.max(5,Math.min(24,Math.sqrt(n(x.spend))/3)),raw:x});});
+  const grouped={};crs.forEach(x=>{const s=x.stage||'Unclassified';(grouped[s]=grouped[s]||[]).push({x:n(x.ctr)*100,y:x.cpm,r:Math.max(5,Math.min(24,Math.sqrt(n(x.spend))/3)),raw:x});});
   const cpmT=bench('cpm'),ctrT=bench('ctr');
   const targetLines={id:'effTargets',afterDraw(chart){const{ctx,chartArea,scales}=chart;if(!scales.x||!scales.y)return;ctx.save();ctx.setLineDash([5,4]);ctx.lineWidth=1;ctx.strokeStyle='rgba(255,255,255,.28)';ctx.fillStyle=MC.muted2;ctx.font='700 10px '+FONT.family;
     if(cpmT!=null){const y=scales.y.getPixelForValue(cpmT);if(y>chartArea.top&&y<chartArea.bottom){ctx.beginPath();ctx.moveTo(chartArea.left,y);ctx.lineTo(chartArea.right,y);ctx.stroke();ctx.fillText('CPM target '+money(cpmT,2),chartArea.left+6,y-4);}}

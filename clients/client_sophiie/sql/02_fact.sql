@@ -36,10 +36,24 @@ SELECT
   -- would weight a 10-impression row the same as a 10,000-impression one.
   SUM(sampled_viewed_impressions)  AS sampled_viewed,
   SUM(sampled_tracked_impressions) AS sampled_tracked,
+  -- Try free clicks: TTD reporting column 01 (Person) only - see the slot map in sql/01_stg_ttd.sql.
   SUM(post_view_conv)        AS post_view_conv,
   SUM(post_click_conv)       AS post_click_conv,
+  -- The three excluded conversion measures. They are NOT part of the outcome and never reach the
+  -- payload, but they MUST be carried this far: the export job's audit reads `fact`, not `stg_ttd`,
+  -- so leaving them out of this GROUP BY silently turns both of its guards into dead code that
+  -- prints 0.0 and can never warn (exactly what happened on the first pass, 2026-09-14).
+  SUM(post_view_conv_hh)       AS post_view_conv_hh,
+  SUM(post_click_conv_hh)      AS post_click_conv_hh,
+  -- Outcome 2: Talk to sophiie Sign up (qdds2yc), TTD reporting column 03 from 2026-09-12.
+  SUM(talk_post_view_conv)     AS talk_post_view_conv,
+  SUM(talk_post_click_conv)    AS talk_post_click_conv,
+  SUM(talk_post_view_conv_hh)  AS talk_post_view_conv_hh,
+  SUM(talk_post_click_conv_hh) AS talk_post_click_conv_hh,
+  SUM(retired_site_visit_conv) AS retired_site_visit_conv,
+  SUM(unmapped_conv)           AS unmapped_conv,
   -- Distinct conversion slots seen anywhere in this group, so the job can report which anonymous
-  -- TTD slots are actually reporting (see the SIGN-UPS note in sql/01_stg_ttd.sql).
+  -- TTD slots are actually reporting (see the TRY FREE CLICKS note in sql/01_stg_ttd.sql).
   STRING_AGG(DISTINCT conv_slots, ',') AS conv_slots
 FROM `bidbrain-analytics.client_sophiie.stg_ttd`
 GROUP BY date, campaign_id, ad_group_id, creative_id

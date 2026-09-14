@@ -55,22 +55,101 @@ Consequences, and the exact claim the dashboard is allowed to make:
   `action_source_label` badge ("Star Card page · TTD-attributed") all say so.
 - **Never substitute the sitewide `Universal Pixel - Default` tag (`8za7r9n`)** for this number. At
   ~429k hits/30d it is ~150x the landing-page figure and counts all traffic, ad-exposed or not.
-- What we CANNOT report: **Star Card applications / sign-ups.** A tracking tag for them EXISTS
-  (`7y9naeh`) but has never fired, because the pixel is not installed on the application domain
-  `oa.starcard.com.au` — see **Pixel wiring status** below. The client has agreed to attribute
+- What we CANNOT report **yet**: **Star Card applications / sign-ups.** SUPERSEDED 2026-09-14 —
+  the pixel IS now installed on `oa.starcard.com.au` and both application-side tags fire; what is
+  still missing is attaching one to the campaign's conversion reporting, plus the Active-IDs
+  question. See **Pixel wiring status** below. The client has agreed to attribute
   post-launch applications to the campaign in their own reporting, but that is a commercial
   agreement, **not** a measurement we hold — never surface an application count, rate or cost
   from this dashboard.
-- When the application tag IS installed it will appear as a **new numbered slot** in Windsor's
-  anonymous conversion slots; split it out in `sql/01_stg_ttd.sql` (and mirror the split in the
-  status-dash check) to report applications as their own metric.
+- When the application tag IS reporting it will appear as a **new numbered slot** (03, and 04 for
+  its Household twin). `unmapped_conv` sums 03-12 and **must be 0**; the export job WARNs by name
+  the moment it is not, and that warning is the signal to map the new column to its **own** measure
+  in `sql/01_stg_ttd.sql` and mirror the split in the status-dash check **in the same commit**.
+  Never fold a sign-up into the landing-page-visit figure. Note that attaching a data source in TTD
+  **renumbers the reporting columns**, so re-read the campaign's reporting screen before mapping —
+  landing-page visits may no longer be column 01.
 - `conversion_touch_*` stays unused: it counts ALL pixel fires, which this base pixel makes large
   and emphatically not ad-attributed.
-- Slots are summed across all 12 per kind. **When they first fire, verify the layout** — TTD can
-  export one tracker as a duplicate column pair (the VMCH `{01,03,05}` case); if so, switch both
-  `sql/01_stg_ttd.sql` and the status-dash check to one column per pair.
+- **ONE COLUMN PER ACTION, NEVER A SUM OVER SLOTS (corrected 2026-09-14).** The duplicate-pair
+  caveat was real and we were on the wrong side of it: column 01 is the Landing Page Visit tag under
+  the **Person** cross-device concept and column 02 is **the same conversions under Household**, so
+  summing the 12 slots double counted — the live JSON published **161 post-view / 364 post-click
+  against a true 77 / 181**. Verified on the mirror: Household >= Person in 197 of 198 rows and
+  byte-identical in 190, which two independent trackers cannot do. `sql/01_stg_ttd.sql` now reads
+  column 01 only, carries the Household twins as a named diagnostic, and sums columns 03-12 into
+  `unmapped_conv` as a tripwire. Same finding, same connector, same day as `client_sophiie`.
 
 ## Pixel wiring status — site visits RESOLVED 2026-08-10, applications still blocked
+
+> **2026-09-14 — THE APPLICATION TAG IS FIRING. The months-long domain blocker is RESOLVED, and
+> nothing is reporting in our data yet.** Caltex put the universal pixel on the application domain
+> today. The TTD pixel screen confirms it worked — there are now **five** tags on `z3eu6oa`, two of
+> them application-side and both firing (last fired 9/14):
+>
+> | Tag | ID | Rule | Event type | Active IDs | 1d | 7d | 30d |
+> |---|---|---|---|---|---|---|---|
+> | StarCard Apply Click | `7y9naeh` | contains `oa.starcard.com.au/OnlineApplicat…` | Purchase | **0** | **6** | 7 | 7 |
+> | Form Submitted | `y79jotv` | contains `OnlineApplication/confirmation.as…` | Message business | **0** | **2** | 2 | 2 |
+>
+> `7y9naeh` read 0 hits *and* 0 Active IDs in every window in August — the signature of the pixel
+> being absent from that host. It fires now, so **the snippet is on `oa.starcard.com.au`.** Delete
+> any remaining note claiming otherwise.
+>
+> **Four things before anyone quotes a sign-up number:**
+>
+> 1. **`y79jotv` "Form Submitted" is THE sign-up** (the completed application, on the confirmation
+>    page). `7y9naeh` fires on the application *flow*, not a completed application.
+> 2. **THE TWO TAGS OVERLAP AND MUST NEVER BE SUMMED.** A confirmation URL such as
+>    `oa.starcard.com.au/OnlineApplication/confirmation.aspx` satisfies **both** rules, so every Form
+>    Submitted also fires StarCard Apply Click — `7y9naeh`'s 7 hits **include** `y79jotv`'s 2. The
+>    differing event types (Purchase vs Message business) confirm they are different actions.
+> 3. **Those hit counts are TOTAL pixel fires across all traffic, NOT ad-attributed.** They are the
+>    same measure as `conversion_touch_NN`, which this repo deliberately never reports. The
+>    campaign-attributed figure will be **at most 2, and may well be 0**.
+> 4. **Both new tags show `Active IDs` 0** against Landing Page Visit's 1.3K. TTD attributes by
+>    matching the converting user's id back to an impression or click — with no matchable ids there
+>    is nothing to attribute, so the campaign can report **0 while the tag fires happily**.
+>    `client_sophiie` hit exactly this on the same connector the same day. **Chase the 0 Active IDs
+>    before reading a 0 as a result** — a published 0 asserts the campaign produced nothing, when the
+>    truth may be that we cannot yet match who converted.
+>
+> **The remaining wiring step is the one that kept site visits dark for two weeks in August:** the
+> tag must **also be attached to campaign `85k1vmm`'s conversion reporting**. The pixel screen above
+> does not show that — it is a separate TTD-UI setting. Until it is done, TTD fills no numbered slot
+> and Windsor, and therefore this dashboard, sees nothing.
+>
+> **Measured on our side the same day:** the mirror runs to **2026-09-13** and carries **only slots
+> 01 and 02** (`view_through_conversion`, `click_conversion` and `conversion_touch` alike), both the
+> existing Landing Page Visit tag under Person / Household. No slot 03 — no second tracker is
+> reporting. Note the mirror could not show today's fires in any case: TTD refuses same-day data and
+> the loader walks back from yesterday.
+>
+> Nothing needs building when it lands: `unmapped_conv` (slots 03-12) is a tripwire that is 0 today,
+> and the export job WARNs by name the moment it is not. Map `y79jotv` to its own measure then —
+> **a sign-up is not a landing-page visit and must never be summed into one.**
+
+> **2026-09-14 — a FOURTH ad group is live, and the real-value `ELSE` that hid it is GONE.**
+> `Retargetting | QLD+WA+SA` (the client's spelling) has been delivering since **2026-08-22** —
+> 40,668 impressions / 30 clicks / A$276.70 — and was silently absorbed into **Awareness** for three
+> weeks, which a retargeting line definitionally is not. The cause was `funnel_stage`'s
+> `ELSE 'Awareness'`: a real-value default turns a new ad group into silent misattribution instead
+> of a visible question (the repo-wide rule in `md/AGENTS.md`).
+>
+> **Fixed:** the `ELSE` is now `'Unclassified'`, the export job WARNs by ad-group name with its
+> impressions and spend, and the stage table shows the row. The job's `or "Awareness"` payload
+> default and the dashboard's eight `||'Awareness'` guards went with it — same anti-pattern, three
+> layers. The dashboard no longer counts ad groups or tactics in prose either (it said "bought three
+> ways" and "all three ad groups are set to Awareness" throughout); the tactic list and the stage
+> sentence are now **derived from the payload**.
+>
+> **Still open, and deliberately not guessed:** what Funnel location The Trade Desk has set for that
+> ad group. The stage map is STATED from TTD, never inferred — an earlier version inferred it and
+> wrongly tagged AI Contextual and Attention-Optimised as Consideration. **One `WHEN` line in
+> `sql/01_stg_ttd.sql` closes it** once someone reads it off the TTD ad-group screen. Note also its
+> market token is `QLD+WA+SA`, so SA is now part of the buy rather than the unbought spill the geo
+> section below describes.
+
 
 **Half of this is now fixed.** The 2026-08-05 diagnosis below was correct and its **step (1) has
 been actioned**: the client attached `Landing Page Visit` (`4tyuvnj`) to the campaign's conversion

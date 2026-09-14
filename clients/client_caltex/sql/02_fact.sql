@@ -36,7 +36,15 @@ SELECT
   -- would weight a 10-impression row the same as a 10,000-impression one.
   SUM(sampled_viewed_impressions)  AS sampled_viewed,
   SUM(sampled_tracked_impressions) AS sampled_tracked,
+  -- Column 01 (Person) only - see the slot map in 01_stg_ttd.sql. These two are the figures.
   SUM(post_view_conv)        AS post_view_conv,
-  SUM(post_click_conv)       AS post_click_conv
+  SUM(post_click_conv)       AS post_click_conv,
+  -- The Household twins and the unmapped-slot tripwire MUST be carried through to `fact`: the
+  -- export job's guards read THIS view, so leaving them in stg only makes those guards dead code
+  -- that prints 0.0 forever (the mistake caught the same day on client_sophiie). Never summed
+  -- into the two figures above.
+  SUM(post_view_conv_household)  AS post_view_conv_household,
+  SUM(post_click_conv_household) AS post_click_conv_household,
+  SUM(unmapped_conv)             AS unmapped_conv
 FROM `bidbrain-analytics.client_caltex.stg_ttd`
 GROUP BY date, campaign_id, ad_group_id, creative_id

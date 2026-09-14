@@ -404,7 +404,9 @@ seed.
 | `funnel_stage` | `stage` | `Awareness` / `Consideration` / `Conversion` / **`Unclassified`**. Must match `STAGE_COLORS` in the HTML. |
 | `spend`, `impressions`, `clicks` | same | AUD native, no FX. |
 | `video_starts`, `video_25/50/75`, `video_completes` | same | All zero on this display buy; the video card auto-hides via `hasAny()`. |
-| `post_view_conv` / `post_click_conv` | `pv_conv` / `pc_conv` | Try free clicks, kept apart by attribution path and summed to one figure on screen (the browser-side key is still `signups`). |
+| `post_view_conv` / `post_click_conv` | `pv_conv` / `pc_conv` | Try free clicks, kept apart by attribution path and summed to one figure on screen (the browser-side key is still `signups`). **TTD reporting column 01 ONLY** - see "Try free clicks: what the number actually is". |
+| `talk_post_view_conv` / `talk_post_click_conv` | `talk_pv_conv` / `talk_pc_conv` | **Talk to sophiie Sign up** (`qdds2yc`), TTD reporting column 03 from 2026-09-12. A separate action from a Try free sign-up and **never summed into it** upstream. |
+| `post_view_conv_hh` / `post_click_conv_hh`, `talk_post_view_conv_hh` / `talk_post_click_conv_hh`, `retired_site_visit_conv`, `unmapped_conv` | *(not in the payload)* | The three EXCLUDED conversion measures - the Household duplicate of column 01, the detached Page Land site-visit pixel, and anything reporting outside the stated map. Carried through `stg_ttd` **and `fact`** so the export job's two guards can read them; deliberately absent from the JSON so nothing client-facing can sum them back in. |
 | `sampled_viewed` / `sampled_tracked` | `vw_viewed` / `vw_tracked` | Viewability **sample**, carried as the two components and never a stored rate. **NULL, not 0**, until viewability measurement is enabled on the ad groups - the UI must be able to say "not measured" rather than claim 0% viewable. |
 
 **No ratio is ever stored.** CTR / CPM / CPC / CPA / video completion are recomputed in the browser
@@ -430,21 +432,94 @@ but what the tracker records is the Try free button click - so every client-faci
   ad clicks). Its post-view share means it is not a true click-through rate - read it as a ratio.
 
 Windsor exposes TTD conversions only as **anonymous numbered slots** (`click_conversion_NN`,
-`view_through_conversion_NN`) - there is no pixel name or id in the connector. The campaign's
-conversion reporting names "Sign up" as both the conversion data source and the CPA optimisation
-source, **but the TTD UI shows "Sign up +1"**, i.e. a second source is attached and Windsor cannot
-tell us which slot is which. So `sql/01` sums **all 12 slots per kind** (a second tracker must never
-be silently dropped) and carries `conv_slots`, the slot names that actually fired.
+`view_through_conversion_NN`) - there is no pixel name or id in the connector, so which slot is which
+action cannot be read from the feed. It is read off the campaign's **Configure campaign reporting and
+attribution** screen and STATED in `sql/01_stg_ttd.sql`. Read 2026-09-14:
 
-**The export job prints those slots every run and WARNs when more than one is populated.** When that
-warning appears, identify the slots in The Trade Desk and **split the other action out in
-`sql/01_stg_ttd.sql`** - never leave two different actions folded into one "Try free clicks" figure. The
-status-pipeline checks sum the same 12 slots, so both sides must move in the same change.
-`conversion_touch_NN` (total pixel fires, mostly not ad-attributed) is deliberately unused. And per
-the VMCH precedent: if `conv_slots` ever shows an ADJACENT PAIR, TTD is exporting one tracker as a
-duplicate column pair and both sides must switch to one column per pair.
+| TTD reporting column | Conversion data source | What we do with it |
+|---|---|---|
+| **01** | **Try Free Sign up** (`s6yku20`), concept **Person** | **Outcome 1** -> `post_view_conv` / `post_click_conv` -> payload `pv_conv` / `pc_conv` |
+| 02 | Try Free Sign up (`s6yku20`), concept Household | Diagnostic only. **Never added** - the same conversions under a wider identity graph |
+| **03** | **Talk to sophiie Sign up** (`qdds2yc`), **from 2026-09-12** | **Outcome 2** -> `talk_post_view_conv` / `talk_post_click_conv` -> payload `talk_pv_conv` / `talk_pc_conv` |
+| 03 / 04 | `Page Land` (`57o4sz8`), a **SITE VISIT**, **up to 2026-09-11** | Excluded. Detached from the campaign; see the date boundary below |
+| 04 | Household twin of column 03, from 2026-09-12 | Diagnostic only, never added |
+| 05-12 | *(nothing)* | `unmapped_conv`; must be 0, the job WARNs if not |
+
+**Column 03 has held two different actions, so the map is DATE-AWARE.** `_talk_era` in `sql/01` is
+that boundary (`metric_date > DATE '2026-09-11'`), defined once and read by every column, so the two
+eras can never disagree. Read flat, column 03 would credit Talk to sophiie with 535 conversions dated
+before the tag existed. The boundary is currently unambiguous because 2026-09-12 carries rows but
+zero conversions of any kind, so nothing sits on the seam. **The caveat to watch:** TTD reports by
+*current* column assignment, so a Windsor re-pull of an old date can restate column 03 with Talk to
+sophiie values - the job WARNs if any Talk conversion lands on or before 2026-09-11.
+
+**The two outcomes are never summed upstream.** A Try free sign-up and a "Talk to sophiie" enquiry
+are different actions (TTD event types `Other` and `Message business`), so `sql/01` and the payload
+keep them apart and the dashboard decides what to show side by side. Note TTD's **CPA optimisation
+uses both** (both appear in the campaign's CPA panel with a conversion credit), so the A$150 CPA
+target is against the combination - if a combined figure is ever put on screen, label it as the sum.
+
+**Summing all 12 slots is what published 535 site visits as the campaign outcome.** Two separate
+errors compounded: the wrong pixel (a landing on sophiie.ai is not a Try free click), and a double
+count (TTD reports each data source once per cross-device concept, so an adjacent pair is the same
+conversions twice - the VMCH precedent, and it applies to the Try Free pixel too). The tell was the
+arithmetic: **A$11.41 per "sign-up" against a A$150 target**. An outcome rate that good is a
+measurement artefact until proven otherwise.
+
+**Slot numbering is NOT a stable key** - attaching or detaching a conversion data source in TTD
+renumbers the reporting columns, which is exactly what happened on 2026-09-11. So the export job
+prints the full split every run and carries two guards: `unmapped_conv > 0` (a column outside the map
+is reporting) and any `retired_site_visit_conv` dated after 2026-09-11 (Page Land is back, or the
+columns have moved). **Both guards read `fact`, not `stg_ttd`** - the four excluded measures must stay
+in `02_fact.sql`'s `GROUP BY` or the guards silently become dead code that prints 0.0 and can never
+fire (that shipped on the first pass and was caught the same day). The status-pipeline checks read
+column 01 too, so **both sides move in one commit**. `conversion_touch_NN` (total pixel fires, mostly
+not ad-attributed) is deliberately unused - though note it is absent for columns 01/02 as well, so
+the Try Free pixel is not currently firing *at all*, not merely failing to attract attribution.
+
+### Still withheld, and why (2026-09-14)
+
+`SIGNUPS_REPORTABLE = false`. It was flipped on and pulled back the same day, deliberately.
+
+**The MAPPING is settled** - columns 01 and 03 are read for the two real outcomes and the Page Land
+site-visit pixel can no longer reach the page. **The ATTRIBUTION is not.** The Trade Desk credits
+this campaign with none of either, while both tags are demonstrably firing on the site:
+
+| Tracker | TTD event type | 1 day | 7 day | 30 day | Active IDs | Last fire |
+|---|---|---|---|---|---|---|
+| Page Land (`57o4sz8`) | Site visit | 1,269 | 9,482 | 9,482 | 1.4K | 2026-09-14 |
+| Try Free Sign up (`s6yku20`) | Other | 5 | 60 | 136 | **0** | 2026-09-14 |
+| Talk to sophiie Sign up (`qdds2yc`) | Message business | 2 | 2 | 2 | **0** | 2026-09-14 |
+
+**Those hit counts are TOTAL PIXEL FIRES across all site traffic - they are not ad-attributed and
+must never be published as campaign outcomes** (`conversion_touch_NN` carries the same measure in
+our feed and is deliberately unused; the VMCH and caltex precedents both turn on this). 136 people
+clicked Try free on the site; the dashboard's question is how many of those the display campaign
+drove, and the answer TTD gives today is none. **Active IDs = 0 on both conversion tags against
+1.4K on Page Land** is the thing to chase: TTD has matched no users to those two events, which is
+what attribution needs.
+
+So a published 0 would not read as "the ads drove none of these" - it would read as "the campaign
+produced nothing", a performance claim we cannot support while attribution is unresolved.
+Withholding is the honest state until it clears. **Turn it back on with `true` plus a dash deploy**;
+nothing upstream changes, because the data path carries both outcomes in full either way (the two
+status-pipeline checks read `rows[].pv_conv`/`pc_conv` out of the published payload, so it must).
+
+**Also unsettled: `s6yku20` was renamed** "Try Free Button Clicks" -> **"Try Free Sign up"**. If it
+was genuinely re-tagged to fire on a completed sign-up rather than the button click, the
+client-facing label should go back to "sign-ups" - that reverses the 2026-09-11 naming decision, so
+confirm what the tag actually fires on before moving it.
 
 ### Funnel stage is deliberately LOUD
+
+**One ad group is STATED, not parsed: `TIER4-CONTEXTUAL` (2026-09-14).** It carries no trailing
+stage token at all, so it fell to `Unclassified` and put **35,865 impressions / A$133.83 - 6% of
+delivery** under an Unclassified chip on the funnel-stage table, with its tier rendering as
+"Tier4 Contextual" instead of matching the other three. It is a fourth *prospecting* tier
+(contextual targeting) alongside TIER1/2/3, which are all `_AWR`, so it is mapped explicitly to
+**Awareness** and labelled "Tier 4 - contextual". Listed by name, never as a default - an unnamed
+ad group still lands in `Unclassified` and still WARNs, and if it is ever renamed
+`TIER4-CONTEXTUAL_AWR` the parse wins and the override becomes a no-op.
 
 `sql/01` maps the ad-group name's **trailing** stage token (`AWR` / `CONSID` / `CONV`) with a regex,
 never a fixed `SPLIT` offset, and sends anything else to `Unclassified` rather than defaulting it to

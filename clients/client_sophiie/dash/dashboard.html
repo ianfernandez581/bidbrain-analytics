@@ -1225,13 +1225,20 @@ function lowConfidence(r){if(n(r.impressions)<5000)return{low:true,why:'under 5k
 // trial sign-up. Only the LABELS moved; never print "sign-up" for this figure again.
 function hasAny(f){return ROWS().some(r=>n(r[f])>0);}
 
-// CLIENT INSTRUCTION 2026-09-11: report NO Try free click count and NO cost per Try free click
-// until the conversion tagging is settled. Flip this back to `true` and every surface returns
-// exactly as it was - a dashboard deploy and nothing else.
-// NOTHING UPSTREAM CHANGES: sql/*, job/main.py and the JSON still carry pv_conv/pc_conv in full,
-// which is REQUIRED - the two status-pipeline accuracy checks read rows[].pv_conv/pc_conv straight
-// out of the published payload, so stripping the data path would turn the accuracy monitor red.
-// The page must not SAY why it is withheld - do not add an on-screen explanation.
+// STILL WITHHELD (2026-09-11 client instruction; briefly flipped on and pulled back 2026-09-14).
+// The MAPPING is now correct - sql/01_stg_ttd.sql reads TTD reporting column 01 for Try free and
+// column 03 for Talk to sophiie, so the 535 Page Land SITE VISITS that used to be published as the
+// outcome can no longer reach this page. What is not settled is the ATTRIBUTION: The Trade Desk is
+// crediting this campaign with none of either, while both tags are demonstrably firing on the site
+// (Try free 136 hits / 30d, Talk to sophiie 2, both last firing 2026-09-14) and both show ACTIVE
+// IDS 0 against Page Land's 1.4K.
+// So a published 0 would not read as "the ads drove none of these" - it would read as "the campaign
+// produced nothing", which is a claim about performance we cannot support while the attribution
+// side is unresolved. Withholding is the honest state until it is.
+// TURN IT BACK ON once TTD attributes: set this to `true` and deploy the dash - nothing upstream
+// changes, because sql/*, job/main.py and the JSON carry both outcomes in full either way (the
+// status-pipeline checks read rows[].pv_conv/pc_conv straight out of the payload, so the data path
+// must stay intact). The page must not SAY why it is withheld - no on-screen explanation.
 const SIGNUPS_REPORTABLE = false;
 
 // TWO predicates, not one. `signupsReported` is the RENDER gate. `signupsWithheld` is the COPY
@@ -2147,7 +2154,11 @@ function renderWebsite(){
       sub:'time actively engaged'},
     // The GA4 conversion tile sits HERE and is withheld with every other conversion figure on this
     // dashboard. `.filter(Boolean)` drops it entirely rather than rendering a blank tile.
-    signupsReported()
+    // Gated on the WITHHOLDING POLICY, not on signupsReported() - these are GA4 whole-site key
+    // events and have nothing to do with whether The Trade Desk attributed a Try free click. The two
+    // were equivalent only while the flag was off; once it went back on (2026-09-14) the old gate
+    // would have kept a real, non-zero GA4 figure dark for as long as TTD read zero.
+    !signupsWithheld()
       ? {color:MC.signups,label:'Site conversions',value:int(gaSum(rows,'conversions')),
          sub:'GA4 key events, whole site - not campaign-attributed'}
       : null,
@@ -2267,7 +2278,9 @@ function renderGaSources(rows,total){
 // view-source (the same treatment the staff-only tables get elsewhere in the estate).
 function renderGaEvents(){
   const card=$('gaEventsCard');if(!card)return;
-  const on=signupsReported();
+  // Withholding policy, NOT signupsReported() - see the GA4 conversion tile above. GA4 key events
+  // are whole-site and non-zero; gating them on TTD attribution hid a real figure behind a zero.
+  const on=!signupsWithheld();
   card.style.display=on?'':'none';
   const body=$('gaEventsTable')&&$('gaEventsTable').querySelector('tbody');
   if(!on){if(body)body.innerHTML='';const h0=$('gaEvHint');if(h0)h0.innerHTML='';return;}

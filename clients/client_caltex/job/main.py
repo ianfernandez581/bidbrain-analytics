@@ -104,6 +104,47 @@ def build_env(bq, observed):
         "viewability_target": bnum("viewability_target"),
     }
 
+    # --- funnel-stage audit --------------------------------------------------------------------
+    # The stage is STATED from The Trade Desk, never inferred from the ad-group name, so an ad group
+    # we have not been told about resolves to 'Unclassified' rather than silently joining Awareness
+    # (sql/01_stg_ttd.sql). That is only useful if it is LOUD, hence this.
+    _unclassified = sorted({(r.get("ad_group_name") or "?") for r in fact
+                            if (r.get("funnel_stage") or "") == "Unclassified"})
+    if _unclassified:
+        _u_imps = sum(int(r.get("impressions") or 0) for r in fact
+                      if (r.get("funnel_stage") or "") == "Unclassified")
+        _u_spend = sum(num(r.get("spend")) or 0 for r in fact
+                       if (r.get("funnel_stage") or "") == "Unclassified")
+        print("WARNING: ad groups with no confirmed TTD funnel location (-> 'Unclassified'): "
+              + ", ".join(_unclassified)
+              + f" [{_u_imps:,} impressions, ${round(_u_spend, 2)}]. Ask what Funnel location The "
+                "Trade Desk has set for each, then add a WHEN line to the CASE in "
+                "sql/01_stg_ttd.sql - do NOT infer it from the ad-group name.")
+
+    # --- conversion slot audit -----------------------------------------------------------------
+    # Printed every run so the Person/Household pair can never be silently summed again, and so the
+    # arrival of the Star Card sign-up tag is LOUD rather than quietly folded into site visits.
+    def _tot(k):
+        return round(sum(num(r.get(k)) or 0 for r in fact), 1)
+
+    print(f"Star Card landing-page visits (col 01, Person): post-view {_tot('post_view_conv')}, "
+          f"post-click {_tot('post_click_conv')}  [col 02 Household, NOT summed: "
+          f"post-view {_tot('post_view_conv_household')}, "
+          f"post-click {_tot('post_click_conv_household')}]")
+
+    if _tot("unmapped_conv") > 0:
+        print("WARNING: a TTD conversion slot outside the stated map (columns 03-12) is reporting "
+              f"{_tot('unmapped_conv')} conversions. This is most likely an application-side tag "
+              "finally attached to the campaign's conversion reporting - 'Form Submitted' (y79jotv, "
+              "the completed application = THE sign-up) or 'StarCard Apply Click' (7y9naeh, only "
+              "reaching the application flow). THOSE TWO OVERLAP - a confirmation URL satisfies both "
+              "rules - so map y79jotv and never add them together. Give it its OWN measure in "
+              "sql/01_stg_ttd.sql (never fold it into post_view_conv/post_click_conv, a sign-up is "
+              "not a landing-page visit) and mirror the split in the status-dash check in the SAME "
+              "commit. Note that attaching a data source in The Trade Desk RENUMBERS the reporting "
+              "columns, so re-read the campaign's reporting screen before mapping - the landing-page "
+              "visit figure may no longer be column 01.")
+
     # --- flight / pacing (flight-window based; independent of the dashboard's date filter) -------
     b = bud[0] if bud else {}
     fstart = b.get("flight_start")
@@ -150,7 +191,7 @@ def build_env(bq, observed):
             # Visit" tag (4tyuvnj, TTD event type "Site visit"), scoped to the Star Card landing
             # page - NOT the sitewide Default tag. If a second tracker is ever attached, this
             # label and the copy in dash/dashboard.html must be re-checked together.
-            "action_source_label": "Star Card page · TTD-attributed",
+            "action_source_label": "Star Card page · TTD-attributed (Person)",
             "channel": "The Trade Desk (programmatic display)",
             "last_updated": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
             "data_through": (lambda sf: max(sf).strftime("%Y-%m-%dT%H:%M:%SZ") if sf else None)(
@@ -174,7 +215,9 @@ def build_env(bq, observed):
             "tactic": r.get("tactic"), "market": r.get("market"),
             "creative_id": r.get("creative_id"), "creative": r.get("creative_name"),
             "ad_format": r.get("ad_format"),
-            "stage": r.get("funnel_stage") or "Awareness",
+            # Same rule as the view: a missing stage is UNKNOWN, not Awareness. A real-value default
+            # here would quietly re-create the bug sql/01_stg_ttd.sql just fixed.
+            "stage": r.get("funnel_stage") or "Unclassified",
             "spend": num(r["spend"]), "impressions": num(r["impressions"]), "clicks": num(r["clicks"]),
             "video_starts": num(r.get("video_starts")), "video_25": num(r.get("video_25")),
             "video_50": num(r.get("video_50")), "video_75": num(r.get("video_75")),

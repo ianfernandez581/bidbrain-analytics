@@ -79,11 +79,12 @@ def audit(fact):
        sends anything else to 'Unclassified' rather than defaulting it to a real value - so a rename
        in The Trade Desk shows up as a named warning here and as a visible chip on the dashboard,
        instead of quietly filing a retargeting ad group under Awareness.
-    2. CONVERSION SLOTS. Windsor reports TTD conversions as anonymous numbered slots and this
-       campaign has TWO conversion data sources attached ("Sign up +1"), so the Try free click total
-       is a sum over slots we cannot individually name. Printing which slots actually fire is the
-       only way to notice a second action arriving in a different slot - at which point it must be
-       SPLIT OUT in sql/01, never left folded into "Try free clicks".
+    2. CONVERSION SLOTS. Windsor reports TTD conversions as anonymous numbered slots with no pixel
+       name, so which slot is which action is STATED in sql/01 from the TTD reporting screen, not
+       derived from the feed. Try free clicks are reporting column 01 ONLY (Person); column 02 is
+       the same conversions under Household and is never added; columns 03/04 are the detached Page
+       Land site-visit pixel. Slot numbering moves whenever a data source is attached or detached in
+       TTD, so anything outside that map is WARNed here by name.
     """
     unclassified = sorted({r.get("ad_group_name") for r in fact
                            if (r.get("funnel_stage") or "") == "Unclassified"})
@@ -92,14 +93,50 @@ def audit(fact):
               + ", ".join(str(a) for a in unclassified)
               + " | add the code to the CASE in sql/01_stg_ttd.sql")
     slots = sorted({s for r in fact for s in str(r.get("conv_slots") or "").split(",") if s})
-    if slots:
-        print(f"conversion slots reporting ({len(slots)}): " + ", ".join(slots))
-        if len(slots) > 1:
-            print("WARNING: more than one TTD conversion slot is populated. Try free clicks are "
-                  "currently the SUM of every slot. Identify each slot in The Trade Desk and split any "
-                  "other action out in sql/01_stg_ttd.sql before reporting it as Try free clicks.")
-    else:
-        print("conversion slots reporting: none yet (0 attributed Try free clicks so far)")
+    print("conversion slots reporting: " + (", ".join(slots) if slots else "none"))
+
+    def tot(col):
+        return round(sum(float(r.get(col) or 0) for r in fact), 2)
+
+    # Printed side by side so the two can never be confused again. Try free clicks are reporting
+    # column 01; the Household column and the detached site-visit pixel are shown but excluded.
+    print(f"Try free sign-ups (col 01, Person): post-view {tot('post_view_conv')}, "
+          f"post-click {tot('post_click_conv')}  [col 02 Household, NOT summed: "
+          f"post-view {tot('post_view_conv_hh')}, post-click {tot('post_click_conv_hh')}]")
+    print(f"Talk to sophiie (col 03, from 2026-09-12): post-view {tot('talk_post_view_conv')}, "
+          f"post-click {tot('talk_post_click_conv')}  [col 04 Household, NOT summed: "
+          f"post-view {tot('talk_post_view_conv_hh')}, post-click {tot('talk_post_click_conv_hh')}]")
+    print(f"retired Page Land site-visit pixel (cols 03/04 BEFORE 2026-09-12, NOT reported): "
+          f"{tot('retired_site_visit_conv')}")
+
+    if tot("unmapped_conv") > 0:
+        print("WARNING: a TTD conversion slot outside the stated map (columns 05-12) is reporting "
+              f"{tot('unmapped_conv')} conversions. Attaching or detaching a conversion data source "
+              "in The Trade Desk RENUMBERS the reporting columns, so the Try free click figure may "
+              "no longer be column 01. Re-read the campaign's reporting screen, then update the map "
+              "in sql/01_stg_ttd.sql AND the mirrored check in status_dashboard/job/main.py.")
+
+    # The column-03 era boundary is enforced in sql/01, so this can only fire if that view and this
+    # job disagree - which is precisely the thing worth shouting about, since column 03 means two
+    # different actions either side of 2026-09-11.
+    fresh_sv = round(sum(float(r.get("retired_site_visit_conv") or 0) for r in fact
+                         if str(r.get("date")) > "2026-09-11"), 2)
+    if fresh_sv > 0:
+        print(f"WARNING: {fresh_sv} conversions are booked to the retired Page Land site-visit pixel "
+              "on a date after 2026-09-11, where column 03 belongs to Talk to sophiie. sql/01's "
+              "`_talk_era` boundary and this job have diverged - fix before either outcome figure "
+              "is believed.")
+
+    # TTD reports by CURRENT column assignment, so a Windsor re-pull of an old date can restate
+    # column 03 with Talk to sophiie values and credit this tag with conversions from before it
+    # existed. Nothing downstream would look wrong, so say it out loud.
+    early_talk = round(sum(float(r.get("talk_post_view_conv") or 0)
+                           + float(r.get("talk_post_click_conv") or 0) for r in fact
+                           if str(r.get("date")) <= "2026-09-11"), 2)
+    if early_talk > 0:
+        print(f"WARNING: {early_talk} Talk to sophiie conversions are dated on or before "
+              "2026-09-11, when column 03 was still the Page Land site-visit pixel and this tag did "
+              "not exist. The feed has most likely restated history under the current column map.")
 
 
 def build_env(bq, observed):
@@ -314,7 +351,17 @@ def build_env(bq, observed):
             "video_completes": num(r.get("video_completes")),
             # Try free clicks, split by attribution path. Summed to one figure on screen; kept
             # apart here so post-view and post-click can be told apart without a re-export.
+            # Reporting column 01 (Person) ONLY - see sql/01_stg_ttd.sql. The Household column and
+            # the detached Page Land site-visit pixel are deliberately NOT in the payload: a number
+            # that never reaches the client surface cannot be summed into the outcome by accident.
             "pv_conv": num(r.get("post_view_conv")), "pc_conv": num(r.get("post_click_conv")),
+            # Outcome 2: Talk to sophiie Sign up (qdds2yc), TTD reporting column 03 from 2026-09-12.
+            # A SEPARATE action from a Try free sign-up and never summed into it upstream - the
+            # dashboard decides what to show side by side (md/AGENTS.md: never fold two different
+            # actions into one figure). The Household twins and the retired site-visit pixel stay
+            # out of the payload entirely.
+            "talk_pv_conv": num(r.get("talk_post_view_conv")),
+            "talk_pc_conv": num(r.get("talk_post_click_conv")),
             # Viewability sample. None (not 0) when TTD is not measuring it, so the UI can say
             # "not measured" instead of claiming 0% viewable.
             "vw_viewed": num(r.get("sampled_viewed")), "vw_tracked": num(r.get("sampled_tracked")),
