@@ -583,6 +583,15 @@ locked-down corporate laptop gives you), the expensive things were never the sha
   `document.hidden`, and scale the time step with the cap so the SPEED does not change.
 **Rule: one low-res animated canvas + static CSS layers. Count your animated full-screen layers -
 that number is the frame rate.**
+**`*` MATCHES ELEMENTS, NEVER PSEUDO-ELEMENTS (2026-09-14).** The blanket reduced-motion escape
+hatch every dashboard carries, `@media (prefers-reduced-motion:reduce){*{animation:none !important}}`,
+does NOT stop an animation on a `::before` / `::after`. It bit `client_lacevo`: a decorative sheen on
+`.meter .fill::after` kept looping for exactly the visitors the rule exists to protect. Write it
+`*,*::before,*::after{...}`, and name any animated pseudo-element explicitly. The motion kit itself
+is safe (it targets real selectors like `.bb-fx span`, not a bare `*`), so this is a trap for
+CLIENT-SPECIFIC CSS only. Verify with Chrome's `--force-prefers-reduced-motion` and assert
+`document.getAnimations()` comes back EMPTY - a visual check cannot see a 4-second loop that is
+mid-cycle when you screenshot it.
 **Scroll-reveal, if you copy it:** `IntersectionObserver` threshold must be **0**, never a
 fraction - threshold is the share of the ELEMENT visible, so a card taller than the viewport
 (cloudflare's 1,000-row lead table) never reaches 6% and sits at opacity 0 forever. And ship the

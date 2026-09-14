@@ -244,6 +244,147 @@ tbody tr.total td{font-weight:600;border-top:1px solid var(--line);border-bottom
 
 [hidden]{display:none !important}
 
+/* ==========================================================================
+   LACEVO LIGHT + LIGHTING  (client-specific; deliberately ABOVE the motion-kit
+   block, which must stay the last thing in this stylesheet, and ABOVE the
+   breakpoints below, which must stay last of all - a breakpoint declared before
+   the base rule it means to beat simply loses.)
+
+   The dashboard is a LIGHT surface, so "lighting" here is luminance variation,
+   not neon. Three layers, in z-order:
+     -3  .lumen-sun   STATIC radial gradients - one warm key light high on the
+                      page, a clay bounce top-right, a cool lift bottom-left.
+                      Free: it never animates, and it is what actually makes the
+                      page read as lit rather than flat-filled.
+     -2  #lumen       ONE low-resolution canvas of slow drifting light.
+     -1  .bb-fx       the motion kit's three CSS orbs - SUPPRESSED below.
+
+   Why the kit's orbs are suppressed rather than kept: the estate's own measured
+   rule is that the cost of ambient motion is the NUMBER OF ANIMATED FULL-SCREEN
+   LAYERS, not the drawing. Keeping three animated DOM orbs and adding a canvas
+   would be four. One canvas replaces all three, so this build animates FEWER
+   layers than before while giving light that actually blends. The kit block
+   itself is untouched, so re-running apply_motion_kit.py cannot fight this.
+   ========================================================================== */
+:root{
+  /* Lighter, warmer field. The old #E9E5DF read as grey under near-white cards. */
+  --field:#F3EFE9;
+  --paper:#FEFDFC;
+  --paper-2:#F7F3ED;
+  --line:rgba(28,28,28,.075);
+  --line-soft:rgba(28,28,28,.045);
+  /* Elevation is TWO shadows: a tight contact shadow that seats the card on the
+     page, and a wide soft one that is the light falling past it. One shadow
+     alone always reads as a sticker. */
+  --elev-1:0 1px 2px rgba(58,44,36,.045), 0 10px 28px -14px rgba(58,44,36,.14);
+  --elev-2:0 2px 4px rgba(58,44,36,.055), 0 22px 48px -20px rgba(58,44,36,.20);
+  /* The specular top edge. A lit surface is brighter where it faces the light,
+     and this single inset line is most of why a card looks like a surface. */
+  --spec:inset 0 1px 0 rgba(255,255,255,.9);
+  --ease:cubic-bezier(.22,1,.36,1);
+}
+
+/* ---------- the light itself ---------- */
+.lumen-sun,#lumen{position:fixed;inset:0;pointer-events:none;border:0}
+/* THE POINT OF THIS LAYER IS THE SHADE, not the highlight. The first build tinted light
+   over a light field and the painted pixels landed within 4 points of it - invisible. A lit
+   page needs somewhere for the light to come UP from, so the last two gradients darken the
+   bottom and the corners, and the top then reads as illuminated. */
+.lumen-sun{z-index:-3;
+  background:
+    radial-gradient(1280px 760px at 50% -20%, rgba(255,255,255,1), rgba(255,255,255,0) 58%),
+    radial-gradient(880px 560px at 94% -6%, rgba(255,214,188,.50), transparent 62%),
+    radial-gradient(760px 620px at 0% 14%, rgba(236,224,208,.55), transparent 64%),
+    radial-gradient(1500px 780px at 50% 124%, rgba(126,88,66,.20), transparent 62%),
+    radial-gradient(900px 900px at 106% 108%, rgba(126,88,66,.13), transparent 58%);}
+/* Drawn at ~26% scale and upscaled by the compositor. That bilinear upscale of
+   soft gradients IS the blur, for free - `filter:blur()` on a full-viewport
+   canvas measured 61fps -> 3fps on a software renderer, because it re-applies
+   every frame the canvas paints. Never put a blur filter on this element. */
+#lumen{z-index:-2;width:100%;height:100%;opacity:.9}
+/* One animated layer, not four. */
+body .bb-fx{display:none}
+
+/* ---------- lit surfaces ---------- */
+.panel,.band{box-shadow:var(--elev-1),var(--spec);
+  transition:box-shadow .32s var(--ease),border-color .32s var(--ease)}
+/* The kit owns .card hover (its lift composes through --bb-hov, so nothing here
+   may set `translate` on a card). This only deepens the light it throws. */
+.panel:hover,.band:hover{box-shadow:var(--elev-2),var(--spec)}
+
+/* The KPI band is a single lit slab: brighter along its top edge, and each cell
+   picks up a faint warm pool on hover so the grid feels like a surface rather
+   than a table of numbers. */
+.band{background:linear-gradient(180deg,#FFFFFF 0%,var(--paper) 42%)}
+.cell{position:relative;transition:background-color .3s var(--ease)}
+.cell::after{content:'';position:absolute;inset:0;pointer-events:none;opacity:0;
+  background:radial-gradient(420px 180px at 50% 0%, rgba(201,138,110,.12), transparent 70%);
+  transition:opacity .34s var(--ease)}
+.cell:hover::after{opacity:1}
+.num{background:linear-gradient(180deg,var(--ink) 0%, #3A2F28 100%);
+  -webkit-background-clip:text;background-clip:text;color:transparent}
+
+/* ---------- the brand shell, lit ---------- */
+/* Kept ink, because the black header IS Lacevo's own site furniture - but lit,
+   so it reads as a surface the same light is falling on instead of a flat slab
+   capping a bright page. */
+.topbar{background:linear-gradient(180deg,#262321 0%,#1C1C1C 62%);
+  box-shadow:0 1px 0 rgba(201,138,110,.28), 0 18px 40px -34px rgba(58,44,36,.55)}
+.topbar::after{content:'';position:absolute;inset:0;pointer-events:none;
+  background:radial-gradient(620px 220px at 92% 0%, rgba(201,138,110,.20), transparent 68%)}
+.topbar>*{position:relative;z-index:1}
+.brandmark svg{filter:drop-shadow(0 0 10px rgba(201,138,110,.45))}
+
+/* The preview notice is a lit strip, not a flat band. */
+.notice{background:linear-gradient(180deg, rgba(201,138,110,.15), rgba(150,95,72,.07));
+  border-bottom-color:rgba(150,95,72,.18)}
+
+/* ---------- controls ---------- */
+/* A sliding underline: one ink bar that travels to the selected tab instead of
+   four independent borders blinking on and off. Positioned by moveTabInk(). */
+.tabs{position:relative}
+.tab[aria-selected="true"]{border-bottom-color:transparent}
+.tabink{position:absolute;bottom:-1px;height:2px;border-radius:2px;
+  background:linear-gradient(90deg,var(--clay),var(--clay-lift));
+  box-shadow:0 0 12px rgba(150,95,72,.5);
+  transition:left .42s var(--ease), width .42s var(--ease);pointer-events:none}
+.pill.on{box-shadow:0 6px 18px -10px rgba(28,28,28,.55)}
+.search{transition:border-color .22s var(--ease),box-shadow .22s var(--ease)}
+.search:focus{border-color:var(--clay-lift);box-shadow:0 0 0 3px rgba(201,138,110,.20);outline:none}
+
+/* ---------- pacing meter ---------- */
+.meter{box-shadow:inset 0 1px 3px rgba(58,44,36,.10)}
+.meter .fill{background:linear-gradient(90deg,var(--clay-deep),var(--clay) 55%,var(--clay-lift));
+  box-shadow:0 0 18px -4px rgba(150,95,72,.55)}
+/* A single slow sheen travelling the filled bar - the one piece of purely
+   decorative motion on the page, and it stops with everything else below. */
+.meter .fill::after{content:'';position:absolute;inset:0;
+  background:linear-gradient(100deg,transparent 20%,rgba(255,255,255,.34) 48%,transparent 76%);
+  animation:sheen 4.6s var(--ease) infinite}
+@keyframes sheen{0%{translate:-110% 0}55%,100%{translate:210% 0}}
+
+/* ---------- charts ---------- */
+/* A pool of light behind each chart so it sits IN the card rather than on it. */
+svg.chart{position:relative;
+  filter:drop-shadow(0 6px 14px rgba(58,44,36,.07))}
+.card>svg.chart{background:radial-gradient(520px 260px at 50% 12%, rgba(255,255,255,.85), transparent 70%)}
+
+/* ---------- tables ---------- */
+tbody tr{transition:background-color .2s var(--ease)}
+tbody tr.total td{background:linear-gradient(180deg, rgba(201,138,110,.07), transparent)}
+
+/* ---------- entrance ---------- */
+/* The kit reveals surfaces on scroll. This is the FIRST paint only: the shell
+   arrives from the top so the page assembles under its own light. */
+html.bb-motion .topbar{animation:dropIn .62s var(--ease) both}
+html.bb-motion .notice{animation:dropIn .62s var(--ease) .06s both}
+@keyframes dropIn{from{opacity:0;translate:0 -10px}to{opacity:1;translate:none}}
+
+/* Every animation above is switched off wholesale by the reduced-motion block
+   at the bottom of this stylesheet, and the canvas removes ITSELF in JS so no
+   requestAnimationFrame loop runs at all. Losing the light always beats losing
+   a number. */
+
 @media (max-width:1080px){
   .strip{grid-template-columns:repeat(2,1fr)}
   .strip .cell:nth-child(4n){border-right:1px solid var(--line-soft)}
@@ -261,7 +402,14 @@ tbody tr.total td{font-weight:600;border-top:1px solid var(--line);border-bottom
   .lede h1{font-size:24px}
   table{font-size:12px}
 }
-@media (prefers-reduced-motion:reduce){*{transition:none !important;animation:none !important}}
+/* `*` MATCHES ELEMENTS ONLY, NEVER PSEUDO-ELEMENTS. The bare universal selector left the
+   meter's `.fill::after` sheen looping under reduced motion - the one piece of purely
+   decorative movement on the page, and the exact thing this rule exists to stop. Any
+   ::before / ::after that animates has to be named explicitly. Verified with
+   --force-prefers-reduced-motion: document.getAnimations() now returns nothing. */
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{transition:none !important;animation:none !important}
+}
 @media print{[hidden]{display:revert !important}}
 /* BB-MOTION-KIT:css v1 */
 
@@ -460,6 +608,13 @@ tbody tr.total td{font-weight:600;border-top:1px solid var(--line);border-bottom
 <div class="bb-fx" aria-hidden="true"><span class="o1"></span><span class="o2"></span><span class="o3"></span></div>
 <div id="bbProgress" aria-hidden="true"></div>
 <!-- /BB-MOTION-KIT:dom -->
+
+<!-- The lighting layers. Both are position:fixed / pointer-events:none / negative
+     z-index, so they touch no layout and nothing here can reflow the dashboard.
+     .lumen-sun is static CSS and always paints; the canvas is built and removed
+     entirely in JS (see the Lumen engine), so a reduced-motion or low-power
+     visitor never has a rAF loop running at all. -->
+<div class="lumen-sun" aria-hidden="true"></div>
 
 <header class="topbar">
   <div class="brand">
@@ -1132,6 +1287,42 @@ function renderNotes(){
    clear with the proxy CSP, and nothing to re-theme. */
 const NS = 'http://www.w3.org/2000/svg';
 const svgEl = (t, a) => {const e = document.createElementNS(NS, t); for (const k in a) e.setAttribute(k, a[k]); return e;};
+
+/* ---------- lit fills ----------
+   A flat fill reads as a sticker; a bar on a lit page should be brighter on the edge facing
+   the light. Rather than overlaying a second "gloss" rect on every bar - which would double
+   the shapes the entrance animation has to stagger - each data colour gets ONE cached
+   linear gradient, so the bar stays a single rect and nothing downstream changes.
+   Gradients live in a hidden <svg> in the document, referenced by url(#id): a same-document
+   reference resolves across separate <svg> elements in every browser this estate targets. */
+function _defs(){
+  let host = document.getElementById('bbDefs');
+  if (!host){
+    host = svgEl('svg', {id: 'bbDefs', width: 0, height: 0, 'aria-hidden': 'true',
+                         style: 'position:absolute;width:0;height:0;overflow:hidden'});
+    host.appendChild(svgEl('defs', {}));
+    document.body.appendChild(host);
+  }
+  return host.firstChild;
+}
+function _lighten(hex, amt){
+  const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(String(hex || ''));
+  if (!m) return hex;
+  const mix = v => Math.round(v + (255 - v) * amt);
+  return '#' + [1, 2, 3].map(i => mix(parseInt(m[i], 16)).toString(16).padStart(2, '0')).join('');
+}
+function litFill(colour, vertical){
+  const m = /^#?([0-9a-f]{6})$/i.exec(String(colour || ''));
+  if (!m) return colour;                                  // not a hex we can read: leave it flat
+  const id = 'lit' + m[1].toLowerCase() + (vertical ? 'v' : 'h');
+  if (!document.getElementById(id)){
+    const g = svgEl('linearGradient', {id, x1: '0', y1: '0', x2: vertical ? '0' : '1', y2: vertical ? '1' : '0'});
+    g.appendChild(svgEl('stop', {offset: '0%', 'stop-color': _lighten(colour, .26)}));
+    g.appendChild(svgEl('stop', {offset: '100%', 'stop-color': colour}));
+    _defs().appendChild(g);
+  }
+  return 'url(#' + id + ')';
+}
 function chartState(svgId, emptyId, ok){
   const s = el(svgId), e = el(emptyId);
   if (s) s.hidden = !ok;                       // HIDE the canvas, never remove it
@@ -1164,7 +1355,7 @@ function drawTrend(mode){
   const bw = Math.max(1, iw / days * 0.56);
   revenue.forEach((v, i) => {
     const x = L + (iw / days) * (i + 0.5) - bw / 2, y = T + yRev(v);
-    svg.appendChild(svgEl('rect', {x, y, width: bw, height: Math.max(0, ih - yRev(v)), fill: '#DBD0C4', rx: 2}));
+    svg.appendChild(svgEl('rect', {x, y, width: bw, height: Math.max(0, ih - yRev(v)), fill: litFill('#DBD0C4', true), rx: 2}));
   });
   const line = (arr, fn, colour) => {
     const path = arr.map((v, i) => (i ? 'L' : 'M') + (L + (iw / days) * (i + 0.5)).toFixed(1) + ',' + (T + fn(v)).toFixed(1)).join(' ');
@@ -1181,6 +1372,7 @@ function drawTrend(mode){
     const t = svgEl('text', {x: L + (iw / days) * (i + 0.5), y: H - 12, fill: '#9A928A', 'font-size': '10', 'text-anchor': 'middle'});
     t.textContent = shortDate(d[i].date); svg.appendChild(t);
   });
+  animateChart('trend');
 }
 function shortDate(iso){
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || ''));
@@ -1203,8 +1395,9 @@ function drawRoas(target){
     const v = vals[i], y = top + i * rowH;
     const lab = svgEl('text', {x: L - 12, y: y + 15, fill: '#6E675F', 'font-size': '11.5', 'text-anchor': 'end'});
     lab.textContent = r.channel; svg.appendChild(lab);
-    svg.appendChild(svgEl('rect', {x: L, y, width: iw, height: 21, rx: 5, fill: '#F0EBE4'}));
-    svg.appendChild(svgEl('rect', {x: L, y, width: Math.max(0, iw * (v / max)), height: 21, rx: 5, fill: r.colour || '#965F48'}));
+    // the track is the unlit groove the bar sits in - it must not grow with the value
+    svg.appendChild(svgEl('rect', {x: L, y, width: iw, height: 21, rx: 5, fill: '#F0EBE4', 'data-no-anim': '1'}));
+    svg.appendChild(svgEl('rect', {x: L, y, width: Math.max(0, iw * (v / max)), height: 21, rx: 5, fill: litFill(r.colour || '#965F48', true)}));
     const val = svgEl('text', {x: L + iw * (v / max) + 8, y: y + 15, fill: '#1C1C1C', 'font-size': '11.5', 'font-weight': '600'});
     val.textContent = v.toFixed(2) + 'x'; svg.appendChild(val);
   });
@@ -1214,6 +1407,7 @@ function drawRoas(target){
     const t = svgEl('text', {x: tx, y: bottom + 18, fill: '#6E675F', 'font-size': '10.5', 'text-anchor': 'middle'});
     t.textContent = 'target ' + n(target).toFixed(2) + 'x' + targetNote(); svg.appendChild(t);
   }
+  animateChart('roas', {axis: 'x', origin: 'left', stagger: 90});
 }
 
 function drawStage(rows){
@@ -1234,13 +1428,14 @@ function drawStage(rows){
   let x = 0;
   list.forEach(e => {
     const w = (e[1] / total) * W;
-    svg.appendChild(svgEl('rect', {x, y: 8, width: Math.max(w - 4, 2), height: 30, rx: 5, fill: colour(e[0])}));
+    svg.appendChild(svgEl('rect', {x, y: 8, width: Math.max(w - 4, 2), height: 30, rx: 5, fill: litFill(colour(e[0]), true)}));
     const nm = svgEl('text', {x: x + 1, y: 62, fill: '#1C1C1C', 'font-size': '12', 'font-weight': '600'});
     nm.textContent = e[0]; svg.appendChild(nm);
     const v = svgEl('text', {x: x + 1, y: 80, fill: '#6E675F', 'font-size': '11'});
     v.textContent = money(e[1]) + ' · ' + Math.round(e[1] / total * 100) + '%'; svg.appendChild(v);
     x += w;
   });
+  animateChart('stage', {axis: 'x', origin: 'left', stagger: 70});
 }
 
 function drawFunnel(){
@@ -1254,7 +1449,7 @@ function drawFunnel(){
   steps.forEach((s, i) => {
     const h = Math.max(n(s.value) / top * 118, 10);
     const x = i * (bw + gap), y = 130 - h;
-    svg.appendChild(svgEl('rect', {x, y, width: bw, height: h, rx: 6, fill: i === steps.length - 1 ? '#965F48' : '#DBD0C4'}));
+    svg.appendChild(svgEl('rect', {x, y, width: bw, height: h, rx: 6, fill: litFill(i === steps.length - 1 ? '#965F48' : '#DBD0C4', true)}));
     const nm = svgEl('text', {x: x + bw / 2, y: 154, fill: '#1C1C1C', 'font-size': '12', 'font-weight': '600', 'text-anchor': 'middle'});
     nm.textContent = int(s.value); svg.appendChild(nm);
     const l = svgEl('text', {x: x + bw / 2, y: 172, fill: '#6E675F', 'font-size': '11', 'text-anchor': 'middle'});
@@ -1265,6 +1460,7 @@ function drawFunnel(){
       dd.textContent = prev ? Math.round(n(s.value) / prev * 100) + '%' : '-'; svg.appendChild(dd);
     }
   });
+  animateChart('funnel', {stagger: 80});
 }
 
 /* ================================ EXPORTS ================================================= */
@@ -1336,6 +1532,8 @@ function render(){
   renderTabs();
   renderFilters();
   renderActive();
+  // after layout, or offsetLeft/offsetWidth are still 0 and the bar lands at the origin
+  requestAnimationFrame(moveTabInk);
 }
 
 async function load(){
@@ -1353,6 +1551,8 @@ async function load(){
     render();
     el('loading').hidden = true;
     el('app').hidden = false;
+    Lumen.start();                 // only once there is a page to light
+    requestAnimationFrame(moveTabInk);
   } catch (e){
     el('loading').hidden = true;
     el('app').hidden = true;
@@ -1370,6 +1570,173 @@ el('trendToggle').addEventListener('click', ev => {
 });
 el('exportView').addEventListener('click', exportView);
 el('exportAll').addEventListener('click', exportAll);
+
+/* =========================================================================================
+   LUMEN - the ambient lighting engine.
+
+   ONE low-resolution canvas of slow drifting light. Everything about it is shaped by the
+   estate's measured finding that the cost of ambient motion is the NUMBER OF ANIMATED
+   FULL-SCREEN LAYERS, not the drawing:
+
+     * drawn at 26% scale and upscaled by the compositor - that bilinear upscale of soft
+       radial gradients IS the blur. `filter:blur()` on a full-viewport canvas measured
+       61fps -> 3fps because it re-applies on every painted frame.
+     * NO mix-blend-mode. On a full-screen overlay it forces the whole stack underneath,
+       this canvas included, to re-composite every frame. Plain low alpha looks the same.
+     * capped at ~30fps (indistinguishable for drifting light) with the time step scaled to
+       the cap, so lowering the cap slows the paint rate and NOT the apparent speed.
+     * nothing painted while the tab is hidden.
+     * under prefers-reduced-motion it never starts, and if the preference changes it
+       removes the canvas so no loop survives.
+
+   Colour on a LIGHT page is luminance variation, not neon: a near-white key blob supplies
+   the highlight and the warm clay tints supply the shade. Alphas stay under .1 - the
+   sophiie build learned that pushing saturated hues over a warm shell accumulates into mud.
+   ========================================================================================= */
+const Lumen = (() => {
+  const SCALE = 0.26, FPS = 30, FRAME = 1000 / FPS;
+  /* Hues stay LIGHT - near the shell's own luminance - while saturation runs free. That is the
+     one rule the sophiie build paid for: darkening the hues to make them visible instead made
+     the overlapping layers accumulate into grey-brown mud over a warm shell. Here the visible
+     range comes from SATURATION against the shade painted by .lumen-sun, never from darkness. */
+  const BLOBS = [
+    // [rgb, alpha, radius as a fraction of the diagonal, x drift, y drift, speed]
+    [[255, 255, 255], 0.85, 0.54, 0.22, 0.10, 0.055],   // the key
+    [[255, 226, 206], 0.50, 0.44, 0.28, 0.16, 0.041],   // warm peach bounce
+    [[236, 198, 178], 0.40, 0.38, 0.20, 0.22, 0.033],   // clay bounce, lightened
+    [[240, 230, 214], 0.46, 0.48, 0.26, 0.13, 0.047],   // sand
+    [[214, 228, 212], 0.26, 0.32, 0.18, 0.20, 0.029]    // a cool edge, so it is not all one temperature
+  ];
+  let cv = null, ctx = null, raf = 0, last = 0, t = 0, w = 0, h = 0, diag = 0;
+
+  const reduced = () => window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  function size(){
+    if (!cv) return;
+    w = cv.width = Math.max(1, Math.round(window.innerWidth * SCALE));
+    h = cv.height = Math.max(1, Math.round(window.innerHeight * SCALE));
+    diag = Math.hypot(w, h);
+  }
+
+  function draw(){
+    ctx.clearRect(0, 0, w, h);
+    for (let i = 0; i < BLOBS.length; i++){
+      const [rgb, a, rad, dx, dy, sp] = BLOBS[i];
+      const p = t * sp + i * 1.7;
+      // Two different frequencies per axis, so the paths never resolve into visible circles.
+      const x = w * (0.5 + Math.sin(p) * dx + Math.sin(p * 0.47 + i) * dx * 0.35);
+      const y = h * (0.34 + Math.cos(p * 0.83) * dy + Math.sin(p * 0.31 + i) * dy * 0.4);
+      const r = diag * rad;
+      const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+      g.addColorStop(0, `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${a})`);
+      g.addColorStop(1, `rgba(${rgb[0]},${rgb[1]},${rgb[2]},0)`);
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, w, h);
+    }
+  }
+
+  function loop(now){
+    raf = requestAnimationFrame(loop);
+    if (document.hidden) return;                 // never paint into a hidden tab
+    if (now - last < FRAME) return;
+    last = now;
+    t += 0.016 * (60 / FPS);                     // scale the step to the cap: same speed, fewer frames
+    draw();
+  }
+
+  function start(){
+    if (cv || reduced()) return;
+    cv = document.createElement('canvas');
+    cv.id = 'lumen';
+    cv.setAttribute('aria-hidden', 'true');
+    document.body.appendChild(cv);
+    ctx = cv.getContext('2d');
+    size();
+    draw();                                      // paint frame one immediately, never show an empty canvas
+    raf = requestAnimationFrame(loop);
+  }
+
+  function stop(){
+    if (raf) cancelAnimationFrame(raf);
+    raf = 0;
+    if (cv){ cv.remove(); cv = null; ctx = null; }
+  }
+
+  window.addEventListener('resize', () => { size(); if (ctx) draw(); }, {passive: true});
+  const mq = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)');
+  if (mq && mq.addEventListener) mq.addEventListener('change', () => reduced() ? stop() : start());
+  return {start, stop};
+})();
+
+/* ---------------------------------------------------------------------------------------
+   Chart entrance animation.
+
+   The charts are hand-built SVG, so this walks the shapes a draw function just produced and
+   animates them with the Web Animations API rather than per-element CSS keyframes. Two
+   rules it has to respect:
+     * BARS grow from their own baseline, which needs `transform-box:fill-box` - without it
+       an SVG element's transform-origin resolves against the whole viewBox and the bar
+       scales from somewhere off-screen.
+     * it uses the `scale` / `translate` PROPERTIES, never the `transform` shorthand, for the
+       same reason the motion kit does: the shorthand replaces whatever transform an element
+       already carries instead of composing with it.
+   Re-running it on a filter change is intentional - the chart redrawing is the feedback that
+   the filter applied. It is a no-op under reduced motion.
+   --------------------------------------------------------------------------------------- */
+const REDUCED = () => window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+function animateChart(svgId, opts){
+  if (REDUCED()) return;
+  const svg = el(svgId);
+  if (!svg || svg.hidden) return;
+  const o = opts || {};
+  const stagger = o.stagger == null ? 22 : o.stagger;
+
+  // bars: grow from the baseline
+  const rects = [...svg.querySelectorAll('rect')].filter(r => !r.dataset.noAnim);
+  rects.forEach((r, i) => {
+    r.style.transformBox = 'fill-box';
+    r.style.transformOrigin = o.origin || 'bottom';
+    r.animate(
+      [{scale: o.axis === 'x' ? '0 1' : '1 0', opacity: .35}, {scale: '1 1', opacity: 1}],
+      {duration: 620, delay: i * stagger, easing: 'cubic-bezier(.22,1,.36,1)', fill: 'backwards'}
+    );
+  });
+
+  // lines: draw themselves on
+  [...svg.querySelectorAll('path')].forEach((p, i) => {
+    let len = 0;
+    try { len = p.getTotalLength(); } catch (e) { return; }
+    if (!len) return;
+    p.animate(
+      [{strokeDasharray: len, strokeDashoffset: len}, {strokeDasharray: len, strokeDashoffset: 0}],
+      {duration: 1100, delay: 180 + i * 140, easing: 'cubic-bezier(.22,1,.36,1)', fill: 'backwards'}
+    );
+  });
+
+  // dots + labels: settle in after the shape that carries them
+  [...svg.querySelectorAll('circle')].forEach((c, i) => c.animate(
+    [{opacity: 0, scale: '0'}, {opacity: 1, scale: '1'}],
+    {duration: 320, delay: 420 + i * 8, easing: 'cubic-bezier(.22,1,.36,1)', fill: 'backwards'}
+  ));
+  [...svg.querySelectorAll('text')].forEach((tx, i) => tx.animate(
+    [{opacity: 0}, {opacity: 1}],
+    {duration: 460, delay: 260 + i * 10, easing: 'ease-out', fill: 'backwards'}
+  ));
+}
+
+/* The sliding tab underline. One bar that travels, instead of four borders blinking. */
+function moveTabInk(){
+  const rail = el('tabs');
+  if (!rail) return;
+  let ink = rail.querySelector('.tabink');
+  if (!ink){ ink = document.createElement('span'); ink.className = 'tabink'; ink.setAttribute('aria-hidden', 'true'); rail.appendChild(ink); }
+  const on = rail.querySelector('.tab[aria-selected="true"]');
+  if (!on){ ink.style.width = '0px'; return; }
+  ink.style.left = on.offsetLeft + 'px';
+  ink.style.width = on.offsetWidth + 'px';
+}
+window.addEventListener('resize', moveTabInk, {passive: true});
 
 load();
 </script>

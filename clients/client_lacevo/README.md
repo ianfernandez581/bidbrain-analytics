@@ -156,6 +156,59 @@ carry a date column — and the US market chip is drawn disabled with a reason f
 
 ---
 
+## The lighting layer
+
+The dashboard is deliberately more animated than the estate default. That default exists to protect
+a client's weekly familiarity with an instrument they already read, and Lacevo has no incumbent
+viewer: it went live as a `coming_soon` preview and the client has never opened it. Sophiie is the
+precedent for a dashboard whose light is part of the design.
+
+**Three layers, in z-order, and the order matters:**
+
+| z | Layer | Cost |
+|---|---|---|
+| -3 | `.lumen-sun` | static CSS gradients. Free, and it does most of the work. |
+| -2 | `#lumen` | one low-resolution canvas of drifting light, built in JS. |
+| -1 | `.bb-fx` | the motion kit's three CSS orbs, **suppressed** by `body .bb-fx{display:none}`. |
+
+**Why the kit's orbs are suppressed rather than kept.** The estate's measured rule is that the cost
+of ambient motion is the NUMBER OF ANIMATED FULL-SCREEN LAYERS, not the drawing. Keeping three
+animated DOM orbs and adding a canvas would be four. One canvas replaces all three, so this build
+animates FEWER layers than the plain kit build did. Measured at **60fps** with the canvas running.
+The kit block itself is untouched, so re-running `apply_motion_kit.py` cannot fight this.
+
+**The static layer is about SHADE, not highlight.** The first attempt tinted light over a light
+field and the painted pixels landed within 4 points of it, which is invisible. A lit page needs
+somewhere for the light to come up from, so `.lumen-sun` darkens the bottom and the far corner and
+the top then reads as illuminated. Canvas hues stay LIGHT, near the shell's own luminance, with
+saturation running free. That is the rule Sophiie paid for: darkening hues to make them visible
+instead makes overlapping layers accumulate into grey-brown mud over a warm shell.
+
+**Never put `filter:blur()` on that canvas.** It is drawn at 26% scale and upscaled by the
+compositor, and that bilinear upscale of soft radial gradients IS the blur, for free. A blur filter
+on a full-viewport canvas measured 61fps to 3fps, because it re-applies on every painted frame.
+Equally: no `mix-blend-mode`, which forces the whole stack underneath to re-composite every frame.
+
+**Chart entrance animation** (`animateChart`) walks the SVG a draw function just produced and uses
+the Web Animations API rather than per-element keyframes. Bars need `transform-box:fill-box` or an
+SVG element's `transform-origin` resolves against the whole viewBox and the bar scales in from
+off-screen. It uses the `scale` / `translate` properties, never the `transform` shorthand, for the
+same reason the motion kit does. Re-running it on a filter change is intentional: the chart
+redrawing is the feedback that the filter applied.
+
+**`litFill()` gives each data colour one cached gradient** so a bar stays a single `<rect>`. The
+alternative, overlaying a second "gloss" rect per bar, would double the shapes the entrance
+animation has to stagger.
+
+**The trap this layer actually hit: `*` matches elements, NEVER pseudo-elements.** The blanket
+`@media (prefers-reduced-motion:reduce){*{animation:none}}` left the meter's `.fill::after` sheen
+looping for exactly the visitors it exists to protect. Any animated `::before` / `::after` has to be
+named explicitly. Verified with `--force-prefers-reduced-motion`: `document.getAnimations()` now
+returns an empty list, and the canvas removes itself so no rAF loop survives at all.
+
+Presentation only. The rendered TEXT of all three client tabs is byte-identical to the build before
+this layer landed, verified by diffing headless renders against the same payload.
+
 ## Internal notes — how it is protected, and how far that goes
 
 Two mechanisms, following `client_schneidersecpwr`'s Reports tab:
