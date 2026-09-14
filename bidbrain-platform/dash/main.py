@@ -432,6 +432,45 @@ def _feedback_loop_flags(agency):
     }
 
 
+# "How The Brain works" - the three Bidbrain Premium RAG explainers, shown as cards in The Brain
+# tab of the 100% Digital portal and served by the platform itself from dash/explainers/. They are
+# NOT linked to their claude.ai artifacts: those are private to one account, so nobody else could
+# open them. Scoped to 100% Digital because the copy speaks as "our buyers" / "100% Digital" - it
+# is our own product story, not something to put in a partner agency's portal. The data inside is
+# illustrative and names no client. Staff (admin/super-admin) can open them from any session.
+EXPLAINER_AGENCY = "x100-digital"
+EXPLAINERS = {
+    "documents-to-vectors": "rag-1-documents-to-vectors.html",
+    "inside-the-retriever": "rag-2-inside-the-retriever.html",
+    "ask-your-campaigns": "rag-3-ask-your-campaigns.html",
+}
+EXPLAINER_DIR = Path(__file__).resolve().parent / "explainers"
+
+
+def _explainers_allowed():
+    """Can this session open an explainer? Staff always; otherwise only a 100% Digital agency
+    session. Clients and partner agencies cannot, even by typing the URL."""
+    if _admin_kind() in ("admin", "superadmin"):
+        return True
+    return session.get("kind") == "agency" and session.get("agency_slug") == EXPLAINER_AGENCY
+
+
+@app.get("/brain/how-it-works/<slug>")
+def brain_explainer(slug):
+    if not session.get("kind"):
+        return redirect("/")
+    if not _explainers_allowed():
+        abort(403)
+    name = EXPLAINERS.get(slug)
+    if not name:
+        abort(404)
+    try:
+        html = (EXPLAINER_DIR / name).read_text(encoding="utf-8")
+    except OSError:
+        abort(404)
+    return Response(html, mimetype="text/html")
+
+
 @app.post("/admin/api/feedback-loop-visibility")
 def api_feedback_loop_visibility():
     """Turn the Feedback Loop tab on/off for the AGENCY's own login. 100% Digital staff only -
@@ -536,6 +575,11 @@ def home():
                                # pacing snapshot in the page source).
                                show_sync=agency_setting(agency, "show_sync"),
                                show_grid_brain=agency_setting(agency, "show_grid_brain"),
+                               # "How The Brain works" explainer cards in The Brain tab. Keyed on
+                               # the PORTAL, not the viewer, so staff viewing Transmission's portal
+                               # see exactly what Transmission sees.
+                               show_explainers=(agency["slug"] == EXPLAINER_AGENCY
+                                                and agency_setting(agency, "show_grid_brain")),
                                # Cosmetic per-agency theme (AGENCY_THEMES). None for every agency
                                # without an entry, and the template then emits NO override block -
                                # so those portals are byte-identical to before.

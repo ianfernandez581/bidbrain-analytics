@@ -18,6 +18,8 @@ COPY admlogo_* ./
 COPY clientlogo_* ./
 COPY favicon.ico favicon-32.png apple-touch-icon.png ./
 COPY templates ./templates
+# "How The Brain works" explainer pages, served by /brain/how-it-works/<slug> (100% Digital portal).
+COPY explainers ./explainers
 # Drop root: Cloud Run does not need it (least privilege).
 RUN useradd -m -u 10001 appuser && chown -R appuser /app
 USER appuser
