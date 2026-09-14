@@ -72,6 +72,14 @@ SELECT
   s.day,
   s.market,
   s.campaign_name,
+  -- PHASE + TACTIC (2026-09-14, client) - Search's own definition; see sql/02_stg_tradedesk.sql.
+  -- All five campaigns end `_SEM_AWR` (Awareness). Anchored on the trailing token, never an offset.
+  CASE
+    WHEN REGEXP_CONTAINS(UPPER(s.campaign_name), r'(^|[ _-])(AWR|AWARENESS)([ _-]|$)') THEN 'Awareness'
+    WHEN REGEXP_CONTAINS(UPPER(s.campaign_name), r'(^|[ _-])(RTG[0-9]*|RLSA)([ _-]|$)') THEN 'Retargeting'
+    ELSE 'Unclassified'
+  END                                          AS phase,
+  'Search'                                     AS tactic,
   s.network,
   s.currency,
   s.impressions,

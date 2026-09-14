@@ -24,8 +24,10 @@ the multi-program Schneider Pacific dashboard.
   chart/table and CSV export, and **its Channel chip** (Google yellow `#F5C542` with DARK ink -
   white is unreadable on that yellow) scopes it in and out of ALL of them plus this section, same
   semantics as the other two chips. Isolating Google Search on the chips shows Search, not zeros.
-  **Kept OUT on purpose:** pace-to-plan + Media Plan spend-to-date (`fullByChannel` reads
-  `DATA.delivery` only - the budget is the LinkedIn+TTD Awareness lines) and the Creative tab
+  **Joined pace-to-plan 2026-09-14** (`fullByChannel` concats `GS_BLEND`): the Overview KPI had
+  included Search since 2026-08-31 while pace-to-plan had not, so the two spend figures differed
+  by exactly Search spend (client report, 2026-09-13). Still **kept OUT** of Media Plan
+  spend-to-date and the Creative tab
   (Search is campaign-grain, no creatives - google-only selection shows non-destructive
   `chartMsg` empty states, which also fixed the old canvas-deleting empty-state bug). Blended
   surfaces use the SHARED date window (one total must cover one set of days - `#pmHeroNote` names
@@ -38,7 +40,8 @@ the multi-program Schneider Pacific dashboard.
   null -> section hidden (never delivered); set but `daily` empty -> a loud UNAVAILABLE state
   (the job carries the last published `data_through` forward when the sql/05 scope empties, so a
   campaign rename shows on screen instead of silently removing the section). The media-plan tab's
-  Search line stays `live=0` / unwired to pacing until the plan line is confirmed to be this buy.
+  Search line is `live=0` (the plan's own Go-live status) but its budget IS paced against - the
+  pace bars use every paid-media line, live or not. See the pace-to-plan basis note below.
   The overview CSV export and the AI-deck payload stay delivery-only (raise before adding Search
   to either - mixed currency columns).
 - **Countries (6):** India (dominant), Brazil, Australia, Chile, Saudi Arabia (KSA), UAE.
@@ -63,7 +66,46 @@ the multi-program Schneider Pacific dashboard.
   the dashboard must EXEMPT the `search` block from `bbApplyFx()` and footnote the section
   "Converted from USD at {fx_usd_eur}, {fx_rate_date}". Search cost is never summed with the
   other channels in AUD space; the Overview blends it ONLY after both sides are EUR (`GS_BLEND`),
-  and pace-to-plan never includes it (the budget is the LinkedIn+TTD plan lines).
+  and pace-to-plan includes it from 2026-09-14 (both sides are EUR before they meet).
+- **Channel phases (2026-09-14, client):** every delivery and creative row carries **`phase`**
+  (the media plan's Phase — Awareness / Retargeting / `Unclassified`) and **`tactic`** (the finer buy
+  inside it — Premium Publishers / Prospecting / TAL & Intent / Retargeting / Search). Parsed from
+  the delivering entity's OWN name in each platform's staging view, with a delimiter-anchored regex,
+  never a fixed offset. **Each platform defines its own** — they name their own entities — so the
+  three CASEs in `sql/01`, `sql/02` and `sql/05` are siblings, not duplicates; a naming change moves
+  one of them. This surfaced something the board had been hiding: Trade Desk's **PREMIUM / TOFU /
+  Intent / RTG** ad groups were blended into a single "Trade Desk" figure, and **Retargeting has
+  been delivering since 2026-09-10** despite the 25 Aug plan still marking it "Not live". A name
+  matching no token is **`Unclassified` and stays on screen** — never folded into Awareness — and
+  the export job WARNs, so a rename is loud the same day. Verified against all 31 live entities
+  (6 LinkedIn ad sets, 20 Trade Desk ad groups, 5 Search campaigns): zero unclassified.
+- **Content syndication (2026-09-14, client):** the vendor lead lane —
+  vendor → CaptureIQ → Integrate → Salesforce → the SHARED `raw_snowflake.salesforce_cs_apac_all`
+  mirror, which holds every client's leads. Scope is an INNER JOIN against **`seed_cs_campaign_map`**
+  and can never be a name filter: **Schneider's Salesforce uploads carry a BLANK `CAMPAIGN`** — 73,260
+  of the mirror's 83,079 rows have no campaign name and every Schneider row is among them (measured
+  2026-09-11; Cloudflare's carry full names, which is why a name filter works there and not here).
+  **THE CAMPAIGN ID IS PROVISIONAL** (`confirmed=0`): `701RG00001co1sDYAQ` was identified by footprint
+  — 41 leads from 19 Aug across AU/NZ/IN/BR/CL/AE, exactly the Pangea region set, senior IT/facilities
+  titles — and **cannot be confirmed from data**, because the feed cannot name its own campaign.
+  Pangea ALSO delivers Schneider's **C&SP programme (brief 1957)**, so a wrong id publishes another
+  book's leads here. The flag rides through the job to a **visible pending banner naming the id**;
+  confirming is a one-line CSV edit (`confirmed=1`). Targets are Pangea's reworked 31 Jul allocation
+  (ANZ 68 / India 235 / MEA 18 / SAM 79 = **400 at A$60 CPL = A$24,000**), from the plan workbook's
+  "CSVendor Costs & Lead Avails" tab.
+  **The CS region set is PANGEA's, not the paid board's** — its ANZ includes **New Zealand**, where the
+  paid campaign never ran, so NZ has no country chip. That is exactly why the tab is whole-flight and
+  hides the country chips: filtering leads through a roster that cannot represent them would silently
+  drop every NZ lead while the page looked normally filtered. Channel chips are hidden too (a lead has
+  no delivering ad channel). **Never sum a CS figure with a delivery or search figure.**
+  **Seniority is DERIVED from the job title**, not read from a field: `JOB_LEVEL` is empty on every
+  row of this feed (unlike the Pacific book, where it is ~40% populated), so reading it would answer
+  nothing. The card says "derived from the job title" on its face — a derived field presented as a CRM
+  field is a claim the data does not support. The arm order is load-bearing and commented in `sql/09`:
+  `\bPRESIDENT\b` also matches the PRESIDENT inside "Vice President", so testing the plain-word
+  C-suite arm before the VP arm classified **every VP as C-suite** — caught 2026-09-14 before release
+  by running the arms over the real title strings. It fails in the flattering direction and nothing on
+  screen would contradict it; RE2 has no lookbehind, so ORDER is the fix.
 - **Flight:** 15 May → 31 Dec 2026. Data started 16 May (LinkedIn) / 18 May (Trade Desk).
 
 ## Live
@@ -89,19 +131,30 @@ the multi-program Schneider Pacific dashboard.
 2. **Creative** — LinkedIn message concepts (3), Trade Desk display concepts (Accelerate AI / Cooling
    Performance / Cool & Smart / Every Degree / Generic) + banner-format mix, best creatives by CTR, and
    a sortable/searchable creative detail table.
-3. **Media Plan** — budget tiles, delivered-vs-target pacing per live channel, and the full 7-line brief
-   media plan (LinkedIn / Trade Desk / Search / Reddit × Awareness + Retargeting) with Live/Planned tags.
-   Search, Reddit and the Retargeting lines are **planned (tbc), not yet live** — targets shown for context.
+3. **Content Syndication** — the vendor lead lane (added 2026-09-14, client). Leads delivered vs the
+   per-region allocation, a weekly lead trend, job-function and seniority mix, and a Top-accounts
+   table carrying each account's own job titles. **Whole flight, every region** — the channel,
+   country and date filters are hidden here (see the CS bullet below for why). The tab **hides
+   itself** unless the payload carries lead rows.
+4. **Media Plan** — budget tiles, delivered-vs-target pacing per live channel, and the full **12-line**
+   media plan with Live/Planned tags (reseeded 2026-09-14 from the workbook's `Media Plan_updated 2508`
+   tab; the previous seed was the 16 Jul brief's 7 lines and had gone two months stale). Reddit, the
+   Bombora overlays, the Retargeting lines, the intent test and Pangea are **planned, not yet live** —
+   targets shown for context.
 
 ## Architecture (standard 3-stage pattern)
 ```
 raw_snowflake.{linkedin_ads_apac, tradedesk_apac_all}          (shared mirrors, filled by ingest/)
   -> sql/01_stg_linkedin, 02_stg_tradedesk                     (scope: Schneider account + '%LQAIDC%')
-  -> sql/03_delivery (platform x date x country x region fact) + sql/04_creative
+  -> sql/03_delivery (platform x date x country x PHASE x TACTIC x region fact) + sql/04_creative
 raw_snowflake.google_ads_apac                                  (shared mirror, campaign grain)
   -> sql/05_stg_google_search (day x market; exact 5-name IN scope; USD + pinned USD->EUR)
   -> sql/06_search_channel_totals (one row: sums + CTR/CPC + fx + data_through)
-  + data/media_plan.csv -> seed_media_plan  (load_seeds.py)    (the brief targets)
+raw_snowflake.salesforce_cs_apac_all                            (shared mirror, EVERY client's leads)
+  -> sql/07_stg_salesforce (scoped by seed_cs_campaign_map; flight-clamped; PII dropped)
+  -> sql/08_cs_daily + 09_cs_audience + 10_cs_account_titles + 11_cs_pacing
+  + data/media_plan.csv -> seed_media_plan  (load_seeds.py)    (the plan targets)
+  + data/cs_campaign_map.csv + data/cs_targets.csv -> seed_cs_*  (CS scope + allocation)
   -> job/main.py  -> gs://bidbrain-analytics-schneiderlqai-dash/schneiderlqai.json
      (delivery/creative/plan + the `search` block: daily rows, totals, own data_through)
   -> dash/main.py (Flask gate) serves dashboard.html + /data.json
@@ -111,9 +164,15 @@ raw_snowflake.google_ads_apac                                  (shared mirror, c
   (~6-7 Jul 2026); same ad-set/ad-group IDs. (The Enterprise IT `1958_SE_EntIT_*` campaigns in the same
   Trade Desk export are a DIFFERENT brief and are deliberately out of scope.)
 - **Country** is parsed from the LinkedIn ad-set `CAMPAIGN_NAME` / Trade Desk `AD_GROUP_NAME`.
-- **Targets** (`plan.channels`) are summed over the media-plan lines flagged `live=1` (LinkedIn Awareness
-  + both Trade Desk Awareness lines): LinkedIn 925,600 imp / 5,091 clk / A$69,420; Trade Desk 9,196,000
-  imp / 34,176 clk / A$138,840. Live budget A$208,260; full plan A$473,124.
+- **Pace-to-plan basis (changed 2026-09-14, client):** the three pace bars measure delivered against the
+  whole **paid-media** plan — `budget_group == 'paid_media'`, i.e. every media line whether live or not,
+  excluding the unallocated New/Reinvestment bucket and the Pangea lead-gen line. Budget **EUR 281,274**
+  (A$500,668), impressions 27,930,294, clicks 48,810. The budget is summed from the plan's OWN EUR column
+  (`spend_target_eur`), never converted from AUD: the client reads that column, and routing via the FX
+  constant lands ~EUR 9k out — which is what the 2026-09-13 report was. All three bars share that one
+  line set so budget and counts can never sit on different bases.
+- **`plan.channels`** (the Media Plan tab's per-channel delivered-vs-target) still sums only `live=1`
+  lines. Live budget A$208,260; full plan A$534,000 (of which A$500,668 is paid media).
 - **Spend multiplier:** the dashboard's `bbApplySpendMult` grosses delivered `spend_aud` by
   `window.BB_SPEND_MULT` per channel (linkedin / ttd). Plan **targets are NOT grossed** — they are the
   media-plan (billed) budget, so grossed-delivery-vs-billed-budget paces correctly on the front-door.
@@ -129,7 +188,10 @@ OWN `data_through` — any rolling window must be computed per channel from it, 
 - Edited `dash/dashboard.html` or `dash/main.py` -> `dash/deploy_dash_schneiderlqai.ps1`
 - Edited `job/main.py` -> `job/deploy_job_schneiderlqai.ps1`
 - Edited a `sql/*.sql` view -> `sql/deploy_views_schneiderlqai.ps1`
-- Edited `data/media_plan.csv` (targets) -> `deploy_seeds_schneiderlqai.ps1` (forces the rebuild)
+- Edited `data/media_plan.csv` / `data/cs_*.csv` -> `deploy_seeds_schneiderlqai.ps1` (forces the rebuild)
+- **Seeds must load BEFORE the views** — binding since 2026-09-14: `sql/07` INNER JOINs
+  `seed_cs_campaign_map` (the CS lane's only scope key) and `sql/11` reads `seed_cs_targets`, so
+  applying views against a missing seed fails the run. Both deploy scripts already order it correctly.
 - First-time standup (idempotent): `deploy_schneiderlqai.ps1`
 - Optional "Download slides" (AI deck): `dash/enable_report_schneiderlqai.ps1` once, then redeploy the dash.
 

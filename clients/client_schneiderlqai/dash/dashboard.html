@@ -571,7 +571,7 @@
       </div>
       <div class="kpihint">Tap Spend, Impressions or Clicks to show or hide it on the chart below. CTR is a read-only efficiency figure.</div>
 
-      <div class="section"><h2 style="font-size:15px">Pace to plan</h2><span class="sub">Delivered to date vs the media-plan targets for the live Awareness lines (whole flight, all countries - independent of the filters). The marker shows where an even pace should sit today.</span></div>
+      <div class="section"><h2 style="font-size:15px">Pace to plan</h2><span class="sub">Delivered to date vs the full paid-media plan (whole flight, all countries - independent of the filters). The marker shows where an even pace should sit today.</span></div>
       <div class="card" style="margin-top:14px"><div id="pacing"></div></div>
 
       <div class="section"><h2 style="font-size:15px">Delivery over time</h2><span class="sub">How <b>spend, impressions and clicks</b> track over time. <b>Relative</b> lines up the trends; <b>Absolute</b> shows true values. CTR is dashed.</span></div>
@@ -591,6 +591,21 @@
       <div class="card" style="margin-top:14px"><div style="overflow:auto">
         <table id="pmPlatTable"><thead><tr><th>Channel</th><th class="num">Spend</th><th class="num">Imps</th><th class="num">Clicks</th><th class="num">CTR</th><th class="num">CPM</th><th class="num">CPC</th></tr></thead><tbody></tbody></table>
       </div></div>
+
+      <!-- ============ CHANNEL PHASES (2026-09-14, client) ============
+           "Split performance into channel phases (e.g. LinkedIn Awareness, Retargeting,
+           Consideration, Conversion)". Phase comes from the delivering entity's own name, parsed in
+           each platform's staging view - NOT from the media plan, so a phase that has not started
+           does not render as a row of zeros (that reads as a phase that failed rather than one not
+           yet bought). `tactic` is the finer buy inside a phase and is what makes this section
+           earn its place today: the board previously blended Trade Desk's Premium Publishers,
+           Prospecting and TAL & Intent buys into ONE "Trade Desk" figure.
+           An entity whose name matches no known token shows as `Unclassified` rather than being
+           folded into Awareness; the export job WARNs when that happens. -->
+      <div class="section"><h2 style="font-size:15px">Channel phases</h2><span class="sub">Delivery split by the phase each campaign is bought as, then by the buy within it. Honours the channel, country and date filters.</span></div>
+      <div class="card" style="margin-top:14px"><div style="overflow:auto">
+        <table id="pmPhaseTable" class="bb-sortable"><thead><tr><th>Channel</th><th>Phase</th><th>Buy</th><th class="num">Spend</th><th class="num">Imps</th><th class="num">Clicks</th><th class="num">CTR</th><th class="num">CPM</th><th class="num">CPC</th></tr></thead><tbody></tbody></table>
+      </div><div class="info-note" id="pmPhaseNote"></div></div>
 
       <div class="section"><h2 style="font-size:15px">Spend &amp; geography</h2><span class="sub">Where the media budget went - by channel and by country (EUR).</span></div>
       <div class="grid">
@@ -613,7 +628,10 @@
            pmRows(), so the Google Search chip scopes it in and out of every blended figure above
            AND this section, exactly like the other two chips. The chip leaves the roster when
            Search has no rows in the current selection, and it can never hide the UNAVAILABLE
-           state below. Search stays OUT of pace-to-plan (the budget is LinkedIn+TTD plan lines).
+           state below. Search JOINS pace-to-plan as of 2026-09-14 (client report: the Total
+           spend KPI and the pace-to-plan Spend bar disagreed by exactly Search spend); its
+           plan line (A$67,284 / EUR 37,800) is inside the paid-media budget those bars pace
+           against. Media Plan spend-to-date is unchanged and still excludes it.
            Visibility contract (2026-08-31): DATA.search.data_through null -> whole section hidden
            (channel never delivered); data_through set but daily empty -> the UNAVAILABLE state
            renders (a channel that had data must fail loud, never silently vanish); otherwise the
@@ -663,6 +681,45 @@
       </div></div>
     </div>
 
+    <!-- ============ CONTENT SYNDICATION (2026-09-14, client) ============
+         Leads from the content-syndication vendor (vendor -> CaptureIQ -> Integrate -> Salesforce).
+         A SEPARATE lane from paid delivery: these are leads, not impressions, and no figure here
+         may ever be summed with one from the Overview.
+         The whole tab is hidden unless DATA.cs.enabled - a lead board of zeros reads as a campaign
+         that failed rather than one whose vendor has not started. -->
+    <div id="tab-cs" class="tabpane">
+      <div class="section first">
+        <h2>Content Syndication</h2>
+        <span class="sub">Leads delivered by the syndication vendor, against the per-region allocation in the media plan. <b>Whole flight, every region</b> - the channel, country and date filters do not apply here, and the control bar hides them on this tab.</span>
+      </div>
+      <div id="csPending"></div>
+      <div class="kpis" style="margin-top:14px">
+        <div class="kpi m-clk"><span class="stripe"></span><div class="label">Leads delivered</div><div class="value" id="cs_leads">-</div><div class="delta" id="cs_leads_sub">-</div></div>
+        <div class="kpi m-target"><span class="stripe"></span><div class="label">Lead target</div><div class="value" id="cs_target">-</div><div class="delta" id="cs_target_sub">-</div></div>
+        <div class="kpi m-imp"><span class="stripe"></span><div class="label">Accounts reached</div><div class="value" id="cs_accts">-</div><div class="delta" id="cs_accts_sub">-</div></div>
+        <div class="kpi m-ctr"><span class="stripe"></span><div class="label">Cost per lead</div><div class="value" id="cs_cpl">-</div><div class="delta" id="cs_cpl_sub">-</div></div>
+      </div>
+
+      <div class="section"><h2 style="font-size:15px">Delivered vs allocation</h2><span class="sub">The vendor's per-region lead allocation from the media plan.</span></div>
+      <div class="card" style="margin-top:14px"><div style="overflow:auto">
+        <table id="csPaceTable"><thead><tr><th>Region</th><th class="num">Delivered</th><th class="num">Target</th><th class="num">% of target</th><th>Pace</th><th class="num">Cost</th></tr></thead><tbody></tbody></table>
+      </div><div class="info-note" id="csPaceNote"></div></div>
+
+      <div class="section"><h2 style="font-size:15px">Leads over time</h2><span class="sub">When the leads landed. Uses the Salesforce lead date, not the upload date.</span></div>
+      <div class="card card-hero"><div class="chart-wrap"><canvas id="csDaily"></canvas></div><div class="chart-empty" id="csDailyEmpty" style="display:none"></div></div>
+
+      <div class="section"><h2 style="font-size:15px">Who we reached</h2><span class="sub">The audience behind the leads - job function and seniority.</span></div>
+      <div class="grid">
+        <div class="card card-tall"><h3>Job function</h3><div class="hint">Share of leads by function.</div><div class="chart-wrap"><canvas id="csFunc"></canvas></div><div class="chart-empty" id="csFuncEmpty" style="display:none"></div></div>
+        <div class="card card-tall"><h3>Seniority</h3><div class="hint" id="csSenHint">Share of leads by seniority.</div><div class="chart-wrap"><canvas id="csSen"></canvas></div><div class="chart-empty" id="csSenEmpty" style="display:none"></div></div>
+      </div>
+
+      <div class="section"><h2 style="font-size:15px">Top accounts</h2><span class="sub">The companies that engaged most, with the job titles behind each one.</span></div>
+      <div class="card" style="margin-top:14px"><div style="overflow:auto">
+        <table id="csAcctTable" class="bb-sortable"><thead><tr><th>#</th><th>Account</th><th class="num">Leads</th><th>Job titles</th></tr></thead><tbody></tbody></table>
+      </div><div class="info-note" id="csAcctNote"></div></div>
+    </div>
+
     <!-- ============ MEDIA PLAN ============ -->
     <div id="tab-plan" class="tabpane">
       <div class="section first">
@@ -671,7 +728,8 @@
       </div>
       <div class="kpis">
         <div class="kpi m-spend"><span class="stripe"></span><div class="label">Live budget</div><div class="value" id="pl_live">-</div><div class="delta">LinkedIn + Trade Desk Awareness</div></div>
-        <div class="kpi m-target"><span class="stripe"></span><div class="label">Full plan budget</div><div class="value" id="pl_total">-</div><div class="delta">all channels &amp; phases</div></div>
+        <div class="kpi m-clk"><span class="stripe"></span><div class="label">Paid media budget</div><div class="value" id="pl_paid">-</div><div class="delta">what Pace to plan measures against</div></div>
+        <div class="kpi m-target"><span class="stripe"></span><div class="label">Full plan budget</div><div class="value" id="pl_total">-</div><div class="delta">incl. lead gen &amp; reinvestment</div></div>
         <div class="kpi m-imp"><span class="stripe"></span><div class="label">Spend to date</div><div class="value" id="pl_spent">-</div><div class="delta" id="pl_spent_sub">-</div></div>
         <div class="kpi m-clk"><span class="stripe"></span><div class="label">Flight elapsed</div><div class="value" id="pl_elapsed">-</div><div class="delta" id="pl_elapsed_sub">-</div></div>
       </div>
@@ -706,8 +764,9 @@ const PLATFORMS = [
   // Google Search (2026-08-31) is a FULL third channel on the Overview: its rows (GS_BLEND, built
   // at boot from DATA.search.daily, already EUR via the view's pinned USD rate) join pmRows(), so
   // the chip scopes it in and out of every Overview figure exactly like the other two. It stays
-  // OUT of pace-to-plan / Media Plan spend-to-date (fullByChannel reads DATA.delivery only - the
-  // plan budget is the LinkedIn+TTD Awareness lines) and has no creatives (campaign-grain feed).
+  // IN pace-to-plan since 2026-09-14 (fullByChannel concats GS_BLEND - see the note there; its
+  // plan line is part of the paid-media budget). Still OUT of Media Plan spend-to-date, and it
+  // has no creatives (campaign-grain feed).
   // `ink` because white text is unreadable on Google's yellow (cloudflare's Google Ads colour).
   {key:'google_search', label:'Google Search', color:'#F5C542', ink:'#1A1A1A'},
 ];
@@ -846,7 +905,12 @@ function bbApplySpendMult(){
 // number and printing it invites the client to audit a figure they never asked for. That makes
 // this constant the ONLY record of what the euros mean, so keep it and the README in step - if
 // it is ever wrong, nothing on screen will contradict it.
-const AUD_TO_EUR = 0.58;                 // 1 AUD = 0.58 EUR
+// 2026-09-14: 0.58 -> 0.5618, taken from the media plan's OWN AUD and EUR columns
+// (A$534,000 == EUR 300,000 on the "Media Plan_updated 2508" tab, and line-by-line). The client
+// reads budgets off that EUR column, so any other rate makes delivered spend and the plan
+// irreconcilable by ~3% - which is what the 2026-09-13 budget report was. Delivered spend and
+// plan budgets must share ONE basis; do not change this without changing the plan seed with it.
+const AUD_TO_EUR = 0.5618;               // 1 AUD = 0.5618 EUR (media plan, 25 Aug 2026)
 let _fxApplied = false;
 function bbApplyFx(){
   if(_fxApplied) return;                 // idempotent: never double-convert on a re-render
@@ -858,6 +922,8 @@ function bbApplyFx(){
   (p.lines   ||[]).forEach(l=>{ if(l.spend_target!=null) l.spend_target = Number(l.spend_target)*R; });
   if(p.live_budget  != null) p.live_budget  = Number(p.live_budget)  * R;
   if(p.total_budget != null) p.total_budget = Number(p.total_budget) * R;
+  // p.paid_media_budget_eur is deliberately NOT converted here: it is the media plan's own EUR
+  // column, already in euros (see load_seeds.py). Multiplying it would re-convert euros as AUD.
   // DATA.search is deliberately EXEMPT: the Google Search lane bills USD and arrives already
   // converted USD->EUR by sql/05 at its own PINNED flight-start rate (carried in the block as
   // fx_usd_eur / fx_rate_date and printed in the section footnote). Running it through the AUD
@@ -893,6 +959,7 @@ function buildGsBlend(){
   return ((DATA.search&&DATA.search.daily)||[]).map(r=>({
     platform:'google_search', date:r.date,
     country:gsCountryName(r.market), region:GS_REGION[r.market]||'Other',
+    phase:r.phase||'Unclassified', tactic:r.tactic||'Search',
     imps:r.impressions||0, clicks:r.clicks||0, spend_aud:r.cost_eur||0 }));
 }
 // filtered delivery / creative rows (channel + country chips + date range). Google Search joins
@@ -1077,8 +1144,14 @@ function renderMeta(){
 //==============================================================================
 // CONTROLS
 //==============================================================================
-const TAB_LABEL={overview:'Overview', creative:'Creative', plan:'Media Plan'};
-function setTab(t){ if(!TAB_LABEL[t]) return; activeTab=t; location.hash=t; renderControls(); renderActive(); }
+// The Content Syndication tab is registered only when the payload carries lead rows: a lead
+// board of zeros reads as a campaign that failed rather than one whose vendor has not started,
+// and an older payload has no `cs` block at all. csOn() is the ONE predicate - every other
+// surface derives from it, so the tab, the hash route and the render list cannot disagree.
+function csOn(){ return !!(DATA.cs && DATA.cs.enabled); }
+function TABS(){ return csOn()?['overview','creative','cs','plan']:['overview','creative','plan']; }
+const TAB_LABEL={overview:'Overview', creative:'Creative', cs:'Content Syndication', plan:'Media Plan'};
+function setTab(t){ if(!TABS().includes(t)) return; activeTab=t; location.hash=t; renderControls(); renderActive(); }
 function setPmGrain(g){ pmGrain=g; renderActive(); }
 function setPmScale(s){ pmScale=s; renderActive(); }
 function allCountries(){ activeCountries=new Set(DATA.countries||[]); renderControls(); renderActive(); }
@@ -1087,12 +1160,19 @@ function toggleCountry(c){ activeCountries.has(c)?activeCountries.delete(c):acti
 
 function renderControls(){
   const bar=el('tabBar'); bar.innerHTML='';
-  ['overview','creative','plan'].forEach(t=>{ const b=document.createElement('button'); b.className='tab'+(activeTab===t?' on':''); b.textContent=TAB_LABEL[t]; b.onclick=()=>setTab(t); bar.appendChild(b); });
+  TABS().forEach(t=>{ const b=document.createElement('button'); b.className='tab'+(activeTab===t?' on':''); b.textContent=TAB_LABEL[t]; b.onclick=()=>setTab(t); bar.appendChild(b); });
   const mkts=activeCountries.size===(DATA.countries||[]).length?'all countries':(activeCountries.size?activeCountryList().join(' · '):'no countries');
   const chans=activeChannels.size===0?'all channels':PLATFORMS.filter(p=>activeChannels.has(p.key)).map(p=>p.label).join(' · ');
-  el('ctrlNote').textContent = activeTab==='plan' ? 'Media plan · whole flight' : `Showing ${chans} · ${mkts}`;
-  el('dateGrp').style.display = activeTab==='plan' ? 'none' : 'flex';
-  el('countryGrp').style.display = activeTab==='plan' ? 'none' : 'flex';
+  el('ctrlNote').textContent = activeTab==='plan' ? 'Media plan · whole flight'
+    : activeTab==='cs' ? 'Content syndication · whole flight, every region'
+    : `Showing ${chans} · ${mkts}`;
+  // Plan and Content Syndication are both whole-flight surfaces and neither honours these filters.
+  // The CS country roster is Pangea's, not the paid campaign's - its ANZ region includes New
+  // Zealand, which has no chip because the paid campaign never ran there - so applying the country
+  // chips to leads would silently drop every NZ lead while the page looked normally filtered.
+  const wholeFlightTab = (activeTab==='plan' || activeTab==='cs');
+  el('dateGrp').style.display = wholeFlightTab ? 'none' : 'flex';
+  el('countryGrp').style.display = wholeFlightTab ? 'none' : 'flex';
 
   // Channel chips - ONLY engines with delivery in the current country/date selection (client rule,
   // 2026-08-15: never advertise a channel this campaign does not have). The roster ignores the
@@ -1115,20 +1195,192 @@ function renderControls(){
     b.title=`Show / hide ${p.label}`;
     b.innerHTML=`<span class="check">✓</span>${p.label}`;
     b.onclick=()=>toggleChannel(p.key); cw.appendChild(b); });
-  el('channelGrp').style.display = (activeTab!=='plan' && shownPlats.length>1) ? 'flex' : 'none';
+  // Hidden on Content Syndication too: a lead has no delivering ad channel, so a channel chip
+  // there would move a figure it has no relationship with (the client_schneider rule).
+  el('channelGrp').style.display = (!wholeFlightTab && shownPlats.length>1) ? 'flex' : 'none';
 
   const rw=el('countryChips'); rw.innerHTML='';
   (DATA.countries||[]).forEach(c=>{ const b=document.createElement('button'); b.className='chip'+(activeCountries.has(c)?' on':''); b.innerHTML=`<span class="check">✓</span>${c}`; b.onclick=()=>toggleCountry(c); rw.appendChild(b); });
 }
 
 function renderActive(){
-  ['overview','creative','plan'].forEach(t=>{ const p=el('tab-'+t); if(p) p.style.display=(t===activeTab?'block':'none'); });
+  ['overview','creative','cs','plan'].forEach(t=>{ const p=el('tab-'+t); if(p) p.style.display=(t===activeTab?'block':'none'); });
   destroyCharts();
   if(activeTab==='overview') renderOverview();
   else if(activeTab==='creative') renderCreative();
+  else if(activeTab==='cs') renderCs();
   else renderPlan();
   document.querySelectorAll('#pmGrainSeg .seg-btn').forEach(b=>b.classList.toggle('on',b.dataset.grain===pmGrain));
   document.querySelectorAll('#pmScaleSeg .seg-btn').forEach(b=>b.classList.toggle('on',b.dataset.scale===pmScale));
+}
+
+//==============================================================================
+// CONTENT SYNDICATION (2026-09-14, client)
+//==============================================================================
+// Whole-flight, every region: the channel / country / date filters are hidden on this tab (see
+// renderControls) because none of them can be applied to a lead honestly - leads have no delivering
+// ad channel, and the CS region set is Pangea's, whose ANZ includes a country the paid campaign
+// never ran in.
+//
+// SENIORITY IS DERIVED FROM THE JOB TITLE and the card says so on its face. JOB_LEVEL is empty on
+// every row of this feed (sql/09 explains why), so reading it would answer nothing; but a derived
+// field presented as a CRM field is a claim the data does not support. Do not remove that label
+// without replacing the derivation with a real field.
+function csAgg(dim){
+  const o={};
+  ((DATA.cs&&DATA.cs.audience)||[]).filter(a=>a.dim===dim)
+    .forEach(a=>{ o[a.value]=(o[a.value]||0)+(a.leads||0); });
+  return Object.entries(o).map(([value,leads])=>({value,leads})).sort((a,b)=>b.leads-a.leads);
+}
+// A doughnut cannot draw a zero slice, so an all-zero dataset must NOT reach one - it renders as a
+// titled blank box. Hide the CANVAS and show a sibling; never overwrite the canvas's parent, which
+// deletes the canvas and silently kills every later render of that card (the repo-wide rule).
+function csDonut(canvasId, emptyId, rows, palette){
+  const cv=el(canvasId), em=el(emptyId);
+  if(!cv||!em) return;
+  if(!rows.length){
+    cv.style.display='none'; em.style.display='block';
+    em.textContent='No leads in this view yet.'; return;
+  }
+  cv.style.display=''; em.style.display='none';
+  charts[canvasId]=new Chart(cv,{ type:'doughnut',
+    data:{ labels:rows.map(r=>r.value), datasets:[{ data:rows.map(r=>r.leads),
+      backgroundColor:rows.map((_,i)=>palette[i%palette.length]), borderColor:'#fff', borderWidth:2 }] },
+    options:{ maintainAspectRatio:false, cutout:'58%', plugins:{ legend:legendBottom(),
+      tooltip:{callbacks:{label:c=>{ const t=c.dataset.data.reduce((a,b)=>a+b,0);
+        return ' '+c.label+': '+fmtN(c.raw)+' ('+fmtPct(t?c.raw/t:0,1)+')'; }}} } } });
+}
+
+function renderCs(){
+  const cs=DATA.cs||{};
+  // ---- provisional-campaign banner --------------------------------------------------------
+  // The campaign id is a footprint match until the client confirms it, and the vendor also runs
+  // another Schneider programme - so an unconfirmed id could be another book's leads. Say so
+  // prominently and NAME the id; a banner that cannot say which campaign is provisional is not
+  // actionable. Clearing it is one CSV edit (data/cs_campaign_map.csv, confirmed=1).
+  const pend=el('csPending');
+  if(pend){
+    const unconf=(cs.campaigns||[]).filter(c=>!c.confirmed);
+    if(unconf.length){
+      const ids=unconf.map(c=>c.vendor+' - '+c.id).join(', ');
+      pend.innerHTML='<div class="info-note" style="border-left:3px solid #C4902E;background:#FDF7E8;color:#6B4E00;margin-top:14px">'
+        +'<b>Provisional - pending confirmation.</b> These leads are scoped to a Salesforce campaign '
+        +'identified by footprint, not confirmed by the client: <b>'+ids+'</b>. The lead feed carries '
+        +'no campaign name, and the same vendor also delivers another Schneider programme, so treat '
+        +'these figures as indicative until the campaign is confirmed.</div>';
+    } else pend.innerHTML='';
+  }
+
+  const rows=(cs.daily||[]);
+  const leads=rows.reduce((a,r)=>a+(r.leads||0),0);
+  const target=cs.lead_target||0;
+  const pace=(cs.pacing||[]);
+  // Accounts come from the same rollup the table below uses, so KPI and table cannot disagree.
+  const accts=csAgg('account');
+  const cost=pace.reduce((a,p)=>a+(p.cost_aud||0),0);
+  el('cs_leads').textContent=fmtN(leads);
+  el('cs_leads_sub').textContent=target?(fmtPct(leads/target,0)+' of the '+fmtN(target)+' allocation'):'no allocation seeded';
+  el('cs_target').textContent=target?fmtN(target):'-';
+  el('cs_target_sub').textContent=target?(fmtN(Math.max(0,target-leads))+' still to deliver'):'-';
+  el('cs_accts').textContent=fmtN(accts.length);
+  el('cs_accts_sub').textContent=accts.length?(fmtN(leads)+' leads across '+fmtN(accts.length)+' companies'):'-';
+  // CPL is the PLANNED rate from the media plan, not delivered spend divided by delivered leads:
+  // the vendor bills per lead, so there is no separate spend figure, and deriving one would invent
+  // an efficiency number. Labelled as planned so it cannot be read as measured.
+  const cpl=pace.find(p=>p.cpl_aud)||{};
+  el('cs_cpl').textContent=cpl.cpl_aud?money(cpl.cpl_aud*AUD_TO_EUR,2):'-';
+  el('cs_cpl_sub').textContent=cpl.cpl_aud?'planned rate, from the media plan':'not in the plan';
+
+  // ---- delivered vs allocation -------------------------------------------------------------
+  const tb=el('csPaceTable').querySelector('tbody');
+  const REG_ORDER={India:0,ANZ:1,SAM:2,MEA:3,'Not disclosed':8,Other:9};
+  const pr=[...pace].sort((a,b)=>((REG_ORDER[a.region]==null?5:REG_ORDER[a.region])-(REG_ORDER[b.region]==null?5:REG_ORDER[b.region])));
+  tb.innerHTML=pr.map(function(p){
+    const t=p.lead_target||0, d=p.leads||0, r=t?d/t:null;
+    // A region delivering with no seeded target prints "no target", never 0 - a zero target would
+    // render as infinite overachievement and imply the delivery was unplanned.
+    const verdict = t===0 ? '<span class="tag" style="background:#EEF1F0;color:#5B6770">no target</span>'
+      : r>=0.9 ? '<span class="perf ahead">On / ahead</span>'
+      : r>=0.5 ? '<span class="perf warn">Behind</span>'
+               : '<span class="perf behind">Well behind</span>';
+    return '<tr><td>'+p.region+'</td><td class="num">'+fmtN(d)+'</td><td class="num">'+(t?fmtN(t):'-')+'</td>'
+      +'<td class="num">'+(t?fmtPct(r,0):'-')+'</td><td>'+verdict+'</td>'
+      +'<td class="num">'+(p.cost_aud?money(p.cost_aud*AUD_TO_EUR):'-')+'</td></tr>';
+  }).join('')
+    +'<tr class="total"><td>Total</td><td class="num">'+fmtN(leads)+'</td><td class="num">'+(target?fmtN(target):'-')
+    +'</td><td class="num">'+(target?fmtPct(leads/target,0):'-')+'</td><td></td><td class="num">'
+    +(cost?money(cost*AUD_TO_EUR):'-')+'</td></tr>';
+  if(!pr.length) tb.innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--se-mute);padding:14px">No allocation seeded.</td></tr>';
+  const pn=el('csPaceNote');
+  if(pn){
+    const f=(cs.campaigns||[])[0]||{};
+    pn.innerHTML='Allocation is the vendor’s per-region lead plan'+(f.flight_end?(' for the flight ending '+dateLabel(f.flight_end)):'')+'. '
+      +'Cost is the planned lead cost at the plan’s CPL, converted to EUR - the vendor bills per lead, so there is no separate media spend to report here. '
+      +'These figures are whole-flight and do not move with the date range.';
+  }
+
+  // ---- leads over time ---------------------------------------------------------------------
+  const m={};
+  rows.forEach(function(r){ const k=grainKey(r.date,'week'); const e=m[k]||(m[k]={k:k,leads:0}); e.leads+=r.leads||0; });
+  const B=Object.values(m).sort(function(a,b){ return a.k<b.k?-1:1; });
+  const cv=el('csDaily'), cve=el('csDailyEmpty');
+  if(!B.length){
+    if(cv) cv.style.display='none';
+    if(cve){ cve.style.display='block'; cve.textContent='No leads have landed yet.'; }
+  } else {
+    if(cv) cv.style.display='';
+    if(cve) cve.style.display='none';
+    charts.csDaily=new Chart(cv,{ type:'bar',
+      data:{ labels:B.map(function(b){return grainLabel(b.k,'week');}), datasets:[{ label:'Leads',
+        data:B.map(function(b){return b.leads;}), backgroundColor:C.green2, maxBarThickness:34, borderRadius:3 }] },
+      options:{ maintainAspectRatio:false, plugins:{ legend:{display:false},
+        tooltip:{callbacks:{label:function(c){ return ' Leads: '+fmtN(c.raw); }}} },
+        scales:{ x:axisX(), y:gridY({beginAtZero:true}) } } });
+  }
+
+  // ---- audience ----------------------------------------------------------------------------
+  const PAL=['#3E6396','#12B5C9','#C4902E','#7A9E3F','#9B6BB3','#D4756B','#5B6770'];
+  csDonut('csFunc','csFuncEmpty',csAgg('function'),PAL);
+  csDonut('csSen','csSenEmpty',csAgg('seniority'),PAL);
+  const sh=el('csSenHint');
+  if(sh) sh.innerHTML='Share of leads by seniority. <b>Derived from the job title</b> - the lead feed carries no seniority field, so this is read from the title text rather than supplied by the CRM.';
+
+  // ---- top accounts ------------------------------------------------------------------------
+  // Titles per account are ranked client-side from the LONG rows. An account's titles can sum to
+  // FEWER leads than the account itself - a lead with no title is absent rather than bucketed as
+  // "Unknown", which would rank against real titles - and the note states that shortfall instead
+  // of implying full coverage.
+  // Titles are MERGED BY NAME before ranking. cs_account_titles is grained by REGION, so an account
+  // that appears in two regions returns the same title twice - rendered unmerged that printed
+  // "Director (2) - Director" on a client-facing card (caught in the local preview 2026-09-14, on
+  // Reliance Jio Infocom). Same class as the repo-wide asset-alias trap: anything grouped at a finer
+  // grain than it is displayed at must be folded before it is ranked, or one value competes with
+  // itself and loses its own top spot.
+  const byAcct={};
+  ((cs.account_titles)||[]).forEach(function(t){
+    const e=byAcct[t.company]||(byAcct[t.company]={titles:{},titled:0});
+    const k=(t.job_title||'').toUpperCase();
+    if(!e.titles[k]) e.titles[k]={t:t.job_title,n:0};
+    e.titles[k].n+=t.leads||0;
+    e.titled+=t.leads||0;
+  });
+  const top=accts.slice(0,50).map(function(a,i){
+    const e=byAcct[a.value]||{titles:{}};
+    const tl=Object.values(e.titles).sort(function(x,y){return y.n-x.n;}).slice(0,2)
+      .map(function(x){ return x.n>1?(x.t+' ('+x.n+')'):x.t; }).join(' · ');
+    return '<tr><td class="num">'+(i+1)+'</td><td>'+a.value+'</td><td class="num">'+fmtN(a.leads)+'</td><td>'
+      +(tl||'<span style="color:var(--se-mute)">no title recorded</span>')+'</td></tr>';
+  }).join('');
+  const at=el('csAcctTable').querySelector('tbody');
+  at.innerHTML=top||'<tr><td colspan="4" style="text-align:center;color:var(--se-mute);padding:14px">No accounts yet.</td></tr>';
+  const an=el('csAcctNote');
+  if(an){
+    const titled=Object.values(byAcct).reduce(function(a,e){return a+e.titled;},0);
+    const shortfall=leads-titled;
+    an.innerHTML='Ranked by lead volume, top '+Math.min(50,accts.length)+' of '+fmtN(accts.length)+' companies. '
+      +'Up to two job titles are shown per account, most frequent first; a count appears only where a title genuinely repeats at that account.'
+      +(shortfall>0?(' <b>'+fmtN(shortfall)+' of '+fmtN(leads)+' leads carry no job title</b>, so the titles here do not cover every lead at every account.'):'');
+  }
 }
 
 //==============================================================================
@@ -1136,7 +1388,21 @@ function renderActive(){
 //==============================================================================
 function pmTotals(rows){ const o={imps:0,clk:0,spend:0}; rows.forEach(r=>{o.imps+=r.imps||0;o.clk+=r.clicks||0;o.spend+=r.spend_aud||0;}); return o; }
 // whole-flight, all-country delivery by channel (matches the media-plan budget, ignores filters)
-function fullByChannel(){ const o={}; (DATA.delivery||[]).forEach(r=>{ const e=o[r.platform]||(o[r.platform]={imps:0,clk:0,spend:0}); e.imps+=r.imps||0; e.clk+=r.clicks||0; e.spend+=r.spend_aud||0; }); return o; }
+// Whole-flight, all-country delivery per channel - the pace-to-plan basis (NOT filter-aware; the
+// pacing card states that in its own sub-line).
+// Google Search JOINS this as of 2026-09-14 (client report: the Overview "Total spend" KPI and the
+// pace-to-plan "Spend" bar disagreed). The KPI sums pmRows(), which has included Search via
+// GS_BLEND since 2026-08-31; this function read DATA.delivery only, so the gap between the two
+// figures was exactly Search spend. Search was originally held out because it had no confirmed
+// plan line - it now has one (A$67,284 / EUR 37,800, Awareness), and that line is inside the
+// paid-media budget the bars pace against, so holding the delivery out would understate pace.
+// Both sides are EUR here: delivery spend_aud has been through bbApplyFx, GS_BLEND carries
+// cost_eur natively - see the GS_BLEND note. Never let these diverge again: the KPI and this
+// function must cover the same channel set.
+function fullByChannel(){ const o={};
+  (DATA.delivery||[]).forEach(r=>{ const e=o[r.platform]||(o[r.platform]={imps:0,clk:0,spend:0}); e.imps+=r.imps||0; e.clk+=r.clicks||0; e.spend+=r.spend_aud||0; });
+  GS_BLEND.forEach(r=>{ const e=o[r.platform]||(o[r.platform]={imps:0,clk:0,spend:0}); e.imps+=r.imps||0; e.clk+=r.clicks||0; e.spend+=r.spend_aud||0; });
+  return o; }
 
 function paceBar(label, actual, target, isMoney){
   const p = target? Math.min(1.3, actual/target) : 0;
@@ -1148,27 +1414,78 @@ function paceBar(label, actual, target, isMoney){
     <div class="pbar"><div class="fill${fill}" style="width:${(Math.min(1,p)*100).toFixed(1)}%"></div>${tf!=null?`<div class="mark" style="left:${(tf*100).toFixed(1)}%"></div>`:''}</div>
     <div>${val} / ${tgt}</div></div>`;
 }
+function renderPhaseTable(rows, t){
+  const tb=el('pmPhaseTable'); if(!tb) return;              // older payload / markup: nothing to do
+  const body=tb.querySelector('tbody'), note=el('pmPhaseNote');
+  const PH_ORDER={Awareness:0,Consideration:1,Retargeting:2,Conversion:3,Unclassified:9};
+  const g={};
+  rows.forEach(r=>{
+    // A row with no phase can only come from a payload published before this change - label it
+    // honestly rather than silently folding it into Awareness.
+    const ph=r.phase||'Unclassified', tc=r.tactic||'Unclassified';
+    const k=r.platform+'|'+ph+'|'+tc;
+    const e=g[k]||(g[k]={platform:r.platform,phase:ph,tactic:tc,imps:0,clk:0,spend:0});
+    e.imps+=r.imps||0; e.clk+=r.clicks||0; e.spend+=r.spend_aud||0;
+  });
+  const plat=k=>(PLATFORMS.find(p=>p.key===k)||{label:k,color:'#9AA3AC'});
+  const list=Object.values(g).filter(e=>e.imps||e.spend).sort((a,b)=>
+    (PLATFORMS.findIndex(p=>p.key===a.platform)-PLATFORMS.findIndex(p=>p.key===b.platform))
+    || ((PH_ORDER[a.phase]??5)-(PH_ORDER[b.phase]??5))
+    || (b.spend-a.spend));
+  if(!list.length){
+    body.innerHTML=`<tr><td colspan="9" style="text-align:center;color:var(--se-mute);padding:14px">No delivery in the current filter.</td></tr>`;
+    if(note) note.textContent=''; return;
+  }
+  body.innerHTML=list.map(e=>{ const p=plat(e.platform); return `<tr>`+
+    `<td><span class="pill"><span class="dot" style="background:${p.color}"></span>${p.label}</span></td>`+
+    `<td>${e.phase==='Unclassified'?`<span class="tag" style="background:#F3E7C9;color:#6B4E00">Unclassified</span>`:e.phase}</td>`+
+    `<td>${e.tactic}</td>`+
+    `<td class="num">${money(e.spend)}</td><td class="num">${fmtN(e.imps)}</td><td class="num">${fmtN(e.clk)}</td>`+
+    `<td class="num">${fmtPct(pct(e.clk,e.imps),2)}</td>`+
+    `<td class="num">${money(e.imps?e.spend/e.imps*1000:0,2)}</td>`+
+    `<td class="num">${money(e.clk?e.spend/e.clk:0,2)}</td></tr>`; }).join('')
+    + `<tr class="total"><td>Combined</td><td></td><td></td><td class="num">${money(t.spend)}</td><td class="num">${fmtN(t.imps)}</td><td class="num">${fmtN(t.clk)}</td><td class="num">${fmtPct(pct(t.clk,t.imps),2)}</td><td class="num">${money(t.imps?t.spend/t.imps*1000:0,2)}</td><td class="num">${money(t.clk?t.spend/t.clk:0,2)}</td></tr>`;
+  if(note){
+    const phases=[...new Set(list.map(e=>e.phase))];
+    const unc=list.filter(e=>e.phase==='Unclassified');
+    // Phases are listed from DELIVERY, so the note must never imply the plan's other phases are
+    // failing - they simply have not started. Say which, by name.
+    const planned=((DATA.plan&&DATA.plan.lines)||[]).map(l=>l.phase)
+      .filter(p=>p&&!phases.includes(p));
+    let txt=`Phase is read from each campaign's own name, not from the media plan, so only phases that have delivered appear here.`;
+    if(planned.length) txt+=` Planned but not yet delivering: ${[...new Set(planned)].join(', ')}.`;
+    if(unc.length) txt+=` <b>${unc.length} row(s) could not be matched to a phase</b> - a campaign or ad-group naming change; they are shown as Unclassified rather than folded into Awareness.`;
+    note.innerHTML=txt;
+  }
+}
+
 function renderPacing(host){
   const flight=DATA.flight||{}; const tf=elapsedFrac(flight.start,flight.end);
   const byCh=fullByChannel();
   const totalSpend=Object.values(byCh).reduce((a,e)=>a+e.spend,0);
   const totalImp=Object.values(byCh).reduce((a,e)=>a+e.imps,0);
   const totalClk=Object.values(byCh).reduce((a,e)=>a+e.clk,0);
-  const budget=(DATA.plan&&DATA.plan.live_budget)||0;
-  const impT=(DATA.plan.channels||[]).reduce((a,c)=>a+(c.imp_target||0),0);
-  const clkT=(DATA.plan.channels||[]).reduce((a,c)=>a+(c.click_target||0),0);
+  // 2026-09-14 (client): pace against the whole PAID-MEDIA plan (EUR 281,274 - every media line,
+  // excluding the unallocated New/Reinvestment bucket and the Pangea lead-gen line), not just the
+  // lines currently delivering. All three bars use that same line set, so budget and counts can
+  // never sit on different bases. EUR-native from the plan's own column - no FX applied.
+  // The older live-only aggregates stay on DATA.plan for the Media Plan tab.
+  const P=DATA.plan||{};
+  const budget=P.paid_media_budget_eur||0;
+  const impT=P.paid_media_imp_target||0;
+  const clkT=P.paid_media_click_target||0;
   const usedPct=pct(totalSpend,budget);
   const paceRatio=(tf&&tf>0)?usedPct/tf:null;
   const verdict = paceRatio==null?{cls:'warn',txt:'no flight dates'}:(paceRatio>=0.9?{cls:'ahead',txt:'On / ahead of spend pace'}:(paceRatio>=0.6?{cls:'warn',txt:'Slightly behind pace'}:{cls:'behind',txt:'Behind spend pace'}));
   host.innerHTML=`
     <div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:6px">
-      <div style="font-size:13.5px;font-weight:700;color:var(--se-dark)">Awareness flight ${dateLabel(flight.start)} → ${dateLabel(flight.end)}</div>
+      <div style="font-size:13.5px;font-weight:700;color:var(--se-dark)">Campaign flight ${dateLabel(flight.start)} → ${dateLabel(flight.end)}</div>
       <span class="perf ${verdict.cls}">${verdict.txt}${tf!=null?` · ${fmtPct(tf,0)} elapsed`:''}</span>
     </div>
     ${paceBar('Spend', totalSpend, budget, true)}
     ${paceBar('Impressions', totalImp, impT, false)}
     ${paceBar('Clicks', totalClk, clkT, false)}
-    <div class="prog-note">Delivered <b>${money(totalSpend)}</b> of the <b>${money(budget)}</b> live Awareness budget (<b>${fmtPct(usedPct,0)}</b>)${tf!=null?`, at <b>${fmtPct(tf,0)}</b> of the flight elapsed`:''}. The dark marker on each bar is the even-pace point for today. Budget &amp; targets are the media plan (LinkedIn + Trade Desk Awareness lines).</div>`;
+    <div class="prog-note">Delivered <b>${money(totalSpend)}</b> of the <b>${money(budget)}</b> paid-media budget (<b>${fmtPct(usedPct,0)}</b>)${tf!=null?`, at <b>${fmtPct(tf,0)}</b> of the flight elapsed`:''}. The dark marker on each bar is the even-pace point for today. Budget &amp; targets are every media line of the current media plan, including lines not yet live; the lead-generation and reinvestment lines are excluded. <b>Whole flight, all countries</b> - this card ignores the date and country filters, so it will not always match the figures above.</div>`;
 }
 
 function renderOverview(){
@@ -1188,6 +1505,13 @@ function renderOverview(){
   tb.innerHTML=PLATFORMS.filter(p=>byPlat[p.key].imps||byPlat[p.key].spend).map(p=>{ const x=byPlat[p.key]; return `<tr><td><span class="pill"><span class="dot" style="background:${p.color}"></span>${p.label}</span></td><td class="num">${money(x.spend)}</td><td class="num">${fmtN(x.imps)}</td><td class="num">${fmtN(x.clk)}</td><td class="num">${fmtPct(pct(x.clk,x.imps),2)}</td><td class="num">${money(x.imps?x.spend/x.imps*1000:0,2)}</td><td class="num">${money(x.clk?x.spend/x.clk:0,2)}</td></tr>`; }).join('')
     + `<tr class="total"><td>Combined</td><td class="num">${money(t.spend)}</td><td class="num">${fmtN(t.imps)}</td><td class="num">${fmtN(t.clk)}</td><td class="num">${fmtPct(ctr,2)}</td><td class="num">${money(cpm,2)}</td><td class="num">${money(cpc,2)}</td></tr>`;
   if(!rows.length) tb.innerHTML=`<tr><td colspan="7" style="text-align:center;color:var(--se-mute);padding:14px">No delivery in the current filter.</td></tr>`;
+
+  // ---- channel phases (2026-09-14, client) ---------------------------------------------------
+  // Built from the SAME `rows` as the KPI band and the channel table above, so the three can never
+  // disagree - the totals row must tie to the Combined row of the channel table exactly.
+  // Rows are grouped channel -> phase -> tactic and only rendered where delivery exists: a phase
+  // that has not started is ABSENT, never a zero row (a zero row reads as a phase that failed).
+  renderPhaseTable(rows, t);
 
   // delivery over time chart
   const m={};
@@ -1427,8 +1751,9 @@ function renderPlan(){
   const tf=elapsedFrac(flight.start,flight.end);
   el('pl_live').textContent=money(plan.live_budget||0);
   el('pl_total').textContent=money(plan.total_budget||0);
+  el('pl_paid').textContent=money((DATA.plan&&DATA.plan.paid_media_budget_eur)||0);
   el('pl_spent').textContent=money(spent);
-  el('pl_spent_sub').textContent=plan.live_budget?fmtPct(pct(spent,plan.live_budget),0)+' of live budget':'';
+  el('pl_spent_sub').textContent=`${fmtPct(pct(spent, (plan.paid_media_budget_eur||0)),0)} of the paid media budget`;
   el('pl_elapsed').textContent=tf!=null?fmtPct(tf,0):'-';
   el('pl_elapsed_sub').textContent=`${dateLabel(flight.start)} → ${dateLabel(flight.end)}`;
 

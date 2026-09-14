@@ -33,6 +33,20 @@ SELECT
          OR CONTAINS_SUBSTR(CAMPAIGN_NAME, 'Emirates') THEN 'UAE'
     ELSE 'Other'
   END                                      AS country,
+  -- PHASE + TACTIC (2026-09-14, client) - LinkedIn's own definition; see the header note in
+  -- sql/02_stg_tradedesk.sql for why each platform defines its own. Every ad set is `_TOFU_` today
+  -- (Awareness); the RTG arm is forward protection for the plan's not-yet-live LinkedIn Retargeting
+  -- line, and an unrecognised name is 'Unclassified' and stays visible rather than defaulting.
+  CASE
+    WHEN REGEXP_CONTAINS(UPPER(CAMPAIGN_NAME), r'(^|[ _-])(RTG[0-9]*|RETARGET[A-Z]*)([ _-]|$)') THEN 'Retargeting'
+    WHEN REGEXP_CONTAINS(UPPER(CAMPAIGN_NAME), r'(^|[ _-])(TOFU|AWR|AWARENESS)([ _-]|$)')       THEN 'Awareness'
+    ELSE 'Unclassified'
+  END                                      AS phase,
+  CASE
+    WHEN REGEXP_CONTAINS(UPPER(CAMPAIGN_NAME), r'(^|[ _-])(RTG[0-9]*|RETARGET[A-Z]*)([ _-]|$)') THEN 'Retargeting'
+    WHEN REGEXP_CONTAINS(UPPER(CAMPAIGN_NAME), r'(^|[ _-])(TOFU|AWR|AWARENESS)([ _-]|$)')       THEN 'Prospecting'
+    ELSE 'Unclassified'
+  END                                      AS tactic,
   -- creative message = the ad title (LC1 Performance / LC2 AI Heat / LC3 Coolant Flow). Single-image
   -- Sponsored Content (CREATIVE_TYPE STANDARD); no video on this campaign.
   COALESCE(NULLIF(TRIM(AD_TITLE), ''), 'Sponsored Content') AS concept,

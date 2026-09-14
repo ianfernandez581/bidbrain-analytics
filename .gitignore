@@ -26,6 +26,12 @@ clients/*/data/*
 !clients/client_schneider/data/targets.csv
 !clients/client_schneider/data/campaign_map.csv
 !clients/client_schneiderlqai/data/media_plan.csv
+# Content-syndication seeds (2026-09-14). cs_campaign_map is the CS lane's ONLY scope key - the
+# Salesforce mirror holds every client's leads and Schneider's rows carry no campaign name, so an
+# untracked copy would make the lane unreproducible from the repo. cs_targets is a target CSV and
+# falls under the committed-CSV->BQ standard like every other.
+!clients/client_schneiderlqai/data/cs_campaign_map.csv
+!clients/client_schneiderlqai/data/cs_targets.csv
 # EXCEPTION: foodbank is a sample-data pitch preview - its data/ holds the seeded GENERATOR and its
 # committed output (the dashboard's only payload), not raw client exports. Track both.
 !clients/client_foodbank/data/generate_sample.py

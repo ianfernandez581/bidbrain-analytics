@@ -26,6 +26,29 @@ SELECT
          OR CONTAINS_SUBSTR(AD_GROUP_NAME, 'Emirates') THEN 'UAE'
     ELSE 'Other'
   END                                      AS country,
+  -- PHASE + TACTIC (2026-09-14, client: "split performance into channel phases").
+  -- The Trade Desk ad-group name carries the buy as a delimiter-anchored token; this is the ONLY
+  -- place Trade Desk phase is defined (LinkedIn and Search each define their own, because each
+  -- platform names its own entities). Delimiter-anchored regex, never a bare substring or a fixed
+  -- offset - see the repo-wide "campaign names are NOT stable keys" rule.
+  --   PREMIUM -> the media plan's "Premium Publishers through TradeDesk" Awareness line
+  --   Intent  -> the "Programmatic - TradeDesk" TAL/Intent Awareness line (live 2026-09-07)
+  --   TOFU    -> the same TradeDesk Awareness line, the original prospecting buy (live 2026-05-18)
+  --   RTG     -> the Retargeting line (live 2026-09-10, though the 25 Aug plan still says "Not live")
+  -- A name matching NONE of these is 'Unclassified' and stays VISIBLE on the dashboard: a real-value
+  -- default here would silently file a new buy under an existing phase (the repo-wide CASE/ELSE trap).
+  CASE
+    WHEN REGEXP_CONTAINS(UPPER(AD_GROUP_NAME), r'(^|[ _-])RTG[0-9]*([ _-]|$)') THEN 'Retargeting'
+    WHEN REGEXP_CONTAINS(UPPER(AD_GROUP_NAME), r'(^|[ _-])(PREMIUM|INTENT|TOFU)([ _-]|$)') THEN 'Awareness'
+    ELSE 'Unclassified'
+  END                                      AS phase,
+  CASE
+    WHEN REGEXP_CONTAINS(UPPER(AD_GROUP_NAME), r'(^|[ _-])RTG[0-9]*([ _-]|$)') THEN 'Retargeting'
+    WHEN REGEXP_CONTAINS(UPPER(AD_GROUP_NAME), r'(^|[ _-])PREMIUM([ _-]|$)')   THEN 'Premium Publishers'
+    WHEN REGEXP_CONTAINS(UPPER(AD_GROUP_NAME), r'(^|[ _-])INTENT([ _-]|$)')    THEN 'TAL & Intent'
+    WHEN REGEXP_CONTAINS(UPPER(AD_GROUP_NAME), r'(^|[ _-])TOFU([ _-]|$)')      THEN 'Prospecting'
+    ELSE 'Unclassified'
+  END                                      AS tactic,
   CASE
     WHEN CONTAINS_SUBSTR(CREATIVE_NAME, 'AccelAI')   THEN 'Accelerate AI'
     WHEN CONTAINS_SUBSTR(CREATIVE_NAME, 'CoolPerf')  THEN 'Cooling Performance'
