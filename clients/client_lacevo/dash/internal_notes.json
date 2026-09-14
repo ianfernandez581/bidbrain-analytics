@@ -1,0 +1,20 @@
+{
+ "_comment": "STAFF-ONLY. Served by main.py at /internal/notes.json and fetched lazily when the Internal notes tab opens - deliberately NOT part of data.json, following clients/client_schneidersecpwr (its Reports tab keeps ad-set targeting off data.json for the same reason). Hiding the tab is not the permission; keeping the content off the payload every session downloads is the point. Read README.md -> 'Internal notes' before putting anything genuinely sensitive here: this service authenticates but cannot yet authorize by ROLE.",
+ "updated": "2026-09-14",
+ "sources": [
+  {"name": "Shopify", "state": "pending", "detail": "Orders, products, refunds. Needs a private app token from the client."},
+  {"name": "Meta Ads", "state": "pending", "detail": "Waiting on partner access to the ad account."},
+  {"name": "Google Ads", "state": "pending", "detail": "Manager account link request sent."},
+  {"name": "TikTok Ads", "state": "pending", "detail": "Waiting on business centre invite."},
+  {"name": "GA4", "state": "pending", "detail": "Read access to the property, plus the US property if we report both markets."},
+  {"name": "Klaviyo", "state": "pending", "detail": "Out of scope for launch. Adds email and SMS revenue when ready."}
+ ],
+ "questions": [
+  {"name": "One market or two?", "detail": "lacevo.com is Australia, lacevo.us is the United States. Confirm whether they are reported together, separately, or both."},
+  {"name": "Revenue definition", "detail": "Gross including shipping and tax, or net of refunds and discounts. Drives every number on the page."},
+  {"name": "Cost to acquire a customer", "detail": "The preview divides ad spend by ORDERS. If it should be spend divided by FIRST-TIME buyers only, the figure rises and the ceiling has to move with it."},
+  {"name": "Retail partners", "detail": "Baby Bunting sell-through is not in Shopify. Confirm whether it is in scope."},
+  {"name": "Return target", "detail": "3.50x is a placeholder. Needs the real number from the media plan."},
+  {"name": "Who logs in", "detail": "Named users for the Lacevo login, and whether they see this tab."}
+ ]
+}

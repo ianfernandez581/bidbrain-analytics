@@ -51,6 +51,12 @@ CLIENTS: dict[str, dict] = {
                             orbs=[(10, 10, 10), (107, 107, 104), (10, 10, 10)]),
     "geyervalmont":    dict(page="light", card="light", accent=(185, 206, 0),
                             orbs=[(230, 255, 49), (233, 253, 94), (87, 65, 30)]),
+    # Lacevo's login is a WHITE card on a lit warm-white field (it was ink-on-ink until
+    # 2026-09-14 - two dark rectangles). Page and card are both light, and the accent is the BASE
+    # clay #965F48, which is legible as a caret and a 1px edge on white. That is the inverse of
+    # the dashboard shell, where the topbar is ink and only the LIFTED #C98A6E carries.
+    "lacevo":          dict(page="light", card="light", accent=(150, 95, 72),
+                            orbs=[(150, 95, 72), (201, 138, 110), (219, 208, 196)]),
     "hireright":       dict(page="dark",  card="light", accent=(237, 28, 36),
                             orbs=[(237, 28, 36), (74, 131, 199), (42, 165, 176)]),
     "mongodb":         dict(page="dark",  card="dark",  accent=(0, 237, 100),
@@ -90,7 +96,7 @@ TEMPLATE_TARGETS: dict[str, dict] = {
 
 # The four logins that already paint their own static wash (body::before) take it lower, so the
 # two do not stack into a haze.
-QUIET_WASH = {"bellshakespeare", "caltex", "nextsmile", "geyervalmont"}
+QUIET_WASH = {"bellshakespeare", "caltex", "nextsmile", "geyervalmont", "lacevo"}
 WASH_A = {"dark": (0.20, 0.14, 0.11), "light": (0.13, 0.09, 0.08)}
 
 MARKERS = {

@@ -55,6 +55,10 @@ CLIENTS: dict[str, dict] = {
                              orbs=[(237, 237, 235), (255, 255, 255), (140, 156, 145)]),
     "geyervalmont":     dict(canvas="light", surface="light", accent=(185, 206, 0),
                              orbs=[(230, 255, 49), (233, 253, 94), (87, 65, 30)]),
+    # Lacevo: a bone field with white-ish paper cards under a black brand shell. The accent is the
+    # brand clay, which is dark enough to read on both.
+    "lacevo":           dict(canvas="light", surface="light", accent=(150, 95, 72),
+                             orbs=[(150, 95, 72), (201, 138, 110), (219, 208, 196)]),
     "hireright":        dict(canvas="dark", surface="dark", accent=(237, 28, 36),
                              orbs=[(237, 28, 36), (74, 131, 199), (42, 165, 176)]),
     "mongodb":          dict(canvas="dark", surface="dark", accent=(0, 237, 100),
@@ -165,6 +169,26 @@ def insert_after(text: str, anchor_re: str, block: str, label: str) -> str:
     return text[:i] + block + text[i:]
 
 
+def insert_after_first_of(text: str, anchors: list[tuple[str, str]], block: str, label: str) -> str:
+    """insert_after over an ORDERED list of (regex, why) candidates: the first that matches exactly
+    once wins. Every candidate must still be unique, so this relaxes WHICH landmark is used, never
+    the one-match rule that stops a block being injected twice.
+
+    Why it exists: the head bootstrap anchored solely on the Chart.js <script src>, which every
+    dashboard happened to load. `client_lacevo` draws its four charts as hand-written SVG and loads
+    no charting library at all, so it had no anchor - and pulling in an unused 200KB CDN script
+    purely to give an injector something to attach to is the wrong trade. The <title> fallback is
+    just as early in <head> and just as unique.
+
+    STRICTLY ADDITIVE: the Chart.js candidate is still tried first, so for every dashboard that has
+    one the insertion point is byte-for-byte where it always was."""
+    for anchor_re, _why in anchors:
+        if len(list(re.finditer(anchor_re, text))) == 1:
+            return insert_after(text, anchor_re, block, label)
+    tried = ", ".join(why for _re, why in anchors)
+    raise SystemExit(f"  ! {label}: no unique anchor found (tried: {tried}) - not touched")
+
+
 def insert_before(text: str, anchor: str, block: str, label: str, last_before: str | None = None) -> str:
     if last_before:                      # e.g. the last </style> that is still inside <head>
         cut = text.index(last_before)
@@ -190,8 +214,10 @@ def apply_to(path: Path, cfg: dict, revert: bool) -> bool:
     dom = wrap("dom", (TPL / "kit_dom.tpl").read_text(encoding="utf-8"))
     js = wrap("js", "\n" + (TPL / "kit_js.tpl").read_text(encoding="utf-8"))
 
-    src = insert_after(src, r"<script src=\"https://cdn\.jsdelivr\.net/npm/chart\.js[^\n]*</script>",
-                       "\n" + head, "head bootstrap")
+    src = insert_after_first_of(src, [
+        (r"<script src=\"https://cdn\.jsdelivr\.net/npm/chart\.js[^\n]*</script>", "the Chart.js tag"),
+        (r"<title>[^<]*</title>", "the <title> tag"),
+    ], "\n" + head, "head bootstrap")
     src = insert_before(src, "</style>", css + "\n", "css block", last_before="</head>")
     src = insert_after(src, r"<body[^>]*>", dom, "wash + rail")
     src = insert_before(src, "</body>", js + "\n", "engine")

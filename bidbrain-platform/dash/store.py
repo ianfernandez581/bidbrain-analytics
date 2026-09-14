@@ -508,7 +508,8 @@ class Store:
         doc["agencies"] = [a for a in doc.get("agencies", []) if a["slug"] != slug]
         self._save(doc)  # clients persist; they fall into "unassigned"
 
-    def upsert_client(self, agency_slug, key, name, slug, status, url, note=None):
+    def upsert_client(self, agency_slug, key, name, slug, status, url, note=None,
+                      show_pending_row=None):
         doc = self._load()
         # Validate the target agency BEFORE writing, so a stale/deleted agency_slug can't orphan it.
         if agency_slug and not any(a["slug"] == agency_slug for a in doc.get("agencies", [])):
@@ -525,7 +526,15 @@ class Store:
             "spend_multipliers": existing.get("spend_multipliers", {}),
             "order": existing.get("order", self._next_order(list(clients.values()))),
         }
-        if existing.get("show_pending_row"):   # preserve the Data Accuracy placeholder flag on edit
+        # Data Accuracy placeholder flag. `None` (the default, and what every admin-UI edit passes)
+        # PRESERVES whatever the client already had, so an edit can never silently drop it. Passing
+        # True/False sets it explicitly - which a set_<c>_tile.py needs, because a client created
+        # through this surgical path has no prior value to preserve and seed_registry.py (the only
+        # other writer of the flag) never runs for it. Without that, a brand-new preview tenant
+        # registered by tile script silently lacks the greyed "awaiting connection" row that the
+        # seeded ones (geyervalmont, and sophiie before it went live) have.
+        keep = existing.get("show_pending_row") if show_pending_row is None else show_pending_row
+        if keep:
             clients[key]["show_pending_row"] = True
         if agency_slug:
             for a in doc["agencies"]:

@@ -1,0 +1,446 @@
+{
+ "meta": {
+  "client": "lacevo",
+  "client_name": "Lacevo",
+  "agency": "100% Digital",
+  "currency": "AUD",
+  "currency_symbol": "A$",
+  "placeholder": true,
+  "date_min": "2026-08-14",
+  "date_max": "2026-09-12",
+  "data_through": "2026-09-12",
+  "last_updated": null,
+  "period_label": "14 Aug - 12 Sep 2026",
+  "channels_connected": [],
+  "channels_expected": [
+   "Meta",
+   "Google Ads",
+   "TikTok",
+   "Shopify"
+  ],
+  "markets": [
+   "Australia",
+   "United States"
+  ],
+  "market_default": "Australia",
+  "sites": {
+   "Australia": "lacevo.com",
+   "United States": "lacevo.us"
+  },
+  "excludes_note": "Email and SMS are not included until the Klaviyo feed is connected."
+ },
+ "targets": {
+  "roas_target": 3.5,
+  "cac_ceiling": 110.0,
+  "derived": true
+ },
+ "flight": {
+  "start": "2026-08-14",
+  "end": "2026-09-13",
+  "days_total": 31,
+  "days_elapsed": 30,
+  "budget": 100000.0
+ },
+ "daily": [
+  {
+   "date": "2026-08-14",
+   "revenue": 9070.0,
+   "spend": 2640.0,
+   "sessions": 2050,
+   "orders": 26
+  },
+  {
+   "date": "2026-08-15",
+   "revenue": 10370.0,
+   "spend": 2800.0,
+   "sessions": 2290,
+   "orders": 30
+  },
+  {
+   "date": "2026-08-16",
+   "revenue": 9630.0,
+   "spend": 2730.0,
+   "sessions": 2170,
+   "orders": 28
+  },
+  {
+   "date": "2026-08-17",
+   "revenue": 11660.0,
+   "spend": 3010.0,
+   "sessions": 2520,
+   "orders": 33
+  },
+  {
+   "date": "2026-08-18",
+   "revenue": 13700.0,
+   "spend": 3370.0,
+   "sessions": 2890,
+   "orders": 39
+  },
+  {
+   "date": "2026-08-19",
+   "revenue": 14900.0,
+   "spend": 3500.0,
+   "sessions": 3110,
+   "orders": 43
+  },
+  {
+   "date": "2026-08-20",
+   "revenue": 12870.0,
+   "spend": 3230.0,
+   "sessions": 2770,
+   "orders": 37
+  },
+  {
+   "date": "2026-08-21",
+   "revenue": 10650.0,
+   "spend": 2880.0,
+   "sessions": 2310,
+   "orders": 31
+  },
+  {
+   "date": "2026-08-22",
+   "revenue": 11850.0,
+   "spend": 2950.0,
+   "sessions": 2460,
+   "orders": 34
+  },
+  {
+   "date": "2026-08-23",
+   "revenue": 13150.0,
+   "spend": 3140.0,
+   "sessions": 2700,
+   "orders": 38
+  },
+  {
+   "date": "2026-08-24",
+   "revenue": 14440.0,
+   "spend": 3310.0,
+   "sessions": 2960,
+   "orders": 41
+  },
+  {
+   "date": "2026-08-25",
+   "revenue": 16110.0,
+   "spend": 3470.0,
+   "sessions": 3190,
+   "orders": 46
+  },
+  {
+   "date": "2026-08-26",
+   "revenue": 17500.0,
+   "spend": 3600.0,
+   "sessions": 3400,
+   "orders": 50
+  },
+  {
+   "date": "2026-08-27",
+   "revenue": 15000.0,
+   "spend": 3380.0,
+   "sessions": 3030,
+   "orders": 43
+  },
+  {
+   "date": "2026-08-28",
+   "revenue": 12130.0,
+   "spend": 3070.0,
+   "sessions": 2580,
+   "orders": 35
+  },
+  {
+   "date": "2026-08-29",
+   "revenue": 11480.0,
+   "spend": 2960.0,
+   "sessions": 2440,
+   "orders": 33
+  },
+  {
+   "date": "2026-08-30",
+   "revenue": 13790.0,
+   "spend": 3170.0,
+   "sessions": 2800,
+   "orders": 40
+  },
+  {
+   "date": "2026-08-31",
+   "revenue": 15550.0,
+   "spend": 3410.0,
+   "sessions": 3080,
+   "orders": 45
+  },
+  {
+   "date": "2026-09-01",
+   "revenue": 14070.0,
+   "spend": 3280.0,
+   "sessions": 2920,
+   "orders": 40
+  },
+  {
+   "date": "2026-09-02",
+   "revenue": 12680.0,
+   "spend": 3100.0,
+   "sessions": 2650,
+   "orders": 36
+  },
+  {
+   "date": "2026-09-03",
+   "revenue": 14720.0,
+   "spend": 3230.0,
+   "sessions": 2890,
+   "orders": 42
+  },
+  {
+   "date": "2026-09-04",
+   "revenue": 17030.0,
+   "spend": 3500.0,
+   "sessions": 3250,
+   "orders": 49
+  },
+  {
+   "date": "2026-09-05",
+   "revenue": 18240.0,
+   "spend": 3670.0,
+   "sessions": 3420,
+   "orders": 52
+  },
+  {
+   "date": "2026-09-06",
+   "revenue": 15830.0,
+   "spend": 3460.0,
+   "sessions": 3110,
+   "orders": 45
+  },
+  {
+   "date": "2026-09-07",
+   "revenue": 13520.0,
+   "spend": 3180.0,
+   "sessions": 2760,
+   "orders": 39
+  },
+  {
+   "date": "2026-09-08",
+   "revenue": 12220.0,
+   "spend": 3010.0,
+   "sessions": 2540,
+   "orders": 35
+  },
+  {
+   "date": "2026-09-09",
+   "revenue": 14630.0,
+   "spend": 3250.0,
+   "sessions": 2900,
+   "orders": 42
+  },
+  {
+   "date": "2026-09-10",
+   "revenue": 16570.0,
+   "spend": 3470.0,
+   "sessions": 3180,
+   "orders": 47
+  },
+  {
+   "date": "2026-09-11",
+   "revenue": 15180.0,
+   "spend": 3340.0,
+   "sessions": 3000,
+   "orders": 44
+  },
+  {
+   "date": "2026-09-12",
+   "revenue": 14140.0,
+   "spend": 3230.0,
+   "sessions": 2840,
+   "orders": 41
+  }
+ ],
+ "channels": [
+  {
+   "channel": "Meta",
+   "colour": "#965F48",
+   "note": "Prospecting and retargeting",
+   "spend": 58200.0,
+   "revenue": 268940.0,
+   "orders": 742,
+   "delta_vs_prior": 0.14
+  },
+  {
+   "channel": "Google Ads",
+   "colour": "#B08033",
+   "note": "Brand, shopping, performance max",
+   "spend": 28640.0,
+   "revenue": 112300.0,
+   "orders": 329,
+   "delta_vs_prior": 0.06
+  },
+  {
+   "channel": "TikTok",
+   "colour": "#6E7F68",
+   "note": "Creator-led video",
+   "spend": 9500.0,
+   "revenue": 31440.0,
+   "orders": 113,
+   "delta_vs_prior": -0.09
+  }
+ ],
+ "campaigns": [
+  {
+   "campaign": "S70 pump - broad prospecting",
+   "sub": "Video and carousel",
+   "channel": "Meta",
+   "stage": "Acquisition",
+   "spend": 26410.0,
+   "revenue": 118900.0,
+   "orders": 318
+  },
+  {
+   "campaign": "Mother-first brand story",
+   "sub": "Founder video",
+   "channel": "Meta",
+   "stage": "Awareness",
+   "spend": 14980.0,
+   "revenue": 61240.0,
+   "orders": 171
+  },
+  {
+   "campaign": "Cart and view retargeting",
+   "sub": "Dynamic product ads",
+   "channel": "Meta",
+   "stage": "Retargeting",
+   "spend": 16810.0,
+   "revenue": 88800.0,
+   "orders": 253
+  },
+  {
+   "campaign": "Brand search",
+   "sub": "Exact and phrase",
+   "channel": "Google Ads",
+   "stage": "Capture",
+   "spend": 6120.0,
+   "revenue": 44850.0,
+   "orders": 132
+  },
+  {
+   "campaign": "Shopping - pump and warmer",
+   "sub": "Full catalogue",
+   "channel": "Google Ads",
+   "stage": "Capture",
+   "spend": 13260.0,
+   "revenue": 48110.0,
+   "orders": 141
+  },
+  {
+   "campaign": "Performance Max - all products",
+   "sub": "",
+   "channel": "Google Ads",
+   "stage": "Mixed",
+   "spend": 9260.0,
+   "revenue": 19340.0,
+   "orders": 56
+  },
+  {
+   "campaign": "Creator video - real mums",
+   "sub": "Spark ads",
+   "channel": "TikTok",
+   "stage": "Acquisition",
+   "spend": 9500.0,
+   "revenue": 31440.0,
+   "orders": 113
+  }
+ ],
+ "stages": [
+  {
+   "stage": "Acquisition",
+   "spend": 35910.0,
+   "colour": "#965F48"
+  },
+  {
+   "stage": "Capture",
+   "spend": 19380.0,
+   "colour": "#B08033"
+  },
+  {
+   "stage": "Retargeting",
+   "spend": 16810.0,
+   "colour": "#A98A6E"
+  },
+  {
+   "stage": "Awareness",
+   "spend": 14980.0,
+   "colour": "#6E7F68"
+  },
+  {
+   "stage": "Mixed",
+   "spend": 9260.0,
+   "colour": "#9A928A"
+  }
+ ],
+ "products": [
+  {
+   "product": "S70 in-bra breast pump set",
+   "units": 612,
+   "revenue": 244188.0,
+   "unit_price": 399.0
+  },
+  {
+   "product": "Bundles and multi-buy",
+   "units": null,
+   "revenue": 63126.0,
+   "unit_price": null
+  },
+  {
+   "product": "N6 portable bottle warmer",
+   "units": 318,
+   "revenue": 41022.0,
+   "unit_price": 129.0
+  },
+  {
+   "product": "Empower light therapy set",
+   "units": 96,
+   "revenue": 33504.0,
+   "unit_price": 349.0
+  },
+  {
+   "product": "Flanges and replacement parts",
+   "units": 742,
+   "revenue": 21518.0,
+   "unit_price": 29.0
+  },
+  {
+   "product": "Tote bag",
+   "units": 158,
+   "revenue": 9322.0,
+   "unit_price": 59.0
+  }
+ ],
+ "funnel": [
+  {
+   "step": "Sessions",
+   "value": 84210
+  },
+  {
+   "step": "Product views",
+   "value": 38940
+  },
+  {
+   "step": "Added to cart",
+   "value": 9120
+  },
+  {
+   "step": "Reached checkout",
+   "value": 3480
+  },
+  {
+   "step": "Orders",
+   "value": 1184
+  }
+ ],
+ "store": {
+  "repeat_purchase_rate": 0.062,
+  "refund_value": 7420.0,
+  "repeat_note": "Mostly replacement flanges and duckbills"
+ },
+ "customers": {
+  "new": 922,
+  "returning": 262
+ }
+}
