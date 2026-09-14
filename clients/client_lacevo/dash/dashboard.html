@@ -1,0 +1,1609 @@
+<!DOCTYPE html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lacevo · 100% Digital</title>
+<!-- BB-MOTION-KIT:head v1 -->
+<script>
+/* BB MOTION KIT v1 - bootstrap. Presentation only; canonical source scripts/motion_kit/.
+   Runs before anything else on the page and does exactly two things.
+
+   1. Marks <html> so the scroll-reveal CSS (which starts surfaces at opacity 0) can only ever
+      apply on a page where JS is alive - and REMOVES that mark again if the engine at the end of
+      the body never reports in, or if the page throws at all. Hiding content until an observer
+      says so means a missed callback hides DATA, so the failsafes here are the whole reason the
+      reveal is safe to ship on 17 dashboards at once: losing the animation is always cheaper
+      than losing a number.
+   2. One motion vocabulary for Chart.js, set BEFORE any chart is built. Deliberately only the
+      timing and geometry keys - every colour, font and per-chart option the dashboard sets later
+      still wins, because this runs first. */
+(function(){
+  var d = document.documentElement;
+  function drop(){ d.className = (' ' + d.className + ' ').replace(' bb-motion ', ' ').trim(); }
+  try{
+    if (!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches)){
+      d.className = (d.className ? d.className + ' ' : '') + 'bb-motion';
+    }
+  }catch(e){}
+  /* failsafe 1: the engine never ran - a page error above it, a blocked script, an old cached
+     shell. Un-hide everything unconditionally. */
+  setTimeout(function(){ if (!window.bbMotion) drop(); }, 3500);
+  /* failsafe 2: ANY uncaught error on the page stops us hiding content, immediately. */
+  window.addEventListener('error', drop);
+  try{
+    if (window.Chart && Chart.defaults){
+      var C = Chart.defaults;
+      C.animation.duration = 760;                    /* matches the CSS reveal, so a card and the
+                                                        chart inside it settle together */
+      C.animation.easing = 'easeOutQuart';
+      C.transitions.active.animation.duration = 170; /* hover / legend toggle stays immediate */
+      C.hover.animationDuration = 170;
+      C.elements.point.hoverRadius = 6;              /* a point that grows under the cursor ... */
+      C.elements.point.hitRadius = 8;                /* ... and is easier to actually hit */
+      C.plugins.tooltip.cornerRadius = 9;
+      C.plugins.tooltip.padding = 10;
+      C.plugins.tooltip.caretPadding = 6;
+      /* Line TENSION is deliberately left alone: curving between points implies values that were
+         never measured, and these are reporting dashboards. Bar borderRadius too - it rounds
+         every segment of a stacked bar, which reads as a gap that is not in the data. */
+    }
+  }catch(e){}
+})();
+</script>
+<!-- /BB-MOTION-KIT:head -->
+<link rel="icon" type="image/png" href="/logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=Montserrat:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ---------------------------------------------------------------
+   LACEVO tenant theme.
+   Brand tokens verified from the live lacevo.com theme:
+     clay #965F48 · bone #E4E0DA · ink #1C1C1C
+     Instrument Sans (headings and numerals) + Montserrat (body)
+   The shell is the brand's own black site header over a bone field.
+
+   Clay is dark enough to be a FILL but not to be TEXT on ink, so anything
+   that has to stay legible on the dark shell uses the lifted #C98A6E.
+----------------------------------------------------------------*/
+:root{
+  --field:#E9E5DF;      /* page - bone, warmed a shade lighter than brand bone */
+  --paper:#FCFBF9;      /* cards */
+  --paper-2:#F4F1EC;    /* inset wells */
+  --ink:#1C1C1C;
+  --bone:#E4E0DA;
+  --muted:#6E675F;
+  --faint:#9A928A;
+  --line:rgba(28,28,28,.10);
+  --line-soft:rgba(28,28,28,.06);
+  --clay:#965F48;
+  --clay-lift:#C98A6E;  /* the only clay that is legible on ink */
+  --clay-deep:#78452F;
+  --clay-tint:rgba(150,95,72,.09);
+  --sand:#DBD0C4;
+  --sage:#6E7F68;
+  --amber:#B08033;
+  --rust:#B24A32;
+  --r:12px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--field);color:var(--ink);
+  font-family:Montserrat,"Helvetica Neue",Arial,sans-serif;
+  font-size:14px;line-height:1.55;-webkit-font-smoothing:antialiased;
+}
+h1,h2,h3,.num,.tab,.brandmark{font-family:"Instrument Sans",Montserrat,Arial,sans-serif}
+button{font:inherit;color:inherit;cursor:pointer;background:none;border:0}
+a{color:var(--clay-deep)}
+:focus-visible{outline:2px solid var(--clay);outline-offset:2px;border-radius:6px}
+
+/* ---------- top bar (black, as on lacevo.com) ---------- */
+.topbar{
+  display:flex;align-items:center;justify-content:space-between;gap:24px;
+  padding:15px 40px;background:var(--ink);color:#FFF;position:sticky;top:0;z-index:20;
+}
+.brand{display:flex;align-items:center;gap:16px;min-width:0}
+.brandmark{display:flex;align-items:center;gap:10px;font-weight:700;font-size:20px;letter-spacing:.01em}
+.brandmark svg{width:16px;height:21px;flex:none}
+.agency{color:rgba(255,255,255,.5);font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;
+  padding-left:16px;border-left:1px solid rgba(255,255,255,.18)}
+.status{text-align:right;font-size:11.5px;color:rgba(255,255,255,.62);line-height:1.45}
+.status b{color:#FFF;font-weight:600}
+.dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--clay-lift);margin-right:7px;vertical-align:1px}
+.logout{border:1px solid rgba(255,255,255,.28);border-radius:999px;padding:7px 16px;font-size:11.5px;
+  color:rgba(255,255,255,.8);text-decoration:none;display:inline-block}
+.logout:hover{color:#FFF;border-color:#FFF}
+
+/* ---------- preview notice ---------- */
+.notice{
+  background:var(--clay-tint);border-bottom:1px solid rgba(150,95,72,.22);
+  padding:13px 40px;font-size:13px;color:var(--clay-deep);
+}
+.notice strong{font-weight:600;color:var(--clay-deep)}
+.notice span{color:var(--muted)}
+
+/* ---------- shell ---------- */
+.wrap{max-width:1220px;margin:0 auto;padding:28px 40px 80px}
+.panel{background:var(--paper);border:1px solid var(--line);border-radius:var(--r)}
+
+/* ---------- load / error ---------- */
+.state{padding:56px 24px;text-align:center;color:var(--muted);font-size:13.5px}
+.state h2{font-size:16px;font-weight:600;color:var(--ink);margin:0 0 8px}
+.state pre{margin:14px auto 0;max-width:760px;text-align:left;white-space:pre-wrap;word-break:break-word;
+  background:var(--paper-2);border:1px solid var(--line);border-radius:8px;padding:14px;
+  font-size:11.5px;color:var(--muted);font-family:ui-monospace,Menlo,Consolas,monospace}
+
+/* ---------- tabs + filters ---------- */
+.control{padding:0 22px;margin-bottom:34px}
+.tabrow{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;
+  border-bottom:1px solid var(--line-soft)}
+.tabs{display:flex;gap:4px;flex-wrap:wrap}
+.tab{padding:16px 12px 13px;font-size:13px;font-weight:500;color:var(--muted);border-bottom:2px solid transparent}
+.tab:hover{color:var(--ink)}
+.tab[aria-selected="true"]{color:var(--ink);font-weight:600;border-bottom-color:var(--clay)}
+.exports{display:flex;gap:8px;align-items:center;padding:8px 0}
+.export-btn{border:1px solid var(--line);border-radius:8px;padding:7px 14px;font-size:12px;color:var(--muted);background:var(--paper)}
+.export-btn:hover{color:var(--ink);border-color:var(--clay)}
+.filters{display:flex;gap:26px;align-items:center;flex-wrap:wrap;padding:16px 0}
+.filters:empty{display:none}
+.fgroup{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.flabel{font-size:12px;color:var(--faint)}
+.pill{border:1px solid var(--line);border-radius:999px;padding:6px 14px;font-size:12px;color:var(--muted);
+  display:inline-flex;align-items:center;gap:7px;background:var(--paper)}
+.pill i{width:6px;height:6px;border-radius:50%;background:currentColor;display:block;flex:none}
+.pill.on{background:var(--ink);color:#FFF;border-color:var(--ink);font-weight:500}
+.pill.on i{background:currentColor}
+.pill[aria-disabled="true"]{opacity:.5;cursor:default}
+.pill.static{cursor:default}
+.search{border:1px solid var(--line);border-radius:8px;background:var(--paper);color:var(--ink);
+  padding:8px 12px;font-size:12.5px;min-width:250px;font-family:inherit}
+.search::placeholder{color:var(--faint)}
+.scopenote{font-size:11.5px;color:var(--faint);flex-basis:100%;margin-top:-6px}
+
+/* ---------- lede ---------- */
+.lede{margin:0 0 30px;max-width:78ch}
+.lede h1{font-size:30px;font-weight:500;letter-spacing:-.02em;line-height:1.18;margin:0 0 10px}
+.lede p{margin:0;color:var(--muted);font-size:14px;max-width:72ch}
+.lede b{color:var(--ink);font-weight:600}
+
+/* ---------- KPI band (divided strip, not boxes) ---------- */
+.band{background:var(--paper);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;margin-bottom:16px}
+.bandhead{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;
+  padding:14px 24px;border-bottom:1px solid var(--line-soft);font-size:12.5px;color:var(--muted)}
+.bandhead b{color:var(--ink);font-weight:600}
+.strip{display:grid;grid-template-columns:repeat(4,1fr)}
+.cell{padding:22px 24px 20px;border-right:1px solid var(--line-soft);border-bottom:1px solid var(--line-soft)}
+.strip .cell:nth-child(4n){border-right:0}
+.strip .cell:nth-last-child(-n+4){border-bottom:0}
+.cell h3{margin:0 0 10px;font-size:12.5px;font-weight:500;color:var(--muted);display:flex;align-items:center;gap:7px}
+.cell h3 i{width:6px;height:6px;border-radius:50%;display:block;flex:none}
+.i-good{background:var(--sage)}.i-warn{background:var(--amber)}.i-bad{background:var(--rust)}.i-neutral{background:var(--faint)}
+.num{font-size:30px;font-weight:600;letter-spacing:-.02em;line-height:1.05;font-variant-numeric:tabular-nums}
+.cell small{display:block;margin-top:8px;font-size:11.5px;color:var(--faint);line-height:1.45}
+.chip{display:inline-block;margin-top:9px;font-size:10.5px;font-weight:600;letter-spacing:.08em;
+  text-transform:uppercase;padding:3px 8px;border-radius:5px;background:var(--clay-tint);color:var(--clay-deep)}
+
+/* ---------- cards ---------- */
+.split{display:grid;grid-template-columns:1.55fr 1fr;gap:16px;margin:28px 0}
+.card{padding:22px 24px}
+.card h2{font-size:15px;font-weight:600;letter-spacing:-.01em;margin:0 0 6px}
+.card p.hint{margin:0 0 18px;font-size:12.5px;color:var(--muted);max-width:64ch}
+.cardhead{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.toggle{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--paper-2)}
+.toggle button{padding:6px 13px;font-size:11.5px;color:var(--muted)}
+.toggle button[aria-pressed="true"]{background:var(--ink);color:#FFF;font-weight:500}
+.legend{display:flex;gap:18px;flex-wrap:wrap;font-size:11.5px;color:var(--muted);margin:2px 0 12px;justify-content:center}
+.legend span{display:inline-flex;align-items:center;gap:7px}
+.legend i{width:9px;height:9px;border-radius:2px;display:block}
+svg.chart{width:100%;height:auto;display:block}
+/* An empty state HIDES its canvas, never replaces it - overwriting the parent deletes the node the
+   next render looks for, and the whole card then silently stops drawing (the repo-wide rule). */
+.chart-empty{padding:28px 8px;text-align:center;font-size:12.5px;color:var(--faint)}
+
+/* ---------- pacing ---------- */
+.meter{height:26px;border-radius:7px;background:var(--paper-2);border:1px solid var(--line);position:relative;overflow:hidden;margin:4px 0 12px}
+.meter .fill{position:absolute;inset:0 auto 0 0;background:var(--clay);
+  display:flex;align-items:center;padding-left:12px;font-size:12px;font-weight:600;color:#FFF;font-variant-numeric:tabular-nums}
+.meter .mark{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--ink)}
+.metarow{display:flex;justify-content:space-between;font-size:11.5px;color:var(--muted);gap:12px;flex-wrap:wrap}
+.tagline{display:flex;align-items:center;gap:12px;margin-top:14px;flex-wrap:wrap}
+.tag{font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;padding:4px 9px;border-radius:5px}
+.tag.ok{background:rgba(110,127,104,.14);color:#4E5C4A}
+.tag.watch{background:rgba(176,128,51,.14);color:#7E5A1F}
+.tagnote{font-size:12px;color:var(--muted)}
+
+/* ---------- tables ---------- */
+.tablewrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13px;min-width:640px}
+th{font-size:11.5px;color:var(--faint);font-weight:500;text-align:right;padding:0 0 12px;border-bottom:1px solid var(--line)}
+th:first-child{text-align:left}
+td{padding:14px 0;border-bottom:1px solid var(--line-soft);text-align:right;font-variant-numeric:tabular-nums}
+td:first-child{text-align:left}
+tr:last-child td{border-bottom:0}
+tbody tr.total td{font-weight:600;border-top:1px solid var(--line);border-bottom:0;padding-top:14px}
+.ch{display:inline-flex;align-items:center;gap:9px}
+.ch i{width:8px;height:8px;border-radius:50%;display:block;flex:none}
+.sub{display:block;font-size:11px;color:var(--faint)}
+.pos{color:#4E5C4A}.neg{color:var(--rust)}
+.empty-row td{color:var(--faint);text-align:center;padding:26px 0}
+
+/* ---------- notes ---------- */
+.notes{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
+.checklist{list-style:none;margin:0;padding:0}
+.checklist li{display:flex;gap:14px;padding:13px 0;border-bottom:1px solid var(--line-soft);font-size:13px}
+.checklist li:last-child{border-bottom:0}
+.checklist b{display:block;font-weight:600;margin-bottom:2px}
+.checklist span{color:var(--muted);font-size:12px}
+.state-tag{flex:none;width:56px;font-size:11px;font-weight:600;padding-top:2px}
+.state-tag.on{color:var(--clay)}.state-tag.off{color:var(--faint)}
+
+.foot{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-top:36px;
+  padding-top:20px;border-top:1px solid var(--line);font-size:11.5px;color:var(--faint)}
+
+[hidden]{display:none !important}
+
+@media (max-width:1080px){
+  .strip{grid-template-columns:repeat(2,1fr)}
+  .strip .cell:nth-child(4n){border-right:1px solid var(--line-soft)}
+  .strip .cell:nth-child(2n){border-right:0}
+  .split,.notes{grid-template-columns:1fr}
+}
+@media (max-width:640px){
+  .topbar{padding:14px 18px;flex-wrap:wrap}
+  .notice{padding:12px 18px}
+  .wrap{padding:20px 18px 60px}
+  .strip{grid-template-columns:1fr}
+  .strip .cell{border-right:0 !important}
+  .agency{display:none}
+  .num{font-size:26px}
+  .lede h1{font-size:24px}
+  table{font-size:12px}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none !important;animation:none !important}}
+@media print{[hidden]{display:revert !important}}
+/* BB-MOTION-KIT:css v1 */
+
+  /* ==========================================================================
+     BB MOTION KIT v1 - PURE PRESENTATION, NO DATA PATH.
+     Canonical source: scripts/motion_kit/ (re-apply with scripts/apply_motion_kit.py).
+     Do NOT hand-edit this block in a dashboard - edit the template and re-run, or the
+     next run overwrites you.
+
+     Four things live here and nothing else:
+       1. the ambient wash  - slow brand-tinted light drifting behind the page
+       2. one interaction vocabulary - hover / press / keyboard-focus for everything clickable
+       3. surfaces - cards lift and pick up the brand glow under the cursor
+       4. the scroll-reveal system - surfaces fade up, CSS bars extend from zero, KPI figures
+          count up, charts replay their entry animation (driven by the engine at the end of the page)
+
+     It is deliberately the LAST block in the stylesheet so it wins the cascade over the rules
+     it re-times. Every animation is switched off wholesale under prefers-reduced-motion at the
+     bottom, and the reveal state is scoped to `html.bb-motion` - a class the head bootstrap adds
+     and REMOVES again if the engine never boots, so a JS failure can never leave data invisible.
+
+     GEOMETRY USES `translate` / `scale`, NEVER the `transform` shorthand. Several dashboards
+     already set a transform on a chip, a close button or a caret, and the shorthand would
+     replace it and make the element jump. The individual properties compose with an existing
+     transform instead, which is what makes this block safe to drop on any theme unseen.
+     ========================================================================== */
+  /* The reveal offset and the hover lift are composed inside ONE `translate` (see part 3), which
+     means both have to be NON-INHERITING or a hovered card drags every nested surface up with it -
+     the cursor sits on the card's own padding and the inner tile visibly detaches. `@property`
+     with inherits:false is exactly the tool for that; where it is unsupported the properties
+     inherit again and the only consequence is that cosmetic drift, never a broken layout. */
+  @property --bb-rev{syntax:"<length>";inherits:false;initial-value:0px}
+  @property --bb-hov{syntax:"<length>";inherits:false;initial-value:0px}
+  :root{
+    /* one easing vocabulary - premium motion is mostly ONE curve used everywhere */
+    --bb-ease:cubic-bezier(.22,1,.36,1);          /* out-quint: fast out, long settle */
+    --bb-ease-soft:cubic-bezier(.4,0,.2,1);
+    --bb-accent:rgb(150,95,72);
+    --bb-glow:rgba(150,95,72,0.22);
+    --bb-lift:0 16px 34px -18px rgba(20,24,28,.28),0 0 26px -16px var(--bb-glow);
+  }
+  html{scroll-behavior:smooth}
+
+  /* ---------- 1. THE AMBIENT WASH ----------
+     Three big soft brand-coloured orbs drifting on their own slow cycles. CSS only: no canvas,
+     no requestAnimationFrame, transform-only keyframes, and NO filter:blur() - a radial gradient
+     that fades to transparent is already soft, and a full-viewport blur is re-applied every frame
+     the layer paints (measured at -58fps on a machine without GPU acceleration).
+     It sits at z-index:-1 so not one line of the page's own stacking has to be touched. That
+     needs `html` to stop painting: with html transparent the BODY background propagates to the
+     canvas (CSS backgrounds spec) and is painted first, leaving this layer between the page
+     colour and the content. Every dashboard in the estate carries its background on body. */
+  html{background:transparent}
+  .bb-fx{position:fixed;inset:0;z-index:-1;pointer-events:none;overflow:hidden}
+  .bb-fx span{position:absolute;display:block;border-radius:50%;will-change:transform}
+  .bb-fx .o1{width:58vw;height:50vh;top:-12%;left:-8%;animation:bbOrb1 26s ease-in-out infinite;
+    background:radial-gradient(circle,rgba(150,95,72,0.11) 0%,transparent 68%)}
+  .bb-fx .o2{width:50vw;height:44vh;top:4%;right:-10%;animation:bbOrb2 31s ease-in-out infinite;
+    background:radial-gradient(circle,rgba(201,138,110,0.08) 0%,transparent 68%)}
+  .bb-fx .o3{width:54vw;height:50vh;bottom:-16%;left:12%;animation:bbOrb3 35s ease-in-out infinite;
+    background:radial-gradient(circle,rgba(219,208,196,0.07) 0%,transparent 66%)}
+  @keyframes bbOrb1{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(76px,58px) scale(1.09)}}
+  @keyframes bbOrb2{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(-70px,52px) scale(1.08)}}
+  @keyframes bbOrb3{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(62px,-72px) scale(1.07)}}
+
+  /* ---------- 2. ONE INTERACTION VOCABULARY ----------
+     Everything clickable: a 1px rise on hover, a real press on :active (nothing feels cheaper
+     than a button that does not depress), and a visible ring for keyboards. The blanket
+     `button`/`select` entries carry the TRANSITION only - never geometry - because a button can
+     be anything, including something already positioned with a transform. */
+  .tab,.chip,.chips button,.seg button,.pill,.btn,.tag,.qtr-chip,.dp-btn,.dp-nav,.dp-day,
+  .dp-presets a,.dp-actions button,.dp-apply,.dp-cancel,.export-btn,.chip-action,.campaign-btn,
+  .cl-item,.cl-group-toggle,.drillback,.cdrop,.basis-toggle,.dash-select,.compare-select,
+  button,select,summary{
+    transition:background-color .2s var(--bb-ease-soft),color .2s var(--bb-ease-soft),
+               border-color .2s var(--bb-ease-soft),box-shadow .26s var(--bb-ease),
+               opacity .2s var(--bb-ease-soft),filter .2s var(--bb-ease-soft),
+               translate .16s var(--bb-ease),scale .12s var(--bb-ease)}
+  .tab:hover,.chip:hover,.chips button:hover,.pill:hover,.btn:hover,.tag:hover,.qtr-chip:hover,
+  .seg button:not(.on):hover,.dp-btn:hover,.export-btn:hover,.campaign-btn:hover,
+  .chip-action:hover,.drillback:hover,.cdrop:hover,.basis-toggle:hover,.dash-select:hover,
+  .dp-nav:hover:not(:disabled){translate:0 -1px}
+  .tab:active,.chip:active,.chips button:active,.pill:active,.btn:active,.tag:active,
+  .qtr-chip:active,.seg button:active,.dp-btn:active,.dp-day:active,.dp-presets a:active,
+  .dp-actions button:active,.export-btn:active,.campaign-btn:active,.chip-action:active,
+  .drillback:active,.cdrop:active,.basis-toggle:active{translate:0 0;scale:.97}
+  .btn:hover,.dp-apply:hover,.export-btn:hover,.chip.on:hover,.seg button.on:hover{
+    box-shadow:0 8px 20px -12px var(--bb-glow);filter:brightness(1.05)}
+  .chip:not(.on):hover,.tag:hover{box-shadow:0 6px 16px -12px var(--bb-glow)}
+  .dp-presets a{transition:background-color .18s var(--bb-ease-soft),color .18s,padding-left .18s var(--bb-ease)}
+  .dp-presets a:hover{padding-left:15px}
+  /* disabled things must not pretend to be pressable */
+  [disabled]:hover,[aria-disabled="true"]:hover,.disabled:hover{translate:none;filter:none;box-shadow:none}
+  /* keyboard focus is a first-class state, not an afterthought. No border-radius here on
+     purpose - `outline` already follows the element's own corners. */
+  a:focus-visible,button:focus-visible,select:focus-visible,input:focus-visible,
+  summary:focus-visible,[tabindex]:focus-visible,.tab:focus-visible,.chip:focus-visible,
+  .pill:focus-visible,.dp-day:focus-visible,.dp-presets a:focus-visible{
+    outline:2px solid var(--bb-accent);outline-offset:2px}
+
+  /* ---------- 3. SURFACES ----------
+     The reveal offset and the hover lift are composed through TWO VARIABLES inside one `translate`,
+     never by two rules fighting over the same declaration. They would always be an unfair fight:
+     the reveal rule has to be scoped to `html.bb-motion` (see part 4), which outranks a plain
+     `.card:hover`, so a hover lift written as `translate:0 -2px` silently lost to
+     `translate:none` on every revealed card and the lift simply never happened. */
+  .card,.kpi,.panel-box,.chartbox,.stat-card,.stat,.ccard,.icon-tile,.tablewrap{
+    translate:0 calc(var(--bb-rev,0px) + var(--bb-hov,0px));
+    transition:translate .32s var(--bb-ease),box-shadow .32s var(--bb-ease),
+               border-color .32s var(--bb-ease-soft)}
+  .card:hover,.kpi:hover,.panel-box:hover,.stat-card:hover,.ccard:hover,.icon-tile:hover{
+    --bb-hov:-2px;box-shadow:var(--bb-lift);
+    border-color:color-mix(in srgb,var(--bb-accent) 30%,rgba(0,0,0,.10))}
+  /* Figures that count up are tabular, or the digits change width mid-animation and the whole
+     row twitches. Applies to the resting state too, so columns of numbers line up. */
+  .kpi .value,.stat .v,.stat-card .v,.stat-card .sv,.stat .cnt{font-variant-numeric:tabular-nums}
+
+  /* Tables: the hovered row tints and its label cell picks up an accent edge. The tint is on the
+     ROW, never on the cells - a cell that paints its own background (a heat table, a coloured
+     delta) has to keep it. */
+  tbody tr{transition:background-color .16s var(--bb-ease-soft)}
+  tbody tr:hover{background:rgba(0,0,0,.028)}
+  tbody tr:hover td:first-child{box-shadow:inset 3px 0 0 var(--bb-accent)}
+
+  /* The masthead sinks a shadow in once the page has scrolled under it (class from the engine). */
+  .topbar{transition:box-shadow .3s var(--bb-ease)}
+  body.bb-scrolled .topbar{box-shadow:0 16px 34px -28px rgba(20,24,28,.34),0 0 22px -16px var(--bb-glow)}
+
+  /* ---------- 4. SCROLL REVEAL ----------
+     The engine tags surfaces with [data-bb-reveal] and adds .bb-in on first intersection. The
+     hidden half is scoped to html.bb-motion: drop that class and every surface is visible again,
+     which is exactly what the head bootstrap does if the engine never reports in. */
+  html.bb-motion [data-bb-reveal]{--bb-rev:14px;opacity:0;
+    translate:0 calc(var(--bb-rev,0px) + var(--bb-hov,0px));
+    transition:opacity .55s var(--bb-ease),translate .42s var(--bb-ease),
+               box-shadow .32s var(--bb-ease),border-color .32s var(--bb-ease-soft)}
+  html.bb-motion [data-bb-reveal].bb-in{--bb-rev:0px;opacity:1}
+  /* Bars extend to their width instead of appearing at it. The engine stashes the inline width,
+     paints 0%, and restores the SAME string one frame later - no arithmetic, so a bar can never
+     land anywhere but where the render function put it. */
+  .bb-bar{transition:width .95s var(--bb-ease)}
+
+  /* Scroll rail: a 2px brand line across the very top that fills as you read. Long dashboards
+     hide how much is left; this is the cheapest possible answer and it never covers content. */
+  #bbProgress{position:fixed;top:0;left:0;height:2px;width:100%;z-index:80;transform-origin:0 50%;
+    transform:scaleX(0);pointer-events:none;background:linear-gradient(90deg,var(--bb-accent),rgba(201,138,110,0.95) 55%,var(--bb-accent))}
+
+  /* Thin themed scrollbars - the default chrome ones are the last un-themed surface. */
+  *::-webkit-scrollbar{width:10px;height:10px}
+  *::-webkit-scrollbar-track{background:rgba(0,0,0,.045)}
+  *::-webkit-scrollbar-thumb{background:rgba(150,95,72,0.34);border-radius:8px;
+    border:2px solid transparent;background-clip:padding-box}
+  *::-webkit-scrollbar-thumb:hover{background:rgba(150,95,72,0.6);background-clip:padding-box}
+
+  /* ---------- PRINT: nothing may be invisible on paper ----------
+     Printing uses the styles computed RIGHT NOW - it does not re-run the observer - so without
+     this a card that had not been scrolled to would print as a blank box. These dashboards do get
+     printed and PDF'd, which makes this the one place the reveal could destroy a deliverable.
+     The wash and the rail come off the page too: ink on white, not a brand glow. */
+  @media print{
+    .bb-fx,#bbProgress{display:none !important}
+    [data-bb-reveal],[data-bb-reveal].bb-in{--bb-rev:0px !important;--bb-hov:0px !important;
+      opacity:1 !important;transition:none !important}
+    .bb-bar,.card,.kpi,.panel-box,.chartbox,.stat-card,.stat,.ccard,.icon-tile,.tablewrap{
+      transition:none !important}
+  }
+
+  /* ---------- Reduced motion: stop ALL of it ----------
+     The head bootstrap never adds `bb-motion` here, so nothing is hidden in the first place;
+     these rules kill the drifting light and the hover geometry as well. */
+  @media (prefers-reduced-motion: reduce){
+    .bb-fx span{animation:none !important}
+    /* zero the two offset variables rather than the `translate` property: that keeps any
+       transform a client rule already put on the element, and un-hides every surface */
+    :root,[data-bb-reveal],[data-bb-reveal].bb-in,.card:hover,.kpi:hover,.panel-box:hover,
+    .stat-card:hover,.ccard:hover,.icon-tile:hover{--bb-rev:0px !important;--bb-hov:0px !important}
+    [data-bb-reveal]{opacity:1 !important;transition:none !important}
+    .bb-bar{transition:none !important}
+    .card,.kpi,.panel-box,.chartbox,.stat-card,.stat,.ccard,.icon-tile,.tablewrap,
+    .tab,.chip,.pill,.btn,.seg button,.dp-btn,button,select{transition:none !important}
+    .tab:hover,.chip:hover,.pill:hover,.btn:hover,.dp-btn:hover,.export-btn:hover,
+    .campaign-btn:hover,.chip-action:hover,.drillback:hover,.cdrop:hover,.basis-toggle:hover,
+    .dash-select:hover,.tag:hover,.qtr-chip:hover,.chips button:hover,
+    .seg button:not(.on):hover,.dp-nav:hover:not(:disabled){translate:none !important}
+    .tab:active,.chip:active,.pill:active,.btn:active,.seg button:active,.dp-btn:active,
+    .dp-day:active,.export-btn:active,.campaign-btn:active{scale:none !important}
+  }
+  /* BB MOTION KIT v1 ends */
+/* /BB-MOTION-KIT:css */
+</style>
+</head>
+<body><!-- BB-MOTION-KIT:dom v1 -->
+<!-- BB MOTION KIT v1 - the ambient wash + the scroll rail. Presentation only: both layers are
+     position:fixed / pointer-events:none / z-index -1 and 80, so they touch no layout and
+     nothing here can reflow the dashboard. Canonical source scripts/motion_kit/. -->
+<div class="bb-fx" aria-hidden="true"><span class="o1"></span><span class="o2"></span><span class="o3"></span></div>
+<div id="bbProgress" aria-hidden="true"></div>
+<!-- /BB-MOTION-KIT:dom -->
+
+<header class="topbar">
+  <div class="brand">
+    <div class="brandmark">
+      <!-- PLACEHOLDER mark, inlined on purpose: a root-relative asset path does not resolve behind
+           the platform proxy at /d/lacevo/. Swap this whole <svg> for the supplied Lacevo droplet
+           when the artwork lands, and replace dash/logo.png (the login page and favicon) with it. -->
+      <svg viewBox="0 0 17 22" aria-hidden="true" fill="none">
+        <path d="M8.5 1C8.5 1 1 9.2 1 14.2A7.5 7.5 0 0 0 16 14.2C16 9.2 8.5 1 8.5 1Z" fill="#FFFFFF"/>
+        <path d="M8.9 8.4c-2.1 1.2-3.3 2.9-3.3 4.9 0 1.7 1.2 3 2.9 3" stroke="#1C1C1C" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
+      Lacevo
+    </div>
+    <div class="agency" id="agencyName">100% Digital</div>
+  </div>
+  <div style="display:flex;align-items:center;gap:22px">
+    <div class="status">
+      <div id="statusLine"><span class="dot"></span><b>Loading</b></div>
+      <div id="statusPeriod"></div>
+    </div>
+    <a class="logout" href="/logout">Log out</a>
+  </div>
+</header>
+
+<div class="notice" id="notice" hidden></div>
+
+<div class="wrap">
+
+  <div class="state" id="loading"><h2>Loading</h2><p>Fetching the dashboard payload.</p></div>
+
+  <div class="state" id="error" hidden>
+    <h2>The dashboard could not load its data</h2>
+    <p>If you have been signed in for a while, your session may have expired. Reload the page to sign in again.</p>
+    <pre id="errDetail"></pre>
+  </div>
+
+  <div id="app" hidden>
+
+    <div class="panel control">
+      <div class="tabrow">
+        <div class="tabs" role="tablist" aria-label="Dashboard sections" id="tabs"></div>
+        <div class="exports">
+          <button class="export-btn" id="exportView">Export view</button>
+          <button class="export-btn" id="exportAll">Export all</button>
+        </div>
+      </div>
+      <div class="filters" id="filters"></div>
+    </div>
+
+    <!-- ============ OVERVIEW ============ -->
+    <section data-panel="overview">
+      <div class="lede">
+        <h1>Trading and paid media performance</h1>
+        <p id="ovLede"></p>
+      </div>
+
+      <div class="band">
+        <div class="bandhead">
+          <span id="ovGoal"></span>
+          <span id="ovWindow"></span>
+        </div>
+        <div class="strip" id="ovStrip"></div>
+      </div>
+
+      <div class="split">
+        <div class="panel card">
+          <div class="cardhead">
+            <div>
+              <h2>Revenue and spend, day by day</h2>
+              <p class="hint">Daily revenue as bars, ad spend and sessions as lines. Switch to dollars to compare true scale.</p>
+            </div>
+            <div class="toggle" id="trendToggle">
+              <button data-axis="relative" aria-pressed="true">Indexed</button>
+              <button data-axis="absolute" aria-pressed="false">Dollars</button>
+            </div>
+          </div>
+          <div class="legend">
+            <span><i style="background:#DBD0C4"></i>Revenue</span>
+            <span><i style="background:#965F48"></i>Ad spend</span>
+            <span><i style="background:#6E7F68"></i>Sessions</span>
+          </div>
+          <svg class="chart" id="trend" viewBox="0 0 760 300" role="img" aria-label="Daily revenue, ad spend and sessions"></svg>
+          <div class="chart-empty" id="trendEmpty" hidden>No daily delivery in this payload.</div>
+        </div>
+
+        <div class="panel card">
+          <h2>Budget pacing</h2>
+          <p class="hint">Spend to date against the agreed plan. The marker is where pacing should sit today.</p>
+          <div id="paceBody"></div>
+
+          <h2 style="margin-top:28px">Return by channel</h2>
+          <p class="hint" id="roasHint"></p>
+          <svg class="chart" id="roas" viewBox="0 0 340 190" role="img" aria-label="Return on ad spend by channel"></svg>
+          <div class="chart-empty" id="roasEmpty" hidden>No channel delivery yet.</div>
+        </div>
+      </div>
+
+      <div class="panel card">
+        <h2>Channel performance</h2>
+        <p class="hint">Platform-reported figures. Some orders are counted by more than one platform, so channel revenue will not always add to store revenue once live.</p>
+        <div class="tablewrap">
+          <table>
+            <thead><tr><th>Channel</th><th>Spend</th><th>Revenue</th><th>ROAS</th><th>Orders</th><th>Cost per order</th><th>vs last period</th></tr></thead>
+            <tbody id="chanBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ PAID MEDIA ============ -->
+    <section data-panel="paid" hidden>
+      <div class="lede">
+        <h1>Campaign detail</h1>
+        <p>Every live campaign across the connected ad platforms, ordered by spend. Creative-level reporting is added once the ad library sync is switched on.</p>
+      </div>
+      <div class="panel card" style="margin-bottom:16px">
+        <h2>Campaigns</h2>
+        <p class="hint" id="cmpHint"></p>
+        <div class="tablewrap">
+          <table>
+            <thead><tr><th>Campaign</th><th>Channel</th><th>Stage</th><th>Spend</th><th>Revenue</th><th>ROAS</th><th>Orders</th></tr></thead>
+            <tbody id="cmpBody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="panel card">
+        <h2>Where the money went</h2>
+        <p class="hint">Share of spend by funnel stage across the selected platforms.</p>
+        <svg class="chart" id="stage" viewBox="0 0 760 110" role="img" aria-label="Share of spend by funnel stage"></svg>
+        <div class="chart-empty" id="stageEmpty" hidden>No spend in the current selection.</div>
+      </div>
+    </section>
+
+    <!-- ============ STORE ============ -->
+    <section data-panel="store" hidden>
+      <div class="lede">
+        <h1>Store and product mix</h1>
+        <p>What is actually selling, and how shoppers move from session to order. Pulled from Shopify once connected.</p>
+      </div>
+      <div class="band">
+        <div class="bandhead"><span>Catalogue performance</span><span id="stWindow"></span></div>
+        <div class="strip" id="stStrip"></div>
+      </div>
+      <div class="panel card" style="margin:28px 0 16px">
+        <h2>Products</h2>
+        <p class="hint">Variants can be rolled up or split out. Tell us which you prefer.</p>
+        <div class="tablewrap">
+          <table>
+            <thead><tr><th>Product</th><th>Units</th><th>Revenue</th><th>Share of revenue</th><th>Average price</th></tr></thead>
+            <tbody id="prodBody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="panel card">
+        <h2>From visit to order</h2>
+        <p class="hint">Where shoppers drop out. Checkout steps come from Shopify, earlier steps from GA4.</p>
+        <svg class="chart" id="funnel" viewBox="0 0 760 200" role="img" aria-label="Conversion funnel from sessions to orders"></svg>
+        <div class="chart-empty" id="funnelEmpty" hidden>No funnel steps in this payload.</div>
+      </div>
+    </section>
+
+    <!-- ============ INTERNAL NOTES (staff only) ============ -->
+    <section data-panel="notes" hidden>
+      <div class="lede">
+        <h1>What is connected, and what we still need</h1>
+        <p>Visible to the 100% Digital team only. This tab is not built for a client login.</p>
+      </div>
+      <div class="notes" id="notesGrid">
+        <div class="panel card"><h2>Data sources</h2><ul class="checklist" id="notesSources"></ul></div>
+        <div class="panel card"><h2>Open questions for the client</h2><ul class="checklist" id="notesQuestions"></ul></div>
+      </div>
+      <div class="state" id="notesState" hidden></div>
+    </section>
+
+    <div class="foot">
+      <span id="footLeft"></span>
+      <span id="footRight">Prepared by 100% Digital</span>
+    </div>
+
+  </div>
+</div>
+
+<script>
+"use strict";
+/* =========================================================================================
+   LACEVO dashboard.
+
+   Nothing on this page is hardcoded. Every figure is derived from the payload served at
+   /data.json, which today is the baked-in sample (dash/placeholder.json, meta.placeholder=true)
+   and tomorrow is whatever the export job writes to the bucket. That is the whole point of the
+   preview: swapping mock for real BigQuery views is a DATA change, not a template rewrite.
+
+   The three-stage contract this page is the last leg of:
+       sql/*.sql view column  ->  job/main.py env dict key  ->  DATA.* key here
+   matched BY NAME. See README.md -> "Data contract".
+   ========================================================================================= */
+
+// The platform proxy rewrites this literal to /d/lacevo/data.json, AND uses its presence to
+// recognise this page as a dashboard. Do not make it relative.
+const JSON_URL = '/data.json';
+// RELATIVE on purpose, so it resolves under BOTH origins: /d/lacevo/internal/notes.json behind the
+// proxy, /internal/notes.json direct. A root-relative path here would hit the PLATFORM's own
+// /internal/ namespace once proxied.
+const NOTES_URL = 'internal/notes.json';
+
+let DATA = null;
+let NOTES = null;             // lazily fetched, staff only
+const STATE = {tab: 'overview', channels: null, q: '', axis: 'relative'};
+
+const el = id => document.getElementById(id);
+const n = v => {const x = Number(v); return Number.isFinite(x) ? x : 0;};
+// Number(null) and Number('') are BOTH 0 in JS, so Number.isFinite(Number(x)) is not a null guard.
+// A deliberately-empty target must read as "pending", never as a confident zero.
+const numOrNull = v => (v === null || v === undefined || v === '' ? null : (Number.isFinite(Number(v)) ? Number(v) : null));
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+const meta = () => (DATA && DATA.meta) || {};
+const flight = () => (DATA && DATA.flight) || {};
+const targets = () => (DATA && DATA.targets) || {};
+const sym = () => meta().currency_symbol || 'A$';
+
+const money = (v, dp) => v == null ? '-' : sym() + n(v).toLocaleString('en-AU', {minimumFractionDigits: dp || 0, maximumFractionDigits: dp || 0});
+const money2 = v => money(v, 2);
+const int = v => v == null ? '-' : Math.round(n(v)).toLocaleString('en-AU');
+const pct = (v, dp) => v == null ? '-' : (n(v) * 100).toFixed(dp === undefined ? 1 : dp) + '%';
+const mult = v => v == null ? '-' : n(v).toFixed(2) + 'x';
+const div = (a, b) => (n(b) ? n(a) / n(b) : null);
+
+/* ---------- client-billed spend multiplier (repo-wide shim) ------------------------------
+   Grosses RAW media cost to the client-billed figure using window.BB_SPEND_MULT, injected by the
+   platform proxy as {channel: factor}. Applied ONCE at boot, per row, BY THE ROW'S OWN CHANNEL -
+   never one hardcoded key for every row, which is how a Trade Desk line ends up grossed at Meta's
+   billed rate. An unmapped channel stays at 1 (raw) rather than inheriting a rate never agreed for
+   it. Idempotent: the raw value is stashed so a re-run cannot compound.
+
+   The PLAN side is deliberately NOT grossed. A media plan is what the client signed and already
+   pays, so grossing it bills them twice on paper; expect the pacing percentage to move wherever a
+   multiplier is set - that is the correction, not a regression. */
+const SPEND_CHANNEL = {'meta': 'meta', 'google ads': 'google', 'google': 'google', 'tiktok': 'tiktok', 'shopify': 'shopify'};
+function bbMultFor(channel){
+  const m = window.BB_SPEND_MULT || {};
+  const v = Number(m[SPEND_CHANNEL[String(channel || '').toLowerCase()] || String(channel || '').toLowerCase()]);
+  return (Number.isFinite(v) && v > 0) ? v : 1;
+}
+function bbApplySpendMult(){
+  const gross = (row, ch) => {
+    const f = bbMultFor(ch);
+    if (row._rawSpend == null) row._rawSpend = n(row.spend);
+    row.spend = row._rawSpend * f;
+  };
+  (DATA.channels || []).forEach(r => gross(r, r.channel));
+  (DATA.campaigns || []).forEach(r => gross(r, r.channel));
+  (DATA.stages || []).forEach(r => {                     // a stage spans channels: use the blend
+    if (r._rawSpend == null) r._rawSpend = n(r.spend);
+    r.spend = r._rawSpend * blendFactor();
+  });
+  (DATA.daily || []).forEach(r => {                      // ditto - daily carries no channel column
+    if (r._rawSpend == null) r._rawSpend = n(r.spend);
+    r.spend = r._rawSpend * blendFactor();
+  });
+}
+// One blended factor for the rows that carry no channel of their own, weighted by RAW channel
+// spend so it reproduces exactly what the per-channel grossing does to the total.
+let _blend = null;
+function blendFactor(){
+  if (_blend != null) return _blend;
+  const chans = DATA.channels || [];
+  const raw = chans.reduce((a, c) => a + n(c._rawSpend != null ? c._rawSpend : c.spend), 0);
+  if (!raw) return (_blend = 1);
+  const billed = chans.reduce((a, c) => a + n(c._rawSpend != null ? c._rawSpend : c.spend) * bbMultFor(c.channel), 0);
+  return (_blend = billed / raw);
+}
+
+/* ---------- scope ------------------------------------------------------------------------
+   Channel chips scope the PAID MEDIA tab only.
+   They are deliberately absent from Overview and Store, for the reason the estate already applies
+   to Schneider's platform chips: a filter must not appear where the figures beside it cannot
+   honour it. The Overview headline is BLENDED by definition (store revenue over total ad spend),
+   and Shopify revenue has no delivering channel at all - so a chip that visibly failed to move
+   either would read as broken, and one that silently moved only half the panel would be worse. */
+const allChannels = () => (DATA.channels || []).map(c => c.channel);
+function activeChannels(){
+  const all = allChannels();
+  if (!STATE.channels) return all;
+  const picked = all.filter(c => STATE.channels.has(c));
+  return picked.length ? picked : all;
+}
+const chanOk = c => STATE.tab !== 'paid' || activeChannels().indexOf(c) >= 0;
+function searchOk(hay){
+  const q = STATE.q.trim().toLowerCase();
+  return !q || String(hay || '').toLowerCase().indexOf(q) >= 0;
+}
+
+/* ---------- derived totals ----------------------------------------------------------------
+   Derived, never carried. A KPI that disagrees with the table under it teaches a reader to
+   distrust the page, and the surest way to get there is to ship a precomputed headline beside a
+   list that can be filtered out from under it. */
+function dailyTotals(){
+  const d = DATA.daily || [];
+  return {
+    revenue: d.reduce((a, r) => a + n(r.revenue), 0),
+    spend: d.reduce((a, r) => a + n(r.spend), 0),
+    sessions: d.reduce((a, r) => a + n(r.sessions), 0),
+    orders: d.reduce((a, r) => a + n(r.orders), 0),
+    days: d.length
+  };
+}
+function customers(){
+  const c = (DATA && DATA.customers) || {};
+  const nw = numOrNull(c.new), rt = numOrNull(c.returning);
+  return {new: nw, returning: rt, total: (nw == null && rt == null) ? null : n(nw) + n(rt)};
+}
+
+/* ---------- pacing --------------------------------------------------------------------------
+   Pace against a budget that can actually spend, and state on screen which budget the bar is drawn
+   against. `days_elapsed` comes from the payload; where it is absent it falls back to the number
+   of DELIVERING days, never to "today minus the start", because a feed that is a day behind would
+   otherwise halve the run rate and under-project a campaign performing to plan. */
+function pacing(){
+  const f = flight();
+  const budget = numOrNull(f.budget);
+  const total = numOrNull(f.days_total);
+  if (budget == null || !total) return null;
+  const t = dailyTotals();
+  const elapsed = Math.min(numOrNull(f.days_elapsed) != null ? n(f.days_elapsed) : t.days, total);
+  const spend = t.spend;
+  const frac = elapsed / total;
+  const expected = budget * frac;
+  const projected = elapsed ? spend / elapsed * total : null;
+  const ratio = expected ? spend / expected : null;
+  // No green for overspend. A budget can miss in both directions, so the only "good" state is
+  // within tolerance of plan; either side of it is something to look at, not something to praise.
+  let verdict = 'On plan', cls = 'ok';
+  if (ratio != null && ratio > 1.05){ verdict = 'Over plan'; cls = 'watch'; }
+  else if (ratio != null && ratio < 0.95){ verdict = 'Under plan'; cls = 'watch'; }
+  return {budget, total, elapsed, spend, expected, projected, ratio, verdict, cls,
+          start: f.start, end: f.end};
+}
+
+/* ---------- targets -------------------------------------------------------------------------
+   A DERIVED target is ours, not the client's, and must say so. Without the label a red delta
+   accuses a campaign of missing a KPI nobody ever agreed to (the caltex rule). */
+const derivedTargets = () => !!targets().derived;
+const targetNote = () => derivedTargets() ? ' (derived)' : '';
+
+/* ================================ RENDER ================================================== */
+
+function renderChrome(){
+  const m = meta();
+  el('agencyName').textContent = m.agency || '100% Digital';
+  const connected = (m.channels_connected || []);
+  const expected = (m.channels_expected || []);
+  const live = connected.length ? connected : expected;
+  const label = m.placeholder ? 'Preview' : 'Live';
+  el('statusLine').innerHTML = '<span class="dot"></span><b>' + esc(label) + '</b>' +
+    (live.length ? ' · ' + live.map(esc).join(' · ') : '');
+  el('statusPeriod').textContent = (m.placeholder ? 'Sample period ' : '') + (m.period_label || '');
+
+  const notice = el('notice');
+  if (m.placeholder){
+    const feeds = expected.length ? expected.join(', ').replace(/, ([^,]*)$/, ' and $1') : 'the';
+    notice.innerHTML = '<strong>This is a preview.</strong> <span>Every number below is placeholder ' +
+      'data so you can see the layout and agree the metrics. Live figures appear once the ' +
+      esc(feeds) + ' feeds are connected.</span>';
+    notice.hidden = false;
+  } else {
+    notice.hidden = true;
+  }
+
+  el('footLeft').textContent = 'Lacevo · dashboards.bidbrain.ai' + (m.placeholder ? ' · preview build' : '') +
+    (m.data_through ? ' · data through ' + m.data_through : '');
+}
+
+const TAB_LABEL = {overview: 'Overview', paid: 'Paid media', store: 'Store', notes: 'Internal notes'};
+const TAB_ORDER = ['overview', 'paid', 'store', 'notes'];
+/* STAFF-ONLY TAB. window.BB_INTERNAL is injected in <head> by the platform proxy, before this
+   script runs, ONLY for superadmin / admin / owning-agency sessions - the same predicate that
+   decides whether the staff Internal Notes widget is injected. A client session, and any direct
+   *.run.app URL, never gets it: the tab is not built, its pane stays hidden, and #notes in the URL
+   falls back to Overview. The CONTENT is not in data.json either - it is fetched from
+   internal/notes.json only when this tab opens, so hiding the tab is not the only thing
+   protecting it. */
+const STAFF_TABS = {notes: true};
+const isStaff = () => !!window.BB_INTERNAL;
+const tabAllowed = t => !STAFF_TABS[t] || isStaff();
+const visibleTabs = () => TAB_ORDER.filter(tabAllowed);
+
+function renderTabs(){
+  el('tabs').innerHTML = visibleTabs().map(t =>
+    '<button class="tab" role="tab" data-tab="' + t + '" aria-selected="' + (STATE.tab === t) + '">' +
+    esc(TAB_LABEL[t]) + '</button>').join('');
+  [...el('tabs').querySelectorAll('.tab')].forEach(b =>
+    b.addEventListener('click', () => setTab(b.dataset.tab)));
+  TAB_ORDER.forEach(t => {
+    const p = document.querySelector('[data-panel="' + t + '"]');
+    if (p) p.hidden = (t !== STATE.tab);
+  });
+}
+
+function setTab(t){
+  if (!TAB_LABEL[t] || !tabAllowed(t)) return;
+  STATE.tab = t;
+  STATE.q = '';
+  if (t === 'notes') loadNotes();
+  render();
+  window.scrollTo({top: 0, behavior: 'smooth'});
+}
+
+/* Filters are PER TAB. Anything that cannot be honoured on a tab is not drawn on it. */
+function renderFilters(){
+  const m = meta(), f = el('filters');
+  const bits = [];
+
+  // Period: a STATIC statement, not a control. The payload carries one dated array (`daily`) and
+  // several whole-period aggregates (channels, campaigns, products, funnel), so a date filter
+  // would move the KPI band while leaving every table beside it unchanged. It becomes a real
+  // picker the day those aggregates arrive with a date column.
+  bits.push('<div class="fgroup"><span class="flabel">Period</span>' +
+    '<span class="pill on static">' + esc(m.period_label || 'All time') + '</span></div>');
+
+  // Market: rendered from meta.markets so a second market is data, not code. Anything the payload
+  // cannot yet split is drawn DISABLED and says why, rather than silently returning the same
+  // numbers under a different name.
+  const markets = m.markets || [];
+  if (markets.length){
+    const def = m.market_default || markets[0];
+    bits.push('<div class="fgroup"><span class="flabel">Market</span>' + markets.map(mk =>
+      mk === def
+        ? '<span class="pill on static">' + esc(mk) + '</span>'
+        : '<span class="pill" aria-disabled="true" title="Not split by market until the ' + esc(mk) +
+          ' feed is connected">' + esc(mk) + '</span>').join('') + '</div>');
+  }
+
+  if (STATE.tab === 'paid'){
+    const all = allChannels(), act = activeChannels();
+    if (all.length > 1){
+      bits.push('<div class="fgroup"><span class="flabel">Channel</span>' +
+        '<span class="pill' + (act.length === all.length ? ' on' : '') + '" data-chan="__all">All</span>' +
+        all.map(c => '<span class="pill' + (act.indexOf(c) >= 0 && act.length !== all.length ? ' on' : '') +
+          '" data-chan="' + esc(c) + '"><i style="background:' + esc(colourOf(c)) + '"></i>' + esc(c) + '</span>').join('') +
+        '</div>');
+    }
+    bits.push('<input class="search" id="q" type="search" placeholder="Search campaign or stage" value="' + esc(STATE.q) + '">');
+  }
+  if (STATE.tab === 'store'){
+    bits.push('<input class="search" id="q" type="search" placeholder="Search product" value="' + esc(STATE.q) + '">');
+  }
+  if (STATE.tab !== 'notes' && markets.length > 1){
+    bits.push('<div class="scopenote">Figures cover ' + esc(m.market_default || markets[0]) +
+      (m.sites && m.sites[m.market_default] ? ' (' + esc(m.sites[m.market_default]) + ')' : '') + '.</div>');
+  }
+
+  f.innerHTML = STATE.tab === 'notes' ? '' : bits.join('');
+  // The exports describe the DELIVERY data. Internal notes is a checklist with nothing to export,
+  // and a button that silently does nothing is worse than no button - the same reason the filters
+  // above are drawn per tab rather than everywhere.
+  const canExport = STATE.tab !== 'notes';
+  el('exportView').hidden = !canExport;
+  el('exportAll').hidden = !canExport;
+
+  [...f.querySelectorAll('[data-chan]')].forEach(p => p.addEventListener('click', () => {
+    const key = p.dataset.chan, all = allChannels();
+    if (key === '__all'){ STATE.channels = null; }
+    else {
+      const cur = new Set(STATE.channels || all);
+      if (cur.has(key)){ if (cur.size < 2) return; cur.delete(key); }   // the last channel stays on
+      else cur.add(key);
+      STATE.channels = (cur.size === all.length) ? null : cur;
+    }
+    render();
+  }));
+  const q = el('q');
+  if (q) q.addEventListener('input', () => {
+    STATE.q = q.value;
+    renderActive();          // do NOT re-render the filter row, or the input loses focus mid-type
+  });
+}
+
+const colourOf = c => {
+  const row = (DATA.channels || []).find(x => x.channel === c);
+  return (row && row.colour) || '#9A928A';
+};
+
+/* ---------- Overview ---------- */
+function renderOverview(){
+  const m = meta(), t = dailyTotals(), cu = customers();
+  const roasT = numOrNull(targets().roas_target);
+  const cacC = numOrNull(targets().cac_ceiling);
+  const p = pacing();
+
+  const roas = div(t.revenue, t.spend);
+  const aov = div(t.revenue, t.orders);
+  const cvr = div(t.orders, t.sessions);
+  const cpo = div(t.spend, t.orders);
+  const spendShare = div(t.spend, t.revenue);
+  const newShare = cu.total ? div(cu.new, cu.total) : null;
+
+  el('ovLede').innerHTML =
+    'Store revenue against advertising investment across <b>' +
+    esc((m.channels_expected || []).filter(c => c !== 'Shopify').join(', ').replace(/, ([^,]*)$/, ' and $1') || 'the connected platforms') +
+    '</b>, with product mix and customer acquisition cost. The ' + (m.placeholder ? 'sample ' : '') +
+    'period shows <b>' + esc(money(t.revenue)) + ' revenue</b> on <b>' + esc(money(t.spend)) +
+    ' ad spend</b>.' + (m.excludes_note ? ' <b>' + esc(m.excludes_note) + '</b>' : '');
+
+  el('ovGoal').innerHTML = roasT != null
+    ? 'Goal · profitable growth at or above a <b>' + esc(mult(roasT)) + '</b> blended return' + esc(targetNote())
+    : 'Goal · no return target agreed yet';
+  el('ovWindow').textContent = (m.period_label || '') +
+    (m.market_default ? ' · ' + m.market_default : '');
+
+  const cells = [
+    {t: 'Revenue', v: money(t.revenue), s: 'Shopify, all orders including tax and shipping', tone: 'neutral'},
+    {t: 'Blended return on ad spend', v: mult(roas), s: (roasT != null ? 'Target ' + mult(roasT) + targetNote() + ' · ' : '') + 'revenue divided by total ad spend',
+     tone: roasT == null ? 'neutral' : (roas >= roasT ? 'good' : 'warn')},
+    {t: 'Ad spend', v: money(t.spend), s: pct(spendShare, 0) + ' of revenue' + (p ? ' · plan ' + money(p.budget) : ''), tone: 'neutral'},
+    {t: 'Orders', v: int(t.orders), s: t.days ? Math.round(t.orders / t.days) + ' orders a day on average' : '', tone: 'neutral'},
+    {t: 'Average order value', v: money2(aov), s: 'Revenue divided by orders', tone: 'neutral'},
+    {t: 'Conversion rate', v: pct(cvr, 2), s: int(t.sessions) + ' sessions', tone: 'neutral'},
+    {t: 'Cost per order', v: money2(cpo), s: (cacC != null ? 'Ceiling ' + money(cacC) + targetNote() + ' · ' : '') + 'ad spend divided by orders',
+     tone: cacC == null ? 'neutral' : (cpo <= cacC ? 'good' : 'warn')},
+    {t: 'New customers', v: newShare == null ? '-' : pct(newShare, 0),
+     s: cu.total == null ? 'Not reported yet' : int(cu.new) + ' first-time buyers · ' + int(cu.returning) + ' returning', tone: 'neutral'}
+  ];
+  el('ovStrip').innerHTML = cells.map(c =>
+    '<div class="cell stat"><h3><i class="i-' + c.tone + '"></i>' + esc(c.t) + '</h3>' +
+    '<div class="num v">' + esc(c.v) + '</div>' +
+    (c.s ? '<small>' + esc(c.s) + '</small>' : '') +
+    (m.placeholder && c.t === 'New customers' ? '<span class="chip">Preview data</span>' : '') +
+    '</div>').join('');
+
+  renderPacing(p);
+  el('roasHint').textContent = roasT != null
+    ? 'Platform-reported return on ad spend against the ' + mult(roasT) + ' target' + targetNote() + '.'
+    : 'Platform-reported return on ad spend.';
+
+  // Channel table: whole-book on this tab (see the scope note above - no channel chips here).
+  const rows = (DATA.channels || []);
+  const tot = rows.reduce((a, r) => ({spend: a.spend + n(r.spend), revenue: a.revenue + n(r.revenue), orders: a.orders + n(r.orders)}),
+                          {spend: 0, revenue: 0, orders: 0});
+  el('chanBody').innerHTML = rows.length ? rows.map(r =>
+    '<tr><td><span class="ch"><i style="background:' + esc(r.colour || '#9A928A') + '"></i><span>' + esc(r.channel) +
+    (r.note ? '<span class="sub">' + esc(r.note) + '</span>' : '') + '</span></span></td>' +
+    '<td>' + esc(money(r.spend)) + '</td><td>' + esc(money(r.revenue)) + '</td>' +
+    '<td>' + esc(mult(div(r.revenue, r.spend))) + '</td><td>' + esc(int(r.orders)) + '</td>' +
+    '<td>' + esc(money2(div(r.spend, r.orders))) + '</td>' +
+    '<td class="' + (n(r.delta_vs_prior) >= 0 ? 'pos' : 'neg') + '">' +
+    (numOrNull(r.delta_vs_prior) == null ? '-' : (n(r.delta_vs_prior) >= 0 ? '+' : '') + pct(r.delta_vs_prior, 0)) + '</td></tr>').join('') +
+    '<tr class="total"><td>All channels</td><td>' + esc(money(tot.spend)) + '</td><td>' + esc(money(tot.revenue)) +
+    '</td><td>' + esc(mult(div(tot.revenue, tot.spend))) + '</td><td>' + esc(int(tot.orders)) + '</td><td>' +
+    esc(money2(div(tot.spend, tot.orders))) + '</td><td></td></tr>'
+    : '<tr class="empty-row"><td colspan="7">No channel delivery yet.</td></tr>';
+
+  drawTrend(STATE.axis);
+  drawRoas(roasT);
+}
+
+function renderPacing(p){
+  const b = el('paceBody');
+  if (!p){
+    b.innerHTML = '<p class="hint" style="margin:0">No agreed plan budget yet, so there is nothing to pace against. ' +
+      'Spend to date is ' + esc(money(dailyTotals().spend)) + '.</p>';
+    return;
+  }
+  const fill = Math.max(0, Math.min(100, p.budget ? p.spend / p.budget * 100 : 0));
+  const markPos = Math.max(0, Math.min(100, p.budget ? p.expected / p.budget * 100 : 0));
+  b.innerHTML =
+    '<div class="meter"><div class="fill" style="width:' + fill.toFixed(1) + '%">' + esc(money(p.spend)) + '</div>' +
+    '<div class="mark" style="left:' + markPos.toFixed(1) + '%"></div></div>' +
+    '<div class="metarow"><span>Expected today: ' + esc(money(p.expected)) + '</span><span>Plan: ' + esc(money(p.budget)) + '</span></div>' +
+    '<div class="tagline"><span class="tag ' + p.cls + '">' + esc(p.verdict) + '</span>' +
+    '<span class="tagnote">Projected ' + esc(money(p.projected)) + ' · day ' + p.elapsed + ' of ' + p.total + '</span></div>';
+}
+
+/* ---------- Paid media ---------- */
+function paidRows(){
+  return (DATA.campaigns || []).filter(r => chanOk(r.channel) &&
+    (searchOk(r.campaign) || searchOk(r.sub) || searchOk(r.stage) || searchOk(r.channel)))
+    .slice().sort((a, b) => n(b.spend) - n(a.spend));
+}
+function renderPaid(){
+  const rows = paidRows();
+  const act = activeChannels(), all = allChannels();
+  el('cmpHint').textContent = (act.length === all.length
+    ? 'All channels.'
+    : 'Showing ' + act.join(', ') + '.') + ' Naming follows whatever convention the media team already uses in each account.';
+
+  const tot = rows.reduce((a, r) => ({spend: a.spend + n(r.spend), revenue: a.revenue + n(r.revenue), orders: a.orders + n(r.orders)}),
+                          {spend: 0, revenue: 0, orders: 0});
+  const chans = new Set(rows.map(r => r.channel));
+  el('cmpBody').innerHTML = rows.length ? rows.map(r =>
+    '<tr><td>' + esc(r.campaign) + (r.sub ? '<span class="sub">' + esc(r.sub) + '</span>' : '') + '</td>' +
+    '<td>' + esc(r.channel) + '</td><td>' + esc(r.stage) + '</td>' +
+    '<td>' + esc(money(r.spend)) + '</td><td>' + esc(money(r.revenue)) + '</td>' +
+    '<td>' + esc(mult(div(r.revenue, r.spend))) + '</td><td>' + esc(int(r.orders)) + '</td></tr>').join('') +
+    '<tr class="total"><td>' + rows.length + ' campaign' + (rows.length === 1 ? '' : 's') + '</td><td>' +
+    chans.size + ' channel' + (chans.size === 1 ? '' : 's') + '</td><td>-</td><td>' + esc(money(tot.spend)) + '</td><td>' +
+    esc(money(tot.revenue)) + '</td><td>' + esc(mult(div(tot.revenue, tot.spend))) + '</td><td>' + esc(int(tot.orders)) + '</td></tr>'
+    : '<tr class="empty-row"><td colspan="7">No campaigns match this selection.</td></tr>';
+
+  drawStage(rows);
+}
+
+/* ---------- Store ---------- */
+function renderStore(){
+  const m = meta(), t = dailyTotals(), st = (DATA && DATA.store) || {};
+  const prods = DATA.products || [];
+  const units = prods.reduce((a, r) => a + n(r.units), 0);
+  const rev = prods.reduce((a, r) => a + n(r.revenue), 0);
+  const refundRate = div(numOrNull(st.refund_value), rev);
+  const repeat = numOrNull(st.repeat_purchase_rate);
+
+  el('stWindow').textContent = m.period_label || '';
+  const cells = [
+    {t: 'Units sold', v: int(units), s: prods.length + ' product lines', tone: 'neutral'},
+    {t: 'Units per order', v: t.orders ? (units / t.orders).toFixed(2) : '-', s: 'Bundles and spare parts lift this', tone: 'neutral'},
+    {t: 'Repeat purchase rate', v: repeat == null ? '-' : pct(repeat, 1), s: st.repeat_note || '', tone: 'neutral'},
+    {t: 'Refund rate', v: refundRate == null ? '-' : pct(refundRate, 1),
+     s: numOrNull(st.refund_value) == null ? 'Not reported yet' : money(st.refund_value) + ' refunded in period', tone: 'neutral'}
+  ];
+  el('stStrip').innerHTML = cells.map(c =>
+    '<div class="cell stat"><h3><i class="i-' + c.tone + '"></i>' + esc(c.t) + '</h3>' +
+    '<div class="num v">' + esc(c.v) + '</div>' + (c.s ? '<small>' + esc(c.s) + '</small>' : '') + '</div>').join('');
+
+  const shown = prods.filter(r => searchOk(r.product));
+  el('prodBody').innerHTML = shown.length ? shown.map(r =>
+    '<tr><td>' + esc(r.product) + '</td>' +
+    '<td>' + (numOrNull(r.units) == null ? '-' : esc(int(r.units))) + '</td>' +
+    '<td>' + esc(money(r.revenue)) + '</td>' +
+    '<td>' + esc(pct(div(r.revenue, rev))) + '</td>' +
+    '<td>' + (numOrNull(r.unit_price) == null ? '-' : esc(money2(r.unit_price))) + '</td></tr>').join('') +
+    (shown.length === prods.length
+      ? '<tr class="total"><td>All products</td><td>' + esc(int(units)) + '</td><td>' + esc(money(rev)) +
+        '</td><td>100.0%</td><td>-</td></tr>' : '')
+    : '<tr class="empty-row"><td colspan="5">No products match that search.</td></tr>';
+
+  drawFunnel();
+}
+
+/* ---------- Internal notes (staff only) ---------- */
+async function loadNotes(){
+  if (NOTES || !isStaff()) return;
+  try {
+    const r = await fetch(NOTES_URL, {cache: 'no-store'});
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    NOTES = await r.json();
+  } catch (e) {
+    NOTES = {error: e.message || String(e)};
+  }
+  if (STATE.tab === 'notes') renderNotes();
+}
+function renderNotes(){
+  const grid = el('notesGrid'), state = el('notesState');
+  if (!NOTES){ grid.hidden = true; state.hidden = false; state.innerHTML = '<p>Loading notes.</p>'; return; }
+  if (NOTES.error){
+    grid.hidden = true; state.hidden = false;
+    state.innerHTML = '<h2>Notes could not be loaded</h2><p>' + esc(NOTES.error) + '</p>';
+    return;
+  }
+  grid.hidden = false; state.hidden = true;
+  const item = (label, cls, name, detail) =>
+    '<li><span class="state-tag ' + cls + '">' + esc(label) + '</span><div><b>' + esc(name) + '</b>' +
+    '<span>' + esc(detail) + '</span></div></li>';
+  el('notesSources').innerHTML = (NOTES.sources || []).map(s =>
+    item(s.state === 'connected' ? 'Live' : 'Pending', s.state === 'connected' ? 'on' : 'off', s.name, s.detail)).join('');
+  el('notesQuestions').innerHTML = (NOTES.questions || []).map(q => item('Ask', 'on', q.name, q.detail)).join('');
+}
+
+/* ================================ CHARTS ==================================================
+   Hand-drawn SVG rather than a charting library: four small charts, no external script host to
+   clear with the proxy CSP, and nothing to re-theme. */
+const NS = 'http://www.w3.org/2000/svg';
+const svgEl = (t, a) => {const e = document.createElementNS(NS, t); for (const k in a) e.setAttribute(k, a[k]); return e;};
+function chartState(svgId, emptyId, ok){
+  const s = el(svgId), e = el(emptyId);
+  if (s) s.hidden = !ok;                       // HIDE the canvas, never remove it
+  if (e) e.hidden = ok;
+  return ok ? s : null;
+}
+
+function drawTrend(mode){
+  const d = DATA.daily || [];
+  const svg = chartState('trend', 'trendEmpty', d.length > 1);
+  if (!svg) return;
+  svg.textContent = '';
+  const revenue = d.map(r => n(r.revenue)), spend = d.map(r => n(r.spend)), sessions = d.map(r => n(r.sessions));
+  const W = 760, H = 300, L = 62, R = 46, T = 16, B = 34;
+  const iw = W - L - R, ih = H - T - B, days = d.length;
+  const maxRev = Math.max(...revenue, 1);
+  const scale = arr => {
+    const m = Math.max(...arr, 1);
+    return mode === 'absolute' ? v => ih - (v / maxRev) * ih : v => ih - (v / m) * ih;
+  };
+  const yRev = scale(revenue), ySpend = scale(spend), ySess = scale(sessions);
+
+  for (let i = 0; i <= 4; i++){
+    const y = T + (ih / 4) * i;
+    svg.appendChild(svgEl('line', {x1: L, x2: W - R, y1: y, y2: y, stroke: 'rgba(28,28,28,.08)'}));
+    const lab = mode === 'absolute' ? money(maxRev * (1 - i / 4)) : String(100 - i * 25);
+    const t = svgEl('text', {x: L - 10, y: y + 4, fill: '#9A928A', 'font-size': '10', 'text-anchor': 'end'});
+    t.textContent = lab; svg.appendChild(t);
+  }
+  const bw = Math.max(1, iw / days * 0.56);
+  revenue.forEach((v, i) => {
+    const x = L + (iw / days) * (i + 0.5) - bw / 2, y = T + yRev(v);
+    svg.appendChild(svgEl('rect', {x, y, width: bw, height: Math.max(0, ih - yRev(v)), fill: '#DBD0C4', rx: 2}));
+  });
+  const line = (arr, fn, colour) => {
+    const path = arr.map((v, i) => (i ? 'L' : 'M') + (L + (iw / days) * (i + 0.5)).toFixed(1) + ',' + (T + fn(v)).toFixed(1)).join(' ');
+    svg.appendChild(svgEl('path', {d: path, fill: 'none', stroke: colour, 'stroke-width': 1.8, 'stroke-linejoin': 'round'}));
+    if (days <= 45) arr.forEach((v, i) => svg.appendChild(svgEl('circle', {cx: L + (iw / days) * (i + 0.5), cy: T + fn(v), r: 2, fill: colour})));
+  };
+  line(sessions, ySess, '#6E7F68');
+  line(spend, ySpend, '#965F48');
+
+  // Tick labels come from the DATES in the payload, never a hardcoded list, so a window of any
+  // length labels itself correctly.
+  const idx = days <= 4 ? d.map((_, i) => i) : [0, Math.round((days - 1) / 3), Math.round((days - 1) * 2 / 3), days - 1];
+  idx.forEach(i => {
+    const t = svgEl('text', {x: L + (iw / days) * (i + 0.5), y: H - 12, fill: '#9A928A', 'font-size': '10', 'text-anchor': 'middle'});
+    t.textContent = shortDate(d[i].date); svg.appendChild(t);
+  });
+}
+function shortDate(iso){
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || ''));
+  if (!m) return String(iso || '');
+  const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return Number(m[3]) + ' ' + MON[Number(m[2]) - 1];
+}
+
+function drawRoas(target){
+  const rows = (DATA.channels || []).filter(c => n(c.spend) > 0);
+  const svg = chartState('roas', 'roasEmpty', rows.length > 0);
+  if (!svg) return;
+  svg.textContent = '';
+  const vals = rows.map(r => n(div(r.revenue, r.spend)));
+  const max = Math.max(...vals, n(target), 1) * 1.18;
+  const L = 84, W = 340, R = 44, iw = W - L - R;
+  const rowH = 46, top = 24;
+  svg.setAttribute('viewBox', '0 0 340 ' + (top + rows.length * rowH + 44));
+  rows.forEach((r, i) => {
+    const v = vals[i], y = top + i * rowH;
+    const lab = svgEl('text', {x: L - 12, y: y + 15, fill: '#6E675F', 'font-size': '11.5', 'text-anchor': 'end'});
+    lab.textContent = r.channel; svg.appendChild(lab);
+    svg.appendChild(svgEl('rect', {x: L, y, width: iw, height: 21, rx: 5, fill: '#F0EBE4'}));
+    svg.appendChild(svgEl('rect', {x: L, y, width: Math.max(0, iw * (v / max)), height: 21, rx: 5, fill: r.colour || '#965F48'}));
+    const val = svgEl('text', {x: L + iw * (v / max) + 8, y: y + 15, fill: '#1C1C1C', 'font-size': '11.5', 'font-weight': '600'});
+    val.textContent = v.toFixed(2) + 'x'; svg.appendChild(val);
+  });
+  if (target != null){
+    const tx = L + iw * (n(target) / max), bottom = top + rows.length * rowH;
+    svg.appendChild(svgEl('line', {x1: tx, x2: tx, y1: 14, y2: bottom + 2, stroke: '#1C1C1C', 'stroke-width': 1, 'stroke-dasharray': '3 3', opacity: .45}));
+    const t = svgEl('text', {x: tx, y: bottom + 18, fill: '#6E675F', 'font-size': '10.5', 'text-anchor': 'middle'});
+    t.textContent = 'target ' + n(target).toFixed(2) + 'x' + targetNote(); svg.appendChild(t);
+  }
+}
+
+function drawStage(rows){
+  // Derived from the CAMPAIGNS on screen, not from a parallel array, so the bar widths can never
+  // disagree with the table above them once a channel chip is unticked.
+  const by = new Map();
+  rows.forEach(r => by.set(r.stage, n(by.get(r.stage) || 0) + n(r.spend)));
+  const order = (DATA.stages || []).map(s => s.stage);
+  const list = [...by.entries()]
+    .sort((a, b) => (order.indexOf(a[0]) + 1 || 99) - (order.indexOf(b[0]) + 1 || 99))
+    .filter(e => e[1] > 0);
+  const total = list.reduce((a, e) => a + e[1], 0);
+  const svg = chartState('stage', 'stageEmpty', total > 0);
+  if (!svg) return;
+  svg.textContent = '';
+  const colour = s => {const r = (DATA.stages || []).find(x => x.stage === s); return (r && r.colour) || '#9A928A';};
+  const W = 760;
+  let x = 0;
+  list.forEach(e => {
+    const w = (e[1] / total) * W;
+    svg.appendChild(svgEl('rect', {x, y: 8, width: Math.max(w - 4, 2), height: 30, rx: 5, fill: colour(e[0])}));
+    const nm = svgEl('text', {x: x + 1, y: 62, fill: '#1C1C1C', 'font-size': '12', 'font-weight': '600'});
+    nm.textContent = e[0]; svg.appendChild(nm);
+    const v = svgEl('text', {x: x + 1, y: 80, fill: '#6E675F', 'font-size': '11'});
+    v.textContent = money(e[1]) + ' · ' + Math.round(e[1] / total * 100) + '%'; svg.appendChild(v);
+    x += w;
+  });
+}
+
+function drawFunnel(){
+  const steps = (DATA.funnel || []).filter(s => numOrNull(s.value) != null);
+  const svg = chartState('funnel', 'funnelEmpty', steps.length > 1);
+  if (!svg) return;
+  svg.textContent = '';
+  const W = 760, gap = 25;
+  const bw = Math.max(40, (W - gap * (steps.length - 1)) / steps.length);
+  const top = n(steps[0].value) || 1;
+  steps.forEach((s, i) => {
+    const h = Math.max(n(s.value) / top * 118, 10);
+    const x = i * (bw + gap), y = 130 - h;
+    svg.appendChild(svgEl('rect', {x, y, width: bw, height: h, rx: 6, fill: i === steps.length - 1 ? '#965F48' : '#DBD0C4'}));
+    const nm = svgEl('text', {x: x + bw / 2, y: 154, fill: '#1C1C1C', 'font-size': '12', 'font-weight': '600', 'text-anchor': 'middle'});
+    nm.textContent = int(s.value); svg.appendChild(nm);
+    const l = svgEl('text', {x: x + bw / 2, y: 172, fill: '#6E675F', 'font-size': '11', 'text-anchor': 'middle'});
+    l.textContent = s.step; svg.appendChild(l);
+    if (i){
+      const prev = n(steps[i - 1].value);
+      const dd = svgEl('text', {x: x - gap / 2, y: 190, fill: '#9A928A', 'font-size': '10', 'text-anchor': 'middle'});
+      dd.textContent = prev ? Math.round(n(s.value) / prev * 100) + '%' : '-'; svg.appendChild(dd);
+    }
+  });
+}
+
+/* ================================ EXPORTS ================================================= */
+function toCSV(rows, cols){
+  const q = v => {const s = v == null ? '' : String(v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;};
+  return [cols.map(c => q(c.label)).join(',')]
+    .concat(rows.map(r => cols.map(c => q(typeof c.get === 'function' ? c.get(r) : r[c.key])).join(','))).join('\n');
+}
+function download(name, csv){
+  const blob = new Blob(['﻿' + csv], {type: 'text/csv;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1500);
+}
+// Every export names the FILE for the scope it was taken at, and a preview export says so in the
+// filename - a spreadsheet outlives the page it came from, and nothing else on it will admit the
+// numbers are placeholders.
+const stamp = () => (meta().placeholder ? 'PREVIEW_' : '') + (meta().data_through || 'data');
+// `_`-prefixed stash keys hold the RAW pre-markup spend. They must never reach a client's CSV.
+const CLEAN = r => {const o = {}; Object.keys(r).forEach(k => {if (k[0] !== '_') o[k] = r[k];}); return o;};
+
+function exportView(){
+  if (STATE.tab === 'overview'){
+    download('lacevo_daily_' + stamp() + '.csv', toCSV((DATA.daily || []).map(CLEAN),
+      [{label: 'date', key: 'date'}, {label: 'revenue', key: 'revenue'}, {label: 'spend', key: 'spend'},
+       {label: 'sessions', key: 'sessions'}, {label: 'orders', key: 'orders'}]));
+  } else if (STATE.tab === 'paid'){
+    download('lacevo_campaigns_' + stamp() + '.csv', toCSV(paidRows().map(CLEAN),
+      [{label: 'campaign', key: 'campaign'}, {label: 'detail', key: 'sub'}, {label: 'channel', key: 'channel'},
+       {label: 'stage', key: 'stage'}, {label: 'spend', key: 'spend'}, {label: 'revenue', key: 'revenue'},
+       {label: 'roas', get: r => (div(r.revenue, r.spend) || 0).toFixed(2)}, {label: 'orders', key: 'orders'}]));
+  } else if (STATE.tab === 'store'){
+    const rev = (DATA.products || []).reduce((a, r) => a + n(r.revenue), 0);
+    download('lacevo_products_' + stamp() + '.csv', toCSV((DATA.products || []).filter(r => searchOk(r.product)).map(CLEAN),
+      [{label: 'product', key: 'product'}, {label: 'units', key: 'units'}, {label: 'revenue', key: 'revenue'},
+       {label: 'share_of_revenue', get: r => (div(r.revenue, rev) || 0).toFixed(4)}, {label: 'unit_price', key: 'unit_price'}]));
+  }
+}
+function exportAll(){
+  const lines = [];
+  const block = (title, rows, cols) => {
+    if (!rows.length) return;
+    lines.push(title, toCSV(rows.map(CLEAN), cols), '');
+  };
+  block('DAILY', DATA.daily || [],
+    [{label: 'date', key: 'date'}, {label: 'revenue', key: 'revenue'}, {label: 'spend', key: 'spend'},
+     {label: 'sessions', key: 'sessions'}, {label: 'orders', key: 'orders'}]);
+  block('CHANNELS', DATA.channels || [],
+    [{label: 'channel', key: 'channel'}, {label: 'spend', key: 'spend'}, {label: 'revenue', key: 'revenue'},
+     {label: 'orders', key: 'orders'}, {label: 'delta_vs_prior', key: 'delta_vs_prior'}]);
+  block('CAMPAIGNS', DATA.campaigns || [],
+    [{label: 'campaign', key: 'campaign'}, {label: 'detail', key: 'sub'}, {label: 'channel', key: 'channel'},
+     {label: 'stage', key: 'stage'}, {label: 'spend', key: 'spend'}, {label: 'revenue', key: 'revenue'}, {label: 'orders', key: 'orders'}]);
+  block('PRODUCTS', DATA.products || [],
+    [{label: 'product', key: 'product'}, {label: 'units', key: 'units'}, {label: 'revenue', key: 'revenue'}, {label: 'unit_price', key: 'unit_price'}]);
+  block('FUNNEL', DATA.funnel || [], [{label: 'step', key: 'step'}, {label: 'value', key: 'value'}]);
+  download('lacevo_all_' + stamp() + '.csv', lines.join('\n'));
+}
+
+/* ================================ BOOT ==================================================== */
+function renderActive(){
+  if (STATE.tab === 'overview') renderOverview();
+  else if (STATE.tab === 'paid') renderPaid();
+  else if (STATE.tab === 'store') renderStore();
+  else if (STATE.tab === 'notes') renderNotes();
+}
+function render(){
+  renderTabs();
+  renderFilters();
+  renderActive();
+}
+
+async function load(){
+  try {
+    const r = await fetch(JSON_URL, {cache: 'no-store'});
+    if (!r.ok) throw new Error('HTTP ' + r.status + ' from ' + JSON_URL);
+    DATA = await r.json();
+    bbApplySpendMult();
+    renderChrome();
+    if (location.hash){
+      const h = location.hash.slice(1);
+      if (TAB_LABEL[h] && tabAllowed(h)) STATE.tab = h;
+    }
+    if (STATE.tab === 'notes') loadNotes();
+    render();
+    el('loading').hidden = true;
+    el('app').hidden = false;
+  } catch (e){
+    el('loading').hidden = true;
+    el('app').hidden = true;
+    el('error').hidden = false;
+    el('errDetail').textContent = (e && (e.stack || e.message)) || String(e);
+  }
+}
+
+el('trendToggle').addEventListener('click', ev => {
+  const b = ev.target.closest('button[data-axis]');
+  if (!b) return;
+  STATE.axis = b.dataset.axis;
+  [...el('trendToggle').querySelectorAll('button')].forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+  drawTrend(STATE.axis);
+});
+el('exportView').addEventListener('click', exportView);
+el('exportAll').addEventListener('click', exportAll);
+
+load();
+</script>
+<!-- BB-MOTION-KIT:js v1 -->
+<script>
+/* ===================== BB MOTION KIT v1 - engine (presentation only) =====================
+   Canonical source: scripts/motion_kit/ (re-apply with scripts/apply_motion_kit.py).
+   Everything below is aesthetics. It reads the DOM the render functions produced and re-times how
+   it ARRIVES; it never computes, formats or alters a value. The two places it touches rendered
+   output both restore the exact original string / inline style:
+     - bar reveal : stashes the inline width, sets 0%, puts the SAME string back next frame
+     - count-up   : animates a parsed copy, and the final frame writes the ORIGINAL text back
+   If either mechanism is switched off the dashboard is unchanged, which is the test to apply to
+   anything added here. Self-contained: one IIFE, one global (window.bbMotion).                */
+(function(){
+  var doc = document, root = doc.documentElement;
+  /* Claim the flag FIRST. The head bootstrap gives the page 3.5s to reach this line and un-hides
+     every surface if it never does, so this assignment is what proves the engine is alive. */
+  var api = {};
+  window.bbMotion = api;
+
+  var REDUCED = false;
+  try { REDUCED = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch(e){}
+
+  /* ---- 1. count-up on figures ----------------------------------------------------------
+     STRICTLY conservative: only a leaf element whose WHOLE text is one number with optional
+     affixes ("$12,480", "1.8%", "-4.2pp") is animated, and the last frame writes the original
+     string back verbatim - so whatever the render function produced is what ends up on screen,
+     character for character. Anything it cannot parse is left completely alone. */
+  var NUM_RE = /^([^0-9-]*)(-?[0-9][0-9,]*(?:\.[0-9]+)?)([^0-9]*)$/;
+  function countUp(el){
+    if (REDUCED || el.dataset.bbCount || el.children.length) return;
+    var raw = el.textContent;
+    if (!raw || raw.length > 26) return;
+    var m = raw.trim().match(NUM_RE);
+    if (!m) return;
+    var target = parseFloat(m[2].replace(/,/g, ''));
+    if (!isFinite(target) || Math.abs(target) > 1e12) return;
+    el.dataset.bbCount = '1';
+    var dec = (m[2].split('.')[1] || '').length;
+    var grouped = m[2].indexOf(',') >= 0;
+    function fmt(v){
+      var s = Math.abs(v).toFixed(dec);
+      if (grouped){ var p = s.split('.'); p[0] = p[0].replace(/\B(?=(\d{3})+(?!\d))/g, ','); s = p.join('.'); }
+      return m[1] + (v < 0 ? '-' : '') + s + m[3];
+    }
+    var dur = 700, t0 = performance.now(), mine = null;
+    /* Two guards, both of which this used to be missing.
+       1. requestAnimationFrame DOES NOT RUN IN A BACKGROUND TAB. The first frame is
+          called synchronously at p=0, so without a guard it painted the ZERO value and
+          then never advanced - a figure sat at 0 for as long as the tab stayed hidden,
+          and dataset.bbCount meant it was never re-animated even after the tab came
+          back. Symptom: open a dashboard in a background tab and the KPI reads $0.
+          So: never paint the p=0 frame, and finalise on a timer if rAF starves.
+       2. A figure can be RE-RENDERED mid-animation (change a filter while a section is
+          counting up). The last frame writes the string captured when the animation
+          STARTED, which used to overwrite the new value with the old one and leave it
+          there. So each frame bails the moment anything else has written to the
+          element - the render function always wins. */
+    var finish = function(){ if (mine === null || el.textContent === mine){ el.textContent = raw; mine = raw; } };
+    var bail = setTimeout(finish, dur + 600);
+    (function step(now){
+      if (el.textContent !== (mine === null ? raw : mine)){ clearTimeout(bail); return; }
+      var p = Math.min(1, (now - t0) / dur);
+      var e = 1 - Math.pow(1 - p, 4);                 /* out-quart, matches the CSS easing */
+      if (p < 1){ if (p > 0){ mine = fmt(target * e); el.textContent = mine; } requestAnimationFrame(step); }
+      else { clearTimeout(bail); el.textContent = raw; mine = raw; }   /* the exact original string, always */
+    })(t0);
+  }
+  var COUNT_SEL = '.kpi .value,.stat .v,.stat-card .v,.stat-card .sv,.stat .cnt';
+
+  /* ---- 2. bars extend from zero -------------------------------------------------------
+     No per-client selector list: a bar is recognised STRUCTURALLY - an inline percentage width,
+     on a span/div, whose own class says "fill" or whose parent is a bar/track/meter/gauge. The
+     page chrome (topbar, control-bar, toolbar) is excluded by name because those also contain
+     "bar". Worst case for a false positive is a 1s animation to the identical value. */
+  function isBar(el){
+    var t = el.tagName;
+    if (t !== 'SPAN' && t !== 'DIV' && t !== 'I' && t !== 'B') return false;
+    var w = el.style && el.style.width;
+    if (!w || w.indexOf('%') < 0) return false;
+    var cls = '' + (el.className || '');
+    var p = el.parentNode;
+    var pc = '' + ((p && p.className) || '');
+    if (/topbar|toolbar|navbar|control-bar|sidebar|tabbar/i.test(pc)) return false;
+    return /fill/i.test(cls) || /bar|track|meter|gauge/i.test(pc);
+  }
+  function growBars(scope, pending){
+    if (REDUCED) return;
+    var n = 0;
+    var all = scope.querySelectorAll('span[style*="width"],div[style*="width"],i[style*="width"],b[style*="width"]');
+    for (var i = 0; i < all.length; i++){
+      var el = all[i];
+      if (el.dataset.bbBar || !isBar(el)) continue;
+      /* a document-wide sweep must not touch a bar whose surface has not been revealed yet -
+         that one belongs to reveal(), so it grows when the card is actually seen */
+      if (pending && el.closest('[data-bb-reveal]:not(.bb-in)')) continue;
+      var w = el.style.width;
+      el.dataset.bbBar = '1';
+      el.classList.add('bb-bar');
+      el.style.transitionDelay = Math.min(n * 35, 260) + 'ms';
+      el.style.width = '0%';
+      n++;
+      (function(node, width){
+        requestAnimationFrame(function(){ requestAnimationFrame(function(){ node.style.width = width; }); });
+      })(el, w);
+    }
+  }
+
+  /* ---- 3. Chart.js replays its entry animation when scrolled to -----------------------
+     Charts are built when their tab renders, which for anything below the fold means the
+     animation finished before it was ever seen. reset()+update() replays it once, the first time
+     that canvas is actually on screen. A canvas that is not a Chart.js chart is left alone. */
+  function replayChart(cv){
+    if (cv.dataset.bbPlayed || REDUCED) return;
+    if (typeof Chart === 'undefined' || !Chart.getChart) return;
+    var c;
+    try { c = Chart.getChart(cv); } catch(e){ return; }
+    if (!c) return;                                   /* not built yet - a later scan gets it */
+    cv.dataset.bbPlayed = '1';
+    try { c.reset(); c.update(); } catch(e){}
+  }
+
+  /* ---- 4. the observer that drives all of it ------------------------------------------ */
+  var REVEAL_SEL = '.card,.kpi,.panel-box,.chartbox,.stat-card,.stat,.ccard,.icon-tile,' +
+                   '.tablewrap,.crm-callout,.ai-note,.info-note,.compare-strip';
+  var io = null;
+  function reveal(el){
+    el.classList.add('bb-in');
+    if (io) io.unobserve(el);
+    growBars(el);
+    var f = el.querySelectorAll(COUNT_SEL); for (var i = 0; i < f.length; i++) countUp(f[i]);
+    var cs = el.querySelectorAll('canvas');  for (var j = 0; j < cs.length; j++) replayChart(cs[j]);
+  }
+  function onIntersect(entries){
+    for (var i = 0; i < entries.length; i++) if (entries[i].isIntersecting) reveal(entries[i].target);
+  }
+  function tag(el, i){
+    if (el.dataset.bbReveal) return;
+    el.dataset.bbReveal = '1';
+    /* stagger within the parent row, capped so a long list never crawls in */
+    el.style.transitionDelay = Math.min(i * 40, 200) + 'ms';
+    if (!io){ reveal(el); return; }
+    io.observe(el);
+  }
+  function isNear(el){
+    var r = el.getBoundingClientRect();
+    return r.bottom > -80 && r.top < (window.innerHeight + 80) && r.width > 0;
+  }
+  var sweepT = null, queued = false;
+  function scan(){
+    queued = false;
+    var seen = new Map(), els = doc.querySelectorAll(REVEAL_SEL);
+    for (var i = 0; i < els.length; i++){
+      var el = els[i], k = el.parentNode, n = seen.get(k) || 0;
+      seen.set(k, n + 1);
+      tag(el, n);
+    }
+    /* charts and figures that live OUTSIDE a tagged surface still get their moment */
+    var cs = doc.querySelectorAll('canvas');
+    for (var j = 0; j < cs.length; j++) if (!cs[j].closest('[data-bb-reveal]') && isNear(cs[j])) replayChart(cs[j]);
+    /* Bars a filter change just re-rendered INSIDE an already-revealed surface: that surface will
+       never intersect again, so pick them up here. ONE document-wide query, not one per surface -
+       on a 1,000-row table the per-surface version walked the same subtree dozens of times.
+       `dataset.bbBar` makes it a no-op for everything already handled. */
+    growBars(doc, true);
+    clearTimeout(sweepT); sweepT = setTimeout(sweep, 1000);
+  }
+  function schedule(){ if (!queued){ queued = true; requestAnimationFrame(scan); } }
+
+  /* WATCHDOG - the safety net for the reveal idea. A second after any scan, anything still
+     unrevealed but sitting in the viewport is shown unconditionally. If this ever fires it is
+     papering over a bug, and the dashboard still reads. */
+  function sweep(){
+    var st = doc.querySelectorAll('[data-bb-reveal]:not(.bb-in)');
+    for (var i = 0; i < st.length; i++){
+      var el = st[i];
+      if (el.offsetParent === null) continue;          /* in a hidden tab - genuinely off screen */
+      if (!isNear(el)) continue;
+      reveal(el);
+    }
+  }
+
+  /* ---- 5. one scroll handler: masthead state + the top rail ---------------------------
+     rAF-coalesced, and it only writes a class and a transform - no layout reads beyond
+     scrollY/scrollHeight, so it cannot make scrolling janky on the long tabs. */
+  function scrollFx(){
+    var raf = false, rail = doc.getElementById('bbProgress'), sweepQ = false;
+    function onScroll(){
+      if (raf) return; raf = true;
+      requestAnimationFrame(function(){
+        raf = false;
+        var y = window.scrollY || 0;
+        if (doc.body) doc.body.classList.toggle('bb-scrolled', y > 24);
+        if (rail){
+          var max = Math.max(1, root.scrollHeight - window.innerHeight);
+          rail.style.transform = 'scaleX(' + Math.min(1, y / max) + ')';
+        }
+        /* scrolling is also when a straggler becomes visible, so re-arm the watchdog */
+        if (!sweepQ){ sweepQ = true; setTimeout(function(){ sweepQ = false; sweep(); }, 120); }
+      });
+    }
+    window.addEventListener('scroll', onScroll, {passive:true});
+    window.addEventListener('resize', onScroll, {passive:true});
+    onScroll();
+  }
+
+  function init(){
+    scrollFx();
+    if ('IntersectionObserver' in window){
+      /* threshold 0, NOT a fraction: threshold is the share of the ELEMENT that is visible, so a
+         card taller than the viewport (a 1,000-row table) can never reach 6% and would sit at
+         opacity 0 forever. Any intersecting pixel is the correct trigger. */
+      io = new IntersectionObserver(onIntersect, {rootMargin:'0px 0px -3% 0px', threshold:0});
+    }
+    scan();
+    /* These dashboards re-render whole sections on every filter change, so re-scan on DOM change
+       rather than editing dozens of render functions. childList only + one rAF coalesce: the
+       tables are large and this must never turn into per-row work. */
+    if ('MutationObserver' in window && doc.body){
+      new MutationObserver(schedule).observe(doc.body, {childList:true, subtree:true});
+    }
+    window.addEventListener('load', schedule);
+  }
+  api.scan = schedule;
+  api.sweep = sweep;
+  try{
+    if (doc.readyState === 'loading') doc.addEventListener('DOMContentLoaded', init); else init();
+  }catch(e){
+    /* if the engine itself cannot start, make sure nothing stays hidden */
+    root.className = (' ' + root.className + ' ').replace(' bb-motion ', ' ').trim();
+  }
+})();
+</script>
+<!-- /BB-MOTION-KIT:js -->
+</body>
+</html>

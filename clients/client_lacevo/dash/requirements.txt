@@ -1,0 +1,9 @@
+# Cloud Run dash service: password gate + serves lacevo.json + dashboard.html.
+# Pinned for reproducible container builds.
+#
+# Deliberately SHORTER than the other tenants' lists: there is no /report endpoint here, so no
+# anthropic and no httpx. Add them back only alongside a real report.py (see README ->
+# "Not wired yet"). itsdangerous arrives with Flask and is what platform_sso.py signs with.
+Flask==3.0.3
+gunicorn==23.0.0
+google-cloud-storage==2.18.2
