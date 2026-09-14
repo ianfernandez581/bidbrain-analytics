@@ -61,7 +61,10 @@ def _read_text(name):
 
 DASHBOARD_HTML = _read_text("dashboard.html")
 PLACEHOLDER_JSON = _read_bytes("placeholder.json")
-LOGO_PNG = _read_bytes("logo.png")
+# Two brand assets, because the surfaces need different colourways. Both are derived from
+# creatives/LACEVO-master.webp by gen_brand_assets.py - regenerate, never hand-edit.
+LOGO_PNG = _read_bytes("logo.png")    # the full lockup in BONE, for the dark login card
+ICON_PNG = _read_bytes("icon.png")    # the droplet in CLAY, for the browser tab
 
 # STAFF-ONLY content for the Internal notes tab, kept OUT of data.json on purpose - the precedent is
 # client_schneidersecpwr's Reports tab, whose ad-set targeting is fetched from its own endpoint so
@@ -76,7 +79,7 @@ LOGIN_HTML = """<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Lacevo Dashboard</title>
-<link rel="icon" type="image/png" href="/logo.png">
+<link rel="icon" type="image/png" href="/icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=Montserrat:wght@400;500;600&display=swap" rel="stylesheet">
@@ -99,13 +102,15 @@ LOGIN_HTML = """<!doctype html>
   .card{position:relative;width:100%;max-width:392px;padding:40px 34px;background:#242220;
         border:1px solid rgba(228,224,218,.13);border-radius:16px;
         box-shadow:0 26px 66px -24px rgba(0,0,0,.72),0 0 48px -22px rgba(150,95,72,.62)}
-  .logo-wrap{text-align:center;margin-bottom:22px}
-  .logo-wrap img{max-height:88px;max-width:88px;display:inline-block;border-radius:14px}
+  /* The lockup is wide, not square: constrain its WIDTH and let height follow, or a
+     max-height on a 2.3:1 image leaves it tiny in a 392px card. */
+  .logo-wrap{text-align:center;margin-bottom:26px}
+  .logo-wrap img{width:196px;max-width:62%;height:auto;display:inline-block}
   .brand{font-family:"Instrument Sans",Montserrat,Arial,sans-serif;
          font-size:10px;font-weight:600;letter-spacing:2.2px;color:#C98A6E;
          margin-bottom:9px;text-transform:uppercase;text-align:center}
-  h1{font-family:"Instrument Sans",Montserrat,Arial,sans-serif;
-     font-size:22px;font-weight:600;margin:0 0 6px;letter-spacing:-.2px;text-align:center}
+  /* No <h1> here any more: the lockup IS the wordmark, and a typeset "Lacevo" underneath it
+     was the brand name twice, the second time in the wrong typeface. */
   p.sub{font-size:13px;color:rgba(228,224,218,.6);margin:0 0 24px;text-align:center;line-height:1.5}
   input{width:100%;padding:13px 15px;font-size:15px;color:#E4E0DA;background:#1C1C1C;
         border:1px solid rgba(228,224,218,.18);border-radius:8px;outline:none;
@@ -227,7 +232,6 @@ LOGIN_HTML = """<!doctype html>
 <form class="card" method="post" action="login">
   <div class="logo-wrap"><img src="/logo.png" alt="Lacevo"></div>
   <div class="brand">100% Digital</div>
-  <h1>Lacevo</h1>
   <p class="sub">Trading and paid media dashboard</p>
   <!-- BB-LOGIN-KIT:pw v1 --><div class="bb-pw">
     <input type="password" name="password" placeholder="Password" autofocus autocomplete="current-password">
@@ -351,6 +355,17 @@ def login():
         session.permanent = True
         return redirect("/")
     return render_template_string(LOGIN_HTML, error="Incorrect password."), 401
+
+
+@app.get("/icon.png")
+def icon():
+    """The browser tab icon: the droplet in CLAY, not the bone lockup. A near-white mark is
+    invisible on a light tab strip, and clay carries on both light and dark browser chrome.
+    Public, like /logo.png - the unauthenticated login page references it."""
+    if ICON_PNG is None:
+        abort(404)
+    return Response(ICON_PNG, mimetype="image/png",
+                    headers={"Cache-Control": "public, max-age=86400"})
 
 
 @app.get("/logout")

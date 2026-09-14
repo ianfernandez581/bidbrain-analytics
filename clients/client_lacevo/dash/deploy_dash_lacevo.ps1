@@ -17,11 +17,15 @@ function Must($m) { if ($LASTEXITCODE -ne 0) { Die $m } }
 
 if (-not (Get-Command gcloud -ErrorAction SilentlyContinue)) { Write-Error "gcloud not found."; exit 1 }
 if (-not (Test-Path (Join-Path $DASH_DIR 'dashboard.html'))) { Die "no dashboard.html in $DASH_DIR" }
-# The Lacevo mark ships TWICE on purpose: inlined as an <svg> inside dashboard.html (a root-relative
-# path does not resolve behind the platform proxy at /d/lacevo/) AND as dash/logo.png, which the
-# Dockerfile COPYs and main.py serves at /logo.png for the login page and the browser tab icon.
-# Both are PLACEHOLDERS - see README.md -> "Swapping in the real mark".
-if (-not (Test-Path (Join-Path $DASH_DIR 'logo.png'))) { Die "no logo.png in $DASH_DIR (login page + favicon need it)" }
+# The Lacevo brand ships in THREE colourways, all derived from creatives/LACEVO-master.webp by
+# gen_brand_assets.py, because the surfaces differ:
+#   - a bone HORIZONTAL lockup inlined as base64 inside dashboard.html (inlined because a
+#     root-relative path does not resolve behind the platform proxy at /d/lacevo/)
+#   - dash/logo.png, the bone STACKED lockup, served at /logo.png for the dark login card
+#   - dash/icon.png, the CLAY droplet, served at /icon.png for the browser tab
+# Regenerate them, never hand-edit. See README.md -> "The logo".
+if (-not (Test-Path (Join-Path $DASH_DIR 'logo.png'))) { Die "no logo.png in $DASH_DIR (the login card needs the bone lockup)" }
+if (-not (Test-Path (Join-Path $DASH_DIR 'icon.png'))) { Die "no icon.png in $DASH_DIR (browser tab icon; re-run gen_brand_assets.py)" }
 # The preview renders from this; without it /data.json 404s and the page shows its error state.
 if (-not (Test-Path (Join-Path $DASH_DIR 'placeholder.json'))) { Die "no placeholder.json in $DASH_DIR (re-run gen_placeholder.py)" }
 if (-not (Test-Path (Join-Path $DASH_DIR 'internal_notes.json'))) { Die "no internal_notes.json in $DASH_DIR (staff tab needs it)" }

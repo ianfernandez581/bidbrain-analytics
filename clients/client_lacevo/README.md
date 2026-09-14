@@ -19,16 +19,18 @@ Through the front door: `dashboards.bidbrain.ai` → 100% Digital portal → Lac
 | Path | What it is |
 |---|---|
 | `dash/dashboard.html` | The whole UI. Four tabs: Overview, Paid media, Store, Internal notes. Renders entirely from `/data.json`. |
-| `dash/main.py` | Flask gate: login, platform SSO, `/data.json`, `/internal/notes.json`, `/logo.png`, `/healthz`. |
+| `dash/main.py` | Flask gate: login, platform SSO, `/data.json`, `/internal/notes.json`, `/logo.png`, `/icon.png`, `/healthz`. |
 | `dash/placeholder.json` | The sample payload. **Generated — do not hand-edit.** |
 | `dash/internal_notes.json` | Staff-only content for the Internal notes tab. Kept OUT of `data.json` on purpose. |
 | `dash/platform_sso.py` | Vendored verbatim from the platform. Never edit one copy. |
-| `dash/logo.png` | PLACEHOLDER mark (transparent PNG). Login page + browser tab icon. |
+| `dash/logo.png` | The bone STACKED lockup, for the dark login card. Generated. |
+| `dash/icon.png` | The CLAY droplet, for the browser tab. Generated. |
+| `creatives/LACEVO-master.webp` | The supplied master artwork. Every variant derives from this. |
 | `dash/Dockerfile`, `requirements.txt`, `cloudbuild.yaml` | Container. No trigger is wired; deploys are laptop/ship driven. |
 | `dash/deploy_dash_lacevo.ps1` | Redeploy the service after editing anything under `dash/`. |
 | `deploy_lacevo.ps1` | One-shot idempotent standup (APIs, bucket, SA, secrets, service). |
 | `gen_placeholder.py` | Builds `dash/placeholder.json` and asserts it reconciles. |
-| `gen_logo.py` | Builds the placeholder mark. **Delete it when the real artwork lands.** |
+| `gen_brand_assets.py` | Derives all three brand variants from the master. **Regenerate, never hand-edit.** |
 
 Platform side (outside this folder):
 - `bidbrain-platform/dash/config.py` — the `lacevo` CLIENTS entry + membership of the 100% Digital agency.
@@ -58,18 +60,49 @@ The **dashboard** is a bone field with near-white cards under the brand's black 
 approved reference layout). The **login** is the inverse — the black header treatment taken
 full-page — which is what the brief meant by a dark shell.
 
-### Swapping in the real mark
-The Lacevo droplet in this build is a placeholder in **two** places, and both must be replaced:
-1. `dash/logo.png` — drop the supplied artwork in (square, ≥256px, transparent background). It is
-   served at `/logo.png` for the login page and the favicon.
-2. The inline `<svg>` in the topbar of `dash/dashboard.html` — search `PLACEHOLDER mark`. It is
-   inline **on purpose**: a root-relative asset path does not resolve behind the platform proxy at
-   `/d/lacevo/`, so a `<img src="/logo.png">` in the dashboard would 404 once deployed. That is the
-   same "logo ships twice" gotcha `client_geyervalmont` carries.
+### The logo
 
-Then **delete `gen_logo.py`**. Its only remaining effect would be to overwrite the real artwork,
-which is exactly why the equivalent generator was deleted from `client_sophiie` the day its real
-mark arrived.
+The real artwork landed 2026-09-14 and lives at `creatives/LACEVO-master.webp`. It is a **stacked
+lockup — droplet above a serif wordmark — in near-black ink on SOLID WHITE, with no alpha channel**.
+Every surface it appears on here is dark, so it cannot be used as supplied on any of them.
+
+`gen_brand_assets.py` derives three variants and is the only thing that should ever write them:
+
+| Output | What | Where |
+|---|---|---|
+| `dash/logo.png` | bone STACKED lockup | the dark login card, served at `/logo.png` |
+| `dash/icon.png` | clay droplet, square | the browser tab, served at `/icon.png` |
+| `creatives/topbar_lockup.b64.txt` | bone HORIZONTAL lockup | inlined as base64 in the topbar |
+
+**The white is keyed out by LUMINANCE, not by a colour match**: `alpha = 255 - L`, then the RGB is
+set flat to the target colour. That keeps every antialiased edge pixel at its correct partial
+opacity. A threshold, or a "replace white with transparent" pass, leaves a ragged light fringe on a
+dark ground, which is the tell of a badly key-dropped logo.
+
+**The topbar lockup is HORIZONTAL and we composed it.** The supplied stacked lockup cannot fit a
+50px bar without shrinking the wordmark to noise, and the obvious alternative — the droplet beside
+"Lacevo" set in Instrument Sans, which the placeholder build did — puts a grotesque next to the
+brand's own serif wordmark, and a font mismatch at that size reads as a mistake. So the generator
+places the master's own two elements side by side, unmodified, at their native proportions. Nothing
+is redrawn or retyped, but it is still a DERIVED arrangement: **if Lacevo supply an official
+horizontal lockup, drop it in and delete that step.**
+
+**The topbar mark is inlined as base64 on purpose.** A root-relative asset path does not resolve
+behind the platform proxy at `/d/lacevo/`, so `<img src="/logo.png">` inside the dashboard would 404
+once deployed. That is the same "logo ships twice" gotcha `client_geyervalmont` carries. The login
+page is served from the service root, so it can use the route. The dashboard's own favicon link is
+**relative** (`icon.png`) for the same reason the internal-notes fetch is.
+
+**The favicon is CLAY, not bone.** A near-white mark is invisible on a browser's light tab strip;
+clay carries on both light and dark chrome.
+
+Assets are sized to their DISPLAY, not to round numbers. The master is only 300x166, so anything
+past about 2x is upscaling a low-res source and paying in bytes for detail that is not in the file.
+The inline lockup ships inside every page load, so its size is not free.
+
+`gen_logo.py`, which fabricated the placeholder droplet, was deleted with this change: a generator
+whose only remaining effect would be to overwrite real artwork is a liability, not a tool. That is
+the `client_sophiie` precedent.
 
 ---
 
