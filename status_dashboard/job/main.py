@@ -1089,8 +1089,9 @@ _NETO_FROM = ("FROM `bidbrain-analytics.raw_neto.orders` o, UNNEST(o.order_lines
 
 # Caltex's TTD "site visits": Windsor exposes TTD conversions only as anonymous numbered slots, and
 # `conversions` is a DOUBLE-ENCODED JSON string (PARSE_JSON(JSON_VALUE(...)) first — a naive
-# JSON_EXTRACT returns 0). client_caltex.stg_ttd sums ALL 12 slots per kind, so the check must too.
-# conversion_touch_* (total pixel fires, not ad-attributed) is deliberately excluded on both sides.
+# JSON_EXTRACT returns 0). conversion_touch_* (total pixel fires, not ad-attributed) is
+# deliberately excluded on both sides. _ttd_slots is kept for any client that genuinely needs a
+# multi-slot sum; Caltex and Sophiie both read ONE column - see the note on _caltex_conv_sql.
 def _ttd_slots(kind, n=12):
     return "\n     + ".join(
         f"COALESCE(SAFE_CAST(JSON_VALUE(_c, '$.{kind}_{i:02d}') AS FLOAT64),0)"
@@ -1104,8 +1105,19 @@ _CALTEX_FROM = "FROM `bidbrain-analytics.raw_windsor.perf_the_trade_desk`\n" + _
 
 
 def _caltex_conv_sql(kind, alias):
+    # REPORTING COLUMN 01 ONLY, mirroring clients/client_caltex/sql/01_stg_ttd.sql (2026-09-14).
+    # Column 01 is the URL-scoped Landing Page Visit tag (4tyuvnj) under the Person cross-device
+    # concept; column 02 is the SAME conversions under Household, so summing the 12 slots double
+    # counted - it published 161 post-view / 364 post-click against a true 77 / 181. Verified on the
+    # live mirror: Household >= Person in 197 of 198 rows, byte-identical in 190. When the pending
+    # Star Card SIGN-UP tag (7y9naeh) is attached it will arrive as a new column and must get its
+    # OWN check - never widen this sum. If the view's map changes this MUST change in the same
+    # commit, or the check goes red on correct data.
     return (f"WITH b AS (\n  SELECT SAFE.PARSE_JSON(JSON_VALUE(conversions)) AS _c\n  "
-            + _CALTEX_FROM.replace("\n", "\n  ") + f"\n)\nSELECT ROUND(SUM({_ttd_slots(kind)}\n     ), 4) AS {alias} FROM b;")
+            + _CALTEX_FROM.replace("\n", "\n  ")
+            + f"\n)\nSELECT ROUND(SUM(COALESCE(SAFE_CAST(JSON_VALUE(_c, '$.{kind}_01') AS FLOAT64),0)"
+              f"\n     ), 4) AS {alias} FROM b;")
+
 
 # Sophiie AI: the same Windsor Trade Desk connector as Caltex, one advertiser (gjcl0pp). The
 # advertiser NAME is misspelled "Sohiie AI" on the seat, so the fallback is an EXACT two-value list
@@ -1122,8 +1134,16 @@ _SOPHIIE_FROM = "FROM `bidbrain-analytics.raw_windsor.perf_the_trade_desk`\n" + 
 
 
 def _sophiie_conv_sql(kind, alias):
+    # REPORTING COLUMN 01 ONLY, mirroring clients/client_sophiie/sql/01_stg_ttd.sql (2026-09-14).
+    # Column 01 is Try Free Button Clicks under the Person cross-device concept; column 02 is the
+    # SAME conversions under Household, and columns 03/04 are the Page Land site-visit pixel that
+    # was detached on 2026-09-11. Summing the 12 slots is how 535 site visits came to be published
+    # as the campaign outcome. If the view's map changes this MUST change in the same commit, or the
+    # check goes red on correct data.
     return (f"WITH b AS (\n  SELECT SAFE.PARSE_JSON(JSON_VALUE(conversions)) AS _c\n  "
-            + _SOPHIIE_FROM.replace("\n", "\n  ") + f"\n)\nSELECT ROUND(SUM({_ttd_slots(kind)}\n     ), 4) AS {alias} FROM b;")
+            + _SOPHIIE_FROM.replace("\n", "\n  ")
+            + f"\n)\nSELECT ROUND(SUM(COALESCE(SAFE_CAST(JSON_VALUE(_c, '$.{kind}_01') AS FLOAT64),0)"
+              f"\n     ), 4) AS {alias} FROM b;")
 
 
 BQ_CLIENTS = [
@@ -1502,20 +1522,25 @@ BQ_CLIENTS = [
              "note": "advertiser_cost_adv_currency, already AUD (advertiser_currency_code='AUD') so no FX. "
                      "The JSON stores RAW media cost — the client-billed gross-up (BB_SPEND_MULT) is applied "
                      "in the BROWSER only, so this comparison stays exact. vs sum(rows[].spend)."},
-            {"label": "Trade Desk · Site visits post-view", "kind": "sum", "group": "Trade Desk (display)",
+            # LABELS RENAMED 2026-09-14 with the column-01 fix, and the rename is LOAD-BEARING: the
+            # source side of a check is cached from the previous run keyed on this LABEL and is only
+            # recomputed when the gate moves (see `prev_checks` above), so correcting a check's SQL
+            # alone leaves it reporting the OLD (doubled) number while printing its NEW query.
+            # Renaming the label misses the cache and forces one clean recompute.
+            {"label": "Trade Desk · Landing-page visits post-view", "kind": "sum", "group": "Trade Desk (display)",
              "dash": _rows_sum("pv_conv"),
              "sql": _caltex_conv_sql("view_through_conversion", "post_view"),
              "note": "Ad-attributed visits to the STAR CARD LANDING PAGE - the attached tracker is the "
                      "URL-scoped 'Landing Page Visit' tag (4tyuvnj, live 2026-08-10), NOT the sitewide "
-                     "Default tag and NOT an application/sign-up tag. All 12 anonymous slots summed, "
-                     "matching stg_ttd; when a SECOND tracker is attached (applications) it must be split "
-                     "out on BOTH sides, never folded in here. If TTD later exports one tracker as a "
-                     "DUPLICATE column pair (the VMCH {01,03,05} case), BOTH sides must switch to one "
-                     "column per pair. vs sum(rows[].pv_conv)."},
-            {"label": "Trade Desk · Site visits post-click", "kind": "sum", "group": "Trade Desk (display)",
+                     "Default tag and NOT an application/sign-up tag. REPORTING COLUMN 01 ONLY, matching "
+                     "stg_ttd: column 02 is the same tag under the Household cross-device concept, so the "
+                     "old 12-slot sum double counted. When the pending SIGN-UP tag (7y9naeh) is attached "
+                     "it arrives as a NEW column and must be split out on BOTH sides in one commit, never "
+                     "folded in here - a sign-up is not a landing-page visit. vs sum(rows[].pv_conv)."},
+            {"label": "Trade Desk · Landing-page visits post-click", "kind": "sum", "group": "Trade Desk (display)",
              "dash": _rows_sum("pc_conv"),
              "sql": _caltex_conv_sql("click_conversion", "post_click"),
-             "note": "Same 12-slot sum for the click-attributed side. vs sum(rows[].pc_conv)."},
+             "note": "Same column-01 read for the click-attributed side. vs sum(rows[].pc_conv)."},
         ],
     },
     {
@@ -1543,20 +1568,27 @@ BQ_CLIENTS = [
              "note": "advertiser_cost_adv_currency, already AUD so no FX. The JSON stores RAW media cost - "
                      "the client-billed gross-up (BB_SPEND_MULT) is applied in the BROWSER only, so this "
                      "comparison stays exact. vs sum(rows[].spend)."},
-            {"label": "Trade Desk \u00b7 Sign-ups post-view", "kind": "sum", "group": "Trade Desk (display)",
+            # LABELS RENAMED 2026-09-14 with the column-01 fix, and the rename is LOAD-BEARING: the
+            # source side of a check is cached from the previous run keyed on this LABEL and is only
+            # recomputed when the gate moves (see `prev_checks` above), so correcting a check's SQL
+            # alone leaves it reporting the OLD number while printing its NEW query. Renaming the
+            # label misses the cache and forces one clean recompute. They also no longer say
+            # "sign-up", which this figure is not.
+            {"label": "Trade Desk \u00b7 Try free clicks post-view", "kind": "sum", "group": "Trade Desk (display)",
              "dash": _rows_sum("pv_conv"),
              "sql": _sophiie_conv_sql("view_through_conversion", "post_view"),
-             "note": "Conversions The Trade Desk attributed to the campaign's 'Sign up' source, view-through "
-                     "side. All 12 anonymous slots summed, matching stg_ttd. The campaign has TWO conversion "
-                     "sources attached ('Sign up +1') and Windsor exposes no pixel name, so if a SECOND slot "
-                     "starts reporting (the export job WARNs when it does) it must be split out on BOTH "
-                     "sides, never folded in here. If TTD later exports one tracker as a DUPLICATE column "
-                     "pair (the VMCH {01,03,05} case), BOTH sides must switch to one column per pair. "
-                     "vs sum(rows[].pv_conv)."},
-            {"label": "Trade Desk \u00b7 Sign-ups post-click", "kind": "sum", "group": "Trade Desk (display)",
+             "note": "Try free clicks The Trade Desk attributed view-through. REPORTING COLUMN 01 ONLY, "
+                     "matching stg_ttd - column 01 is the Try Free Button Clicks pixel (s6yku20) under the "
+                     "Person cross-device concept. Column 02 is the SAME conversions under Household and "
+                     "columns 03/04 are the Page Land SITE-VISIT pixel, detached from the campaign on "
+                     "2026-09-11; summing the 12 slots published 535 site visits as the campaign outcome. "
+                     "Windsor exposes no pixel name, so the map is stated in the view from the TTD reporting "
+                     "screen and the export job WARNs if any slot outside 01-04 reports. Both sides move in "
+                     "one commit. vs sum(rows[].pv_conv)."},
+            {"label": "Trade Desk \u00b7 Try free clicks post-click", "kind": "sum", "group": "Trade Desk (display)",
              "dash": _rows_sum("pc_conv"),
              "sql": _sophiie_conv_sql("click_conversion", "post_click"),
-             "note": "Same 12-slot sum for the click-attributed side. vs sum(rows[].pc_conv)."},
+             "note": "Same column-01 read for the click-attributed side. vs sum(rows[].pc_conv)."},
         ],
     },
     {
