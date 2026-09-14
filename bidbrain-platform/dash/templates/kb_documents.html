@@ -1,0 +1,106 @@
+{# The knowledge base: Documents explorer + the Ask panel.
+
+   Reached from the super-admin console and the 100% Digital portal. The ROUTE is the gate
+   (kb_routes._deny -> main._kb_allowed); nothing here decides who may read anything.
+
+   The premium layer is included for the platform's own hover and press feel, but NOTE: its
+   scroll-reveal targets `.card`, `.drow` and `.shead` by name and starts them at opacity 0. No
+   class in kb.css uses those names, so a file list that re-renders on every click can never end
+   up invisible. #}
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Knowledge base · Bidbrain</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+{% include "_premium_head.html" %}
+<link rel="stylesheet" href="/static/kb.css?v=1">
+</head>
+<body>
+
+<div class="kb-top">
+  <span class="logo">{{ logo_svg | safe }}</span>
+  <span class="kb-pill">KNOWLEDGE BASE</span>
+  <span class="label">internal - never shown to a client</span>
+  <span class="spacer"></span>
+  <a class="kb-navlink on" href="/kb/">Documents</a>
+  <a class="kb-navlink" href="/kb/observability">Observability</a>
+  <a class="btn sm" href="/">← Back</a>
+  <a class="btn sm" href="/logout">Log out</a>
+</div>
+
+<div class="kb-shell" id="kbShell">
+
+  <nav class="kb-tree" id="kbTree"></nav>
+
+  <main class="kb-main">
+    <div class="kb-bar">
+      <button class="btn sm" id="kbNewFolder" title="Create a folder here">＋ Folder</button>
+      <button class="btn sm" id="kbNew" title="Paste or write a document">＋ Document</button>
+      <button class="btn sm" id="kbUpload" title="PDF, Markdown, text or CSV">⭱ Upload</button>
+      <input type="file" id="kbFile" multiple hidden
+             accept=".pdf,.md,.markdown,.txt,.csv,.tsv,.json,.log,.rst,.yaml,.yml">
+      <div class="kb-crumbs" id="kbCrumbs"></div>
+      <input class="kb-search" id="kbSearch" placeholder="Filter by name   /" spellcheck="false">
+      <div class="kb-viewtog">
+        <button data-v="details" title="Details">☰</button>
+        <button data-v="icons" title="Icons">▦</button>
+      </div>
+      <button class="btn sm gold" id="kbAskBtn">Ask</button>
+    </div>
+
+    <div class="kb-list" id="kbList">
+      <div class="kb-drop" id="kbDrop"><div>Drop files to add them to this folder</div></div>
+    </div>
+
+    <div style="flex:none;padding:6px 14px;border-top:1px solid var(--border);font-size:11.5px;
+                color:var(--muted);display:flex;gap:14px;align-items:center">
+      <span id="kbStatus"></span>
+      <span class="spacer" style="flex:1"></span>
+      <span style="color:var(--muted-2)">
+        double-click to open · drag onto a folder to move · F2 rename · Del delete · Backspace up
+      </span>
+    </div>
+  </main>
+
+  {# The Ask panel is a COLUMN of this grid, not an overlay: an answer is read next to the
+     documents it cites, and clicking a citation opens that document without losing the answer. #}
+  <aside class="kb-ask" id="kbAskPanel" hidden>
+    <div class="kb-ask-head">
+      <h3>Ask</h3>
+      <div class="kb-scope" id="kbScope">
+        <button class="btn sm" id="kbScopeBtn">Entire knowledge base</button>
+        <div class="kb-scope-menu" id="kbScopeMenu" hidden></div>
+      </div>
+      <button class="btn sm" id="kbNewChat" title="Start a new conversation">＋</button>
+      <button class="btn sm" id="kbAskClose" title="Close">✕</button>
+    </div>
+    <div class="kb-thread" id="kbThread"></div>
+    <div class="kb-composer">
+      <textarea id="kbInput" rows="1" placeholder="Ask about anything in the library…"></textarea>
+      <div class="r">
+        <span id="kbAskNote" style="font-size:11px;color:var(--muted-2)"></span>
+        <span class="sp"></span>
+        <button class="btn sm" id="kbStop" hidden>Stop</button>
+        <button class="btn sm gold" id="kbSend">Ask</button>
+      </div>
+    </div>
+  </aside>
+</div>
+
+<div class="kb-uploads" id="kbUploads"></div>
+
+<script>
+  window.KB_KINDS = {{ kinds | tojson }};
+  window.KB_ACTOR = {{ actor | tojson }};
+  window.KB_SHARED_LOGIN = {{ shared_login | tojson }};
+  window.KB_STAFF = {{ is_staff | tojson }};
+</script>
+<script src="/static/kb.js?v=1"></script>
+<script src="/static/kb_ask.js?v=1"></script>
+{% include "_premium.html" %}
+</body>
+</html>

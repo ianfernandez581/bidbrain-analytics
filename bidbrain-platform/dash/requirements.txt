@@ -6,3 +6,13 @@ google-cloud-run==0.10.11
 google-auth==2.35.0
 requests==2.32.3
 PyJWT[crypto]==2.9.0
+# Knowledge base (kb_index.py): the chunk vectors are one float32 matrix and cosine over the
+# whole library is a single matrix product. Nothing else here needs it.
+numpy==2.4.6
+# PDF upload (kb_extract.py). Imported lazily, so an image without it still boots.
+pypdf==6.14.2
+# Phoenix span export (kb_trace.py), OFF unless PHOENIX_COLLECTOR_ENDPOINT is set and imported only
+# when it is. The ENCODER half only: opentelemetry-exporter-otlp-proto-http would drag in a second
+# HTTP stack, and this image already has `requests` to post the protobuf with.
+opentelemetry-sdk==1.44.0
+opentelemetry-exporter-otlp-proto-common==1.44.0

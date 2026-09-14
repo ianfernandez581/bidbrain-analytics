@@ -1,0 +1,101 @@
+{# The knowledge base's Observability page: what retrieval actually did, and what it is doing now.
+   STAFF ONLY, enforced on the route (kb_routes.observability_page), not by hiding this link. #}
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Knowledge base observability · Bidbrain</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+{% include "_premium_head.html" %}
+<link rel="stylesheet" href="/static/kb.css?v=1">
+<style>body{overflow:auto}</style>
+</head>
+<body>
+
+<div class="kb-top">
+  <span class="logo">{{ logo_svg | safe }}</span>
+  <span class="kb-pill">KNOWLEDGE BASE</span>
+  <span class="label">internal - never shown to a client</span>
+  <span class="spacer"></span>
+  <a class="kb-navlink" href="/kb/">Documents</a>
+  <a class="kb-navlink on" href="/kb/observability">Observability</a>
+  <a class="btn sm" href="/">← Back</a>
+  <a class="btn sm" href="/logout">Log out</a>
+</div>
+
+<div class="kb-page">
+  <div class="kb-wrap">
+    <h1 class="kb-h">Observability</h1>
+    <p class="kb-sub">What the retriever did, and why an answer said what it said. Every figure on
+      this page is counted from real events, not estimated. Nothing here is shown to a client or to
+      any agency.</p>
+
+    <div class="kb-panel">
+      <h3>Reachability</h3>
+      <p class="note">Each of these makes ONE real call when you press the button. A reachability
+        check that does not make a request checks nothing.</p>
+      <div class="kb-kpis" id="obsReach"></div>
+      <div style="margin-top:12px"><button class="btn sm gold" id="obsProbeAll">Check all three</button></div>
+    </div>
+
+    <div class="kb-panel">
+      <h3>The library</h3>
+      <p class="note">Documents in the index, and how many passages carry a vector. A document with
+        passages but no vector is findable by wording only, and says so on its row in Documents.</p>
+      <div class="kb-kpis" id="obsLibrary"></div>
+      <div id="obsPending"></div>
+    </div>
+
+    <div class="kb-panel">
+      <h3>Ask the retriever directly</h3>
+      <p class="note">This runs the SAME search the assistant runs, with no model involved, and
+        shows which retriever found each passage: <span class="kb-found keyword">keyword</span> for
+        shared words, <span class="kb-found semantic">semantic</span> for meaning,
+        <span class="kb-found both">both</span> when the two agreed. Fusion promoting something
+        neither list ranked highly is the behaviour hybrid search is bought for.</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+        <input class="kb-input" id="obsQ" style="flex:1;min-width:260px"
+               placeholder="A question a buyer would actually ask">
+        <button class="btn gold" id="obsRun">Run it</button>
+      </div>
+      <div id="obsResult"></div>
+    </div>
+
+    <div class="kb-panel">
+      <h3>The last 50 questions</h3>
+      <p class="note">Read from the usage record in the bucket, not from this instance's memory, so
+        a question answered five minutes ago by another instance is here too.</p>
+      <div id="obsQuestions"></div>
+    </div>
+
+    <div class="kb-panel">
+      <h3>Activity</h3>
+      <p class="note">Counted from the same record. A document nobody has ever retrieved is dead
+        weight worth reviewing, not necessarily worth deleting.</p>
+      <div class="kb-kpis" id="obsActivity"></div>
+      <div id="obsWeeks" style="margin-top:18px"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:18px" id="obsDocs"></div>
+    </div>
+
+    <div class="kb-panel">
+      <h3>Settings in force</h3>
+      <p class="note">The numbers the retriever is actually running with, read from the code rather
+        than typed here, so this page cannot claim a parameter the system is not using.</p>
+      <div id="obsSettings"></div>
+    </div>
+
+    <div class="kb-panel">
+      <h3>Phoenix tracing</h3>
+      <div id="obsTracing"></div>
+    </div>
+  </div>
+</div>
+
+<script>window.KB_STAFF = {{ is_staff | tojson }};</script>
+<script src="/static/kb_obs.js?v=1"></script>
+{% include "_premium.html" %}
+</body>
+</html>

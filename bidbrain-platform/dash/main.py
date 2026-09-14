@@ -43,6 +43,8 @@ import feedback_ai
 import feedback_loop_data
 import internal_notes
 import internal_chat
+import kb_routes
+import kb_trace
 from store import Store, verify_pw, is_external, agency_setting
 
 app = Flask(__name__)
@@ -455,6 +457,65 @@ def _explainers_allowed():
     return session.get("kind") == "agency" and session.get("agency_slug") == EXPLAINER_AGENCY
 
 
+# ── The knowledge base (kb_*.py) ────────────────────────────────────────────────────────────────
+# The same shape as the explainers above, and deliberately so: ONE agency plus staff, the ROUTE is
+# the gate, and a template flag only decides what renders.
+#
+# 🔴 COPIED FROM `_explainers_allowed`, NOT FROM `_internal_allowed`. The latter takes a client
+# slug and answers a different question (may this session open THAT client's dashboard); the
+# knowledge base is not per client, so there is nothing to scope it by.
+#
+# 🔴 `_admin_kind()`, not `session["kind"]`, so a staff member who has stepped into an agency
+# portal via /enter-agency is still staff here. The PORTAL decides whether the Documents tab is
+# drawn (keyed on the agency, like show_explainers); this decides whether the fetch is answered.
+KB_AGENCY = "x100-digital"
+
+
+def _kb_allowed():
+    if _admin_kind() in ("admin", "superadmin"):
+        return True
+    return session.get("kind") == "agency" and session.get("agency_slug") == KB_AGENCY
+
+
+def _kb_actor():
+    """Who a document, a correction or a question is recorded as.
+
+    🔴 ONLY GOOGLE AND MICROSOFT SIGN-IN SET AN EMAIL. A typed admin password and the shared agency
+    password have none, so those sessions are recorded as the TIER they signed in as, and several
+    people share that identity. Anything that reads like personal ownership (a private
+    conversation, withdrawing your own correction) is therefore not enforceable for them, and the
+    UI says so rather than implying a privacy it cannot deliver.
+    """
+    email = (session.get("email") or "").strip()
+    if email:
+        return email
+    kind = session.get("kind") or "anon"
+    if kind == "agency":
+        return "agency:%s" % session.get("agency_slug", "")
+    return "shared:%s" % kind
+
+
+def _kb_actor_is_shared():
+    return not (session.get("email") or "").strip()
+
+
+def _kb_page_context():
+    """What the knowledge base's own pages need from the platform shell. `shared_login` is passed
+    so the UI can SAY that a password session is not one person, rather than implying a privacy it
+    cannot deliver."""
+    return {"logo_svg": LOGO_SVG,
+            "is_staff": _admin_kind() in ("admin", "superadmin"),
+            "shared_login": _kb_actor_is_shared()}
+
+
+kb_routes.init(app, allowed=_kb_allowed, signed_in=lambda: bool(session.get("kind")),
+               actor=_kb_actor, mutation_blocked=_prod_mutation_blocked,
+               page_context=_kb_page_context)
+# A no-op unless PHOENIX_COLLECTOR_ENDPOINT is set, and it swallows its own failure: observability
+# that can break the thing it observes is worse than none.
+kb_trace.configure()
+
+
 @app.get("/brain/how-it-works/<slug>")
 def brain_explainer(slug):
     if not session.get("kind"):
@@ -580,6 +641,11 @@ def home():
                                # see exactly what Transmission sees.
                                show_explainers=(agency["slug"] == EXPLAINER_AGENCY
                                                 and agency_setting(agency, "show_grid_brain")),
+                               # The knowledge base tab. Keyed on the PORTAL for the same reason
+                               # the explainers are: staff viewing Transmission's portal should see
+                               # what Transmission sees. `_kb_allowed` is the real gate.
+                               show_kb=(agency["slug"] == KB_AGENCY
+                                        and agency_setting(agency, "show_grid_brain")),
                                # Cosmetic per-agency theme (AGENCY_THEMES). None for every agency
                                # without an entry, and the template then emits NO override block -
                                # so those portals are byte-identical to before.

@@ -4,6 +4,18 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY main.py store.py config.py platform_sso.py feedback.py feedback_ai.py logo.svg ./
 COPY internal_notes.py internal_chat.py feedback_loop_data.py ./
+# The knowledge base. 🔴 THE INDEX IS PER PROCESS and this runs two gunicorn workers, so the
+# service holds TWO copies of the corpus plus numpy per worker. It needs more than the original
+# 512Mi; `deploy_dash_platform.ps1` is an image swap and will not set that, so memory is a one-time
+# `gcloud run services update platform-dash --memory 1Gi`.
+COPY kb_store.py kb_chunk.py kb_embed.py kb_index.py kb_extract.py kb_routes.py ./
+COPY kb_chat.py kb_prompt.py kb_feedback.py kb_activity.py kb_trace.py ./
+# 🔴 The self-knowledge document is SHIPPED, not summarised: kb_prompt reads it and puts it in the
+# prompt on every turn, so a rule change is a text edit here rather than a code change.
+COPY kb ./kb
+# The Documents explorer, the Ask panel and the Observability page. Flask serves this folder at
+# /static; before the knowledge base there was no static folder at all.
+COPY static ./static
 COPY lineage ./lineage
 # Agency logos: copied by WILDCARD, because main.py discovers them by globbing `agency_*` /
 # `admlogo_*` at startup. Naming each file here meant a new agency's logo was committed but never

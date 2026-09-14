@@ -5,6 +5,9 @@
   .bbtabs{display:flex;gap:2px;border-bottom:1px solid rgba(255,255,255,.10);margin:24px 0 20px}
   .bbtab{appearance:none;background:none;border:none;color:#8A97AD;font:600 14px/1 inherit;
          padding:11px 18px;cursor:pointer;border-bottom:2.5px solid transparent;margin-bottom:-1px}
+  /* A tab can be a LINK as well as a pane switch (the portal's Documents tab opens a page of its
+     own). Blockification comes free from the flex parent; the underline does not. */
+  a.bbtab{text-decoration:none}
   .bbtab:hover{color:#E8EDF6}
   .bbtab.on{color:#E8EDF6;border-bottom-color:#34D399}
   .bbpane{display:none}.bbpane.on{display:block}

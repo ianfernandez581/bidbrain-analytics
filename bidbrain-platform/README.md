@@ -846,6 +846,176 @@ tab at **`/brain/how-it-works/<slug>`**, served by the platform itself from `das
   copy speaks as "our buyers" / "100% Digital". All data in them is illustrative and names no client.
 - **Editing:** the files are self-contained (logos inlined as base64, Google Fonts linked). Edit the
   HTML in place and redeploy the platform; nothing else references them.
+## The knowledge base (`/kb`, `kb_*.py`, 2026-09-14)
+The agency's own written record, made answerable: media plans, briefs, meeting outcomes, platform
+documentation, the playbook, and the corrections buyers have made to earlier answers. **Internal
+only** - staff and 100% Digital. No client, and no other agency, can reach any part of it.
+
+Reached from the **super-admin console** (a Knowledge base section beside Tools) and the **100%
+Digital portal** (a `Documents` tab in the rail, plus two cards in The Brain tab under the three
+"How The Brain works" walkthroughs that describe this exact system).
+
+| Surface | What it is |
+|---|---|
+| `/kb/` | **Documents** - a Windows File Explorer: folder tree, breadcrumb address bar, sortable details list, icons view, multi-select, right-click menu, F2 rename, Delete, drag onto a folder to move, drag-and-drop upload with a progress row, and a per-row indexing state (`indexing` -> `searchable`). |
+| `/kb/#ask` | **Ask** - a panel beside the list: knowledge base picker, streamed answer, citations that open the document at the passage, the model that answered, and the three-button feedback loop. |
+| `/kb/observability` | **Observability** - reachability, index size, a probe box that runs the real retriever, the last fifty questions, activity, and the settings actually in force. **Staff only.** |
+
+### Who can reach it
+`KB_AGENCY = "x100-digital"` in `main.py`, next to `EXPLAINER_AGENCY`, and `_kb_allowed()` is a copy
+of `_explainers_allowed()` (NOT of `_internal_allowed(client)`, which takes a client slug and answers
+a different question). Staff from any session; otherwise only a 100% Digital agency session.
+- **The ROUTE is the gate.** The portal tab and the console cards only decide what renders, and both
+  are keyed on the PORTAL like `show_explainers`, so staff inside Transmission's portal see what
+  Transmission sees.
+- **An external agency is refused before the blueprint runs.** `_external_deny_by_default` denies
+  every endpoint not on `_EXTERNAL_ALLOWED_ENDPOINTS`, and `kb.*` is deliberately not on it. Do not
+  add it. A route added here is closed to outside tenants by construction, not by memory.
+- Observability is narrower still: 100% Digital may read, ask and correct; the page listing every
+  question anybody asked is staff only, enforced on the route.
+- Gates are covered end to end in `dash/tests/test_kb.py` (staff yes, 100% Digital yes, Transmission
+  403, client 403, external 403, logged out 401 or redirected).
+
+### The modules
+| File | What it owns |
+|---|---|
+| `kb_store.py` | Every object under `kb/` in the platform bucket. Documents, chunks, original files, conversations, feedback, the manifest. |
+| `kb_chunk.py` | ~220-word passages with 40 of overlap, packed on structure, and the ONE tokenizer. |
+| `kb_embed.py` | Vertex `text-embedding-005` in `australia-southeast1`, over stdlib `urllib`. |
+| `kb_index.py` | BM25 + cosine fused by rank, the in-memory corpus, and `reindex_document`. |
+| `kb_extract.py` | An upload into text: PDF via pypdf, text/Markdown/CSV, everything else refused by name. |
+| `kb_prompt.py` | The five prompt blocks, in a fixed order, identical for both providers. |
+| `kb_chat.py` | Kimi streaming, Gemini as the named fallback. |
+| `kb_feedback.py` | A correction into a trusted document that outranks what it corrects. |
+| `kb_activity.py` | The usage record, one immutable object per event, and the Observability page's store. |
+| `kb_trace.py` | Optional Phoenix spans. A genuine no-op when off. |
+| `kb_routes.py` | Every HTTP surface, as one blueprint, with the gates injected rather than imported. |
+| `dash/kb/HOW-BIDBRAIN-KB-WORKS.md` | The assistant's self-knowledge, shipped INSIDE the prompt on every turn. |
+| `static/kb.js` · `kb_ask.js` · `kb_obs.js` · `kb.css` | The three pages. |
+
+### Storage
+```
+gs://bidbrain-analytics-platform-dash/kb/
+  docs/<id>.json          metadata + full text + revisions
+  chunks/<id>.json        the passages + their vectors, WITH a copy of the document's metadata
+  files/<id>/<name>       the original upload, byte for byte
+  feedback/<id>.json      one record per correction
+  chats/<actor>/<id>.json conversations
+  activity/<YYYY-MM>/...  one object per event
+  manifest.json           counts for the Observability page, and nothing else
+```
+`KB_PREFIX` overrides `kb`, which is how a local verification run writes into `kb-dev/` instead of
+the real library. No database and no vector store: the corpus is thousands of chunks, not millions.
+
+### The nine things that will bite somebody
+- **🔴 The freshness signal is the OBJECT LISTING, not `manifest.json`.** A manifest is a mutable
+  object every write must read-modify-write, and Cloud Run runs several instances: two uploads
+  landing together lose an increment and the loser never notices a document again. `list_blobs` over
+  `kb/chunks/` returns each object's GENERATION, which is atomic by construction and *is* the
+  per-document version an incremental rebuild needs, so the check and the diff are one call.
+  Measured at ~170-210 ms per search, against ~1.8 s for the query embedding.
+- **🔴 The cache refreshes INCREMENTALLY.** Rebuilding from GCS is one GET per document, which at a
+  few hundred documents is fifteen seconds after every write on every instance. Passages are keyed
+  by object generation and only changed documents are re-fetched (verified: editing 1 of 3 reads
+  exactly 1). Re-tokenising is still done in full, deliberately: caching token counters per chunk
+  would put back the per-chunk dicts the array layout exists to avoid.
+- **🔴 The index is PER PROCESS and the service runs two gunicorn workers.** Two copies of the
+  corpus plus numpy per worker. The memory was raised off the original 512Mi for this;
+  `deploy_dash_platform.ps1` is an image swap and will not set it, so it is a one-time
+  `gcloud run services update platform-dash --region australia-southeast1 --memory 1Gi`.
+- **🔴 There is no per-viewer visibility predicate**, unlike the system this is ported from. That
+  one is private-by-default and enforces visibility inside the retriever. This one is not:
+  everybody past the route gate reads all of it, and the only hard filter is SCOPE. Do not assume a
+  document can be hidden from a colleague by putting it here.
+- **🔴 `k3` accepts exactly one temperature.** Any value other than 0.6 returns
+  `400 invalid temperature: only 0.6 is allowed for this model`, including the 0.2 that is right for
+  a retrieval assistant everywhere else. `kb_chat` therefore sends NO temperature field and takes the
+  provider's default; pinning 0.6 would break again the day a later model pins a different one. This
+  is why the first live turn silently fell through to Gemini.
+- **🔴 The Kimi code key only works against `https://api.kimi.com/coding/v1`.** Pointed at
+  `api.moonshot.ai` it returns 401, which looks exactly like a revoked key. `KIMI_BASE_URL` overrides
+  it so a plan change is an env var.
+- **🔴 A title or a folder may never contain a line break.** A folder is a path STRING, so a pasted
+  multi-line title becomes a folder of that name sitting in the rail forever. `kb_store.one_line` is
+  the one place that is enforced; every title and folder goes through it.
+- **🔴 The bookkeeping is set BEFORE the chunks are written**, not after. The chunks object carries
+  the copy of the document's metadata that the file list reads, so writing it first publishes the
+  previous run's `embed_error` and a document that failed to embed looks, in the list, exactly like
+  one that succeeded.
+- **🔴 No class in `kb.css` may be `.card`, `.drow` or `.shead`.** The premium layer's scroll-reveal
+  targets those by name and starts them at opacity 0 until an observer fires. On a list that
+  re-renders on every click that means rows invisible until you scroll, which reads as data loss.
+
+### Trust, and why these numbers
+One retriever's 40 candidates span 0.0064 of fused score. `TRUST_NUDGE = 0.004` lifts a
+`trust: verified` document about 12 to 15 ranks: enough that a correction reliably surfaces, not
+enough to beat a passage both retrievers ranked highly. What guarantees a correction outranks the
+thing it corrects is TARGETED, not blanket: the correcting document names the passages it supersedes
+and those take `SUPERSEDED_PENALTY = 0.02`, wider than the whole candidate span. Measured on the real
+library: the corrected passage falls 0.03279 -> 0.01226 and rank 1 -> rank 5, while an unrelated
+question is unaffected by the same verified document. The Observability probe box shows this by
+re-running the identical query with trust switched OFF, rather than by asserting it.
+
+### The feedback loop
+Every answer carries **Right**, **Right, not here**, **Wrong**.
+- **The person writes the rule, not the model.** A model-authored title would be an LLM writing into
+  the trusted corpus with nobody approving it. The box prefills nothing it did not earn; their submit
+  IS the approval.
+- **"Right, not here" does not by itself make a document.** It means the answer was right and the
+  citation was not, which is a retrieval signal, not new knowledge. Only a typed correction promotes.
+- **Superseding is TICKED, not inferred.** Demoting every retrieved passage would punish seven for
+  one wrong sentence, so the panel lists the citations and pre-ticks the top-ranked one, which can be
+  unticked. A correction with nothing ticked still ranks up on trust; it just pushes nothing down.
+- **A correction is never written into the document it corrects.** The original stands. Two documents
+  that disagree is the true state of the world when a plan was superseded rather than rewritten, and
+  the assistant is told to say which wins and why, naming who made the correction and when.
+- **Withdrawing ARCHIVES the document it produced**, never deletes it: it leaves search and stays
+  readable.
+
+### Identity, stated rather than implied
+Only Google and Microsoft sign-in set `session["email"]`. A typed admin password and the shared
+100% Digital password identify a TIER, so `_kb_actor()` records `shared:superadmin` or
+`agency:x100-digital`, several people share that identity, and conversations under it are shared.
+The UI says so (`KB_SHARED_LOGIN`) instead of implying a privacy the platform cannot deliver, and
+`kb_store.display_actor` turns the raw string into something readable before it reaches a sentence -
+without it the assistant wrote "this follows a correction shared:superadmin made".
+
+### Observability, and Phoenix
+The page answers "why did it say that?" **with tracing switched off**, because the question record it
+reads is the activity log in the bucket, not this instance's memory: the instance that answered is
+rarely the one serving the page. Phoenix is optional (`PHOENIX_COLLECTOR_ENDPOINT`), a genuine no-op
+when unset, and `KB_TRACE_CONTENT=off` stops passage text being captured for a Phoenix somebody else
+can read.
+- **Phoenix's OTLP/HTTP endpoint is protobuf only** (JSON gets a flat 415), so `kb_trace` uses the
+  ENCODER half of the official exporter and posts the bytes with `requests`.
+- **The otel version is load bearing**: `opentelemetry-*==1.27.0` pins protobuf to 4.x and breaks the
+  whole `google-cloud-*` stack this service runs on. `1.44.0` coexists with protobuf 7. Verified.
+
+### Running it locally
+```powershell
+$env:PLATFORM_BACKEND="memory"; $env:DEV="1"; $env:SESSION_SECRET="x"; $env:SSO_SECRET="y"
+$env:COOKIE_DOMAIN=""; $env:GCS_BUCKET="bidbrain-analytics-platform-dash"; $env:KB_PREFIX="kb-dev"
+.\.venv\Scripts\python.exe bidbrain-platform\dash\main.py
+```
+Writes are refused from a local run (`_prod_mutation_blocked`); `ALLOW_PROD_MUTATIONS=1` overrides,
+and `KB_PREFIX` keeps them out of the real library. Tests:
+```powershell
+cd bidbrain-platform\dash; ..\..\.venv\Scripts\python.exe -m pytest tests -q
+```
+They touch REAL GCS under a throwaway `kb-test-<random>/` prefix and wipe it, on purpose: the design
+rests on GCS generations behaving as the index assumes, and a fake storage layer would test the fake.
+
+### Wiring (one-time, already done)
+```powershell
+gcloud projects add-iam-policy-binding bidbrain-analytics `
+  --member="serviceAccount:platform-dash-web@bidbrain-analytics.iam.gserviceaccount.com" `
+  --role="roles/aiplatform.user"
+gcloud secrets add-iam-policy-binding kimi-api-key `
+  --member="serviceAccount:platform-dash-web@bidbrain-analytics.iam.gserviceaccount.com" `
+  --role="roles/secretmanager.secretAccessor"
+gcloud run services update platform-dash --region australia-southeast1 `
+  --update-secrets="KIMI_API_KEY=kimi-api-key:latest" --memory 1Gi
+```
 
 ## Open slides (AI decks — the "Open slides" button)
 
@@ -930,6 +1100,20 @@ bidbrain-platform/
     feedback_ai.py               one Gemini call: transcribe the voice note + interpret feedback into summary + action items
     internal_notes.py            staff-only Internal Notes store (one JSON per client in the platform bucket)
     internal_chat.py             staff-only Assistant: Gemini turn over live data.json + lineage digest, with note tools + visible thinking
+    kb_store.py                  knowledge base storage: docs / chunks / files / chats / feedback under kb/ in the platform bucket
+    kb_chunk.py                  ~220-word passages packed on structure, 40-word overlap, and the ONE tokenizer
+    kb_embed.py                  Vertex text-embedding-005 over stdlib urllib; RETRIEVAL_DOCUMENT vs RETRIEVAL_QUERY; fails soft and says so
+    kb_index.py                  BM25 + cosine fused by rank (RRF), incremental in-memory corpus, and the reindex write path
+    kb_extract.py                an upload into text (PDF via pypdf, text/Markdown/CSV); anything else refused BY NAME, never stored as mojibake
+    kb_prompt.py                 the five prompt blocks in a fixed order, identical for both providers
+    kb_chat.py                   Kimi streaming with Gemini as the NAMED fallback (the panel says which answered)
+    kb_feedback.py               a buyer's correction into a trusted document that outranks the passage it corrects
+    kb_activity.py               the usage record: one immutable object per event, and the Observability page's store
+    kb_trace.py                  optional Phoenix spans; a genuine no-op unless PHOENIX_COLLECTOR_ENDPOINT is set
+    kb_routes.py                 every /kb HTTP surface as one blueprint, with the gates INJECTED (main.py imports this, not the reverse)
+    kb/HOW-BIDBRAIN-KB-WORKS.md  the assistant's self-knowledge, shipped INSIDE the prompt on every turn
+    static/kb.js kb_ask.js kb_obs.js kb.css   the Documents explorer, the Ask panel, the Observability page
+    tests/test_kb.py             every gate in the access table, plus the feedback loop end to end (real GCS, throwaway prefix)
     build_lineage.py             builds lineage/<c>.txt digests from clients/*/README.md + sql/ headers (run after doc/sql changes)
     lineage/                     committed per-client lineage digests, shipped in the image (COPY lineage)
     seed_registry.py             push config.py → the registry JSON in GCS (idempotent; --force to overwrite)
@@ -995,8 +1179,12 @@ super-admin god-mode**: `secretmanager.secretVersionAdder` on each `<c>-dash-pas
 `platform-dash-session-key`, `platform-sso-key`, `platform-super-admin-password` · env
 `GOOGLE_OAUTH_CLIENT_ID` (public OAuth client id for native Google sign-in; no secret) ·
 `MICROSOFT_OAUTH_CLIENT_ID` + `MICROSOFT_OAUTH_TENANT` (public app + tenant id for single-tenant
-Microsoft sign-in; no secret) · registry
-`gs://bidbrain-analytics-platform-dash/platform.json` (private). No database, no export job, no scheduler.
+Microsoft sign-in; no secret) · `KIMI_API_KEY` (secret `kimi-api-key`, the knowledge base assistant)
+· optional `KB_PREFIX`, `KB_EMBED=off`, `KIMI_BASE_URL`, `KB_KIMI_MODEL`, `KB_GEMINI_MODEL`,
+`PHOENIX_COLLECTOR_ENDPOINT`, `KB_TRACE_CONTENT` · registry
+`gs://bidbrain-analytics-platform-dash/platform.json` (private). The knowledge base lives under
+`kb/` in the same bucket. **`roles/aiplatform.user` on the project** for Vertex embeddings.
+No database, no export job, no scheduler.
 
 ## Hardening / known trade-offs
 Reviewed adversarially; the items below are deliberate trade-offs for an internal, admin-gated

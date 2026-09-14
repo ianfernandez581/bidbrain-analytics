@@ -669,6 +669,10 @@
       <button class="bbtab" data-pane="accuracy">Data Accuracy</button>
       {% if show_grid_brain %}<button class="bbtab" data-pane="grid">The Grid</button>
       <button class="bbtab" data-pane="brain">The Brain</button>{% endif %}
+      {# Documents is a LINK, not a pane: the explorer is a page of its own, the way the explainers
+         are. Keyed on the PORTAL like show_explainers, so staff visiting another agency's portal
+         see what that agency sees; the route is the real gate either way. #}
+      {% if show_kb %}<a class="bbtab" href="/kb/">Documents</a>{% endif %}
       {% if show_feedback_loop %}<button class="bbtab" data-pane="feedbackloop">Feedback Loop</button>{% endif %}
     </div>
     <div class="bbpane on" id="pane-overview">
@@ -801,6 +805,27 @@
             <h4>Ask Your Campaigns</h4>
             <p>Pick a media buying question, watch it become a cited answer, and see the buyer's verdict teach the knowledge base.</p>
             <span class="go">Open walkthrough →</span>
+          </a>
+        </div>
+      </section>
+      {% endif %}
+      {# The real thing the three walkthroughs describe. Placed here deliberately: somebody who has
+         just read how retrieval works should be one click from using it. #}
+      {% if show_kb %}
+      <section class="hiw" aria-labelledby="kbTitle">
+        <div class="hiw-h"><h3 id="kbTitle">The knowledge base</h3><span>The written record, made answerable. Internal only.</span></div>
+        <div class="hiw-grid">
+          <a class="hiw-card" href="/kb/">
+            <span class="n">DOCUMENTS</span>
+            <h4>The library</h4>
+            <p>Media plans, briefs, meeting outcomes and the playbook, in folders. Drop a file in and it is searchable within seconds.</p>
+            <span class="go">Open Documents →</span>
+          </a>
+          <a class="hiw-card" href="/kb/#ask">
+            <span class="n">ASK</span>
+            <h4>Ask the library</h4>
+            <p>Every answer cites the passages it came from. If one is wrong, correct it and the next person gets your correction first.</p>
+            <span class="go">Ask a question →</span>
           </a>
         </div>
       </section>

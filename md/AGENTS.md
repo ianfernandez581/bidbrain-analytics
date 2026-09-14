@@ -87,6 +87,15 @@ dates, "verified on") lives there too, never here.**
   Gemini turn over live data.json + committed `dash/lineage/` digests, with note-editing tools and
   visible thinking - see the platform README's two Gemini gotchas before touching it; re-run
   `build_lineage.py` after meaningful client README/sql changes).
+  **The KNOWLEDGE BASE at `/kb` (2026-09-14)** is the platform's other AI surface and a different
+  thing entirely: the agency's own WRITTEN record (media plans, briefs, meetings, the playbook)
+  chunked, embedded and retrieved by BM25 + cosine fused by rank, with a Documents explorer, an Ask
+  panel whose every answer cites its passages, a feedback loop that turns a buyer's correction into
+  a trusted document outranking what it corrects, and a staff-only Observability page. Staff and
+  100% Digital only, never a client and never another agency. It holds the WORDS; the per-dashboard
+  Internal Assistant above holds the NUMBERS, and neither reads the other's source. Everything lives
+  under `kb/` in the platform bucket - no database, no vector store. Full detail, and the nine
+  gotchas, in `bidbrain-platform/README.md` -> "The knowledge base".
   Registry = one private JSON in GCS. Service `platform-dash`.
 - **`status_dashboard/`** - pipeline-health data + deploy plumbing (UI is merged into the platform;
   the standalone `status-dash` service is retired and its `dash/` source deleted). `status-export`

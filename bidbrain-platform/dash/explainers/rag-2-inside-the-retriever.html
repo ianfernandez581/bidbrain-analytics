@@ -226,7 +226,7 @@ button { font: inherit; color: inherit; }
         <p class="cap-note" id="cap-note"><b id="cap-note-l"></b><span id="cap-note-t"></span></p>
         <div class="facts" id="cap-facts"></div>
       </div>
-      <div class="disclaimer">Example chunks and scores are illustrative, for a paid media agency.</div>
+      <div class="disclaimer">Example chunks and scores are illustrative, for a paid media agency. The real retriever keeps the top 8; this list is shortened so the cut is visible.</div>
     </div>
 
     <div class="stagebox" id="stage" data-step="0">
@@ -272,7 +272,7 @@ button { font: inherit; color: inherit; }
           <div class="col sem"><h3>Semantic <small>cosine</small></h3><div id="c-sem"></div></div>
           <div class="col kw"><h3>Keyword <small>BM25</small></h3><div id="c-kw"></div></div>
           <div class="col fused"><h3>Fused ranking <small>RRF score</small></h3><div id="c-fused"></div>
-            <div class="pack"><b>Context package → the LLM</b>5 chunks · ~1,400 tokens · every source attached</div>
+            <div class="pack"><b>Context package → the LLM</b>8 chunks · ~2,300 tokens · every source attached</div>
           </div>
         </div>
       </div>
@@ -467,7 +467,7 @@ button { font: inherit; color: inherit; }
   $("c-fused").innerHTML = FUSED.map((f, i) => {
     const kind = f.r.sem && f.r.kw ? '<span class="badge b">BOTH</span>' : f.r.sem ? '<span class="badge s">SEM</span>' : '<span class="badge k">KW</span>';
     const row = '<div class="row' + (i >= 5 ? " out" : "") + '" data-id="' + f.id + '" style="animation-delay:' + (i * .14) + 's"><span class="rk">' + (i + 1) + '</span><span class="nm">' + esc(nm(f.id)) + '</span>' + kind + '<span class="v">' + f.score.toFixed(4) + '</span></div>';
-    return row + (i === 4 ? '<div class="cut">TOP 5 → SENT TO THE PROMPT</div>' : "");
+    return row + (i === 4 ? '<div class="cut">THE CUT → SENT TO THE PROMPT</div>' : "");
   }).join("");
   document.querySelectorAll(".fusion .row").forEach((r) => {
     r.addEventListener("mouseenter", () => document.querySelectorAll('.fusion .row[data-id="' + r.dataset.id + '"]').forEach((x) => x.classList.add("lit")));
@@ -500,12 +500,12 @@ button { font: inherit; color: inherit; }
       title: "Combine both lists, and reward what they agree on.",
       body: "Reciprocal Rank Fusion scores each chunk by its position in each list. Chunks both searches found rise to the top. The pacing report matched the words but not the meaning, so it falls below the cut.",
       noteL: "IN MEDIA BUYING TERMS", note: "Two buyers audit the same account independently. Whatever both of them flag gets looked at first.",
-      facts: ["k = 60", "top 5 kept"] },
+      facts: ["k = 60", "top 8 kept"] },
     { key: "Hand off", kicker: "STEP 5 · HAND OFF THE EVIDENCE", dur: 9000,
-      title: "The best five chunks go to the model, sources attached.",
+      title: "The best eight chunks go to the model, sources attached.",
       body: "The delivery audit, the performance log, the 2 August decision, the client's email and LinkedIn's audience guidance. That's the evidence the LLM will answer from, instead of guessing.",
       noteL: "NEXT", note: "The third graphic follows this package into the prompt and out as an answer.",
-      facts: ["5 chunks", "~1,400 tokens", "sources cited"] },
+      facts: ["8 chunks", "~2,300 tokens", "sources cited"] },
   ];
 
   const stage = $("stage");
