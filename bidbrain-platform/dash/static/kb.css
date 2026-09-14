@@ -273,6 +273,17 @@ select.kb-input{appearance:none;background-image:linear-gradient(45deg,transpare
 .kb-correct textarea.kb-input{min-height:78px}
 .kb-hint{font-size:11px;color:var(--muted-2);line-height:1.55;margin:5px 0 8px}
 
+/* a proposed edit: shown, never applied, until somebody presses the button */
+.kb-propose{margin-top:11px;border:1px solid var(--sel-line);border-radius:11px;padding:11px 13px;
+            background:linear-gradient(180deg,var(--gold-dim),transparent 70%)}
+.kb-propose-h{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12.5px;
+              font-weight:600;margin-bottom:7px}
+.kb-propose-where{font-size:11.5px;color:var(--muted);line-height:1.55;margin-bottom:9px}
+.kb-propose-head{font-size:12px;font-weight:700;color:var(--gold);margin-bottom:5px}
+.kb-propose-body{background:var(--panel-2);border:1px solid var(--border);border-radius:8px;
+                 padding:9px 11px;font-size:12.5px;line-height:1.6;white-space:pre-wrap;
+                 max-height:220px;overflow:auto;margin-bottom:10px}
+
 .kb-composer{flex:none;border-top:1px solid var(--border);padding:10px 12px;background:var(--panel-2)}
 .kb-composer textarea{width:100%;background:var(--panel);border:1px solid var(--border);border-radius:10px;
                       color:var(--text);padding:9px 11px;font:inherit;font-size:13px;resize:none;

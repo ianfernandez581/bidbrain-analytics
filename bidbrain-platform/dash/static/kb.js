@@ -268,7 +268,8 @@
     { key: 'kind', label: 'Type', w: '110px' },
     { key: 'chars', label: 'Size', w: '90px' },
     { key: 'state', label: 'Search', w: '120px' },
-    { key: 'owner', label: 'Added by', w: '190px' }
+    { key: 'owner', label: 'Added by', w: '170px' },
+    { key: 'updated_by', label: 'Modified by', w: '170px' }
   ];
 
   function sortedFolders() {
@@ -376,6 +377,7 @@
     tr.appendChild(el('td', 'kb-num', f.count ? f.count + ' item' + (f.count === 1 ? '' : 's') : ''));
     tr.appendChild(el('td'));
     tr.appendChild(el('td'));
+    tr.appendChild(el('td'));
     tr.ondblclick = function () { go(f.path); };
     tr.onclick = function () { S.sel = []; paintSel(); };
     tr.oncontextmenu = function (e) { e.preventDefault(); folderMenu(e, f); };
@@ -403,6 +405,10 @@
     if (d.state_note) b.title = d.state_note;
     st.appendChild(b); tr.appendChild(st);
     tr.appendChild(el('td', 'kb-num', who(d.owner)));
+    var mod = el('td', 'kb-num', who(d.updated_by) || who(d.owner));
+    mod.title = 'last edited ' + fmtDate(d.updated_at)
+      + (d.revisions ? ' · ' + d.revisions + ' earlier version' + (d.revisions === 1 ? '' : 's') : '');
+    tr.appendChild(mod);
     wireItem(tr, d);
     return tr;
   }
@@ -676,9 +682,14 @@
         body.innerHTML = '';
         if (tab === 'text') {
           var meta = el('p', 'meta');
+          // 🔴 WHO last changed it, not only when. "updated 14 Sep" answers half the question
+          // somebody is actually asking when they find a document that disagrees with them.
           meta.innerHTML = '<b>' + (d.folder || 'No folder') + '</b> · ' + d.chunks + ' passage'
-            + (d.chunks === 1 ? '' : 's') + ' · ' + d.embedded + ' with meaning search · added by '
-            + (who(d.owner) || 'unknown') + ' · updated ' + fmtDate(d.updated_at)
+            + (d.chunks === 1 ? '' : 's') + ' · ' + d.embedded + ' with meaning search'
+            + '<br>added by <b>' + esc(who(d.owner) || 'unknown') + '</b> on ' + fmtDate(d.created_at)
+            + ' · last edited by <b>' + esc(who(d.updated_by) || who(d.owner) || 'unknown')
+            + '</b> on ' + fmtDate(d.updated_at)
+            + ' · ' + d.revisions + ' earlier version' + (d.revisions === 1 ? '' : 's')
             + (d.state_note ? ' · <b>' + d.state_note + '</b>' : '');
           body.appendChild(meta);
           var ta = el('textarea', 'kb-input'); ta.id = 'kbDocText'; ta.value = d.body || '';
@@ -701,9 +712,13 @@
           var ul = el('ul', 'kb-revs');
           (d.revision_list || []).forEach(function (r, i) {
             var li = el('li');
-            li.innerHTML = '<b>' + fmtDate(r.at) + '</b> · ' + (who(r.by) || 'unknown')
-              + (r.via === 'assistant' ? ' <span class="kb-badge">assistant</span>' : '')
-              + (r.note ? ' · ' + r.note : ' ');
+            // An assistant edit names BOTH: the AI drafted it, a person approved it and it ran
+            // as their change. Recording only one of those would misrepresent who is answerable.
+            li.innerHTML = '<b>' + fmtDate(r.at) + '</b> · '
+              + (r.via === 'assistant'
+                 ? 'drafted by the assistant, approved by <b>' + esc(who(r.by) || 'unknown') + '</b>'
+                 : 'edited by <b>' + esc(who(r.by) || 'unknown') + '</b>')
+              + (r.note ? ' · ' + esc(r.note) : '');
             var b = el('button', 'btn sm', 'Restore this version');
             b.style.marginLeft = '8px';
             b.onclick = function () {

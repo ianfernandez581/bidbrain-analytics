@@ -332,6 +332,115 @@ def test_a_folder_that_still_holds_documents_is_not_deleted(client):
     client.delete("/kb/docs/%s" % d["id"])
 
 
+# --- the assistant editing documents --------------------------------------------------------------
+
+def test_append_adds_a_dated_section_and_records_who_and_when(client):
+    """🔴 The assistant's ONE write verb, and the metadata is the point of it. A change has to say
+    WHEN it happened, WHO stands behind it, and that the assistant drafted it, or nobody can judge
+    a paragraph they did not write."""
+    _staff(client)
+    doc = client.post("/kb/docs", json={
+        "title": "Rate card rationale", "folder": "Playbook",
+        "body": "The margin floor is forty per cent."}).get_json()["doc"]
+
+    r = client.post("/kb/docs/%s/append" % doc["id"], json={
+        "heading": "Q3 rate review", "text": "The floor rose to fifty per cent from Q3.",
+        "note": "Record the Q3 floor", "via": "assistant"})
+    assert r.status_code == 200
+
+    full = client.get("/kb/docs/%s" % doc["id"]).get_json()["doc"]
+    # 🔴 APPEND CANNOT LOSE TEXT. The original sentence is still there, which is the whole reason
+    # this is the only verb the assistant gets.
+    assert "The margin floor is forty per cent." in full["body"]
+    assert "## Q3 rate review (" in full["body"]
+    assert "rose to fifty per cent" in full["body"]
+
+    rev = full["revision_list"][0]
+    assert rev["via"] == "assistant", "an assistant draft must be marked as one"
+    assert rev["by"], "a change with no author is not an audit trail"
+    assert rev["at"] > 0
+    assert rev["note"] == "Record the Q3 floor", "the note must be the line the person approved"
+    assert full["updated_by"] == rev["by"]
+    assert full["updated_at"] >= rev["at"]
+
+    # The appended text is searchable at once, not on some later pass.
+    s = client.post("/kb/search", json={"q": "when did the floor rise to fifty"}).get_json()
+    assert any("fifty per cent from Q3" in e["passage"] for e in s["excerpts"])
+
+    # And it is undoable, with the undo itself recorded.
+    client.post("/kb/docs/%s/restore" % doc["id"], json={"index": 0})
+    back = client.get("/kb/docs/%s" % doc["id"]).get_json()["doc"]
+    assert "Q3 rate review" not in back["body"]
+    assert back["revisions"] == 2, "history must never lose a branch"
+    assert back["revision_list"][1]["via"] == "assistant", "the AI edit stays in the record"
+    client.delete("/kb/docs/%s" % doc["id"])
+
+
+def test_append_refuses_what_it_should(client):
+    _staff(client)
+    doc = client.post("/kb/docs", json={"title": "T", "body": "b"}).get_json()["doc"]
+    assert client.post("/kb/docs/%s/append" % doc["id"], json={"text": "  "}).status_code == 400
+    assert client.post("/kb/docs/d_0_nosuchxx/append", json={"text": "x"}).status_code == 404
+    client.patch("/kb/docs/%s" % doc["id"], json={"archived": True})
+    r = client.post("/kb/docs/%s/append" % doc["id"], json={"text": "x"})
+    assert r.status_code == 409, "an archived document is out of the library, not a write target"
+    client.delete("/kb/docs/%s" % doc["id"])
+
+
+def test_a_metadata_only_patch_is_actually_saved(client):
+    """🔴 THE REGRESSION. `reindex_document` short-circuits when the TEXT is unchanged, and it used
+    to return before writing anything, so a PATCH that only set `archived`, `trust` or `kind` was
+    silently discarded. The Explorer's Archive button appeared to work and did nothing. Found by a
+    test aiming at something else, which is the only reason it was found at all."""
+    _staff(client)
+    doc = client.post("/kb/docs", json={"title": "Meta only", "body": "unchanging text",
+                                        "folder": "Playbook"}).get_json()["doc"]
+    for field, value in (("archived", True), ("trust", "verified"), ("kind", "plan")):
+        client.patch("/kb/docs/%s" % doc["id"], json={field: value})
+        got = client.get("/kb/docs/%s" % doc["id"]).get_json()["doc"]
+        assert got[field] == value, "%s did not persist" % field
+    # And the index agrees: archived means out of search, not merely flagged.
+    s = client.post("/kb/search", json={"q": "unchanging text"}).get_json()
+    assert all(e["document_id"] != doc["id"] for e in s["excerpts"])
+    client.delete("/kb/docs/%s" % doc["id"])
+
+
+def test_an_edit_by_a_person_is_not_labelled_as_the_assistant(client):
+    """The `via` field is how the history pane distinguishes them. Defaulting it to "assistant"
+    would put the AI's name on somebody's own writing."""
+    _staff(client)
+    doc = client.post("/kb/docs", json={"title": "T", "body": "b"}).get_json()["doc"]
+    client.post("/kb/docs/%s/append" % doc["id"], json={"text": "typed by a person"})
+    full = client.get("/kb/docs/%s" % doc["id"]).get_json()["doc"]
+    assert full["revision_list"][0]["via"] == "human"
+    client.delete("/kb/docs/%s" % doc["id"])
+
+
+def test_the_proposal_block_never_survives_into_stored_text(client):
+    """🔴 Stripped wherever the answer is kept or reused. Fed back as a prior turn, a block also
+    teaches the model that emitting one is simply how answers look, which is how proposals start
+    appearing on questions that settle nothing."""
+    import kb_prompt
+    prose, proposed = kb_prompt.strip_proposal(
+        'Here is the answer [1].\n\n```bb-edit\n{"action":"append","passage":1,"text":"x"}\n```')
+    assert prose == "Here is the answer [1]." and proposed is True
+    prose2, proposed2 = kb_prompt.strip_proposal("Just an answer.")
+    assert prose2 == "Just an answer." and proposed2 is False
+    # An unterminated block (the stream was stopped mid-proposal) is still cut.
+    prose3, proposed3 = kb_prompt.strip_proposal('Answer.\n\n```bb-edit\n{"action":"app')
+    assert prose3 == "Answer." and proposed3 is False
+
+
+def test_the_prompt_tells_the_model_the_real_folders_and_the_real_rules(client):
+    import kb_prompt
+    p = kb_prompt.prefix([{"title": "A", "folder": "Playbook", "passage": "x", "trust": "standard"}],
+                         folders=["Playbook", "Media plans"])
+    assert "```bb-edit" in p
+    assert "- Playbook" in p and "- Media plans" in p, "a create proposal must name a real folder"
+    assert "You cannot rewrite, replace" in p
+    assert "never a title and never an id" in p or "never name" in p
+
+
 # --- the feedback loop ---------------------------------------------------------------------------
 
 def test_a_correction_outranks_the_passage_it_corrects_and_withdrawing_undoes_it(client):
