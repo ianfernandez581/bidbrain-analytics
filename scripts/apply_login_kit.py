@@ -51,12 +51,12 @@ CLIENTS: dict[str, dict] = {
                             orbs=[(10, 10, 10), (107, 107, 104), (10, 10, 10)]),
     "geyervalmont":    dict(page="light", card="light", accent=(185, 206, 0),
                             orbs=[(230, 255, 49), (233, 253, 94), (87, 65, 30)]),
-    # Lacevo's login is the brand's own black header rather than its bone dashboard field, so the
-    # page AND the card are dark. The accent is the LIFTED clay (#C98A6E), not the brand #965F48:
-    # the base clay is a FILL colour here (it is the submit button) and is far too dark to carry a
-    # 1px edge, a caret or the show/hide label on an ink card.
-    "lacevo":          dict(page="dark",  card="dark",  accent=(201, 138, 110),
-                            orbs=[(150, 95, 72), (201, 138, 110), (228, 224, 218)]),
+    # Lacevo's login is a WHITE card on a lit warm-white field (it was ink-on-ink until
+    # 2026-09-14 - two dark rectangles). Page and card are both light, and the accent is the BASE
+    # clay #965F48, which is legible as a caret and a 1px edge on white. That is the inverse of
+    # the dashboard shell, where the topbar is ink and only the LIFTED #C98A6E carries.
+    "lacevo":          dict(page="light", card="light", accent=(150, 95, 72),
+                            orbs=[(150, 95, 72), (201, 138, 110), (219, 208, 196)]),
     "hireright":       dict(page="dark",  card="light", accent=(237, 28, 36),
                             orbs=[(237, 28, 36), (74, 131, 199), (42, 165, 176)]),
     "mongodb":         dict(page="dark",  card="dark",  accent=(0, 237, 100),

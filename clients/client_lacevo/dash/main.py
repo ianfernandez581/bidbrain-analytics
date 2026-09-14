@@ -63,8 +63,24 @@ DASHBOARD_HTML = _read_text("dashboard.html")
 PLACEHOLDER_JSON = _read_bytes("placeholder.json")
 # Two brand assets, because the surfaces need different colourways. Both are derived from
 # creatives/LACEVO-master.webp by gen_brand_assets.py - regenerate, never hand-edit.
-LOGO_PNG = _read_bytes("logo.png")    # the full lockup in BONE, for the dark login card
+LOGO_PNG = _read_bytes("logo.png")    # the full lockup in INK, for the WHITE login card
 ICON_PNG = _read_bytes("icon.png")    # the droplet in CLAY, for the browser tab
+
+
+def _rev(b):
+    """Short content hash, used to cache-bust the brand assets.
+
+    Both are served with `max-age=86400`, which is right for artwork - but it meant that when the
+    real Lacevo lockup replaced the placeholder droplet, every browser that had already opened the
+    login kept showing the PLACEHOLDER for a day and the deploy looked like it had silently failed.
+    Hashing the bytes into the URL makes it change whenever the file does, so the long cache stays
+    correct AND a swap is visible immediately."""
+    import hashlib
+    return hashlib.sha1(b).hexdigest()[:10] if b else "0"
+
+
+LOGO_REV = _rev(LOGO_PNG)
+ICON_REV = _rev(ICON_PNG)
 
 # STAFF-ONLY content for the Internal notes tab, kept OUT of data.json on purpose - the precedent is
 # client_schneidersecpwr's Reports tab, whose ad-set targeting is fetched from its own endpoint so
@@ -79,53 +95,67 @@ LOGIN_HTML = """<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Lacevo Dashboard</title>
-<link rel="icon" type="image/png" href="/icon.png">
+<link rel="icon" type="image/png" href="/icon.png?v={{ icon_rev }}">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=Montserrat:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
-  /* Lacevo: ink near-black field, bone text, clay accent - the brand's own black site header.
-     Clay #965F48 is too dark to read as text or a hairline on ink, so anything that has to be
-     LEGIBLE on the dark shell uses the lifted #C98A6E; the solid clay survives as a FILL only
-     (the submit button, where the label on top of it is bone). Getting that backwards is how a
-     brand colour ends up as an invisible border. */
+  /* Lacevo login: a WHITE card on a lit warm-white field.
+     It was ink-on-ink until 2026-09-14 and read as a dark slab on a dark slab - the black header
+     is the DASHBOARD's furniture, and repeating it here just made two dark rectangles. The
+     lighting language is the dashboard's: a warm key light high on the page, a clay bounce off
+     to one side, and a falloff at the bottom. LIGHT NEEDS SHADE TO READ AGAINST, which is what
+     that last gradient is for - without it a light wash on a light field is invisible.
+
+     On white the base clay #965F48 is legible as TEXT and as a hairline, so the lifted #C98A6E
+     is demoted to decoration here. That is the exact inverse of the dark dashboard shell, and
+     getting it backwards in either direction is how a brand colour becomes an invisible border. */
   *{box-sizing:border-box;margin:0;padding:0}
   body{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;
        font-family:Montserrat,"Helvetica Neue",Arial,sans-serif;
-       background:#1C1C1C;color:#E4E0DA;position:relative;overflow:hidden;
+       background:#F7F4F0;color:#1C1C1C;position:relative;overflow:hidden;
        -webkit-font-smoothing:antialiased}
   body::before{content:'';position:absolute;inset:0;pointer-events:none;
-       background:radial-gradient(720px 400px at 50% -10%, rgba(150,95,72,.34), transparent 64%),
-                  radial-gradient(520px 300px at 84% 8%, rgba(201,138,110,.14), transparent 68%)}
+       background:
+         radial-gradient(1100px 660px at 50% -18%, rgba(255,255,255,1), rgba(255,255,255,0) 58%),
+         radial-gradient(760px 520px at 92% -4%, rgba(255,214,188,.55), transparent 62%),
+         radial-gradient(680px 560px at 2% 22%, rgba(236,224,208,.60), transparent 64%),
+         radial-gradient(1200px 700px at 50% 122%, rgba(126,88,66,.16), transparent 62%)}
   body::after{content:'';position:absolute;bottom:0;left:0;right:0;height:3px;
               background:linear-gradient(90deg,#965F48 0%,#C98A6E 52%,#E4E0DA 100%)}
-  .card{position:relative;width:100%;max-width:392px;padding:40px 34px;background:#242220;
-        border:1px solid rgba(228,224,218,.13);border-radius:16px;
-        box-shadow:0 26px 66px -24px rgba(0,0,0,.72),0 0 48px -22px rgba(150,95,72,.62)}
+  /* Two shadows: a tight contact shadow that seats the card on the page, and a wide soft one
+     that is the light falling past it. Plus the specular top edge - on a white card that single
+     inset line is most of what makes it read as a surface rather than a hole. */
+  .card{position:relative;width:100%;max-width:400px;padding:44px 36px 34px;background:#FFFFFF;
+        border:1px solid rgba(28,28,28,.07);border-radius:18px;
+        box-shadow:0 2px 4px rgba(58,44,36,.05),
+                   0 30px 60px -26px rgba(58,44,36,.28),
+                   inset 0 1px 0 rgba(255,255,255,.9)}
   /* The lockup is wide, not square: constrain its WIDTH and let height follow, or a
-     max-height on a 2.3:1 image leaves it tiny in a 392px card. */
-  .logo-wrap{text-align:center;margin-bottom:26px}
-  .logo-wrap img{width:196px;max-width:62%;height:auto;display:inline-block}
+     max-height on a 2.3:1 image leaves it tiny in a 400px card. */
+  .logo-wrap{text-align:center;margin-bottom:30px}
+  .logo-wrap img{width:186px;max-width:60%;height:auto;display:inline-block}
   .brand{font-family:"Instrument Sans",Montserrat,Arial,sans-serif;
-         font-size:10px;font-weight:600;letter-spacing:2.2px;color:#C98A6E;
+         font-size:10px;font-weight:600;letter-spacing:2.2px;color:#965F48;
          margin-bottom:9px;text-transform:uppercase;text-align:center}
-  /* No <h1> here any more: the lockup IS the wordmark, and a typeset "Lacevo" underneath it
-     was the brand name twice, the second time in the wrong typeface. */
-  p.sub{font-size:13px;color:rgba(228,224,218,.6);margin:0 0 24px;text-align:center;line-height:1.5}
-  input{width:100%;padding:13px 15px;font-size:15px;color:#E4E0DA;background:#1C1C1C;
-        border:1px solid rgba(228,224,218,.18);border-radius:8px;outline:none;
-        transition:border-color .15s,box-shadow .15s}
-  input:focus{border-color:#C98A6E;box-shadow:0 0 0 3px rgba(201,138,110,.24)}
-  input::placeholder{color:rgba(228,224,218,.38)}
-  button{width:100%;margin-top:14px;padding:13px;font-size:15px;font-weight:600;cursor:pointer;
+  /* No <h1> here: the lockup IS the wordmark, and a typeset "Lacevo" underneath it was the
+     brand name twice, the second time in the wrong typeface. */
+  p.sub{font-size:13px;color:#6E675F;margin:0 0 26px;text-align:center;line-height:1.5}
+  input{width:100%;padding:14px 15px;font-size:15px;color:#1C1C1C;background:#F7F4F0;
+        border:1px solid rgba(28,28,28,.12);border-radius:10px;outline:none;
+        transition:border-color .18s,box-shadow .18s,background-color .18s}
+  input:focus{border-color:#965F48;background:#FFFFFF;box-shadow:0 0 0 3px rgba(150,95,72,.16)}
+  input::placeholder{color:#9A928A}
+  button{width:100%;margin-top:14px;padding:14px;font-size:15px;font-weight:600;cursor:pointer;
          font-family:"Instrument Sans",Montserrat,Arial,sans-serif;
-         background:#965F48;color:#E4E0DA;border:1px solid #A96C52;border-radius:8px;
-         transition:transform .1s ease,box-shadow .2s ease;letter-spacing:.3px}
-  button:hover{transform:translateY(-1px);box-shadow:0 10px 26px -8px rgba(150,95,72,.9)}
+         background:linear-gradient(180deg,#A66B51,#965F48);color:#FFFFFF;
+         border:1px solid #8A5641;border-radius:10px;
+         transition:transform .1s ease,box-shadow .2s ease,filter .18s ease;letter-spacing:.3px}
+  button:hover{transform:translateY(-1px);box-shadow:0 12px 26px -10px rgba(150,95,72,.62);filter:brightness(1.04)}
   button:active{transform:translateY(0)}
-  .err{margin-top:14px;font-size:13px;color:#E08A72;min-height:16px;text-align:center}
-  .foot{margin-top:24px;padding-top:18px;border-top:1px solid rgba(228,224,218,.1);
-        font-size:11px;color:rgba(228,224,218,.42);text-align:center;line-height:1.6}
+  .err{margin-top:14px;font-size:13px;color:#B24A32;min-height:16px;text-align:center}
+  .foot{margin-top:26px;padding-top:18px;border-top:1px solid rgba(28,28,28,.08);
+        font-size:11px;color:#9A928A;text-align:center;line-height:1.6}
 /* BB-LOGIN-KIT:css v1 */
 
   /* ==========================================================================
@@ -142,18 +172,18 @@ LOGIN_HTML = """<!doctype html>
      Geometry uses `translate`/`scale`, never the `transform` shorthand, so it composes with an
      existing transform instead of replacing it. Everything stops under prefers-reduced-motion.
      ========================================================================== */
-  :root{--bl-accent:rgb(201,138,110);--bl-glow:rgba(201,138,110,0.42);--bl-ease:cubic-bezier(.22,1,.36,1)}
+  :root{--bl-accent:rgb(150,95,72);--bl-glow:rgba(150,95,72,0.42);--bl-ease:cubic-bezier(.22,1,.36,1)}
 
   /* the wash: three big soft orbs on their own slow cycles, behind everything, transform-only.
      position:fixed keeps them out of the flex flow of the centred body. */
   .bb-lgfx{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}
   .bb-lgfx span{position:absolute;display:block;border-radius:50%;will-change:transform}
   .bb-lgfx .o1{width:62vw;height:56vh;top:-16%;left:-10%;animation:blOrb1 24s ease-in-out infinite;
-    background:radial-gradient(circle,rgba(150,95,72,0.11) 0%,transparent 68%)}
+    background:radial-gradient(circle,rgba(150,95,72,0.072) 0%,transparent 68%)}
   .bb-lgfx .o2{width:54vw;height:48vh;bottom:-18%;right:-12%;animation:blOrb2 29s ease-in-out infinite;
-    background:radial-gradient(circle,rgba(201,138,110,0.077) 0%,transparent 68%)}
+    background:radial-gradient(circle,rgba(201,138,110,0.05) 0%,transparent 68%)}
   .bb-lgfx .o3{width:46vw;height:42vh;top:28%;right:4%;animation:blOrb3 33s ease-in-out infinite;
-    background:radial-gradient(circle,rgba(228,224,218,0.061) 0%,transparent 70%)}
+    background:radial-gradient(circle,rgba(219,208,196,0.044) 0%,transparent 70%)}
   @keyframes blOrb1{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(70px,54px) scale(1.10)}}
   @keyframes blOrb2{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(-64px,-48px) scale(1.09)}}
   @keyframes blOrb3{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(-52px,44px) scale(1.08)}}
@@ -168,7 +198,7 @@ LOGIN_HTML = """<!doctype html>
      state. The ring below is for the two controls that had no focus style at all. */
   input{transition:border-color .18s var(--bl-ease),box-shadow .22s var(--bl-ease),
                    background-color .18s var(--bl-ease);caret-color:var(--bl-accent)}
-  input::placeholder{color:rgba(255,255,255,.52);opacity:1}
+  input::placeholder{color:rgba(0,0,0,.45);opacity:1}
 
   /* the password field carries its own reveal control */
   .bb-pw{position:relative;display:block}
@@ -186,16 +216,16 @@ LOGIN_HTML = """<!doctype html>
        15px in a 76x30 slab instead of the small pill it was meant to be. */
     font-family:inherit;font-size:9px;font-weight:600;line-height:1;
     letter-spacing:.06em;text-transform:uppercase;
-    color:rgba(255,255,255,.52);background:transparent;border:1px solid rgba(255,255,255,.20);border-radius:6px;
+    color:rgba(0,0,0,.45);background:transparent;border:1px solid rgba(0,0,0,.14);border-radius:6px;
     transition:color .18s var(--bl-ease),border-color .18s var(--bl-ease),
                background-color .18s var(--bl-ease),scale .12s var(--bl-ease)}
-  .bb-pw-t:hover{color:var(--bl-accent);border-color:var(--bl-accent);background:rgba(201,138,110,0.1)}
+  .bb-pw-t:hover{color:var(--bl-accent);border-color:var(--bl-accent);background:rgba(150,95,72,0.1)}
   .bb-pw-t:active{scale:.94}
   .bb-pw-t:focus-visible{outline:2px solid var(--bl-accent);outline-offset:2px}
 
   /* Caps Lock: silent until it matters, and it never moves the layout when it appears */
   .bb-caps{overflow:hidden;max-height:0;opacity:0;margin:0;text-align:center;
-    font-size:11.5px;font-weight:600;letter-spacing:.02em;color:#F5B942;
+    font-size:11.5px;font-weight:600;letter-spacing:.02em;color:#9A6400;
     transition:max-height .24s var(--bl-ease),opacity .24s var(--bl-ease),margin .24s var(--bl-ease)}
   .bb-caps.on{max-height:24px;opacity:1;margin:9px 0 0}
 
@@ -230,7 +260,7 @@ LOGIN_HTML = """<!doctype html>
 <body><!-- BB-LOGIN-KIT:fx v1 -->
 <div class="bb-lgfx" aria-hidden="true"><span class="o1"></span><span class="o2"></span><span class="o3"></span></div><!-- /BB-LOGIN-KIT:fx -->
 <form class="card" method="post" action="login">
-  <div class="logo-wrap"><img src="/logo.png" alt="Lacevo"></div>
+  <div class="logo-wrap"><img src="/logo.png?v={{ logo_rev }}" alt="Lacevo"></div>
   <div class="brand">100% Digital</div>
   <p class="sub">Trading and paid media dashboard</p>
   <!-- BB-LOGIN-KIT:pw v1 --><div class="bb-pw">
@@ -339,7 +369,7 @@ def authed():
 @app.get("/")
 def home():
     if not authed():
-        return render_template_string(LOGIN_HTML, error=None)
+        return render_template_string(LOGIN_HTML, error=None, logo_rev=LOGO_REV, icon_rev=ICON_REV)
     if DASHBOARD_HTML is None:
         return Response("dashboard.html is missing from the deploy.", status=500)
     # no-store so a redeploy is picked up immediately, never served stale from the browser or the
@@ -354,7 +384,8 @@ def login():
         session["ok"] = True
         session.permanent = True
         return redirect("/")
-    return render_template_string(LOGIN_HTML, error="Incorrect password."), 401
+    return render_template_string(LOGIN_HTML, error="Incorrect password.",
+                                  logo_rev=LOGO_REV, icon_rev=ICON_REV), 401
 
 
 @app.get("/icon.png")

@@ -23,7 +23,7 @@ Through the front door: `dashboards.bidbrain.ai` → 100% Digital portal → Lac
 | `dash/placeholder.json` | The sample payload. **Generated — do not hand-edit.** |
 | `dash/internal_notes.json` | Staff-only content for the Internal notes tab. Kept OUT of `data.json` on purpose. |
 | `dash/platform_sso.py` | Vendored verbatim from the platform. Never edit one copy. |
-| `dash/logo.png` | The bone STACKED lockup, for the dark login card. Generated. |
+| `dash/logo.png` | The INK stacked lockup, for the WHITE login card. Generated. |
 | `dash/icon.png` | The CLAY droplet, for the browser tab. Generated. |
 | `creatives/LACEVO-master.webp` | The supplied master artwork. Every variant derives from this. |
 | `dash/Dockerfile`, `requirements.txt`, `cloudbuild.yaml` | Container. No trigger is wired; deploys are laptop/ship driven. |
@@ -50,27 +50,37 @@ Tokens verified from the live lacevo.com Shopify theme, and used exactly:
 | ink | `#1C1C1C` | top bar, login field, body text |
 | type | Instrument Sans (headings + numerals), Montserrat (body) | both from Google Fonts |
 
-**The one rule that matters: clay is a FILL, not a text colour.** `#965F48` on `#1C1C1C` is far
-too dark to read, to carry a 1px edge, or to draw a caret. Anything sitting ON the dark shell uses
-the lifted `#C98A6E`; the solid clay is only ever a filled surface with bone on top of it. Getting
-that backwards is how a brand colour ends up as an invisible border — which is also why the login
-kit entry in `scripts/apply_login_kit.py` pins the accent to the lifted value, not the brand value.
+**The one rule that matters: WHICH clay depends on what it sits on.** `#965F48` on `#1C1C1C` is far
+too dark to read, to carry a 1px edge, or to draw a caret, so anything sitting on the dark topbar
+uses the lifted `#C98A6E` and the solid clay is only ever a filled surface with bone on top of it.
+On the WHITE login the rule inverts: the base `#965F48` carries as text, caret and hairline, and the
+lifted value is decoration. That is why the `scripts/apply_login_kit.py` entry pins the login accent
+to the base clay while the dashboard shell uses the lifted one. Getting it backwards in either
+direction turns a brand colour into an invisible border.
 
 The **dashboard** is a bone field with near-white cards under the brand's black header bar (the
-approved reference layout). The **login** is the inverse — the black header treatment taken
-full-page — which is what the brief meant by a dark shell.
+approved reference layout). The **login** is a WHITE card on a lit warm-white field.
+
+It was ink-on-ink until 2026-09-14, on the reading that the brief's "dark shell" applied to both
+surfaces. It did not: the black header is the DASHBOARD's furniture, and repeating it on the login
+just made a dark slab on a dark slab. Client called it bland, and they were right. **The two
+surfaces therefore need OPPOSITE clay rules** - on ink only the lifted `#C98A6E` is legible, on
+white the base `#965F48` carries as text, caret and hairline. Getting that backwards in either
+direction turns a brand colour into an invisible border.
 
 ### The logo
 
 The real artwork landed 2026-09-14 and lives at `creatives/LACEVO-master.webp`. It is a **stacked
 lockup — droplet above a serif wordmark — in near-black ink on SOLID WHITE, with no alpha channel**.
-Every surface it appears on here is dark, so it cannot be used as supplied on any of them.
+The login shows it in the master's own ink, but the **topbar is the brand's black bar**, so it
+cannot be used as supplied there — and the missing alpha channel means it cannot be used as
+supplied ANYWHERE, because a white rectangle would sit behind it on every surface.
 
 `gen_brand_assets.py` derives three variants and is the only thing that should ever write them:
 
 | Output | What | Where |
 |---|---|---|
-| `dash/logo.png` | bone STACKED lockup | the dark login card, served at `/logo.png` |
+| `dash/logo.png` | INK stacked lockup | the WHITE login card, served at `/logo.png` |
 | `dash/icon.png` | clay droplet, square | the browser tab, served at `/icon.png` |
 | `creatives/topbar_lockup.b64.txt` | bone HORIZONTAL lockup | inlined as base64 in the topbar |
 
@@ -95,6 +105,14 @@ page is served from the service root, so it can use the route. The dashboard's o
 
 **The favicon is CLAY, not bone.** A near-white mark is invisible on a browser's light tab strip;
 clay carries on both light and dark chrome.
+
+**Both brand URLs are CONTENT-HASHED (`/logo.png?v=<sha>`), and that is not optional.** They are
+served with `max-age=86400`, which is right for artwork - but it meant the day the real lockup
+replaced the placeholder droplet, every browser that had already opened the login kept serving the
+PLACEHOLDER from cache for a full day, and the deploy looked like it had silently failed. The client
+saw it before we did. Hashing the bytes into the URL keeps the long cache AND makes a swap visible
+immediately. `LOGO_REV` / `ICON_REV` in `main.py` compute it at import; any new baked asset
+served with a long cache needs the same treatment.
 
 Assets are sized to their DISPLAY, not to round numbers. The master is only 300x166, so anything
 past about 2x is upscaling a low-res source and paying in bytes for detail that is not in the file.

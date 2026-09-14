@@ -20,9 +20,12 @@ key-dropped badly.
 
 WHAT IT WRITES
 --------------
-  dash/logo.png   full lockup, BONE      - the login card (dark), served at /logo.png
+  dash/logo.png   full lockup, INK       - the login card (WHITE), served at /logo.png
   dash/icon.png   droplet only, CLAY     - the browser tab icon, served at /icon.png
-  (stdout)        droplet only, BONE     - base64, for the inline topbar mark in dashboard.html
+  (file)          horizontal lockup, BONE - base64, for the inline topbar mark (the topbar is ink)
+
+The two lockups are opposite colourways ON PURPOSE: the dashboard's topbar is the brand's black
+site furniture, and the login is a white page. One asset cannot serve both.
 
 The topbar mark is INLINE base64 rather than a file on purpose: a root-relative asset path does not
 resolve behind the platform proxy at `/d/lacevo/`, so `<img src="/logo.png">` inside the dashboard
@@ -44,7 +47,8 @@ HERE = Path(__file__).resolve().parent
 MASTER = HERE / "creatives" / "LACEVO-master.webp"
 DASH = HERE / "dash"
 
-BONE = (228, 224, 218)   # #E4E0DA - legible on the ink topbar and the dark login card
+BONE = (228, 224, 218)   # #E4E0DA - legible on the INK topbar
+INK  = (28, 28, 28)      # #1C1C1C - the master's own colour, for the WHITE login card
 CLAY = (150, 95, 72)     # #965F48 - the brand fill, carries on light AND dark browser chrome
 
 # The master separates cleanly: a blank band at rows 79-83 divides the droplet from the wordmark.
@@ -107,13 +111,15 @@ def main():
     mark_ink = ink[top:gap0, :]          # the droplet
     full_ink = ink[top:bot + 1, :]       # the whole lockup
 
-    # 1. login card: the full lockup in bone, at 2x its display size.
-    #    Sized to the DISPLAY, not to a round number: the master is 300x166, so anything past ~2x
-    #    is upscaling a low-res source and pays in bytes for detail that is not in the file.
-    lockup = _tint(full_ink, BONE)
+    # 1. login card: the full lockup in INK, at 2x its display size.
+    #    INK, not bone, because the login is a WHITE page - this is the master's own colour, so the
+    #    login shows the artwork as supplied. Sized to the DISPLAY, not to a round number: the
+    #    master is 300x166, so anything past ~2x upscales a low-res source and pays in bytes for
+    #    detail that is not in the file.
+    lockup = _tint(full_ink, INK)
     lockup = lockup.resize((lockup.width * 2, lockup.height * 2), Image.LANCZOS)
     lockup.save(DASH / "logo.png", "PNG", optimize=True)
-    print(f"  dash/logo.png  {lockup.size[0]}x{lockup.size[1]} bone lockup "
+    print(f"  dash/logo.png  {lockup.size[0]}x{lockup.size[1]} INK lockup "
           f"({(DASH / 'logo.png').stat().st_size:,} bytes)")
 
     # 2. favicon: the droplet in clay, square. 192px covers a browser tab, a bookmark and an
