@@ -94,8 +94,13 @@ dates, "verified on") lives there too, never here.**
   a trusted document outranking what it corrects, and a staff-only Observability page. Staff and
   100% Digital only, never a client and never another agency. It holds the WORDS; the per-dashboard
   Internal Assistant above holds the NUMBERS, and neither reads the other's source. Everything lives
-  under `kb/` in the platform bucket - no database, no vector store. Full detail, and the nine
-  gotchas, in `bidbrain-platform/README.md` -> "The knowledge base".
+  under `kb/` in the platform bucket - no database, no vector store. **The assistant can also KEEP
+  IT CURRENT**: it proposes an append or a new document, a person approves a card, and it then runs
+  as THEIR edit through the ordinary route, stamped with the date, their name and the fact the AI
+  drafted it. Two verbs only, append or create - never rewrite or delete - and the model names a
+  PASSAGE NUMBER from its own turn, never a document id, so it can never touch a document it was
+  not shown. Full detail, and the ten gotchas, in `bidbrain-platform/README.md` -> "The knowledge
+  base".
   Registry = one private JSON in GCS. Service `platform-dash`.
 - **`status_dashboard/`** - pipeline-health data + deploy plumbing (UI is merged into the platform;
   the standalone `status-dash` service is retired and its `dash/` source deleted). `status-export`

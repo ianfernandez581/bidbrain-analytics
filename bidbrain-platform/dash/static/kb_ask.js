@@ -169,7 +169,9 @@
           if (state.retrieval && !state.retrieval.semantic) byline.appendChild(kwBadge(state.retrieval));
         } else if (ev === 'token') {
           state.text += data.t;
-          ans.textContent = state.text;
+          // Stripped AS IT STREAMS. Rendering state.text raw would type the proposal's JSON
+          // across the answer and then delete it, which reads as the thing glitching.
+          ans.textContent = splitProposal(state.text).prose;
           thread().scrollTop = thread().scrollHeight;
         } else if (ev === 'done') {
           state.answerId = data.answer_id;
@@ -184,14 +186,20 @@
         }
       });
     }).then(function () {
-      if (state.text.trim()) {
-        ans.innerHTML = mdToHtml(state.text, state.retrieval, cites);
+      var split = splitProposal(state.text);
+      state.text = split.prose;              // the feedback record keeps the PROSE, not the block
+      if (split.prose.trim()) {
+        ans.innerHTML = mdToHtml(split.prose, state.retrieval, cites);
+        var prop = parseProposal(split.raw, state.retrieval);
+        if (prop) turn.appendChild(proposalCard(prop, turn));
         turn.appendChild(verdictBar(q, state));
       }
     }).catch(function (err) {
       if (err.name === 'AbortError') {
         byline.innerHTML = '';
         byline.appendChild(el('span', null, 'stopped'));
+        // A half-arrived proposal is never offered: the fence may not even have closed.
+        state.text = splitProposal(state.text).prose;
         if (state.text.trim()) turn.appendChild(verdictBar(q, state));
         return;
       }
@@ -241,6 +249,123 @@
       });
     }
     return pump();
+  }
+
+  /* --- proposed edits -------------------------------------------------------------------------
+   *
+   * The model ends an answer with a ```bb-edit block when a conversation settles something the
+   * library has wrong or missing. NOTHING happens until a person approves it.
+   *
+   * 🔴 THE BLOCK IS STRIPPED WHILE IT STREAMS, not at the end. Otherwise raw JSON visibly types
+   * itself across the answer for a second and then disappears, which reads as the thing glitching.
+   * `splitProposal` truncates at the opening fence even when the block is half-arrived.
+   *
+   * 🔴 THE MODEL NAMES A PASSAGE NUMBER, NEVER A DOCUMENT. The number is resolved against THIS
+   * turn's retrieval, here, so an invented or out-of-range number resolves to nothing and the card
+   * is not offered. A model that could name a document id could name one it was never shown.
+   */
+  var FENCE = '```bb-edit';
+
+  function splitProposal(text) {
+    var i = text.indexOf(FENCE);
+    if (i < 0) return { prose: text, raw: null };
+    var rest = text.slice(i + FENCE.length);
+    var end = rest.indexOf('```');
+    return { prose: text.slice(0, i).trimEnd(),
+             raw: end < 0 ? null : rest.slice(0, end).trim() };
+  }
+
+  function parseProposal(raw, retrieval) {
+    if (!raw) return null;
+    var p;
+    try { p = JSON.parse(raw); } catch (e) { return null; }
+    if (!p || (p.action !== 'append' && p.action !== 'create')) return null;
+    var text = String(p.text || '').trim();
+    if (!text) return null;
+    var out = { action: p.action, text: text,
+                summary: String(p.summary || '').trim() || 'Write this into the library' };
+    if (p.action === 'append') {
+      var ex = (retrieval && retrieval.excerpts) || [];
+      var n = parseInt(p.passage, 10);
+      // Out of range, missing, or from a turn that retrieved nothing: no card, no silent guess.
+      if (!(n >= 1 && n <= ex.length)) return null;
+      out.target = ex[n - 1];
+      out.heading = String(p.heading || '').trim() || 'Update';
+    } else {
+      out.title = String(p.title || '').trim();
+      out.folder = String(p.folder || '').trim();
+      if (!out.title) return null;
+    }
+    return out;
+  }
+
+  function proposalCard(p, turn) {
+    var card = el('div', 'kb-propose');
+    var head = el('div', 'kb-propose-h');
+    head.appendChild(el('span', 'kb-badge model', 'PROPOSED EDIT'));
+    head.appendChild(el('span', null, p.summary));
+    card.appendChild(head);
+
+    var where = el('div', 'kb-propose-where');
+    if (p.action === 'append') {
+      where.textContent = 'Adds a dated section to the end of "' + p.target.title + '" in '
+        + (p.target.folder || 'no folder') + '. Nothing already in that document changes.';
+    } else {
+      where.textContent = 'Creates a new document "' + p.title + '" in '
+        + (p.folder || 'no folder') + '.';
+    }
+    card.appendChild(where);
+
+    if (p.action === 'append') {
+      var h = el('div', 'kb-propose-head', '## ' + p.heading);
+      card.appendChild(h);
+    }
+    var body = el('div', 'kb-propose-body', p.text);
+    card.appendChild(body);
+
+    var row = el('div', 'kb-verdict');
+    var ok = el('button', 'btn sm gold', p.action === 'create' ? 'Create it' : 'Add it');
+    var no = el('button', 'btn sm', 'Discard');
+    row.appendChild(ok);
+    row.appendChild(no);
+    var note = el('span', 'kb-hint');
+    note.style.margin = '0';
+    note.textContent = 'Nothing has changed yet. Every version is kept, so this can be undone.';
+    row.appendChild(note);
+    card.appendChild(row);
+
+    no.onclick = function () {
+      card.innerHTML = '';
+      card.appendChild(el('span', 'kb-hint', 'Discarded. Nothing was written.'));
+    };
+    ok.onclick = function () {
+      ok.disabled = true; no.disabled = true;
+      ok.textContent = 'Saving…';
+      var req = p.action === 'append'
+        ? window.kbApi('/docs/' + p.target.document_id + '/append', { method: 'POST', body: {
+            heading: p.heading, text: p.text, note: p.summary, via: 'assistant' } })
+        : window.kbApi('/docs', { method: 'POST', body: {
+            title: p.title, folder: p.folder, body: p.text, kind: 'note' } });
+      req.then(function (j) {
+        var d = j.doc;
+        card.innerHTML = '';
+        var done = el('div', 'kb-propose-h');
+        done.appendChild(el('span', 'kb-badge verified', 'WRITTEN'));
+        done.appendChild(el('span', null, p.action === 'create'
+          ? 'Created "' + d.title + '".'
+          : 'Added to "' + d.title + '". The previous version is kept in its history.'));
+        card.appendChild(done);
+        var open = el('button', 'btn sm', 'Open it');
+        open.onclick = function () { if (window.kbOpenDoc) window.kbOpenDoc(d.id); };
+        card.appendChild(open);
+        if (window.kbRefresh) window.kbRefresh();
+      }).catch(function (err) {
+        ok.disabled = false; no.disabled = false;
+        ok.textContent = p.action === 'create' ? 'Create it' : 'Add it';
+        if (!err.auth) window.kbToast(err.message, true);
+      });
+    };
+    return card;
   }
 
   function modelBadge(m) {

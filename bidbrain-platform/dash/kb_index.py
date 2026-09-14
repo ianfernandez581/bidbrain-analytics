@@ -483,6 +483,16 @@ def reindex_document(doc, *, force=False, embed=True, two_phase=True):
         # so a matching hash is only reusable if the vectors came from the model we would use now.
         if existing and (existing.get("model") == kb_embed.model_name()
                          or not (doc.get("body") or "").strip()):
+            # 🔴 THE PASSAGES ARE UNCHANGED; THE DOCUMENT IS NOT NECESSARILY. `archived`, `folder`,
+            # `trust` and `kind` all live in the metadata copy inside the chunks object, which is
+            # what the index and the whole file list read. Returning here WITHOUT writing meant a
+            # PATCH that changed only metadata was silently discarded: the Explorer's Archive
+            # button appeared to work and did nothing at all. Caught by a test that was aiming at
+            # something else entirely.
+            kb_store.write_chunks(doc, existing.get("chunks") or [],
+                                  model=existing.get("model") or "")
+            kb_store.write_doc(doc)
+            invalidate()
             return {"chunks": len(existing.get("chunks") or []), "skipped": True,
                     "semantic": not doc.get("embed_error"), "error": doc.get("embed_error") or ""}
 
