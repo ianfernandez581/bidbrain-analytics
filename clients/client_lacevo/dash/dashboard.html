@@ -187,7 +187,10 @@ a{color:var(--clay-deep)}
   text-transform:uppercase;padding:3px 8px;border-radius:5px;background:var(--clay-tint);color:var(--clay-deep)}
 
 /* ---------- cards ---------- */
-.split{display:grid;grid-template-columns:1.55fr 1fr;gap:16px;margin:28px 0}
+/* align-items:start, or the shorter column is STRETCHED to match the taller one and the
+   difference becomes a void inside a card rather than space between them. It measured
+   138px under the trend chart: a card that looks like it failed to load something. */
+.split{display:grid;grid-template-columns:1.55fr 1fr;gap:16px;margin:28px 0;align-items:start}
 .card{padding:22px 24px}
 .card h2{font-size:15px;font-weight:600;letter-spacing:-.01em;margin:0 0 6px}
 .card p.hint{margin:0 0 18px;font-size:12.5px;color:var(--muted);max-width:64ch}
@@ -365,14 +368,16 @@ body .bb-fx{display:none}
 @keyframes sheen{0%{translate:-110% 0}55%,100%{translate:210% 0}}
 
 /* ---------- charts ---------- */
-/* A pool of light behind each chart so it sits IN the card rather than on it. */
-svg.chart{position:relative;
-  filter:drop-shadow(0 6px 14px rgba(58,44,36,.07))}
-.card>svg.chart{background:radial-gradient(520px 260px at 50% 12%, rgba(255,255,255,.85), transparent 70%)}
+/* Just the drop shadow. A radial "pool of light" was painted behind each chart and it read as a
+   lighter RECTANGLE with a visible edge - a pool of light with an edge is a box. The lit feeling
+   comes from the card's own specular top edge and the ambient layers behind the page. */
+svg.chart{position:relative;filter:drop-shadow(0 6px 14px rgba(58,44,36,.07))}
 
 /* ---------- tables ---------- */
 tbody tr{transition:background-color .2s var(--ease)}
-tbody tr.total td{background:linear-gradient(180deg, rgba(201,138,110,.07), transparent)}
+/* Flat, not a gradient: a vertical fade inside a single table row has nowhere to resolve and
+   reads as a streak rather than a tint. */
+tbody tr.total td{background:rgba(201,138,110,.055)}
 
 /* ---------- entrance ---------- */
 /* The kit reveals surfaces on scroll. This is the FIRST paint only: the shell
@@ -696,7 +701,7 @@ html.bb-motion .notice{animation:dropIn .62s var(--ease) .06s both}
             <span><i style="background:#965F48"></i>Ad spend</span>
             <span><i style="background:#6E7F68"></i>Sessions</span>
           </div>
-          <svg class="chart" id="trend" viewBox="0 0 760 300" role="img" aria-label="Daily revenue, ad spend and sessions"></svg>
+          <svg class="chart" id="trend" viewBox="0 0 760 360" role="img" aria-label="Daily revenue, ad spend and sessions"></svg>
           <div class="chart-empty" id="trendEmpty" hidden>No daily delivery in this payload.</div>
         </div>
 
@@ -1112,12 +1117,15 @@ function renderOverview(){
   const spendShare = div(t.spend, t.revenue);
   const newShare = cu.total ? div(cu.new, cu.total) : null;
 
+  // Emphasis is a budget. Four bold runs in three lines spends it on nothing - and two of the
+  // four were the revenue and spend figures, which are restated in 30px type directly below.
+  // What the lede uniquely carries is the SCOPE and the EXCLUSION, so those keep the weight.
   el('ovLede').innerHTML =
     'Store revenue against advertising investment across <b>' +
     esc((m.channels_expected || []).filter(c => c !== 'Shopify').join(', ').replace(/, ([^,]*)$/, ' and $1') || 'the connected platforms') +
     '</b>, with product mix and customer acquisition cost. The ' + (m.placeholder ? 'sample ' : '') +
-    'period shows <b>' + esc(money(t.revenue)) + ' revenue</b> on <b>' + esc(money(t.spend)) +
-    ' ad spend</b>.' + (m.excludes_note ? ' <b>' + esc(m.excludes_note) + '</b>' : '');
+    'period shows ' + esc(money(t.revenue)) + ' revenue on ' + esc(money(t.spend)) +
+    ' ad spend.' + (m.excludes_note ? ' <b>' + esc(m.excludes_note) + '</b>' : '');
 
   el('ovGoal').innerHTML = roasT != null
     ? 'Goal · profitable growth at or above a <b>' + esc(mult(roasT)) + '</b> blended return' + esc(targetNote())
@@ -1336,7 +1344,9 @@ function drawTrend(mode){
   if (!svg) return;
   svg.textContent = '';
   const revenue = d.map(r => n(r.revenue)), spend = d.map(r => n(r.spend)), sessions = d.map(r => n(r.sessions));
-  const W = 760, H = 300, L = 62, R = 46, T = 16, B = 34;
+  // H must match the viewBox on the <svg> in the markup - the element carries a static
+  // viewBox, so changing one without the other silently squashes the plot.
+  const W = 760, H = 360, L = 62, R = 46, T = 16, B = 34;
   const iw = W - L - R, ih = H - T - B, days = d.length;
   const maxRev = Math.max(...revenue, 1);
   const scale = arr => {
