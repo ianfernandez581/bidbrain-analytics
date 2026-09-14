@@ -831,6 +831,22 @@ open. A MutationObserver re-appends the tab on rails that are REBUILT per render
   built-in Web Speech API (`webkitSpeechRecognition` — Chrome/Edge/Safari; the button hides itself
   where the API is missing, e.g. Firefox). Dictation is reviewable text — Send still submits.
 
+## "How The Brain works" explainers (The Brain tab, 100% Digital portal, 2026-09-14)
+Three interactive walkthroughs of the Bidbrain Premium retrieval system render as cards under the
+work-in-progress card in **The Brain** tab: Part 1 *Documents to Vectors*, Part 2 *Inside the
+Retriever*, Part 3 *Ask Your Campaigns* (which ends on the buyer-feedback step). Each opens in a new
+tab at **`/brain/how-it-works/<slug>`**, served by the platform itself from `dash/explainers/*.html`
+(`EXPLAINERS` in `main.py`; the Dockerfile copies the folder).
+- **Why self-hosted, not a link:** they were authored as claude.ai artifacts, which are private to one
+  account - nobody else on the team could open a link to them.
+- **Who sees them:** the cards render only in the `x100-digital` portal (`show_explainers`, keyed on
+  the PORTAL so staff viewing Transmission's portal see what Transmission sees). The route is the real
+  gate (`_explainers_allowed`): staff from any session, otherwise only a 100% Digital agency session;
+  partner agencies and clients get 403, logged-out visitors go to login. Scoped this way because the
+  copy speaks as "our buyers" / "100% Digital". All data in them is illustrative and names no client.
+- **Editing:** the files are self-contained (logos inlined as base64, Google Fonts linked). Edit the
+  HTML in place and redeploy the platform; nothing else references them.
+
 ## Open slides (AI decks — the "Open slides" button)
 
 The agency portal's **Overview** tab shows a per-client **"Open slides"** button (rendered only for
@@ -917,6 +933,7 @@ bidbrain-platform/
     build_lineage.py             builds lineage/<c>.txt digests from clients/*/README.md + sql/ headers (run after doc/sql changes)
     lineage/                     committed per-client lineage digests, shipped in the image (COPY lineage)
     seed_registry.py             push config.py → the registry JSON in GCS (idempotent; --force to overwrite)
+    explainers/                  "How The Brain works" walkthrough pages, served at /brain/how-it-works/<slug> (100% Digital portal)
     templates/                   login.html · portal.html · admin.html · superadmin.html (dark theme, Bidbrain logo)
       _premium_head.html         premium layer bootstrap - include in <head> (see "The premium layer")
       _premium.html              premium layer CSS + engine - include LAST in <body>, after _status_merge.html

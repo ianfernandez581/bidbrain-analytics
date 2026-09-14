@@ -331,6 +331,22 @@
   .ghostrow{display:flex;align-items:center;gap:10px;padding:12px 14px;border:1px dashed var(--border);
             border-radius:10px;color:var(--muted);font-size:12.5px;text-align:left;opacity:.55}
   .ghostrow .dot{width:8px;height:8px;border-radius:50%;background:#34d399;flex:none}
+
+  /* ── The Brain: "How The Brain works" explainer series (100% Digital portal only) ── */
+  .hiw{max-width:980px;margin:26px auto 0}
+  .hiw-h{display:flex;align-items:baseline;justify-content:space-between;gap:6px 16px;flex-wrap:wrap;margin:0 2px 12px}
+  .hiw-h h3{font-size:16px;font-weight:800;margin:0}
+  .hiw-h span{font-size:12.5px;color:var(--muted)}
+  .hiw-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px}
+  .hiw-card{display:flex;flex-direction:column;gap:8px;padding:18px 18px 16px;border-radius:14px;
+            background:var(--panel);border:1px solid var(--border);color:inherit;text-decoration:none;
+            transition:border-color .2s,background .2s}
+  .hiw-card:hover,.hiw-card:focus-visible{border-color:var(--bb-accent,#4D8DFF)}
+  .hiw-card .n{font-size:11px;font-weight:800;letter-spacing:.8px;color:var(--bb-accent,#4D8DFF)}
+  .hiw-card h4{margin:0;font-size:15px;font-weight:800;line-height:1.25}
+  .hiw-card p{margin:0;font-size:12.8px;line-height:1.5;color:var(--muted)}
+  .hiw-card .go{margin-top:6px;font-size:12.5px;font-weight:700;color:var(--bb-accent,#4D8DFF)}
+  @media (prefers-reduced-motion:reduce){.hiw-card{transition:none}}
 </style>
 {% if theme %}
 {# Quiet, client-facing freshness wording on the tiles (see _status_merge.html fillBadges).
@@ -762,6 +778,33 @@
           <div class="ghostrow"><span class="dot"></span>Weekly action list, ranked by projected impact</div>
         </div>
       </div>
+      {% if show_explainers %}
+      {# 100% Digital only (show_explainers, set in main.py home()). Each opens in its own tab,
+         served by the platform from dash/explainers/ behind this same login. #}
+      <section class="hiw" aria-labelledby="hiwTitle">
+        <div class="hiw-h"><h3 id="hiwTitle">How The Brain works</h3><span>A three-part walkthrough of the retrieval system behind Bidbrain Premium</span></div>
+        <div class="hiw-grid">
+          <a class="hiw-card" href="/brain/how-it-works/documents-to-vectors" target="_blank" rel="noopener">
+            <span class="n">PART 1</span>
+            <h4>Documents to Vectors</h4>
+            <p>How media plans, meeting decisions and platform data are collected, parsed, chunked, embedded and stored.</p>
+            <span class="go">Open walkthrough →</span>
+          </a>
+          <a class="hiw-card" href="/brain/how-it-works/inside-the-retriever" target="_blank" rel="noopener">
+            <span class="n">PART 2</span>
+            <h4>Inside the Retriever</h4>
+            <p>How a campaign question finds its evidence through semantic search, keyword search and rank fusion.</p>
+            <span class="go">Open walkthrough →</span>
+          </a>
+          <a class="hiw-card" href="/brain/how-it-works/ask-your-campaigns" target="_blank" rel="noopener">
+            <span class="n">PART 3</span>
+            <h4>Ask Your Campaigns</h4>
+            <p>Pick a media buying question, watch it become a cited answer, and see the buyer's verdict teach the knowledge base.</p>
+            <span class="go">Open walkthrough →</span>
+          </a>
+        </div>
+      </section>
+      {% endif %}
     </div>
     {% endif %}
     {# Feedback Loop renders INLINE as a sibling .bbpane (not an iframe), so the portal's
