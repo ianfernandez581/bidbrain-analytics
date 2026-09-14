@@ -240,6 +240,151 @@ Also fixed in passing: **`tableCSV()` leaked `_`-prefixed internal stashes** —
 each row's pre-markup spend on `_rawSpend`, and `pm_delivery` exports were shipping it to the client.
 Underscore keys are now dropped from the header and every row (the repo-wide rule in `md/AGENTS.md`).
 
+## Publisher report actuals on Other Channels (2026-09-14)
+
+The **Advancing Energy Technology** (`global_rebrand`) brief buys three publishers directly -
+**Capital Brief**, **Energy Magazine** (Project ENGY) and **Westwick-Farrow** (ECD Online /
+Sustainability Matters). None has an API feed and none ever will: the numbers arrive as a PDF or a
+workbook in an inbox each month. The Other Channels tab used to show only their plan targets; it now
+shows **delivered against plan** and, below that, a **per-publisher delivery card**.
+
+**Ingestion is the same path the plan targets already take** - a committed CSV, loaded into a `seed_*`
+table, read by a view, emitted by the job (`data/media_plan.csv` -> `seed_media_plan` -> job is the
+existing precedent). Nothing new was invented for it, and a monthly reload is a CSV edit plus
+`deploy_seeds_schneider.ps1`. It is deliberately **not** in Snowflake: our roles on the shared
+warehouse are read-only, so a hand-keyed report cannot be written there, and there is no upstream
+system to source it from anyway.
+
+| Stage | Where |
+|---|---|
+| the monthly figures | `data/publisher_reports.csv` (campaign x publisher x period x placement) |
+| per-publisher settings | `data/publisher_report_meta.csv` (label, `plan_channel`, source, status, notes, card order) |
+| agency-only commentary | the `internal_note` column of that file - printed by the job, **never** in the payload |
+| pre-load validation | `validate_publisher_reports.py` (run first by all three deploy scripts) |
+| seed tables | `seed_publisher_reports` / `seed_publisher_report_meta` (`load_seeds.py`) |
+| views | `sql/25_publisher_delivery.sql` -> `publisher_delivery`, `sql/26_publisher_report_meta.sql` -> `publisher_report_meta` |
+| payload | `job/main.py` -> `publisher_delivery[]` + `publisher_reports[]` |
+| UI | `dash/dashboard.html` -> `renderOther()` (plan table) + `renderPublisherCards()` |
+
+### Reloading next month (the whole procedure)
+1. Add the new month's rows to `data/publisher_reports.csv`. Copy the previous month's block and
+   change the figures; keep one row per line the publisher reports.
+2. Only if something changed about the report itself (a new job number, a buy finishing, a plan line
+   finally existing) touch `data/publisher_report_meta.csv`.
+3. `.\clients\client_schneider\deploy_seeds_schneider.ps1` - it validates, loads and re-runs the
+   export job with `FORCE_REBUILD=1` (seeds are not an upstream the freshness gate watches, so
+   without the force the edit is a silent no-op). **No view, job or dashboard deploy is needed.**
+The validator prints per-publisher totals; check them against the report before moving on.
+
+### `unit` is the safety mechanism, not a label
+These publishers report several things that all look like a big number in a spreadsheet cell and are
+**not the same measure**. Sponsored-article views are people reading an article; solus eDM sends are
+emails despatched. Neither is an impression, and the brief for this work was explicit that they must
+never be summed into one.
+
+So the impression total is not defined as "sum the quantity column". It is defined as
+**"sum where `unit = 'impressions'"**, and everything else is excluded *structurally* rather than by
+whoever writes the next consumer remembering to exclude it:
+
+- `impressions` - the only unit that may enter an impression total.
+- `sends` - solus eDM despatches. Carries clicks; never impressions.
+- `article_views` - paced against `booked_quantity`, never against a plan impression target.
+- `rate` - a publisher-reported rate (`metric` names which). **Never summed anywhere.**
+- anything else -> `UNKNOWN`, counted nowhere, WARNed by the job and rejected by the validator.
+
+The payload reinforces it: each row's number is emitted in exactly ONE of `impressions` / `sends` /
+`article_views` / `rate_value`, each NULL (never 0) outside its own unit, and there is **no generic
+`quantity` column in the JSON at all** - so there is nothing obvious to sum by accident. Clicks are
+the one measure that legitimately sums across all three delivery units (a solus click is a real
+click), which is why clicks are not gated on the impression flag.
+
+### Campaign scoping
+Every row names its campaign and is filtered through the same `inCamp()` every other surface uses, so
+a publisher renders **under its own campaign and under All campaigns, and under no other**. Verified
+by rendering `heavy` and `airset+heavy`: no publisher section, and no publisher rows in the plan
+table. A future report load attaches to whichever campaign its rows name, with **no code change** -
+and if it names a campaign that is not on the dashboard, the job WARNs by name and the validator
+fails before the load, because that row would otherwise render nowhere at all, silently.
+
+### The plan join has THREE states, and two of them must never look alike
+A publisher is bound to its plan line by the **stated** `plan_channel`, never by matching the
+publisher's name against the channel's - a rename would silently unpace a live buy (the repo-wide
+"names are not stable keys" rule).
+
+- **`matched`** - Capital Brief, Energy Magazine. Paces against its `seed_media_plan` line.
+- **`no_plan_row`** - `plan_channel` deliberately BLANK. Westwick-Farrow: a real buy that was never
+  in the media plan. Its actuals are shown, flagged `Actuals - missing plan row`, with **no invented
+  target**. To start pacing it, add a `media_plan.csv` line and set `plan_channel`.
+- **`PLAN_ROW_NOT_FOUND`** - `plan_channel` set but resolving to nothing. A typo or a renamed plan
+  line: a **defect**, rendered as its own red flag and WARNed by the job. Rendering it as "missing
+  plan row" would make a broken join indistinguishable from a real business fact.
+
+### Pacing, and why both columns stay on screen
+Pacing uses **impressions** where a plan target and delivered impressions both exist, and **clicks**
+otherwise (Heavy Industries' trade-press line has page views, which are not impressions, and only a
+click target). A line with no target and a line with no delivery both say so in words rather than
+drawing a 0% bar, which reads as a campaign that delivered nothing.
+
+The bar can only be drawn on one basis, so the footnote **names any line where the two stories
+diverge**: Capital Brief is at 165% of its impression plan and 32% of its click plan. Both columns
+are on screen so neither hides the other.
+
+### What each publisher's card shows, and why they differ
+The layout is **derived from the data**, not configured: a card is laid out by MONTH when every
+delivery row is an impression and there is more than one period (one comparable measure over time -
+Capital Brief), and by PRODUCT otherwise. Any publisher mixing units gets product rows, because a
+month column holding mixed units would invite exactly the sum this lane must not allow. Columns
+appear only where some row populates them, so nobody gets an empty eDM column. Placement groups are
+ordered by delivered volume - BigQuery row order is not a contract, and without a rule the products
+reshuffle between loads.
+
+**Rates are never summed**; the card takes a delivery-weighted mean (weight = the delivery that rate
+describes: same period, and same placement group when the rate names one), and prints it at the
+precision the **publisher** stated. Capital Brief reports whole percentages, so the weighted mean of
+54% and 56% prints **55%** - which is exactly what its own summary slide says. Printing 55.3% would
+appear to contradict the publisher with precision we do not have.
+
+### Client-facing copy vs agency commentary
+The tab carries **one status per publisher**, in the plan table's Status column. The cards repeat
+only `In progress`, because that qualifies the card's own "Impressions to date" heading; earlier
+`Missing plan row` and `Check flagged below` chips restated the row above and pointed at a note two
+lines below them, so they were removed.
+
+The notes are split in two, and the split is a correctness rule, not tidiness:
+- **`status_note`** is client-facing, short, and rendered under the card.
+- **`internal_note`** is agency commentary - a publisher's figures to query, a plan line to add. It
+  stays in the committed CSV and the export job **prints** it, but it is **never put in the
+  payload**. This dashboard has no staff/client session distinction (no `BB_INTERNAL` gate), so
+  anything in `data.json` is on the client's screen or one devtools tab away from it. A UI gate
+  would have hidden the text without removing it; not shipping it is the actual fix.
+
+If a staff-visible surface is ever wanted here, it needs the role in the SSO token
+(`platform_sso.py`), not a `hidden` attribute - see the `client_schneidersecpwr` Reports-tab note.
+
+### Two things found in the source reports, both worth knowing before client reporting
+- **Capital Brief's headline is wrong, and we can say how.** Its campaign summary reads
+  **1.26M total impressions**. That figure is its **newsletter impressions only** (898,307
+  advertising + 361,812 content = 1,260,119) and omits the 249,048 web impressions; its stated CTRs
+  use the same newsletter-only denominator. Its own July (551,374) and August (957,793) totals *do*
+  include web and sum to **1,509,167**, which is what the dashboard reports. Flagged on the card.
+- **The Phase 1 report is superseded and deliberately NOT loaded.** `2608_..._Phase 1.pdf` covers
+  23 Jul - 12 Aug 2026 (737,754 impressions), days the Jul-Aug report already includes. Loading both
+  would double count. If it is ever wanted as history, it needs its own period that does not overlap.
+
+### Kept out of Paid Media and every blended total
+These are monthly aggregates with **no spend, no market and no day**. They travel in their own two
+payload keys, nothing else reads them, and they never touch `pm_delivery`, the KPI band or any
+CPM/CPC figure. A date range cutting mid-month cannot be honoured from a month bucket either, so the
+tab states plainly that the Region chips and the date range do not apply to it. They are also
+deliberately **absent from the AI deck payload**: a model handed a publisher impression count will
+blend it into a campaign headline however firmly the prompt says not to (the `client_geocon`
+precedent - the prompt is a request, an absent key is a fact). Revisit only with a deck prompt that
+keeps the lane separate.
+
+### Known, not fixed
+`data/media_plan.csv` has no line for the Westwick-Farrow buy, so it cannot be paced. That is a real
+gap in the plan, not a data problem - the tab flags it rather than inventing a target.
+
 ## Google Search (SEM) — the 4th platform (added 2026-09-02)
 
 Google Ads data for Schneider has been in the warehouse since **2026-07-06** and reached no surface until
@@ -997,8 +1142,12 @@ reports / CSV emails).
   campaign-ID reconciliation, and a **client-vs-dashboard gap list** (incl. the live AirSeT lead-ID
   mismatch). Written for a client review / chatbot Q&A. Start here for "how does this dashboard work".
 - [`data/`](data/) — the human-editable seed CSVs (campaign map / budgets / targets / flighting /
-  channel split / media plan / salesforce map), loaded to `seed_*` tables by [`load_seeds.py`](load_seeds.py).
-- [`sql/`](sql/README.md) — the 35 BigQuery views (filter + CS leads + paid delivery + `cs_audience` + `cs_account_titles` + the Google Search lane `03b`/`23`/`24` + the shared `04b_campaign_program` tagging + the GA4 Website layer `40-47`, shipped disabled).
+  channel split / media plan / salesforce map / **publisher reports + their meta**), loaded to
+  `seed_*` tables by [`load_seeds.py`](load_seeds.py).
+- [`validate_publisher_reports.py`](validate_publisher_reports.py) — offline validation of the two
+  hand-keyed publisher-report CSVs, run by all three deploy scripts BEFORE the load. Prints the
+  per-publisher totals to check against the report; exits non-zero on any error.
+- [`sql/`](sql/README.md) — the 37 BigQuery views (filter + CS leads + paid delivery + `cs_audience` + `cs_account_titles` + the Google Search lane `03b`/`23`/`24` + the shared `04b_campaign_program` tagging + the GA4 Website layer `40-47`, shipped disabled).
 - [`job/`](job/README.md) — the export job (stage 2): views + seed tables → `schneider.json`.
 - [`dash/`](dash/README.md) — the web app (stage 3): password gate + `dashboard.html`.
 - [`INTAKE.md`](INTAKE.md) — the resolved data slice + open items handed to the client.

@@ -495,6 +495,27 @@
   table tr:hover td{background:#FAFBFA}
   table tr.total td{font-weight:700;background:#F1FAF2;border-bottom:none}
   .plan-badge{display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:.3px;color:var(--se-mute);background:#F1F3F5;border:1px solid var(--se-line);border-radius:999px;padding:2px 9px}
+  /* Other Channels - publisher-report actuals (2026-09-14). The status chips are .plan-badge
+     variants so they inherit its shape and only the colour changes; four states that must never
+     look alike: delivered / delivered-but-still-running / plan-only / actuals with no plan row. */
+  .plan-badge.ok{color:var(--se-green2);border-color:var(--se-green2);background:#EEFBF0}
+  .plan-badge.info{color:#0B6AA0;border-color:#9FC9E4;background:#EEF7FD}
+  .plan-badge.warn{color:var(--warn-amber);border-color:#EAD9AE;background:#FBF4E6}
+  .plan-badge.bad{color:var(--bad-red);border-color:#E7B5AF;background:#FDF1EC}
+  td.pace{min-width:152px}
+  .pace .pc{font-size:11px;color:var(--se-mute);font-weight:600}
+  .pace .track{height:5px;border-radius:3px;background:#E7ECE9;overflow:hidden;margin-top:6px}
+  .pace .fill{height:100%;border-radius:3px;background:var(--se-green)}
+  .pace .fill.over{background:#0B6AA0}
+  .cellsub{display:block;font-size:11px;color:var(--se-mute);font-weight:500;margin-top:3px}
+  .pub-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding-bottom:8px}
+  .pub-head h3{font-size:14.5px;font-weight:800;margin:0}
+  .pub-head .src{margin-left:auto;font-size:11px;color:var(--se-mute)}
+  .pub-note{font-size:11.5px;color:var(--se-mute);padding:12px 2px 2px;line-height:1.55}
+  .pub-note b{color:var(--se-ink)}
+  .pub-kpis{display:flex;gap:26px;flex-wrap:wrap;padding:4px 0 14px}
+  .pub-kpis .v{font-size:20px;font-weight:700;letter-spacing:-.3px;color:var(--se-dark);font-variant-numeric:tabular-nums}
+  .pub-kpis .l{font-size:10px;letter-spacing:.9px;color:var(--se-mute);font-weight:700;text-transform:uppercase;margin-top:2px}
   .pill{display:inline-flex;align-items:center;gap:6px;padding:3px 9px;border-radius:999px;font-size:11px;font-weight:600;background:#F1F4F2;color:var(--se-dark)}
   .pill .dot{width:8px;height:8px;border-radius:50%}
   .tag{font-size:10px;font-weight:700;letter-spacing:.4px;padding:2px 7px;border-radius:5px;text-transform:uppercase}
@@ -1099,11 +1120,17 @@
         <h2>Other Channels</h2>
         <span class="sub" id="otherSub">Media-plan channels that don't have a measured data feed. Reporting currency AUD.</span>
       </div>
-      <div class="info-note warn">These channels are in the media plan but have <b>no warehouse data source</b> connected (e.g. Search, publisher sponsorships, trade press, email), so only the <b>plan targets</b> are shown, not measured delivery. Connect a feed (or upload actuals) to report on them.</div>
+      <div class="info-note warn">These channels have <b>no warehouse data feed</b>. Where a publisher sends a report, its delivered figures are <b>keyed in by hand each month</b> and shown against the plan below; every other line stays plan-only. Publisher figures are whole-flight monthly totals with <b>no spend and no region split</b>, so they are never added to Paid Media or any blended total.</div>
       <!-- Card wrapper is REQUIRED, not decoration: table text is var(--se-ink) (dark), which is
            unreadable on the dark-green canvas. Every table in this dash sits on a white card. -->
       <div class="card" style="margin-top:16px">
-        <div style="overflow:auto"><table id="otherTable"><thead><tr><th>Channel</th><th>Type</th><th class="num">Plan impressions</th><th class="num">Plan clicks</th><th class="num">Plan leads</th><th class="num">Plan spend</th><th>Status</th></tr></thead><tbody></tbody></table></div>
+        <div style="overflow:auto" id="otherTableWrap"><table id="otherTable"><thead><tr><th>Channel</th><th>Type</th><th class="num">Plan impressions</th><th class="num">Delivered impressions</th><th class="num">Plan clicks</th><th class="num">Delivered clicks</th><th class="num">Plan leads</th><th class="num">Plan spend</th><th>Pacing</th><th>Status</th></tr></thead><tbody></tbody></table></div>
+        <div class="pub-note" id="otherFoot"></div>
+      </div>
+      <div class="section" id="pubWrap" style="display:none">
+        <h2 style="font-size:15px">Publisher delivery <span class="plan-badge" id="pubPeriodBadge" style="vertical-align:middle"></span></h2>
+        <span class="sub" id="pubSub"></span>
+        <div id="pubCards"></div>
       </div>
       <div class="section" id="articleWrap" style="display:none">
         <h2 style="font-size:15px">Article delivery <span class="plan-badge" id="articleFlightBadge" style="vertical-align:middle"></span></h2>
@@ -2957,11 +2984,168 @@ function otherChannels(){
     (cp.channels||[]).forEach(c=>{ if(c.group==='other' && c.has_target) out.push({...c, _prog:cp.id}); }); });
   return out;
 }
+
+//------------------------------------------------------------------------------
+// PUBLISHER REPORT ACTUALS (2026-09-14)
+// Direct publisher buys with no API feed - Capital Brief, Energy Magazine and Westwick-Farrow on the
+// Advancing Energy Technology brief - keyed in monthly from emailed reports (data/publisher_reports.csv
+// -> seed -> sql/25 -> job). Rendered ONLY on this tab.
+//
+// THREE RULES THIS CODE ENFORCES, none of which is a styling choice:
+//  1. CAMPAIGN SCOPE. Every row names its campaign and is filtered through the SAME inCamp() every
+//     other surface uses, so a publisher renders under its own campaign and under All campaigns, and
+//     under no other. A future report load attaches to whichever campaign its rows name, with no code
+//     change here.
+//  2. UNITS ARE NOT INTERCHANGEABLE. Impressions come from r.impressions and nothing else. Solus eDM
+//     sends and sponsored-article views arrive in their OWN fields (r.sends / r.article_views) and
+//     are never added to an impression figure - the payload deliberately carries no generic
+//     `quantity` column, so there is nothing to sum by accident.
+//  3. NO SPEND, NO BLEND. These are monthly aggregates with no cost and no market, so they stay off
+//     Paid Media and out of every blended total; the tab says so on screen.
+//------------------------------------------------------------------------------
+// Whole-flight and campaign-scoped only. The Region chips and the date range are deliberately NOT
+// applied: these rows carry no market, and a date range cutting mid-month cannot be honoured from a
+// month bucket.
+function pubRows(){ return (DATA.publisher_delivery||[]).filter(r=>inCamp(r.campaign)); }
+function pubMetaRows(){
+  return (DATA.publisher_reports||[]).filter(m=>inCamp(m.campaign)).slice()
+    .sort((a,b)=>(a.seq||999)-(b.seq||999) || String(a.publisher).localeCompare(String(b.publisher)));
+}
+function pubRowsFor(m){ return pubRows().filter(r=>r.campaign===m.campaign && r.publisher===m.publisher); }
+// Key order is the DISPLAY order: BigQuery returns no meaningful row order for rate rows (they
+// share a null placement), so without an explicit precedence the KPI strip and the month columns
+// would reorder themselves between runs.
+const PUB_RATE_LABEL={ newsletter_open_rate:'Newsletter open rate', solus_open_rate:'Solus eDM open rate',
+                       display_viewability:'Display viewability' };
+const PUB_RATE_ORDER=Object.keys(PUB_RATE_LABEL);
+// An unmapped metric renders prettified rather than as a raw key - unfamiliar, not broken.
+function pubRateLabel(k){ return PUB_RATE_LABEL[k] || String(k||'').replace(/_/g,' ').replace(/^./,c=>c.toUpperCase()); }
+
+// ONE definition of "what this publisher delivered", used by the plan table, the cards and both CSV
+// exports, so those surfaces can never print different numbers for the same buy.
+// `impClicks` exists because a solus click must not sit over an impression denominator: the card's
+// CTR is impression-row clicks / impressions, which is how the publisher states it.
+function pubAgg(rows){
+  const a={imps:0,clicks:0,impClicks:0,sends:0,articles:0,booked:0,
+           hasImps:false,hasClicks:false,hasSends:false,hasArticles:false,hasBooked:false,
+           periods:[],start:null,end:null};
+  rows.forEach(r=>{
+    if(r.unit==='rate') return;
+    if(r.period_label && a.periods.indexOf(r.period_label)<0) a.periods.push(r.period_label);
+    if(r.period_start && (!a.start || r.period_start<a.start)) a.start=r.period_start;
+    if(r.period_end   && (!a.end   || r.period_end  >a.end  )) a.end  =r.period_end;
+    if(r.unit==='impressions'){ a.hasImps=true; a.imps+=r.impressions||0; a.impClicks+=r.clicks||0; }
+    if(r.unit==='sends'){ a.hasSends=true; a.sends+=r.sends||0; }
+    if(r.unit==='article_views'){ a.hasArticles=true; a.articles+=r.article_views||0; }
+    if(r.clicks!=null){ a.hasClicks=true; a.clicks+=r.clicks; }
+    if(r.booked_quantity!=null){ a.hasBooked=true; a.booked+=r.booked_quantity; }
+  });
+  return a;
+}
+// A rate is NEVER summed. Publishers state one per period, sometimes per product, so a card-level
+// figure is a DELIVERY-WEIGHTED mean - weight = the delivery that rate describes (same period, and
+// same placement group when the rate names one). Weighting Capital Brief this way reproduces its own
+// stated 55% open rate and 75% viewability exactly.
+function pubRateMean(rows, metric){
+  let num=0, den=0, any=false;
+  rows.forEach(r=>{
+    if(r.unit!=='rate' || r.metric!==metric || r.rate_value==null) return;
+    any=true;
+    const w=rows.reduce((sum,d)=>{
+      if(d.unit==='rate' || d.period_label!==r.period_label) return sum;
+      if(r.placement_group && d.placement_group!==r.placement_group) return sum;
+      return sum+(d.impressions||0)+(d.sends||0)+(d.article_views||0);
+    },0) || 1;              // a period with no delivery falls back to an unweighted mean
+    num+=r.rate_value*w; den+=w;
+  });
+  return any && den ? num/den : null;
+}
+function pubRateMetrics(rows){
+  const out=[]; rows.forEach(r=>{ if(r.unit==='rate' && r.metric && out.indexOf(r.metric)<0) out.push(r.metric); });
+  const ix=k=>{ const i=PUB_RATE_ORDER.indexOf(k); return i<0?99:i; };
+  return out.sort((a,b)=>ix(a)-ix(b) || a.localeCompare(b));
+}
+// Print a rate at the precision its PUBLISHER stated it. Capital Brief reports whole percentages, so
+// the weighted mean of 54% and 56% must print 55% - printing 55.3% would appear to contradict the
+// publisher's own summary slide with precision we do not actually have. Energy Magazine reports
+// 26.75%, so that keeps a decimal place.
+function fmtRate(rows, metric){
+  const v=pubRateMean(rows, metric); if(v==null) return '-';
+  const vals=rows.filter(r=>r.unit==='rate' && r.metric===metric && r.rate_value!=null).map(r=>r.rate_value);
+  const whole=vals.length && vals.every(x=>Math.abs(x*100-Math.round(x*100))<1e-9);
+  return fmtPct(v, whole?0:1);
+}
+// Placement groups, largest delivery first. Row order out of BigQuery is not a contract, so the
+// card needs an ordering rule of its own or the products reshuffle between loads; ordering by what
+// each product actually delivered is both stable and the order a reader wants to read them in.
+function pubGroups(rows){
+  const tot={};
+  rows.forEach(r=>{ if(r.unit==='rate' || !r.placement_group) return;
+    tot[r.placement_group]=(tot[r.placement_group]||0)+(r.impressions||0)+(r.sends||0)+(r.article_views||0); });
+  return Object.keys(tot).sort((a,b)=>tot[b]-tot[a] || a.localeCompare(b));
+}
+// The publisher a media-plan line is paced against. Bound by the STATED plan_channel, never by
+// matching the publisher's name against the channel's - a rename would silently unpace a live buy.
+// Only a 'matched' meta row may bind; the other two states are rendered as their own rows below.
+function pubForPlanLine(prog, channelName){
+  const k=String(channelName||'').trim().toLowerCase();
+  return pubMetaRows().find(m=>m.campaign===prog && m.plan_match==='matched'
+    && String(m.plan_channel||'').trim().toLowerCase()===k) || null;
+}
+// Trade-press article delivery (the pre-existing ARTICLE_DELIVERY hardcode). Page views are NOT
+// impressions, so this line can only ever pace on clicks - which is also the only target its
+// media-plan line carries.
+function articleAgg(prog){
+  const A=ARTICLE_DELIVERY[prog]; if(!A) return null;
+  const live=A.flights.filter(f=>f.live && f.publications.length);
+  if(!live.length) return null;
+  let clicks=0; live.forEach(f=>f.publications.forEach(x=>{ clicks+=x.clicks||0; }));
+  return { clicks, partial:live.some(f=>f.partial) };
+}
+// Pace on impressions when both sides of the ratio exist, else on clicks. Never invent a basis: a
+// line with no target and a line with no delivery both return null and say so in words, because a
+// 0% bar reads as a campaign that delivered nothing rather than one that is not measured that way.
+function pubPace(planImp, delImp, planClk, delClk){
+  if(planImp>0 && delImp!=null) return {pc:delImp/planImp, basis:'plan impressions'};
+  if(planClk>0 && delClk!=null) return {pc:delClk/planClk, basis:'plan clicks'};
+  return null;
+}
+function paceCell(pace, note){
+  if(!pace) return `<td class="pace"><span class="pc">${note||'-'}</span></td>`;
+  const pcs=Math.round(pace.pc*100);
+  return `<td class="pace"><span class="pc">${fmtN(pcs)}% of ${pace.basis}${note?' · '+note:''}</span>`
+    +`<div class="track"><div class="fill${pace.pc>1?' over':''}" style="width:${Math.min(100,Math.max(0,pcs))}%"></div></div></td>`;
+}
+function pubStatusChip(m, hasActuals){
+  if(!m) return '<span class="plan-badge">Plan only · no feed</span>';
+  if(m.plan_match==='PLAN_ROW_NOT_FOUND')
+    return `<span class="plan-badge bad" title="plan_channel &quot;${escH(m.plan_channel||'')}&quot; matches no media-plan line - a typo or a renamed plan line, not a buy without a plan">Actuals · plan line not found</span>`;
+  if(m.plan_match==='no_plan_row')
+    return '<span class="plan-badge warn">Actuals · missing plan row</span>';
+  if(!hasActuals) return '<span class="plan-badge">Plan only · no feed</span>';
+  return m.delivery_status==='in_progress'
+    ? '<span class="plan-badge info">Actuals below &darr; · in progress</span>'
+    : '<span class="plan-badge ok">Actuals below &darr;</span>';
+}
+// "Jul-Aug 2026", and "(to 26 Aug)" when the last period stops short of its month end - which is how
+// the Energy Magazine card states that Q3 is still running, without anyone hand-editing the caption.
+function pubPeriodSpan(a){
+  if(!a.start||!a.end) return a.periods.join(', ');
+  const s=new Date(a.start+'T00:00:00Z'), e=new Date(a.end+'T00:00:00Z');
+  const M=d=>d.toLocaleDateString('en-US',{month:'short',timeZone:'UTC'});
+  const eom=new Date(Date.UTC(e.getUTCFullYear(), e.getUTCMonth()+1, 0)).getUTCDate();
+  const partial=e.getUTCDate()<eom;
+  const span=(M(s)===M(e)&&s.getUTCFullYear()===e.getUTCFullYear())?`${M(s)} ${e.getUTCFullYear()}`
+    :`${M(s)}-${M(e)} ${e.getUTCFullYear()}`;
+  return span+(partial?` (to ${e.getUTCDate()} ${M(e)})`:'');
+}
+
 function renderOther(){
   const isAll=isAllCampaigns();
   el('otherSub').textContent=isAll
-    ? `Plan-only channels across ${scopePhrase()} - tracked in the media plan, no measured delivery feed connected.`
-    : `Plan-only channels for ${campaign().label} - tracked in the media plan, no measured delivery feed connected.`;
+    ? `Plan-only channels across ${scopePhrase()} - tracked in the media plan, with delivery shown for the publishers that send a report.`
+    : `Plan-only channels for ${campaign().label} - tracked in the media plan, with delivery shown for the publishers that send a report.`;
+  renderPublisherCards();
   renderArticles();
   // The Program column only exists in the all-up view; on a single program every row would repeat the
   // dropdown's own value, so it is added and removed with the scope rather than sitting there empty.
@@ -2969,29 +3153,243 @@ function renderOther(){
   const hasProgCol=!!head.querySelector('.progcol');
   if(isAll && !hasProgCol){ const th=document.createElement('th'); th.className='progcol'; th.textContent='Program'; head.insertBefore(th, head.firstChild); }
   if(!isAll && hasProgCol) head.querySelector('.progcol').remove();
-  const ncol=isAll?8:7;
+  const ncol=isAll?11:10;
   const tb=el('otherTable').querySelector('tbody'); tb.innerHTML='';
   const chans=otherChannels();
-  if(!chans.length){ tb.innerHTML=`<tr><td colspan="${ncol}" style="text-align:center;color:var(--se-mute);padding:24px">No other channels for ${isAll?scopePhrase():'this campaign'}.</td></tr>`; return; }
   const artProgs=new Set(articlePrograms());
+  // Publishers whose meta row binds to a plan line above. Whatever is left over is appended as its
+  // own row: actuals with no plan line must still be visible, and must never be given a target.
+  const bound=new Set();
+  const diverge=[];
+
+  const rowHtml=(progCell, name, sub, type, planImp, delImp, planClk, delClk, planLead, planSpend, pace, paceNote, status)=>
+    (isAll?progCell:'')
+    +`<td>${name}${sub?`<span class="cellsub">${sub}</span>`:''}</td><td>${type||'-'}</td>`
+    +`<td class="num">${fmtN(planImp)}</td><td class="num">${delImp==null?'-':`<b>${fmtN(delImp)}</b>`}</td>`
+    +`<td class="num">${fmtN(planClk)}</td><td class="num">${delClk==null?'-':`<b>${fmtN(delClk)}</b>`}</td>`
+    +`<td class="num">${fmtN(planLead)}</td><td class="num">${planSpend?money(planSpend):'-'}</td>`
+    +paceCell(pace, paceNote)+`<td>${status}</td>`;
+
   chans.forEach(c=>{
-    const isArt=artProgs.has(c._prog) && /trade publication/i.test(c.name||'');
+    const m=pubForPlanLine(c._prog, c.name);
+    const a=m?pubAgg(pubRowsFor(m)):null;
+    const art=(artProgs.has(c._prog) && /trade publication/i.test(c.name||'')) ? articleAgg(c._prog) : null;
+    if(m) bound.add(m.campaign+'|'+m.publisher);
+    // Delivered impressions stay NULL unless the publisher actually reports impressions - trade-press
+    // page views and eDM sends are not impressions and must not be shown in that column.
+    const delImp = a && a.hasImps ? a.imps : null;
+    const delClk = a && a.hasClicks ? a.clicks : (art ? art.clicks : null);
+    const pace = pubPace(c.imp_target, delImp, c.click_target, delClk);
+    let note=null;
+    if(!pace) note = (a||art) ? 'no plan target to pace against' : 'no report yet';
+    else if(m && m.delivery_status==='in_progress') note='still running';
+    else if(art && art.partial) note='flight in progress';
+    if(c.imp_target>0 && delImp!=null && c.click_target>0 && delClk!=null){
+      const ri=delImp/c.imp_target, rc=delClk/c.click_target;
+      if(Math.abs(ri-rc)>=0.25) diverge.push({name:c.name, imp:ri, clk:rc});
+    }
+    const sub=m?`${pubPeriodSpan(a)}${m.report_label?' · '+escH(m.report_label):''}${m.report_job?' · job '+escH(m.report_job):''}`:'';
     const tr=document.createElement('tr');
-    tr.innerHTML=(isAll?`<td><span class="pill"><span class="dot" style="background:${campColor(c._prog)}"></span>${campLabel(c._prog)}</span></td>`:'')
-      +`<td>${c.name}</td><td>${c.line_type||'-'}</td>`
-      +`<td class="num">${fmtN(c.imp_target)}</td><td class="num">${fmtN(c.click_target)}</td>`
-      +`<td class="num">${fmtN(c.lead_target)}</td><td class="num">${c.spend?money(c.spend):'-'}</td>`
-      +`<td>${isArt?'<span class="plan-badge" style="color:var(--se-green2);border-color:var(--se-green2)">Actuals below ↓</span>':'<span class="plan-badge">Plan only · no feed</span>'}</td>`;
+    tr.innerHTML=rowHtml(
+      `<td><span class="pill"><span class="dot" style="background:${campColor(c._prog)}"></span>${campLabel(c._prog)}</span></td>`,
+      escH(c.name), sub, c.line_type, c.imp_target, delImp, c.click_target, delClk,
+      c.lead_target, c.spend, pace, note,
+      art ? '<span class="plan-badge ok">Actuals below &darr;</span>' : pubStatusChip(m, !!(a&&(a.hasImps||a.hasClicks))));
     tb.appendChild(tr);
   });
+
+  // Publisher actuals with no plan line of their own: surfaced, flagged, and given NO targets.
+  const orphans=pubMetaRows().filter(m=>!bound.has(m.campaign+'|'+m.publisher) && pubRowsFor(m).length);
+  orphans.forEach(m=>{
+    const a=pubAgg(pubRowsFor(m));
+    const tr=document.createElement('tr');
+    tr.innerHTML=rowHtml(
+      `<td><span class="pill"><span class="dot" style="background:${campColor(m.campaign)}"></span>${campLabel(m.campaign)}</span></td>`,
+      escH(m.publisher_label||m.publisher),
+      `${m.report_label?escH(m.report_label)+' · ':''}${pubPeriodSpan(a)}${m.report_job?' · job '+escH(m.report_job):''}`,
+      'Awareness', null, a.hasImps?a.imps:null, null, a.hasClicks?a.clicks:null, null, null,
+      null, m.plan_match==='PLAN_ROW_NOT_FOUND'?'plan line not found - cannot pace':'no plan row to pace against',
+      pubStatusChip(m, true));
+    tb.appendChild(tr);
+  });
+
+  if(!chans.length && !orphans.length)
+    tb.innerHTML=`<tr><td colspan="${ncol}" style="text-align:center;color:var(--se-mute);padding:24px">No other channels for ${isAll?scopePhrase():'this campaign'}.</td></tr>`;
+
+  // The bar can only be drawn on ONE basis, so where a line has both an impression and a click plan
+  // and the two disagree sharply, name it. Capital Brief at 165% of its impression plan and 32% of
+  // its click plan is exactly the case where a single headline percentage would mislead - both
+  // columns are already on screen, and this says out loud that they tell different stories.
+  const foot=el('otherFoot');
+  if(foot){
+    const parts=diverge.map(d=>`<b>${escH(d.name)}</b> is at ${fmtN(Math.round(d.imp*100))}% of its impression plan but ${fmtN(Math.round(d.clk*100))}% of its click plan`);
+    // The hand-keyed sentence is only true where something was actually keyed in: on a scope whose
+    // lines are all plan-only it would describe delivery that is not on screen.
+    foot.innerHTML=!(chans.length||orphans.length) ? ''
+      : `<b>Pacing</b> compares delivered impressions to the plan where both exist, and delivered clicks otherwise.`
+        +(parts.length?` ${parts.join('; ')} - both columns are shown so neither story hides the other.`:'');
+  }
 }
+
+//------------------------------------------------------------------------------
+// Publisher delivery cards. One per publisher in scope, each showing what THAT publisher actually
+// reports - the metrics genuinely differ, and a shared column set would either drop half of them or
+// print empty columns that read as missing data.
+//------------------------------------------------------------------------------
+// A card is laid out by MONTH when every delivery row is an impression and there is more than one
+// period: that is a publisher reporting one comparable measure over time, and the months are what the
+// client reads. Any publisher MIXING units (eDM sends, sponsored-article views) is laid out by
+// PRODUCT, because a month column holding mixed units would invite exactly the sum this lane must
+// not allow. Rate rows are excluded from the test - a rate is not a delivery unit.
+function pubLayout(rows){
+  const d=rows.filter(r=>r.unit!=='rate');
+  const units=new Set(d.map(r=>r.unit)), periods=new Set(d.map(r=>r.period_label));
+  return (units.size===1 && units.has('impressions') && periods.size>1) ? 'months' : 'products';
+}
+function pubKpi(v,l){ return `<div><div class="v">${v}</div><div class="l">${l}</div></div>`; }
+
+function renderPublisherCards(){
+  const wrap=el('pubWrap'); if(!wrap) return;
+  const metas=pubMetaRows().filter(m=>pubRowsFor(m).length);
+  if(!metas.length){ wrap.style.display='none'; el('pubCards').innerHTML=''; return; }
+  wrap.style.display='';
+  const allRows=pubRows().filter(r=>r.unit!=='rate');
+  const periods=[]; allRows.forEach(r=>{ if(r.period_label && periods.indexOf(r.period_label)<0) periods.push(r.period_label); });
+  el('pubPeriodBadge').textContent=periods.join(', ')+' loaded';
+  const progs=[...new Set(metas.map(m=>m.campaign))].map(campLabel);
+  el('pubSub').textContent=`${progs.join(' · ')} publisher partnerships. Loaded by hand each month from emailed publisher reports - there is no live data feed. Metrics differ by publisher, so each card shows what its own publisher reports.`;
+  el('pubCards').innerHTML=metas.map(renderPublisherCard).join('');
+}
+
+function renderPublisherCard(m){
+  const rows=pubRowsFor(m), a=pubAgg(rows), layout=pubLayout(rows);
+  const rateKeys=pubRateMetrics(rows);
+
+  // ---- KPI strip: impressions, clicks, each reported rate, then articles vs booked -------------
+  const kp=[];
+  if(a.hasImps) kp.push(pubKpi(fmtN(a.imps), m.delivery_status==='in_progress'?'Impressions to date':'Total impressions'));
+  if(a.hasClicks) kp.push(pubKpi(fmtN(a.clicks), a.hasArticles?'Display + eNews clicks':'Total clicks'));
+  rateKeys.forEach(k=>{ if(pubRateMean(rows,k)!=null) kp.push(pubKpi(fmtRate(rows,k), pubRateLabel(k))); });
+  if(a.hasArticles){
+    kp.push(pubKpi(fmtN(a.articles),'Sponsored article views'));
+    if(a.booked>0) kp.push(pubKpi(fmtPct(a.articles/a.booked,0),'Articles vs booked'));
+  }
+
+  // ---- header -----------------------------------------------------------------------------------
+  // ONE status is stated per publisher, in the plan table's Status column. The card repeats only
+  // "In progress", because it qualifies the card's own "Impressions to date" heading; a second
+  // "Missing plan row" chip here said nothing the row above had not already said, and a
+  // "Check flagged below" chip pointed at a note sitting two lines under it.
+  const chips=[`<span class="pill"><span class="dot" style="background:${campColor(m.campaign)}"></span>${campLabel(m.campaign)}</span>`,
+               `<span class="plan-badge">${pubPeriodSpan(a)}</span>`];
+  if(m.delivery_status==='in_progress') chips.push('<span class="plan-badge info">In progress</span>');
+  const src=m.report_source?`<span class="src">Source: ${escH(m.report_source)}${m.report_job?`, job ${escH(m.report_job)}`:''}</span>`:'';
+
+  // ---- footnote: the publisher's own caveats, plus the article spread derived from the rows -----
+  const notes=[];
+  if(m.status_note) notes.push(escH(m.status_note));
+  if(a.hasArticles){
+    const arts=rows.filter(r=>r.unit==='article_views' && r.article_views!=null);
+    if(arts.length){
+      const vals=arts.map(r=>r.article_views), lo=Math.min(...vals), hi=Math.max(...vals);
+      const bk=arts.map(r=>r.booked_quantity).filter(v=>v!=null);
+      const allOver=bk.length===arts.length && arts.every(r=>r.article_views>=r.booked_quantity);
+      notes.push(`${arts.length} sponsored article${arts.length>1?'s':''} delivered `
+        +(lo===hi?`${fmtN(lo)} views each`:`between ${fmtN(lo)} and ${fmtN(hi)} views`)
+        +(bk.length?` against ${fmtN(bk[0])} booked each${allOver?' - all over-delivered':''}`:'')+'.');
+    }
+  }
+  // Say this only where it is actually load-bearing - on a card with neither eDM nor articles it is
+  // noise, and noise is what stops people reading the notes that matter.
+  if(a.hasSends || a.hasArticles)
+    notes.push((a.hasSends && a.hasArticles) ? 'eDM sends and sponsored-article views are reported separately and are never counted as impressions.'
+      : a.hasSends ? 'eDM sends are reported separately and are never counted as impressions.'
+      : 'Sponsored-article views are reported separately and are never counted as impressions.');
+
+  return `<div class="card" style="margin-top:12px">
+    <div class="pub-head"><h3>${escH(m.publisher_label||m.publisher)}</h3>${chips.join('')}${src}</div>
+    ${kp.length?`<div class="pub-kpis">${kp.join('')}</div>`:''}
+    <div style="overflow:auto">${layout==='months'?pubMonthTable(rows,a):pubProductTable(rows,a)}</div>
+    <div class="pub-note">${notes.join(' ')}</div>
+  </div>`;
+}
+
+// MONTH layout: rows are periods, columns are the publisher's placement groups plus a total. Used
+// only where every delivery row is an impression, so the columns are genuinely addable.
+function pubMonthTable(rows, agg){
+  const groups=pubGroups(rows), rateKeys=pubRateMetrics(rows);
+  const periods=[]; rows.forEach(r=>{ if(r.unit!=='rate' && periods.indexOf(r.period_label)<0) periods.push(r.period_label); });
+  const head=`<thead><tr><th>Month</th>${groups.map(g=>`<th class="num">${escH(g)} impressions</th>`).join('')}`
+    +`<th class="num">Total impressions</th><th class="num">Clicks</th>`
+    +rateKeys.map(k=>`<th class="num">${escH(pubRateLabel(k))}</th>`).join('')+'</tr></thead>';
+  const body=periods.map(p=>{
+    const pr=rows.filter(r=>r.period_label===p), pa=pubAgg(pr);
+    return `<tr><td>${escH(p)}</td>`
+      +groups.map(g=>`<td class="num">${fmtN(pubAgg(pr.filter(r=>r.placement_group===g)).imps)}</td>`).join('')
+      +`<td class="num">${fmtN(pa.imps)}</td><td class="num">${fmtN(pa.clicks)}</td>`
+      +rateKeys.map(k=>`<td class="num">${fmtRate(pr,k)}</td>`).join('')
+      +'</tr>';
+  }).join('');
+  // The total row re-derives the rates as a weighted mean over the WHOLE card - never a sum, and
+  // never a plain average of the monthly figures, which would ignore how much each month delivered.
+  const tot=`<tr class="total"><td>Total delivered</td>`
+    +groups.map(g=>`<td class="num">${fmtN(pubAgg(rows.filter(r=>r.placement_group===g)).imps)}</td>`).join('')
+    +`<td class="num">${fmtN(agg.imps)}</td><td class="num">${fmtN(agg.clicks)}</td>`
+    +rateKeys.map(k=>`<td class="num">${fmtRate(rows,k)}</td>`).join('')
+    +'</tr>';
+  return `<table>${head}<tbody>${body}${tot}</tbody></table>`;
+}
+
+// PRODUCT layout: rows are the publisher's placement groups. Every column is rendered only if some
+// row actually populates it, so a publisher that runs no eDM gets no empty eDM column, and one that
+// books article views gets the booked-vs-delivered pair.
+function pubProductTable(rows, agg){
+  const groups=pubGroups(rows);
+  const anySends=agg.hasSends, anyArticles=agg.hasArticles;
+  const groupRate=g=>{ const gr=rows.filter(r=>r.placement_group===g), k=pubRateMetrics(gr)[0];
+                       return k?{k, txt:fmtRate(gr,k)}:null; };
+  const anyRate=groups.some(g=>groupRate(g));
+  const qtyHead=anySends?'Impressions / sent':'Impressions';
+  const head=`<thead><tr><th>Product</th><th>Period</th><th class="num">${qtyHead}</th><th class="num">Clicks</th><th class="num">CTR</th>`
+    +(anyRate?'<th class="num">Open rate</th>':'')
+    +(anyArticles?'<th class="num">Booked views</th><th class="num">Delivered views</th>':'')+'</tr></thead>';
+  const body=groups.map(g=>{
+    const gr=rows.filter(r=>r.placement_group===g), ga=pubAgg(gr), rt=groupRate(g);
+    // CTR denominator is whatever that product was measured in - impressions, or sends for a solus
+    // eDM, which is exactly how the publisher states its own eDM click-through rate.
+    const den=ga.hasImps?ga.imps:(ga.hasSends?ga.sends:0);
+    const qty=ga.hasImps?fmtN(ga.imps):(ga.hasSends?`${fmtN(ga.sends)} sent`:'-');
+    return `<tr><td>${escH(g)}</td><td>${escH(pubPeriodSpan(ga))}</td>`
+      +`<td class="num">${qty}</td><td class="num">${ga.hasClicks?fmtN(ga.clicks):'-'}</td>`
+      +`<td class="num">${den?fmtPct(ga.clicks/den,2):'-'}</td>`
+      +(anyRate?`<td class="num">${rt?rt.txt:'-'}</td>`:'')
+      +(anyArticles?`<td class="num">${ga.hasBooked?fmtN(ga.booked):'-'}</td><td class="num">${ga.hasArticles?fmtN(ga.articles):'-'}</td>`:'')
+      +'</tr>';
+  }).join('');
+  // Total impressions EXCLUDE sends and article views by construction (pubAgg keeps them apart), and
+  // the total CTR divides only the clicks that sit on impression rows by those impressions - a solus
+  // click over an impression denominator would be a different, wrong number.
+  const tot=`<tr class="total"><td>Total delivered</td><td></td>`
+    +`<td class="num">${agg.hasImps?fmtN(agg.imps)+' impr.':'-'}</td><td class="num">${fmtN(agg.clicks)}</td>`
+    +`<td class="num">${agg.imps?fmtPct(agg.impClicks/agg.imps,2):'-'}</td>`
+    +(anyRate?'<td class="num"></td>':'')
+    +(anyArticles?`<td class="num">${fmtN(agg.booked)}</td><td class="num">${fmtN(agg.articles)}</td>`:'')
+    +'</tr>';
+  return `<table>${head}<tbody>${body}${tot}</tbody></table>`;
+}
+
 
 function exportThisTab(){
   let lines=[`# Schneider CS - ${activeTab} - ${campaign().label}${isMultiProgram()?` (${selCampaigns().map(x=>x.label).join('; ')})`:''} - ${activeMarketList().join('/')}`
     +((activeTab==='paid')?` - ${platformNote()}`:'')];
   if(activeTab==='paid') lines=lines.concat(tableCSV('pm_delivery (filtered)', pmRows()))
     .concat(searchRows().length?tableCSV('google_search_campaigns (filtered)', searchRows()):[]);
-  else if(activeTab==='other') lines=lines.concat(tableCSV('other_channels (plan only)', otherChannels()));
+  else if(activeTab==='other') lines=lines.concat(tableCSV('other_channels (media plan)', otherChannels()))
+    // Publisher actuals travel as their own two tables, never merged into the plan one: they have no
+    // spend and their quantities are in three different units, so a single flat table would be read
+    // as one comparable column of numbers. Scoped by inCamp exactly as the screen is.
+    .concat(pubRows().length?tableCSV('publisher_delivery (hand-keyed monthly; impressions, sends and article views are separate columns)', pubRows()):[])
+    .concat(pubMetaRows().length?tableCSV('publisher_reports (source + plan match)', pubMetaRows()):[]);
   else if(activeTab==='website') lines=lines.concat(tableCSV('ga4_sources (whole property)', (DATA.ga4&&DATA.ga4.sources)||[]));
   else lines=lines.concat(tableCSV('cs_by_programme (filtered)', csRows()))
     .concat(tableCSV('cs_weekly (filtered)', csWeeklyRows()))
@@ -3007,7 +3405,10 @@ function exportAllData(){
   let lines=['# Schneider Electric Pacific - Content Syndication - full export'];
   lines=lines.concat(tableCSV('campaigns', DATA.campaigns)).concat(tableCSV('cs_by_programme', DATA.cs_by_programme)).concat(tableCSV('cs_weekly', DATA.cs_weekly)).concat(tableCSV('pm_delivery', DATA.pm_delivery))
     .concat(tableCSV('cs_audience', DATA.cs_audience||[])).concat(tableCSV('cs_account_titles', DATA.cs_account_titles||[]))
-    .concat(tableCSV('google_search_campaigns', DATA.search_campaigns||[]));
+    .concat(tableCSV('google_search_campaigns', DATA.search_campaigns||[]))
+    // Publisher-report actuals: kept as their own tables here too, for the same reason as above.
+    .concat(tableCSV('publisher_delivery', DATA.publisher_delivery||[]))
+    .concat(tableCSV('publisher_reports', DATA.publisher_reports||[]));
   dl('schneider_content_syndication.csv', lines);
 }
 

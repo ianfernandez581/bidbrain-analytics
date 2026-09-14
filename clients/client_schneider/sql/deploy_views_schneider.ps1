@@ -22,6 +22,7 @@ $REPO_ROOT = Split-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) 
 $PYTHON    = Join-Path $REPO_ROOT ".venv\Scripts\python.exe"
 $CLIENT_DIR= Split-Path $PSScriptRoot -Parent
 $LOAD_PY   = Join-Path $CLIENT_DIR "load_seeds.py"
+$VALIDATE_PY = Join-Path $CLIENT_DIR "validate_publisher_reports.py"
 $VIEWS_PY  = Join-Path $CLIENT_DIR "create_views.py"
 
 function Die($m)  { Write-Host "!! Failed: $m." -ForegroundColor Red; exit 1 }
@@ -32,6 +33,12 @@ if (-not (Test-Path $LOAD_PY))  { Die "load_seeds.py not found at $LOAD_PY" }
 if (-not (Test-Path $VIEWS_PY)) { Die "create_views.py not found at $VIEWS_PY" }
 if (-not (Get-Command gcloud -ErrorAction SilentlyContinue)) { Write-Error "gcloud not found."; exit 1 }
 
+# The publisher-report seeds are keyed in by HAND each month, so they are validated before the load:
+# unknown units, rate values typed as 54 instead of 0.54, a plan_channel that matches no media-plan
+# line, a duplicated grain key. It prints the per-publisher totals to check against the report and
+# exits non-zero on any error, so a typo stops here rather than reaching the dashboard.
+Write-Host "Validating the publisher-report seeds (validate_publisher_reports.py) ..."
+& $PYTHON $VALIDATE_PY; Must "validate publisher report seeds"
 Write-Host "Loading data/*.csv into the seed_* tables via load_seeds.py (must precede the views) ..."
 & $PYTHON $LOAD_PY; Must "load seeds"
 Write-Host "Reapplying SQL views via create_views.py ..."

@@ -56,6 +56,31 @@ SEED_SCHEMAS = {
         ("flight_start", "DATE"), ("flight_end", "DATE"), ("spend_aud", "FLOAT"),
         ("imp_target", "INTEGER"), ("reach_target", "INTEGER"), ("click_target", "INTEGER"),
         ("lead_target", "INTEGER"), ("sf_campaign_id", "STRING"), ("note", "STRING")]),
+    # PUBLISHER REPORTS (2026-09-14). Direct publisher buys with NO API feed - delivery arrives as
+    # emailed PDFs / workbooks and is re-keyed here by hand each month. Two seeds on purpose: the
+    # FACT file is what a monthly reload touches, the META file is per-publisher settings that only
+    # change when a report's source / status does, so the monthly edit stays narrow and legible.
+    #
+    # `unit` is the safety mechanism, not a label: ONLY unit='impressions' may enter an impression
+    # total. 'sends' (solus eDM) and 'article_views' (sponsored articles) are delivery but are NOT
+    # impressions, and 'rate' rows are publisher-reported rates that are never summed. Anything
+    # outside that vocabulary is excluded from every total and WARNed by the export job - see
+    # sql/25_publisher_delivery.sql. Run validate_publisher_reports.py before loading.
+    "publisher_reports": ("seed_publisher_reports", [
+        ("internal_campaign_id", "STRING"), ("publisher", "STRING"), ("period_label", "STRING"),
+        ("period_start", "DATE"), ("period_end", "DATE"), ("placement_group", "STRING"),
+        ("placement", "STRING"), ("unit", "STRING"), ("metric", "STRING"),
+        ("quantity", "FLOAT"), ("clicks", "INTEGER"), ("booked_quantity", "INTEGER"),
+        ("note", "STRING")]),
+    # plan_channel is the JOIN KEY onto seed_media_plan.channel (same internal_campaign_id). BLANK is
+    # meaningful and is NOT a typo: it means this publisher has no media-plan line, which the tab
+    # surfaces as "missing plan row" rather than inventing a target. A non-blank value that matches
+    # no plan line IS a typo, and is reported separately - the two must never look alike.
+    "publisher_report_meta": ("seed_publisher_report_meta", [
+        ("seq", "INTEGER"), ("internal_campaign_id", "STRING"), ("publisher", "STRING"),
+        ("publisher_label", "STRING"), ("plan_channel", "STRING"), ("report_source", "STRING"),
+        ("report_label", "STRING"), ("report_job", "STRING"), ("delivery_status", "STRING"),
+        ("status_note", "STRING"), ("internal_note", "STRING")]),
     "salesforce_map": ("seed_salesforce_map", [
         ("salesforce_campaign_id", "STRING"), ("internal_campaign_id", "STRING"),
         ("pillar_label", "STRING")]),

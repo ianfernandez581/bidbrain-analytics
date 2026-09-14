@@ -1,7 +1,8 @@
 # deploy_seeds_schneider.ps1 - reload the human-editable seed CSVs in data/ into the BigQuery
 # seed_* TABLES, then re-run the export JOB so schneider.json reflects them. Use this after editing
 # anything under clients/client_schneider/data/ (campaign_map / plan_budget / media_plan /
-# salesforce_map / targets / channel_split / plan_flighting).
+# salesforce_map / targets / channel_split / plan_flighting / publisher_reports /
+# publisher_report_meta).
 #
 # The seeds are TABLES loaded from CSV (not views), and they are NOT an upstream the freshness gate
 # watches, so the job is re-run with FORCE_REBUILD=1 (a seed edit would otherwise be a silent no-op).
@@ -23,6 +24,7 @@ $JOB       = "schneider-export"
 $REPO_ROOT = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent   # client_schneider -> clients -> repo root
 $PYTHON    = Join-Path $REPO_ROOT ".venv\Scripts\python.exe"
 $LOAD_PY   = Join-Path $PSScriptRoot "load_seeds.py"
+$VALIDATE_PY = Join-Path $PSScriptRoot "validate_publisher_reports.py"
 
 function Die($m)  { Write-Host "!! Failed: $m." -ForegroundColor Red; exit 1 }
 function Must($m) { if ($LASTEXITCODE -ne 0) { Die $m } }
@@ -31,6 +33,12 @@ if (-not (Test-Path $PYTHON))  { Die "repo venv python not found at $PYTHON" }
 if (-not (Test-Path $LOAD_PY)) { Die "load_seeds.py not found at $LOAD_PY" }
 if (-not (Get-Command gcloud -ErrorAction SilentlyContinue)) { Write-Error "gcloud not found."; exit 1 }
 
+# The publisher-report seeds are keyed in by HAND each month, so they are validated before the load:
+# unknown units, rate values typed as 54 instead of 0.54, a plan_channel that matches no media-plan
+# line, a duplicated grain key. It prints the per-publisher totals to check against the report and
+# exits non-zero on any error, so a typo stops here rather than reaching the dashboard.
+Write-Host "Validating the publisher-report seeds (validate_publisher_reports.py) ..."
+& $PYTHON $VALIDATE_PY; Must "validate publisher report seeds"
 Write-Host "Loading data/*.csv into the client_schneider seed_* tables via load_seeds.py ..."
 & $PYTHON $LOAD_PY; Must "load seeds"
 Write-Host "Re-running $JOB (FORCE_REBUILD=1) so schneider.json reflects the new seeds ..."

@@ -119,6 +119,8 @@ Write-Host "[5/7] Loading seed CSVs + applying views + building/deploying the ex
 #     load_seeds.py auto-migrates any pre-existing seed_* VIEW (old sql/30-34) to a table.
 $PYTHON = ".\.venv\Scripts\python.exe"
 if (-not (Test-Path $PYTHON)) { Die "repo venv python not found at $PYTHON (run scripts\setup.ps1 first)" }
+Write-Host "     validating the hand-keyed publisher-report seeds"
+& $PYTHON 'clients/client_schneider/validate_publisher_reports.py'; Must "validate publisher report seeds"
 Write-Host "     loading data/*.csv -> seed_* tables via load_seeds.py"
 & $PYTHON 'clients/client_schneider/load_seeds.py'; Must "load seeds"
 # 5b. Apply the SQL views in filename order (NN_ prefix enforces dependency order).

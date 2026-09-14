@@ -121,6 +121,20 @@ def main():
     # Top job titles per account (client, 2026-09-01). Companion to cs_audience, deliberately a
     # SEPARATE array: a title belongs to a company, which the LONG dim/value shape cannot key.
     acct_titles = rows(bq, "cs_account_titles")
+    # PUBLISHER REPORTS (Other Channels tab, 2026-09-14). Direct publisher buys with no API feed -
+    # hand-keyed monthly from emailed PDFs / workbooks into data/publisher_reports.csv. Wrapped so a
+    # missing view can never break the CS/paid export, exactly like the GA4 and search-audit blocks.
+    # NOTE these rows carry NO spend, NO market and NO day: they are monthly aggregates and must
+    # never reach pm_delivery, the blended KPI band or any CPM/CPC figure. They travel in their own
+    # payload keys and nothing else reads them.
+    try:
+        pub_rows = rows(bq, "publisher_delivery",
+                        order_by="campaign, publisher, period_start, placement_group, placement")
+        pub_meta = rows(bq, "publisher_report_meta", order_by="seq, campaign, publisher")
+    except Exception as e:
+        print(f"WARNING: publisher report views unavailable ({e}); Other Channels shows plan only.")
+        pub_rows, pub_meta = [], []
+
     media = rows(bq, "seed_media_plan")
     budget = {b["internal_campaign_id"]: b for b in rows(bq, "seed_plan_budget")}
     display = {m["internal_campaign_id"]: m["display_name"]
@@ -150,6 +164,64 @@ def main():
                 print(line)
     except Exception as e:                       # never let the audit break the export
         print(f"WARNING: search scope audit unavailable: {e}")
+
+    # --- Publisher-report audit ----------------------------------------------
+    # Every failure mode on this lane is SILENT on screen: a row whose campaign is not a dashboard
+    # program renders nowhere, an unknown `unit` is counted in no total, and a plan_channel typo
+    # looks exactly like a buy that legitimately has no plan row. So each one is printed by name
+    # every run. validate_publisher_reports.py catches the same things before the load, on the
+    # laptop of whoever keyed the report in - this is the runtime net behind it.
+    pub_drop = {}
+    if pub_meta or pub_rows:
+        for m in pub_meta:
+            cid, pub = m["campaign"], m["publisher"]
+            if m["plan_match"] == "PLAN_ROW_NOT_FOUND":
+                print(f"WARNING: publisher {pub} ({cid}) names plan_channel "
+                      f"{m['plan_channel']!r}, which matches no seed_media_plan line. It renders "
+                      f"flagged, NOT as 'missing plan row' - fix the CSV or the plan.")
+            elif m["plan_match"] == "NO_META_ROW":
+                print(f"WARNING: publisher {pub} ({cid}) has delivery rows but no row in "
+                      f"publisher_report_meta.csv - the card has no heading, source or plan match.")
+            elif m["plan_match"] == "NO_DELIVERY_ROWS":
+                print(f"publisher {pub} ({cid}): meta row present, no delivery keyed in yet.")
+            if not m["campaign_known"]:
+                print(f"WARNING: publisher {pub} names campaign {cid!r}, which is not in "
+                      f"seed_campaign_map - its rows would render on no campaign at all.")
+            elif cid not in CS_PROGRAMS:
+                print(f"WARNING: publisher {pub} names campaign {cid!r}, which is a known program "
+                      f"but is NOT on this dashboard - its rows are dropped from the payload.")
+            if m["n_unknown_unit"]:
+                print(f"WARNING: publisher {pub} ({cid}) has {m['n_unknown_unit']} row(s) with an "
+                      f"unrecognised `unit`. They are counted in NO total - see "
+                      f"sql/25_publisher_delivery.sql for the vocabulary.")
+        # Scope to the dashboard's programs. Dropping is under-inclusion, which is normally the
+        # silent failure - so it is only ever done alongside the WARNING above that names the id.
+        kept = [r for r in pub_rows if r["campaign"] in CS_PROGRAMS]
+        for r in pub_rows:
+            if r["campaign"] not in CS_PROGRAMS:
+                pub_drop[r["campaign"]] = pub_drop.get(r["campaign"], 0) + 1
+        pub_rows = kept
+        pub_meta = [m for m in pub_meta if m["campaign"] in CS_PROGRAMS]
+        for cid, n in sorted(pub_drop.items()):
+            print(f"WARNING: dropped {n} publisher row(s) for out-of-scope campaign {cid!r}.")
+        # Per-publisher totals, computed the ONLY way they may be computed: impressions come from
+        # the impressions column alone. Solus sends and sponsored-article views are printed beside
+        # them precisely so it stays obvious they are not in that first figure.
+        for m in pub_meta:
+            mine = [r for r in pub_rows
+                    if r["campaign"] == m["campaign"] and r["publisher"] == m["publisher"]]
+            imps = sum(r["impressions"] or 0 for r in mine)
+            clicks = sum(r["clicks"] or 0 for r in mine)
+            sends = sum(r["sends"] or 0 for r in mine)
+            arts = sum(r["article_views"] or 0 for r in mine)
+            booked = sum(r["booked_quantity"] or 0 for r in mine)
+            if m.get("internal_note"):
+                print(f"  note ({m['publisher']}): {m['internal_note']}")
+            print(f"publisher {m['publisher']} ({m['campaign']}, {m['plan_match']}): "
+                  f"{imps:,.0f} impressions, {clicks:,.0f} clicks"
+                  + (f", {sends:,.0f} eDM sends" if sends else "")
+                  + (f", {arts:,.0f} article views vs {booked:,.0f} booked" if arts else "")
+                  + f" | {len(mine)} row(s)")
 
     # --- Per-campaign aggregates: target (MQL+HQL), plan-CPL tiers, committed spend, flight ----
     leads_by_camp = {}
@@ -387,6 +459,39 @@ def main():
             "campaign": r["campaign"], "market": r["market"], "company": r["company"],
             "job_title": r["job_title"], "leads": num(r["leads"]),
         } for r in acct_titles],
+        # PUBLISHER REPORTS - Other Channels tab only. Deliberately their own two keys: nothing
+        # else in this payload reads them, so they cannot reach Paid Media or any blended total.
+        #
+        # `quantity` is NOT carried. Each row's number arrives in exactly ONE of impressions /
+        # sends / article_views / rate_value, so a consumer cannot add a solus send or a sponsored
+        # -article view to an impression total by summing the obvious column - there is no obvious
+        # column to sum. Each is NULL (never 0) outside its own unit: 0 would assert a measured
+        # zero where the publisher simply reports a different measure.
+        "publisher_delivery": [{
+            "campaign": r["campaign"], "publisher": r["publisher"],
+            "period_label": r["period_label"],
+            "period_start": ymd(r["period_start"]), "period_end": ymd(r["period_end"]),
+            "placement_group": r["placement_group"], "placement": r["placement"],
+            "unit": r["unit"], "metric": r["metric"],
+            "impressions": num(r["impressions"]), "sends": num(r["sends"]),
+            "article_views": num(r["article_views"]), "rate_value": num(r["rate_value"]),
+            "clicks": num(r["clicks"]), "booked_quantity": num(r["booked_quantity"]),
+            "note": r["note"],
+        } for r in pub_rows],
+        # One per campaign x publisher: card heading, provenance, status, and the plan join state
+        # (matched / no_plan_row / PLAN_ROW_NOT_FOUND). Carries no delivered totals on purpose -
+        # the tab derives every rendered figure from publisher_delivery under the current campaign
+        # selection, and a second copy here is how two panels on one tab start disagreeing.
+        "publisher_reports": [{
+            "seq": num(m["seq"]), "campaign": m["campaign"], "publisher": m["publisher"],
+            "publisher_label": m["publisher_label"], "plan_channel": m["plan_channel"],
+            "report_source": m["report_source"], "report_label": m["report_label"],
+            "report_job": m["report_job"], "delivery_status": m["delivery_status"],
+            # status_note ONLY. `internal_note` is agency commentary and is deliberately not
+            # carried: this dashboard has no staff/client session distinction, so anything in the
+            # payload is on the client's screen (or one devtools tab away from it).
+            "status_note": m["status_note"], "plan_match": m["plan_match"],
+        } for m in pub_meta],
         "ga4_enabled": ga4_enabled,
         "ga4": ga4,
     }

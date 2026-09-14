@@ -1,0 +1,40 @@
+internal_campaign_id,publisher,period_label,period_start,period_end,placement_group,placement,unit,metric,quantity,clicks,booked_quantity,note
+global_rebrand,capital_brief,July 2026,2026-07-01,2026-07-31,Advertising,Newsletter advertising,impressions,,317936,133,,
+global_rebrand,capital_brief,July 2026,2026-07-01,2026-07-31,Advertising,Web advertising,impressions,,45196,66,,
+global_rebrand,capital_brief,July 2026,2026-07-01,2026-07-31,Content distribution,Newsletter integration,impressions,,158968,172,,A message from Schneider Electric; clicks are newsletter clicks to the Partner Articles
+global_rebrand,capital_brief,July 2026,2026-07-01,2026-07-31,Content distribution,Website views (short and long form),impressions,,29274,63,,Clicks are website clicks to the Partner Articles
+global_rebrand,capital_brief,July 2026,2026-07-01,2026-07-31,,,rate,newsletter_open_rate,0.54,,,
+global_rebrand,capital_brief,July 2026,2026-07-01,2026-07-31,,,rate,display_viewability,0.77,,,
+global_rebrand,capital_brief,August 2026,2026-08-01,2026-08-31,Advertising,Newsletter advertising,impressions,,580371,1390,,Publisher labels the August clicks newsletter clicks to se.com
+global_rebrand,capital_brief,August 2026,2026-08-01,2026-08-31,Advertising,Web advertising,impressions,,101929,149,,
+global_rebrand,capital_brief,August 2026,2026-08-01,2026-08-31,Content distribution,Newsletter integration,impressions,,202844,1831,,A message from Schneider Electric; clicks are newsletter clicks to the Partner Articles
+global_rebrand,capital_brief,August 2026,2026-08-01,2026-08-31,Content distribution,Website views (short and long form),impressions,,72649,52,,Clicks are website clicks to the Partner Articles
+global_rebrand,capital_brief,August 2026,2026-08-01,2026-08-31,,,rate,newsletter_open_rate,0.56,,,
+global_rebrand,capital_brief,August 2026,2026-08-01,2026-08-31,,,rate,display_viewability,0.74,,,
+global_rebrand,energy_magazine,July 2026,2026-07-01,2026-07-31,eNewsletter banners,ENGY newsletter banner,impressions,,19603,110,,Two flights in July: 7-24 Jul and 28 Jul; summed to the month
+global_rebrand,energy_magazine,July 2026,2026-07-01,2026-07-31,Website display,ENGY Web MREC,impressions,,1973,3,,
+global_rebrand,energy_magazine,July 2026,2026-07-01,2026-07-31,Solus eDM,ENGY Solus eDM,sends,,7443,64,,Sent 23 Jul 2026. Sends are NOT impressions
+global_rebrand,energy_magazine,July 2026,2026-07-01,2026-07-31,Solus eDM,,rate,solus_open_rate,0.2675,,,
+global_rebrand,energy_magazine,August 2026,2026-08-01,2026-08-26,eNewsletter banners,ENGY newsletter banner,impressions,,26907,109,,Flight 4-26 Aug
+global_rebrand,energy_magazine,August 2026,2026-08-01,2026-08-26,Website display,ENGY Web MREC,impressions,,12127,9,,
+global_rebrand,energy_magazine,August 2026,2026-08-01,2026-08-26,Website display,ENGY Webskin,impressions,,6102,36,,Publisher reports four webskin lines with no distinguishing dimension; summed to the month
+global_rebrand,westwick_farrow,August 2026,2026-08-01,2026-08-31,eNewsletter text panels,eNews 1 text panel 1,impressions,,55704,45,,
+global_rebrand,westwick_farrow,August 2026,2026-08-01,2026-08-31,eNewsletter text panels,eNews 1 text panel 2,impressions,,,36,,Impressions are reported once for both panels on the same send - left blank here rather than zeroed
+global_rebrand,westwick_farrow,August 2026,2026-08-01,2026-08-31,eNewsletter text panels,,rate,newsletter_open_rate,0.29,,,
+global_rebrand,westwick_farrow,August 2026,2026-08-01,2026-08-31,Website display,Side Bars Left (ECD Online),impressions,,6657,5,,
+global_rebrand,westwick_farrow,August 2026,2026-08-01,2026-08-31,Website display,Side Bars Right (ECD Online),impressions,,,3,,Impressions reported once across the left and right side bars
+global_rebrand,westwick_farrow,August 2026,2026-08-01,2026-08-31,Website display,Side Bars Left (Sustainability Matters),impressions,,7998,7,,
+global_rebrand,westwick_farrow,August 2026,2026-08-01,2026-08-31,Website display,Side Bars Right (Sustainability Matters),impressions,,,6,,Impressions reported once across the left and right side bars
+global_rebrand,westwick_farrow,August 2026,2026-08-01,2026-08-31,Website display,Welcome Roadblock (ECD Online),impressions,,6613,80,,
+global_rebrand,westwick_farrow,August 2026,2026-08-01,2026-08-31,Website display,Premier Tab (Sustainability Matters),impressions,,7951,3,,
+global_rebrand,westwick_farrow,August 2026,2026-08-01,2026-08-31,Website display,Premier Tab (ECD Online),impressions,,6591,2,,
+global_rebrand,westwick_farrow,August 2026,2026-08-01,2026-08-31,Website display,Leaderboard Banner (ECD Online),impressions,,3837,4,,
+global_rebrand,westwick_farrow,August 2026,2026-08-01,2026-08-31,Website display,M Leaderboard Banner (ECD Online),impressions,,2706,3,,
+global_rebrand,westwick_farrow,August 2026,2026-08-01,2026-08-31,Website display,MREC Position 1 (Sustainability Matters),impressions,,8054,8,,
+global_rebrand,westwick_farrow,August 2026,2026-08-01,2026-08-31,Featured Content Plus,Power under pressure: can your infrastructure keep up? (ECD Online),article_views,,1241,,1000,
+global_rebrand,westwick_farrow,August 2026,2026-08-01,2026-08-31,Featured Content Plus,The water sector's biggest problem may not be underground (Sustainability Matters),article_views,,1211,,1000,
+global_rebrand,westwick_farrow,August 2026,2026-08-01,2026-08-31,Featured Content Plus,How energy technology can advance net zero journeys (Sustainability Matters),article_views,,1160,,1000,
+global_rebrand,westwick_farrow,August 2026,2026-08-01,2026-08-31,Featured Content Plus,From AC to DC: the next phase of electrification (Sustainability Matters),article_views,,1169,,1000,
+global_rebrand,westwick_farrow,August 2026,2026-08-01,2026-08-31,Featured Content Plus,Climate reporting is exposing a problem bigger than emissions (Sustainability Matters),article_views,,1165,,1000,
+global_rebrand,westwick_farrow,August 2026,2026-08-01,2026-08-31,Featured Content Plus,When sustainability targets outpace building systems (Sustainability Matters),article_views,,1171,,1000,
+global_rebrand,westwick_farrow,August 2026,2026-08-01,2026-08-31,Featured Content Plus,The energy advantage: the next growth opportunity for ANZ (Sustainability Matters),article_views,,1207,,1000,
