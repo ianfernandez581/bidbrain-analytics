@@ -425,6 +425,35 @@ def test_ask_streams_retrieval_before_it_streams_any_answer(client):
     client.delete("/kb/docs/%s" % doc["id"])
 
 
+def test_a_streamed_question_is_actually_recorded(client):
+    """🔴 THE REGRESSION THIS EXISTS FOR. `_log_event` used to read `session` for the actor, and a
+    Flask generator outlives the request context, so the call from inside `ask`'s generator raised
+    and the blanket except swallowed it. Every question the assistant answered recorded NOTHING
+    while uploads and plain searches recorded fine, and the Observability page read "1 question
+    asked" after three. Found by counting objects in the bucket, not by trusting the page.
+    """
+    import kb_activity
+    import kb_routes
+    _staff(client)
+
+    # The mechanism, outside any request context at all, which is the state the generator is in.
+    assert kb_routes._log_event("question", actor="test:harness", query="probe") is None
+    with main.app.test_request_context("/kb/"):
+        pass
+    found = [e for e in kb_activity.recent() if e.get("actor") == "test:harness"]
+    assert found, "an event written with an explicit actor and no request context was lost"
+
+    doc = client.post("/kb/docs", json={"title": "Pace basis", "folder": "Playbook",
+                                        "body": "Pacing is drawn against the measurable budget."}) \
+        .get_json()["doc"]
+    before = len([e for e in kb_activity.recent() if e.get("kind") == "question"])
+    body = client.post("/kb/ask", json={"q": "what is pacing drawn against"}).get_data(as_text=True)
+    if "event: done" in body:
+        after = len([e for e in kb_activity.recent() if e.get("kind") == "question"])
+        assert after == before + 1, "an answered question left no trace in the usage record"
+    client.delete("/kb/docs/%s" % doc["id"])
+
+
 def test_an_answer_is_kept_as_a_conversation(client):
     _staff(client)
     doc = client.post("/kb/docs", json={"title": "Ritual", "folder": "Playbook",

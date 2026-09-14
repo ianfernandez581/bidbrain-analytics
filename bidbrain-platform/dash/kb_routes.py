@@ -617,7 +617,8 @@ def ask():
         except Exception:                          # noqa: BLE001 - never lose the answer over this
             log.exception("kb: could not save the conversation")
         ms = int((time.time() - started) * 1000)
-        _log_event("question", query=question[:300], scope=res["scope"],
+        # `actor` is the value captured before the generator started. See _log_event.
+        _log_event("question", actor=actor, query=question[:300], scope=res["scope"],
                    passages=len(res["excerpts"]), semantic=res["semantic"], ms=ms,
                    model=(model_info or {}).get("model", ""),
                    provider=(model_info or {}).get("provider", ""),
@@ -774,6 +775,9 @@ def obs_probe():
     d = _deny_staff()
     if d:
         return d
+    # 🔴 DELIBERATELY NOT LOGGED to the usage record. A staff probe is not somebody's question, and
+    # counting it would inflate "questions asked" and the retrieved-most-often table with our own
+    # debugging.
     j = _json()
     res = kb_index.search(str(j.get("q") or ""), limit=int(j.get("limit") or 10),
                           folders=j.get("folders") or None,
@@ -811,11 +815,23 @@ def obs_reach():
 
 # --- activity (phase 7 fills this in; the hook exists from the start so every write records) -----
 
-def _log_event(kind, **fields):
-    """One line of the usage record. Imported lazily and never allowed to fail a request: a usage
-    log that can break an upload is worse than no usage log."""
+def _log_event(kind, actor=None, **fields):
+    """One line of the usage record. Never allowed to fail a request: a usage log that can break an
+    upload is worse than no usage log.
+
+    🔴 `actor` MUST BE PASSED EXPLICITLY FROM A STREAMING ROUTE. `_actor()` reads `session`, and a
+    Flask generator outlives the request context, so calling it from inside `ask`'s generator raises
+    and this function swallowed it. The result was that every question answered by the assistant
+    recorded NOTHING, while uploads and plain searches recorded fine, so the Observability page read
+    "1 question asked" after three. Found live by checking the count against the objects in the
+    bucket rather than trusting the page.
+
+    🔴 AND THE FAILURE IS LOGGED AT WARNING, not debug. This was hidden twice over: once by the lost
+    context and once by a silent except. A usage log may fail the request never and fail quietly
+    never either.
+    """
     try:
         import kb_activity
-        kb_activity.log(kind, actor=_actor(), **fields)
+        kb_activity.log(kind, actor=actor if actor is not None else _actor(), **fields)
     except Exception:                              # noqa: BLE001
-        log.debug("kb: activity log skipped", exc_info=True)
+        log.warning("kb: activity record for %s was NOT written", kind, exc_info=True)

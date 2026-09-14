@@ -907,7 +907,7 @@ gs://bidbrain-analytics-platform-dash/kb/
 `KB_PREFIX` overrides `kb`, which is how a local verification run writes into `kb-dev/` instead of
 the real library. No database and no vector store: the corpus is thousands of chunks, not millions.
 
-### The nine things that will bite somebody
+### The ten things that will bite somebody
 - **🔴 The freshness signal is the OBJECT LISTING, not `manifest.json`.** A manifest is a mutable
   object every write must read-modify-write, and Cloud Run runs several instances: two uploads
   landing together lose an increment and the loser never notices a document again. `list_blobs` over
@@ -951,6 +951,15 @@ the real library. No database and no vector store: the corpus is thousands of ch
   the copy of the document's metadata that the file list reads, so writing it first publishes the
   previous run's `embed_error` and a document that failed to embed looks, in the list, exactly like
   one that succeeded.
+- **🔴 A STREAMING ROUTE MAY NOT READ `session` INSIDE ITS GENERATOR, and the usage log learned
+  that the hard way.** A Flask generator outlives the request context, so `_log_event` calling
+  `_actor()` from inside `ask`'s generator raised `Working outside of request context` - and its own
+  "never fail a request" except swallowed it. The result: every question the assistant answered
+  recorded NOTHING, while uploads and plain searches recorded fine, so the Observability page read
+  "1 question asked" after three. Hidden twice over, by the lost context and by a silent except.
+  The actor is now captured before the generator and passed in, the failure logs at WARNING, and
+  `test_a_streamed_question_is_actually_recorded` fails against the old code. Found live by counting
+  objects in the bucket rather than trusting the page.
 - **🔴 No class in `kb.css` may be `.card`, `.drow` or `.shead`.** The premium layer's scroll-reveal
   targets those by name and starts them at opacity 0 until an observer fires. On a list that
   re-renders on every click that means rows invisible until you scroll, which reads as data loss.
