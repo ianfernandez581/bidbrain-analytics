@@ -913,7 +913,8 @@ the real library. No database and no vector store: the corpus is thousands of ch
   landing together lose an increment and the loser never notices a document again. `list_blobs` over
   `kb/chunks/` returns each object's GENERATION, which is atomic by construction and *is* the
   per-document version an incremental rebuild needs, so the check and the diff are one call.
-  Measured at ~170-210 ms per search, against ~1.8 s for the query embedding.
+  Measured in production: the signature check is ~27 ms and a whole search 0.35 s. (From a laptop
+  the same figures are ~180 ms and ~2 s, which is the round trip to the region, not the design.)
 - **🔴 The cache refreshes INCREMENTALLY.** Rebuilding from GCS is one GET per document, which at a
   few hundred documents is fifteen seconds after every write on every instance. Passages are keyed
   by object generation and only changed documents are re-fetched (verified: editing 1 of 3 reads
@@ -935,6 +936,14 @@ the real library. No database and no vector store: the corpus is thousands of ch
 - **🔴 The Kimi code key only works against `https://api.kimi.com/coding/v1`.** Pointed at
   `api.moonshot.ai` it returns 401, which looks exactly like a revoked key. `KIMI_BASE_URL` overrides
   it so a plan change is an env var.
+- **🔴 Kimi is SLOW from this region, and that is a decision to make, not a bug to hunt.** Measured
+  in production on 2026-09-14: Kimi's first token lands at **5.6 to 6.8 s** and a whole answer takes
+  **7.4 to 8.4 s**, against Gemini answering the same question completely in about **1 s**.
+  Retrieval is 0.35 s of that, so essentially all the wait is the model. Kimi is first by decision,
+  so swapping is an env var and not a code change:
+  `gcloud run services update platform-dash --region australia-southeast1
+  --update-env-vars KB_MODEL_ORDER=gemini,kimi`. A provider left out of the list is still a
+  fallback, never silently unusable.
 - **🔴 A title or a folder may never contain a line break.** A folder is a path STRING, so a pasted
   multi-line title becomes a folder of that name sitting in the rail forever. `kb_store.one_line` is
   the one place that is enforced; every title and folder goes through it.
@@ -1180,8 +1189,8 @@ super-admin god-mode**: `secretmanager.secretVersionAdder` on each `<c>-dash-pas
 `GOOGLE_OAUTH_CLIENT_ID` (public OAuth client id for native Google sign-in; no secret) ·
 `MICROSOFT_OAUTH_CLIENT_ID` + `MICROSOFT_OAUTH_TENANT` (public app + tenant id for single-tenant
 Microsoft sign-in; no secret) · `KIMI_API_KEY` (secret `kimi-api-key`, the knowledge base assistant)
-· optional `KB_PREFIX`, `KB_EMBED=off`, `KIMI_BASE_URL`, `KB_KIMI_MODEL`, `KB_GEMINI_MODEL`,
-`PHOENIX_COLLECTOR_ENDPOINT`, `KB_TRACE_CONTENT` · registry
+· optional `KB_PREFIX`, `KB_EMBED=off`, `KB_MODEL_ORDER`, `KIMI_BASE_URL`, `KB_KIMI_MODEL`,
+`KB_GEMINI_MODEL`, `PHOENIX_COLLECTOR_ENDPOINT`, `KB_TRACE_CONTENT` · registry
 `gs://bidbrain-analytics-platform-dash/platform.json` (private). The knowledge base lives under
 `kb/` in the same bucket. **`roles/aiplatform.user` on the project** for Vertex embeddings.
 No database, no export job, no scheduler.

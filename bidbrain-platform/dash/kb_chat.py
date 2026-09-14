@@ -64,9 +64,24 @@ def configured(provider):
     return False
 
 
+# Which model is tried first. Kimi by decision; Gemini is the named fallback.
+#
+# 🔴 MEASURED IN PRODUCTION (2026-09-14, australia-southeast1): Kimi's FIRST TOKEN lands at 5.6 to
+# 6.8 seconds and a whole answer takes 7.4 to 8.4 s, against Gemini's ~1 s to a complete reply.
+# Retrieval itself is 0.35 s, so essentially all of that wait is the model. That is a product
+# decision rather than a bug, so the order is an ENV VAR and not a code change: set
+# `KB_MODEL_ORDER=gemini,kimi` on the service to swap them, with no deploy and no edit here.
+DEFAULT_ORDER = (KIMI, GEMINI)
+
+
 def available():
     """Which providers this deployment could actually use, best first."""
-    return [p for p in (KIMI, GEMINI) if configured(p)]
+    raw = (os.environ.get("KB_MODEL_ORDER") or "").strip().lower()
+    order = [p.strip() for p in raw.split(",") if p.strip() in (KIMI, GEMINI)] or list(DEFAULT_ORDER)
+    for p in DEFAULT_ORDER:                        # a provider left out of the list is still a
+        if p not in order:                         # fallback, never silently unusable
+            order.append(p)
+    return [p for p in order if configured(p)]
 
 
 def model_of(provider):
