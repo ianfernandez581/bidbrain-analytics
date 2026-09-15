@@ -47,7 +47,8 @@
     ghosts: [],              // folders created in this browser that hold nothing yet
     folders: [], rootCount: 0, total: 0, archivedCount: 0, empty: false,
     docs: [], sel: [], anchor: null, q: '', archived: false,
-    pollTimer: null
+    pollTimer: null,
+    treeSig: ''         // what the rail was last built from; see renderTree
   };
   /* 🔴 A STORED VALUE IS UNTRUSTED INPUT, even our own. An earlier build wrote the Ask panel's
    * open flag ('1') to this same key, so this parsed to the NUMBER 1 and every click on a tree
@@ -223,8 +224,29 @@
   }
 
   // --- render: tree -------------------------------------------------------------------------
-  function renderTree() {
+  /* 🔴 A CLICK IS LOST IF THE NODE UNDER THE CURSOR IS REPLACED BETWEEN MOUSEDOWN AND MOUSEUP.
+   * The browser emits no click at all in that case: nothing throws, nothing logs, the click simply
+   * does not happen, which is exactly what "the button doesn't always work" feels like. Every
+   * navigation ran a refresh whose reply rebuilt this whole rail a second later, so any click made
+   * in that window could land on a node that was about to be thrown away.
+   *
+   * So the rail is only rebuilt when it would actually come out different. The signature covers
+   * everything the markup depends on; anything else is a no-op and the DOM, and your click, stay
+   * put. (The second half of the fix is acting on mousedown: see `navOn` below.) */
+  function treeSignature() {
+    return JSON.stringify([
+      S.level, S.client, S.cwd, S.archived, S.total, S.rootCount, S.archivedCount,
+      S.clients.map(function (c) { return [c.key, c.name, c.count]; }),
+      allFolderPaths().map(function (f) { return [f.path, f.count, !!f.ghost]; }),
+      Object.keys(S.open).filter(function (k) { return S.open[k]; }).sort()
+    ]);
+  }
+
+  function renderTree(force) {
     var wrap = $('#kbTree');
+    var sig = treeSignature();
+    if (!force && sig === S.treeSig && wrap.childElementCount) return;
+    S.treeSig = sig;
     wrap.innerHTML = '';
     wrap.appendChild(el('h4', null, 'Knowledge base'));
 
@@ -265,7 +287,10 @@
         + '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#6b6478" stroke-width="1.7">'
         + '<path d="M3 7h18v3H3z"/><path d="M5 10v9h14v-9"/><path d="M10 14h4"/></svg></span>'
         + '<span class="nm">Archived</span><span class="ct">' + S.archivedCount + '</span>';
-      a.onclick = function () { S.archived = true; S.cwd = ''; S.sel = []; renderTree(); loadList(); };
+      navOn(a, function () {
+        S.archived = true; S.cwd = ''; S.sel = [];
+        renderTree(true); loadList();
+      });
       wrap.appendChild(a);
     }
 
@@ -273,17 +298,19 @@
       var n = el('div', 'kb-node' + (S.level === 'clients' ? ' on' : ''));
       n.style.paddingLeft = '19px';
       var tw = el('span', 'tw' + (S.open['@clients'] || S.level !== 'root' ? ' open' : ''), '\u25B6');
-      tw.onclick = function (e) {
+      tw.onmousedown = function (e) {
         e.stopPropagation();
+        e.preventDefault();
         S.open['@clients'] = !(S.open['@clients'] || S.level !== 'root');
         localStorage.setItem(LS + 'open', JSON.stringify(S.open));
-        renderTree();
+        renderTree(true);
       };
+      tw.onclick = function (e) { e.stopPropagation(); };
       n.appendChild(tw);
       var ic = el('span', 'ico'); ic.innerHTML = ICON.clients; n.appendChild(ic);
       n.appendChild(el('span', 'nm', 'Clients'));
       n.appendChild(el('span', 'ct', S.clients.length ? String(S.clients.length) : ''));
-      n.onclick = function () { goClients(); };
+      navOn(n, goClients);
       return n;
     }
 
@@ -295,7 +322,7 @@
       var ic = el('span', 'ico'); ic.innerHTML = ICON.client; n.appendChild(ic);
       n.appendChild(el('span', 'nm', c.name));
       n.appendChild(el('span', 'ct', c.count ? String(c.count) : ''));
-      n.onclick = function () { goClient(c.key); };
+      navOn(n, function () { goClient(c.key); });
       wireClientDrop(n, c.key);
       return n;
     }
@@ -306,19 +333,21 @@
       n.style.paddingLeft = (6 + depth * 13) + 'px';
       n.dataset.folder = f.path;
       var tw = el('span', 'tw' + (hasKids ? (S.open[f.path] ? ' open' : '') : ' leaf'), '▶');
-      tw.onclick = function (e) {
+      tw.onmousedown = function (e) {
         e.stopPropagation();
+        e.preventDefault();
         S.open[f.path] = !S.open[f.path];
         localStorage.setItem(LS + 'open', JSON.stringify(S.open));
-        renderTree();
+        renderTree(true);
       };
+      tw.onclick = function (e) { e.stopPropagation(); };
       n.appendChild(tw);
       var ic = el('span', 'ico'); ic.innerHTML = isRoot ? ICON.doc : ICON.folder; n.appendChild(ic);
       var nm = el('span', 'nm', f.name);
       if (f.ghost) { nm.style.opacity = '.55'; nm.title = 'Created here, but empty. It exists once a document is in it.'; }
       n.appendChild(nm);
       n.appendChild(el('span', 'ct', f.count ? String(f.count) : ''));
-      n.onclick = function () { go(f.path); };
+      navOn(n, function () { go(f.path); });
       if (f.path !== '/' ) {
         n.oncontextmenu = function (e) { e.preventDefault(); folderMenu(e, f); };
         wireFolderDrop(n, f.path);
@@ -327,16 +356,28 @@
     }
   }
 
+  /* Navigation fires on MOUSEDOWN, not click. A file explorer selects on mouse-down anyway, and
+   * it means an in-flight re-render can never swallow the action: by the time anything could
+   * replace the node, the navigation has already happened. Left button only, so a right-click
+   * still opens the context menu instead of navigating. */
+  function navOn(node, fn) {
+    node.addEventListener('mousedown', function (e) {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      fn();
+    });
+  }
+
   function go(path) {
     S.archived = false; S.cwd = path; S.sel = []; S.anchor = null;
     clearSearch();
-    renderTree(); renderCrumbs(); loadList();
+    renderTree(true); renderCrumbs(); loadList();
   }
   function goClients() {
     S.archived = false; S.level = 'clients'; S.client = ''; S.cwd = ''; S.sel = [];
     S.open['@clients'] = true;
     clearSearch();
-    renderTree(); renderCrumbs(); renderList(); renderStatusLine(S.clients.length, 0);
+    renderTree(true); renderCrumbs(); renderList(); renderStatusLine(S.clients.length, 0);
   }
   function goClient(key) {
     S.archived = false; S.level = 'client'; S.client = key; S.cwd = ''; S.sel = [];
