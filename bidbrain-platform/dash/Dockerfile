@@ -18,7 +18,11 @@ COPY kb ./kb
 # The Documents explorer, the Ask panel and the Observability page. Flask serves this folder at
 # /static; before the knowledge base there was no static folder at all.
 COPY static ./static
+# Fathom meetings + client profile memory + the dashboard assistant's read of the library, and the
+# Client Assistant (dark: CLIENT_CHAT_ENABLED + per-client flag + visibility all default off).
+COPY kb_fathom.py kb_memory.py kb_fathom_routes.py kb_bridge.py client_chat.py ./
 COPY lineage ./lineage
+COPY glossary ./glossary
 # Agency logos: copied by WILDCARD, because main.py discovers them by globbing `agency_*` /
 # `admlogo_*` at startup. Naming each file here meant a new agency's logo was committed but never
 # reached the image, so its portal silently fell back to a plain text heading - exactly what

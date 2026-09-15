@@ -855,6 +855,36 @@ passages. `KNOWLEDGE_RETRIEVAL` defaults off; when off the prompt carries no LIB
   `source=dashboard`) so Observability counts it beside `/kb` questions.
 - A library failure degrades to the dashboard-only answer and is logged; it never blocks the turn.
 
+## Client Assistant (`client_chat.py` - BUILT, DARK; 2026-09-15)
+The first chatbot a CLIENT would ever see on their own dashboard (`/d/<c>/`, bottom-RIGHT pill,
+`#bbcc-*`, no INTERNAL badge). No client has one today and none will until Jerome + Ian decide.
+**Three independent layers keep it dark, and all three default off:**
+
+1. **`CLIENT_CHAT_ENABLED`** (env, default off) - the master switch. Off => `_client_chat_allowed`
+   is False for every client, so the proxy injects nothing and `POST /client-chat/<c>` is 403.
+2. **`client_chat`** per-client registry flag (absent = off; the super-admin console's
+   "Customer chat · On/Off" per dashboard row, `POST /super/api/client-chat`, superadmin only).
+   `EXTERNAL_SAFE_DEFAULTS["client_chat"] = False`, so an outside agency never receives it.
+3. **Retrieval filters on a document field that does not exist yet.** `kb_bridge.retrieve_for_client`
+   keeps only documents with `visibility == "client"` and never a meeting; Ian's documents carry no
+   `visibility` (the held K7-02 change adds it, default internal), so the assistant retrieves
+   NOTHING and would answer from dashboard data alone even with 1 and 2 on.
+
+Gate `_client_chat_allowed` = master AND flag AND `_ext_setting("client_chat")` AND `_may_open` -
+a `client` session reaches only its own dashboard; staff can preview. **What the client's model
+sees** is `_customer_data_json()` = the SAME transform an external tenant's proxied JSON gets
+(excluded blocks dropped, `_gross_external_payload` billed basis per `_EXTERNAL_SPEND_SPEC` - a
+money field the spec does not cover, or a client with NO spec, is SUPPRESSED, never raw;
+`_scrub_external_payload` for named individuals) + `glossary/<c>.md` (hand-reviewed, client-safe;
+rules in `glossary/README.md`; a `.draft.md` is never read) + the client-audience retrieval above.
+No tools, no thinking output. `client_chat.build_context` REFUSES a context carrying
+`spend_multipliers` / `BB_SPEND_MULT` / `_rawSpend` / "margin" (502, never a leak); the route fails
+CLOSED when the billed basis cannot be prepared. `CLIENT_CHAT_MODEL` picks the model (default
+`gemini-2.5-flash`; Ian's Kimi-first `kb_chat` is the A/B candidate). Every turn is logged to
+`<kb prefix>/client-chat-log/<c>/`. Red-team: `tests/test_red_team.py` (15 prompts; LIVE mode ran
+15/15 on 2026-09-14 after two prompt fixes - re-run before any prompt change ships).
+**Pilot prerequisite unchanged:** `_EXTERNAL_SPEND_SPEC` covers `geocon` + `resetdata` only.
+
 ## "How The Brain works" explainers (The Brain tab, 100% Digital portal, 2026-09-14)
 Three interactive walkthroughs of the Bidbrain Premium retrieval system render as cards under the
 work-in-progress card in **The Brain** tab: Part 1 *Documents to Vectors*, Part 2 *Inside the
@@ -1304,7 +1334,10 @@ bidbrain-platform/
     feedback_ai.py               one Gemini call: transcribe the voice note + interpret feedback into summary + action items
     internal_notes.py            staff-only Internal Notes store (one JSON per client in the platform bucket)
     internal_chat.py             staff-only Assistant: Gemini turn over live data.json + lineage digest (+ LIBRARY passages and the client profile when kb_bridge hands them over), with note tools + visible thinking
-    kb_bridge.py                 the dashboard assistant's read of the knowledge base: shaped query, client+agency scope, numbered context, sources (2026-09-15)
+    kb_bridge.py                 the dashboard assistant's read of the knowledge base: shaped query, client+agency scope, numbered context, sources (2026-09-15); retrieve_for_client = the client-visible-only read
+    client_chat.py               the Client Assistant turn (DARK: CLIENT_CHAT_ENABLED + per-client flag + visibility all default off); forbidden-token guard, billed basis only
+    glossary_draft.py            drafts glossary/<c>.draft.md from the lineage digest for a human to review (one Gemini call); the assistant never reads a draft
+    glossary/                    reviewed client-safe KPI glossaries (<c>.md) + README rules; resetdata.draft.md awaits review
     kb_store.py                  knowledge base storage: docs / chunks / files / chats / feedback under kb/ in the platform bucket
     kb_chunk.py                  ~220-word passages packed on structure, 40-word overlap, and the ONE tokenizer
     kb_embed.py                  Vertex text-embedding-005 over stdlib urllib; RETRIEVAL_DOCUMENT vs RETRIEVAL_QUERY; fails soft and says so

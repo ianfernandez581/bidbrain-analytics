@@ -80,12 +80,54 @@ def retrieve(client, messages, actor=""):
             "query": q, "searched": int(res.get("documents_searched") or 0)}
 
 
+VISIBILITY_FIELD = "visibility"          # on a document; "client" = the client may be shown it
+VISIBILITY_CLIENT = "client"
+
+
+def retrieve_for_client(client, messages):
+    """The CLIENT ASSISTANT's read: the same client + agency-wide search, then ONLY documents a
+    person marked client-visible - and never a meeting, whatever it is marked.
+
+    🔴 THE FIELD DOES NOT EXIST YET. Ian's documents carry no `visibility`; adding it (with its
+    default "internal") is the held K7-02 change. Until it lands every document fails this filter
+    and the client assistant retrieves NOTHING - by construction, not by configuration. Nothing here
+    changes when the field arrives; that is the point of filtering on it now.
+    """
+    q = shape_query(messages)
+    if not q:
+        return None
+    ck = kb_store.client_key(client)
+    try:
+        res = kb_index.search(q, limit=LIMIT * 2, client=ck)
+        metas = {m["id"]: m for m in kb_index.all_meta(include_archived=False)}
+    except Exception:                        # noqa: BLE001
+        log.exception("kb_bridge: client search failed for %s", client)
+        return {"passages": [], "semantic": False, "semantic_error": "library unreachable", "query": q, "searched": 0}
+    passages = []
+    for ex in res.get("excerpts") or []:
+        m = metas.get(ex.get("document_id")) or {}
+        if m.get(VISIBILITY_FIELD) != VISIBILITY_CLIENT or m.get("kind") == "meeting":
+            continue
+        passages.append({
+            "n": len(passages) + 1, "doc_id": ex.get("document_id"), "title": ex.get("title") or "",
+            "folder": "", "kind": ex.get("kind") or "", "trust": kb_store.TRUST_STANDARD, "owner": "",
+            "ord": ex.get("ord"), "text": (ex.get("passage") or "").strip()[:MAX_PASSAGE_CHARS],
+            "found_by": ex.get("found_by") or [],
+        })
+        if len(passages) >= LIMIT:
+            break
+    return {"passages": passages, "semantic": bool(res.get("semantic")), "semantic_error": res.get("semantic_error") or "",
+            "query": q, "searched": int(res.get("documents_searched") or 0), "audience": "client"}
+
+
 def render_context(ret):
     """The labelled block for systemInstruction. Numbered so the model cites [n]; verified corrections
     say so; an unavailable meaning search is stated (the kb rule: a gap must never read as absence)."""
     if ret is None:
         return ""
-    head = "=== LIBRARY (the agency's written record for this client + agency-wide; cite [n] when you rely on one) ==="
+    client_aud = (ret.get("audience") == "client")
+    head = ("=== RETRIEVED CONTEXT (documents shared with you; cite [n] when you rely on one) ===" if client_aud
+            else "=== LIBRARY (the agency's written record for this client + agency-wide; cite [n] when you rely on one) ===")
     lines = [head]
     if not ret.get("semantic"):
         why = ret.get("semantic_error") or "meaning search unavailable"
@@ -96,9 +138,9 @@ def render_context(ret):
         return "\n".join(lines)
     for p in ret["passages"]:
         where = " · ".join(x for x in (p.get("folder"), p.get("title")) if x) or "untitled"
-        if p.get("kind"):
+        if p.get("kind") and not client_aud:
             where += f" ({p['kind']})"
-        if p.get("trust") == kb_store.TRUST_VERIFIED:
+        if p.get("trust") == kb_store.TRUST_VERIFIED and not client_aud:
             who = f" by {kb_store.display_actor(p.get('owner'))}" if p.get("owner") and hasattr(kb_store, "display_actor") else ""
             where += f" - VERIFIED CORRECTION{who}: this outranks the document it corrects; say so when you use it"
         lines.append(f"[{p['n']}] {where}\n{p['text']}\n")
