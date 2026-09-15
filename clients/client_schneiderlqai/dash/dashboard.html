@@ -1852,6 +1852,38 @@ function renderCreative(){
 //==============================================================================
 // MEDIA PLAN
 //==============================================================================
+// DERIVED LIVE STATUS (2026-09-15). The plan's `live` flag is hand-ticked in media_plan.csv and had
+// gone stale: Search has delivered since 08-31 and both Retargeting lines since 09-10/09-11, while
+// all three still printed "Planned" - directly contradicting the Channel phases table on the tab
+// next door.
+//
+// It is NOT fixed by ticking the CSV, and that is the whole point of doing it here. That same flag
+// also decides which lines contribute targets to `plan.channels`, so ticking it would fold
+// retargeting's full-flight targets (6.4M imps Trade Desk, 1.1M LinkedIn) into the pace bars and
+// drop LinkedIn from 102% to 49% of its spend target overnight, on lines days old - a measurement
+// change disguised as a label fix. So the flag keeps its BUDGET job untouched and the LABEL is
+// derived from delivery instead.
+//
+// Two guards:
+//  - `|| p.live` means this can only ever ADD a Live, never contradict a plan owner who ticked one.
+//  - the imp_target test excludes the two LinkedIn Bombora Overlay lines, which are a percentage
+//    fee on retargeting spend rather than a delivering line and so would otherwise inherit Live
+//    from the real retargeting row they share a channel and phase with. They are the only lines in
+//    the plan with no impression target, which is what makes the test exact rather than a guess.
+// Reads UNFILTERED delivery on purpose: the Media Plan tab is whole-flight and ignores the chips.
+function planDeliveredCombos(){
+  const seen=new Set();
+  (DATA.delivery||[]).forEach(r=>{ if((r.imps||0)>0||(r.clicks||0)>0)
+    seen.add(r.platform+'|'+(r.phase||'')); });
+  // Google Search lives in its own payload block, not in DATA.delivery
+  (((DATA.search||{}).daily)||[]).forEach(r=>{ if((r.impressions||0)>0||(r.clicks||0)>0)
+    seen.add('search|'+(r.phase||'Awareness')); });
+  return seen;
+}
+function planLineIsLive(p, combos){
+  if(p.live) return true;
+  return (p.imp_target||0)>0 && combos.has(p.channel_key+'|'+p.phase);
+}
 function renderPlan(){
   const plan=DATA.plan||{}, flight=DATA.flight||{};
   const byCh=fullByChannel();
@@ -1877,8 +1909,10 @@ function renderPlan(){
   }).join('') || '<div style="color:var(--se-mute);font-size:12.5px">No live channel targets.</div>';
 
   // full plan table
+  const _combos=planDeliveredCombos();
   el('planTable').querySelector('tbody').innerHTML=(plan.lines||[]).map(p=>{
-    const live=p.live?'<span class="tag live">Live</span>':'<span class="tag plan">Planned</span>';
+    const isLive=planLineIsLive(p,_combos);
+    const live=isLive?'<span class="tag live">Live</span>':'<span class="tag plan">Planned</span>';
     return `<tr><td>${p.channel}</td><td>${p.phase}</td><td style="max-width:260px;white-space:normal">${p.geo||'-'}</td><td class="num">${p.imp_target!=null?fmtN(p.imp_target):'-'}</td><td class="num">${p.reach_target!=null?fmtN(p.reach_target):'-'}</td><td class="num">${p.click_target!=null?fmtN(p.click_target):'-'}</td><td class="num">${p.ctr_target!=null?fmtPct(p.ctr_target,2):'-'}</td><td class="num">${money(p.spend_target)}</td><td>${live}</td></tr>`;
   }).join('')
    + `<tr class="total"><td>Total</td><td></td><td></td><td class="num">${fmtN((plan.lines||[]).reduce((a,p)=>a+(p.imp_target||0),0))}</td><td class="num">${fmtN((plan.lines||[]).reduce((a,p)=>a+(p.reach_target||0),0))}</td><td class="num">${fmtN((plan.lines||[]).reduce((a,p)=>a+(p.click_target||0),0))}</td><td></td><td class="num">${money(plan.total_budget||0)}</td><td></td></tr>`;
@@ -1898,8 +1932,12 @@ function exportThisTab(){
     crRows().forEach(r=>rows.push([r.platform,r.phase,r.tactic,r.concept,r.format,r.country,r.imps,r.clicks,pct(r.clicks,r.imps),r.spend_aud]));
     dl('lqai_creative.csv',rows);
   } else {
-    const rows=[['channel','phase','geo','flight_start','flight_end','imp_target','reach_target','click_target','ctr_target','spend_target','live']];
-    (DATA.plan.lines||[]).forEach(p=>rows.push([p.channel,p.phase,p.geo,p.flight_start,p.flight_end,p.imp_target,p.reach_target,p.click_target,p.ctr_target,p.spend_target,p.live]));
+    // `status` is what the tab SHOWS (derived from delivery); `live_flag` is the plan seed's own
+    // column, which still drives the targets. Exporting only one of them is how the CSV and the
+    // screen start disagreeing.
+    const _c=planDeliveredCombos();
+    const rows=[['channel','phase','geo','flight_start','flight_end','imp_target','reach_target','click_target','ctr_target','spend_target','status','live_flag']];
+    (DATA.plan.lines||[]).forEach(p=>rows.push([p.channel,p.phase,p.geo,p.flight_start,p.flight_end,p.imp_target,p.reach_target,p.click_target,p.ctr_target,p.spend_target,planLineIsLive(p,_c)?'Live':'Planned',p.live]));
     dl('lqai_media_plan.csv',rows);
   }
 }
