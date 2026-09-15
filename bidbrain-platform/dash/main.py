@@ -600,9 +600,23 @@ def _fathom_entities():
     return _ENTITY_CACHE["by_client"]
 
 
+def _kb_registry_clients():
+    """Every registry client, regardless of session - for the Fathom ladder, which runs from a
+    webhook (no session) and in a background thread (no request context). `_kb_clients` above
+    reads the session and must stay the list the PAGE and Assign use."""
+    seen = {}
+    st = store.get_state()
+    for group in list(st.get("agencies") or []) + [{"clients": st.get("unassigned") or []}]:
+        for c in (group.get("clients") or []):
+            if c.get("key") and c["key"] not in seen:
+                seen[c["key"]] = {"key": c["key"], "name": c.get("name") or c["key"]}
+    return sorted(seen.values(), key=lambda c: c["name"].lower())
+
+
 kb_fathom_routes.init(app, allowed=_kb_allowed, signed_in=lambda: bool(session.get("kind")),
                       actor=_kb_actor, mutation_blocked=_prod_mutation_blocked,
-                      page_context=_kb_page_context, clients=_kb_clients, entities=_fathom_entities)
+                      page_context=_kb_page_context, clients=_kb_clients,
+                      registry_clients=_kb_registry_clients, entities=_fathom_entities)
 # A no-op unless PHOENIX_COLLECTOR_ENDPOINT is set, and it swallows its own failure: observability
 # that can break the thing it observes is worse than none.
 kb_trace.configure()

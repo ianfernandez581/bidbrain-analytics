@@ -34,15 +34,21 @@ log = logging.getLogger(__name__)
 
 bp = Blueprint("kb_fathom", __name__)
 
-_allowed = _signed_in = _actor = _blocked = _page_ctx = _clients = _entities = None
+_allowed = _signed_in = _actor = _blocked = _page_ctx = _clients = _entities = _registry_clients = None
 
 
-def init(app, *, allowed, signed_in, actor, mutation_blocked, page_context, clients, entities=None):
-    """`entities` -> {client_key: {names}} from the live dashboards, for the ladder's evidence rung;
-    None means that rung contributes nothing."""
-    global _allowed, _signed_in, _actor, _blocked, _page_ctx, _clients, _entities
+def init(app, *, allowed, signed_in, actor, mutation_blocked, page_context, clients, registry_clients,
+         entities=None):
+    """`clients` is the SESSION-scoped list (the page, Assign) - it reads the Flask session and so may
+    only be called inside a request. `registry_clients` is EVERY registry client and reads no session:
+    the ladder's closed candidate list, which runs from a webhook (no session at all) and inside a
+    background thread (no request context). Confusing the two is how the first level-2 test
+    (2026-09-15) produced "classifier unavailable" - the candidate list was empty, not the key.
+    `entities` -> {client_key: {names}} from the live dashboards; None = that rung contributes nothing."""
+    global _allowed, _signed_in, _actor, _blocked, _page_ctx, _clients, _entities, _registry_clients
     _allowed, _signed_in, _actor, _blocked = allowed, signed_in, actor, mutation_blocked
     _page_ctx, _clients, _entities = page_context, clients, entities or (lambda: {})
+    _registry_clients = registry_clients
     app.register_blueprint(bp)
 
 
@@ -88,8 +94,8 @@ def _known_client(key):
 
 
 def _candidates():
-    """The CLOSED list the classifier may choose from."""
-    return [{"key": c["key"], "name": c.get("name") or c["key"]} for c in _clients()]
+    """The CLOSED list the classifier may choose from - every registry client, session-free."""
+    return [{"key": c["key"], "name": c.get("name") or c["key"]} for c in _registry_clients()]
 
 
 # --- the ladder, wired ---------------------------------------------------------------------------

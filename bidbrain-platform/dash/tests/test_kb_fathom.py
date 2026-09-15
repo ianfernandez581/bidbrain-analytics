@@ -279,6 +279,8 @@ class Routes(unittest.TestCase):
         self.fs = FakeStore()
         self.patches = patch_store(self.fs) + [
             mock.patch.object(main, "_kb_clients", return_value=[{"key": "cloudflare", "name": "Cloudflare"}]),
+            mock.patch.object(main, "_kb_registry_clients", return_value=[{"key": "cloudflare", "name": "Cloudflare"},
+                                                                          {"key": "mongodb", "name": "MongoDB"}]),
             mock.patch.object(main, "_prod_mutation_blocked", return_value=None),
             mock.patch.object(main, "_fathom_entities", return_value={}),
             mock.patch.object(kb_index, "all_meta", return_value=[]),
@@ -291,6 +293,7 @@ class Routes(unittest.TestCase):
             p.start()
         import kb_fathom_routes
         kb_fathom_routes._clients = main._kb_clients
+        kb_fathom_routes._registry_clients = main._kb_registry_clients
         kb_fathom_routes._blocked = main._prod_mutation_blocked
         kb_fathom_routes._entities = main._fathom_entities
 
@@ -348,7 +351,14 @@ class Routes(unittest.TestCase):
         self._as("admin", "charles@100.digital")
         q = self.c.get("/kb/api/fathom/unassigned").get_json()["items"]
         self.assertEqual([x["recording_id"] for x in q], ["7781"])
-        self.assertIn("no GEMINI_API_KEY", q[0]["proposal"]["why"])
+        self.assertIn("no GEMINI_API_KEY", q[0]["proposal"]["why"])       # candidates were present; the KEY was the gap
+
+    def test_ladder_candidates_come_from_the_registry_not_the_session(self):
+        """A webhook has no session and the ladder runs in a thread with no request context: the
+        candidate list must never touch flask.session (2026-09-15, found by the level-2 re-run)."""
+        import kb_fathom_routes as FR
+        with mock.patch.object(FR, "_clients", side_effect=RuntimeError("Working outside of request context")):
+            self.assertEqual([c["key"] for c in FR._candidates()], ["cloudflare", "mongodb"])
 
     def test_webhook_replies_before_the_ladder_runs(self):
         """The slow half must never sit in front of the reply: accept() returns with process() not yet
