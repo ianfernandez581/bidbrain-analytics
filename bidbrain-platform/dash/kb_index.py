@@ -212,6 +212,30 @@ class _Corpus:
 
     # --- scope ----------------------------------------------------------------------------------
 
+    def doc_ids_for_client(self, client):
+        """The documents a CLIENT scope may read.
+
+        🔴 A CLIENT SCOPE IS THAT CLIENT PLUS AGENCY-WIDE, AND NEVER ANOTHER CLIENT. Both halves
+        are load-bearing:
+
+        - Including agency-wide documents is what keeps an answer correct. The playbook, the rate
+          card and the platform documentation are how this agency works; a Geocon question answered
+          without them would be answered by a system that had forgotten its own standards.
+        - Excluding every OTHER client is the isolation this whole dimension exists for. It is why
+          `client` is a field and not a folder-name convention, and it is what makes this safe to
+          drop into one client's own dashboard later, where that scope is the only one there is.
+
+        `client` empty means the agency-wide view: documents belonging to no client. It is NOT
+        "everything" - browsing the playbook should not turn up somebody's media plan.
+        """
+        want = kb_store.client_key(client)
+        out = set()
+        for doc_id, meta in self.meta.items():
+            c = meta.get("client") or ""
+            if c == want or (want and not c):
+                out.add(doc_id)
+        return out
+
     def doc_ids_in_scope(self, folders):
         """The documents a search may read. `folders` empty or None means the whole library.
         Ticking a folder includes everything below it, which is what a tree picker means."""
@@ -448,12 +472,29 @@ def all_meta(include_archived=True):
     return out
 
 
-def folder_counts(include_archived=False):
+def client_counts(include_archived=False):
+    """How many documents each client has, plus "" for agency-wide. The Explorer's client list is
+    drawn from the REGISTRY, not from this, so a client with nothing yet still appears and can be
+    filed into; this only supplies the counts beside the names."""
+    out = {}
+    for meta in all_meta(include_archived=include_archived).values():
+        c = meta.get("client") or ""
+        out[c] = out.get(c, 0) + 1
+    return out
+
+
+def folder_counts(include_archived=False, client=None):
     """Document counts per folder path, with every ANCESTOR carrying the total beneath it. That is
     what a tree with counts means: ticking `Media plans` includes everything below it, so its count
-    has to say so."""
+    has to say so.
+
+    `client` counts ONE client's folders (or, as "", the agency-wide ones). None counts everything,
+    which is only ever right for an internal total.
+    """
     counts = {}
     for meta in all_meta(include_archived=include_archived).values():
+        if client is not None and (meta.get("client") or "") != kb_store.client_key(client):
+            continue
         f = meta.get("folder") or ""
         if not f:
             counts[ROOT_FOLDER] = counts.get(ROOT_FOLDER, 0) + 1
@@ -552,7 +593,7 @@ def refresh_manifest():
 
 # --- search --------------------------------------------------------------------------------------
 
-def search(q, *, limit=DEFAULT_LIMIT, folders=None, strict=False, trust_bonus=True):
+def search(q, *, limit=DEFAULT_LIMIT, folders=None, strict=False, trust_bonus=True, client=None):
     """The passages in the library that bear on `q`, within the scope the picker set.
 
     `folders` is the SCOPE and the ONLY hard filter: it narrows the candidate set BEFORE scoring,
@@ -562,7 +603,8 @@ def search(q, *, limit=DEFAULT_LIMIT, folders=None, strict=False, trust_bonus=Tr
     started = time.monotonic()
     out = {"excerpts": [], "semantic": False, "semantic_error": "", "documents_searched": 0,
            "unembedded_documents": 0, "query": (q or "").strip(), "outcome": "", "ms": 0,
-           "index_ms": 0, "embed_ms": 0, "scope": normalize_folders(folders)}
+           "index_ms": 0, "embed_ms": 0, "scope": normalize_folders(folders),
+           "client": kb_store.client_key(client) if client is not None else None}
 
     # 🔴 THE SPAN WRAPS THE WHOLE FUNCTION, EVERY EARLY RETURN INCLUDED. A search that answered
     # nothing is the most interesting thing an observability page exists to explain: "there is
@@ -571,10 +613,10 @@ def search(q, *, limit=DEFAULT_LIMIT, folders=None, strict=False, trust_bonus=Tr
     # exists for all three tells them apart. Every return goes through `done()`, which is why
     # `outcome` is never blank.
     with kb_trace.span("kb.search", kb_trace.RETRIEVER) as sp:
-        return _search(q, limit, folders, strict, trust_bonus, out, started, sp)
+        return _search(q, limit, folders, strict, trust_bonus, out, started, sp, client)
 
 
-def _search(q, limit, folders, strict, trust_bonus, out, started, sp):
+def _search(q, limit, folders, strict, trust_bonus, out, started, sp, client=None):
     def done(outcome):
         out["outcome"] = outcome
         out["ms"] = int((time.monotonic() - started) * 1000)
@@ -587,7 +629,7 @@ def _search(q, limit, folders, strict, trust_bonus, out, started, sp):
         return out
 
     sp.input(out["query"])
-    sp.set(limit=limit, strict=strict,
+    sp.set(limit=limit, strict=strict, client=out["client"],
            folders=" | ".join(out["scope"]) or None)
     query = (q or "").strip()
     if not query:
@@ -598,6 +640,11 @@ def _search(q, limit, folders, strict, trust_bonus, out, started, sp):
     if not corpus.n:
         return done("the index is empty; nothing has been indexed yet")
     allowed_docs = corpus.doc_ids_in_scope(folders)
+    if client is not None:
+        # Both scopes are hard filters and BOTH are applied before scoring. Intersecting them here
+        # rather than filtering results afterwards is what stops a scoped search quietly returning
+        # fewer passages than it could while relevant in-scope ones went unranked.
+        allowed_docs &= corpus.doc_ids_for_client(client)
     out["documents_searched"] = len(allowed_docs)
     if not allowed_docs:
         return done("the scope you picked contains no documents")

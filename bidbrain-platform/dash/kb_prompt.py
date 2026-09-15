@@ -96,6 +96,24 @@ The rules, and they are strict:
   approve, nothing has changed."""
 
 
+# 🔴 A SPOKEN REPLY IS A DIFFERENT REPLY, not the same words read out. Markdown, citation brackets
+# and headings are noise to the ear, and the written rules above demand all three. This REPLACES
+# them when the answer is going to a voice.
+#
+# It is also the cost control. A spoken reply runs ~250 characters and Chirp 3 HD bills ~$30 per
+# million; loosen "1 to 3 sentences" and the text-to-speech bill scales with it (kb_tts.py).
+SPOKEN_STYLE = """THIS REPLY WILL BE READ ALOUD, so answer like you are TALKING, not writing:
+- Plain conversational sentences only. NO markdown: no headings, no bullet or numbered lists, no
+  bold, no code fences, no tables.
+- KEEP your citation brackets. The answer is READ ALOUD *and* shown on screen, and the brackets
+  are what makes the sources clickable there. They are stripped from the audio before it is
+  spoken, so they cost the listener nothing. Naming the document out loud as well is good style.
+- Keep it SHORT, usually one to three sentences. Say the key point first, the way a colleague would
+  say it out loud.
+- Spell things out for the ear: read symbols as words, avoid URLs and file names.
+- If the library does not say, say that in one sentence. Do not narrate what you searched."""
+
+
 def guide_text():
     """The self-knowledge document, read once per process."""
     if _GUIDE_CACHE["text"] is None:
@@ -164,7 +182,8 @@ def passages_block(excerpts, semantic=True, semantic_error="", scope=None, unemb
     return "\n".join(lines)
 
 
-def prefix(excerpts, *, semantic=True, semantic_error="", scope=None, unembedded=0, folders=None):
+def prefix(excerpts, *, semantic=True, semantic_error="", scope=None, unembedded=0,
+           folders=None, client_name="", spoken=False):
     """Blocks 1 to 3, as the one string both providers put in their system slot.
 
     `folders` is the library's real folder list. It exists so a `create` proposal names a folder
@@ -172,6 +191,26 @@ def prefix(excerpts, *, semantic=True, semantic_error="", scope=None, unembedded
     would go. It is the folder names only: no counts, no documents, nothing about content.
     """
     parts = [SYSTEM]
+    if spoken:
+        # Appended AFTER the written rules so it is the last instruction on style, which is
+        # what makes it win: it contradicts them on purpose.
+        parts.append(SPOKEN_STYLE)
+    if client_name:
+        # 🔴 THE MODEL MUST KNOW WHOSE QUESTION THIS IS. The retriever has already limited
+        # it to this client plus agency-wide work, but an answer that never names the
+        # client reads as a general claim, and "the flight starts 20 August" is only true
+        # of somebody. It is also what stops it answering about a client it cannot see.
+        parts.append(
+            "=== WHOSE QUESTION THIS IS ===\n"
+            "You are answering about the client {c}. The passages below are {c}'s documents "
+            "plus the agency-wide ones (the playbook, platform documentation, standards) that "
+            "apply to every client.\n"
+            "- Name {c} when an answer is specific to them, so nobody mistakes it for a "
+            "general rule, and say when something is an agency-wide standard rather than "
+            "{c}'s own.\n"
+            "- You CANNOT see any other client's documents and must never guess at them. If "
+            "asked to compare with another client, say this view is scoped to {c}."
+            .format(c=client_name))
     guide = guide_text()
     if guide:
         parts.append("=== HOW THIS KNOWLEDGE BASE WORKS (your own documentation) ===\n" + guide)

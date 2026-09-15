@@ -132,6 +132,21 @@ def one_line(s, limit=MAX_TITLE_CHARS):
     return " ".join(str(s or "").split())[:limit]
 
 
+def client_key(value):
+    """A client registry key, cleaned. "" means agency-wide.
+
+    Kept deliberately narrow (the same character set as a document id) because it becomes part of
+    a scope comparison and, later, part of how a per-client dashboard asks for its own documents.
+    Whether the key is one the registry KNOWS is checked at the route, where the session's own
+    client list is available; this only guarantees the shape.
+    """
+    v = (value or "").strip().lower()
+    return v if _KEY_RE.match(v) else ""
+
+
+_KEY_RE = re.compile(r"^[a-z0-9_-]{1,64}$")
+
+
 def normalize_folder(folder):
     """`Media plans/Q4` is `Q4` inside `Media plans`. Folders are a path convention over one flat
     string and there is no registry, so this is the only place the convention is enforced:
@@ -159,6 +174,12 @@ def doc_meta(doc):
         "id": doc["id"],
         "title": doc.get("title") or "",
         "folder": doc.get("folder") or "",
+        # 🔴 WHICH CLIENT THIS IS ABOUT, as a registry KEY ("geocon"), or "" for agency-wide work
+        # like the playbook. A FIELD, never a folder-name convention: this is the dimension the
+        # retriever isolates on, and it is what will scope the library when it is dropped into a
+        # single client's dashboard or into the Grid's client view. A convention encoded in a
+        # string would be one rename away from leaking one client's plan into another's answer.
+        "client": doc.get("client") or "",
         "kind": doc.get("kind") or DEFAULT_KIND,
         "source": doc.get("source") or DEFAULT_SOURCE,
         "trust": doc.get("trust") or TRUST_STANDARD,
@@ -207,7 +228,7 @@ def write_doc(doc, if_generation=None):
 
 
 def make_doc(*, title="", body="", kind=None, folder="", source=DEFAULT_SOURCE, owner="",
-             filename="", mime="", size_bytes=0, trust=TRUST_STANDARD, doc_id=None):
+             filename="", mime="", size_bytes=0, trust=TRUST_STANDARD, doc_id=None, client=""):
     """A new document object. Not written; hand it to kb_index.reindex_document."""
     ts = now()
     body = (body or "")[:MAX_BODY_CHARS]
@@ -215,6 +236,7 @@ def make_doc(*, title="", body="", kind=None, folder="", source=DEFAULT_SOURCE, 
         "id": _safe_id(doc_id) if doc_id else new_id(),
         "title": one_line(title) or title_from(body),
         "folder": normalize_folder(folder),
+        "client": client_key(client),
         "kind": kind if kind in KINDS else DEFAULT_KIND,
         "source": source if source in SOURCES else DEFAULT_SOURCE,
         "filename": (filename or "")[:300],

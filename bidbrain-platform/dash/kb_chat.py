@@ -32,13 +32,24 @@ USER_AGENT = "bidbrain-kb-assistant/1.0"
 
 KIMI = "kimi"
 GEMINI = "gemini"
-LABELS = {KIMI: "Kimi", GEMINI: "Gemini"}
+CLAUDE = "claude"
+LABELS = {KIMI: "Kimi", GEMINI: "Gemini", CLAUDE: "Claude"}
+PROVIDERS = (KIMI, GEMINI, CLAUDE)
 
 KIMI_BASE = os.environ.get("KIMI_BASE_URL", "https://api.kimi.com/coding/v1").rstrip("/")
 KIMI_MODEL = os.environ.get("KB_KIMI_MODEL", "k3")
 GEMINI_MODEL = os.environ.get("KB_GEMINI_MODEL", "gemini-2.5-flash")
 GEMINI_ENDPOINT = ("https://generativelanguage.googleapis.com/v1beta/models/"
                    "{model}:streamGenerateContent?alt=sse")
+
+# Claude, over the Anthropic Messages API. Sonnet 5 is the default: a retrieval assistant is
+# summarising passages it was handed, not reasoning from scratch, and Sonnet answers that
+# faster and cheaper than Opus while following the citation rules just as closely.
+CLAUDE_MODEL = os.environ.get("KB_CLAUDE_MODEL", "claude-sonnet-5")
+CLAUDE_ENDPOINT = "https://api.anthropic.com/v1/messages"
+# 🔴 A REQUIRED HEADER, NOT AN OPTIONAL ONE. Without `anthropic-version` the API refuses the
+# request outright, and the error does not say which header is missing.
+CLAUDE_VERSION = "2023-06-01"
 
 TIMEOUT = (20, 180)              # (connect, read); a long read is normal while tokens stream
 MAX_OUTPUT_TOKENS = 2048
@@ -61,6 +72,8 @@ def configured(provider):
         return bool((os.environ.get("KIMI_API_KEY") or "").strip())
     if provider == GEMINI:
         return bool((os.environ.get("GEMINI_API_KEY") or "").strip())
+    if provider == CLAUDE:
+        return bool((os.environ.get("ANTHROPIC_API_KEY") or "").strip())
     return False
 
 
@@ -71,13 +84,13 @@ def configured(provider):
 # Retrieval itself is 0.35 s, so essentially all of that wait is the model. That is a product
 # decision rather than a bug, so the order is an ENV VAR and not a code change: set
 # `KB_MODEL_ORDER=gemini,kimi` on the service to swap them, with no deploy and no edit here.
-DEFAULT_ORDER = (KIMI, GEMINI)
+DEFAULT_ORDER = (KIMI, GEMINI, CLAUDE)
 
 
 def available():
     """Which providers this deployment could actually use, best first."""
     raw = (os.environ.get("KB_MODEL_ORDER") or "").strip().lower()
-    order = [p.strip() for p in raw.split(",") if p.strip() in (KIMI, GEMINI)] or list(DEFAULT_ORDER)
+    order = [p.strip() for p in raw.split(",") if p.strip() in PROVIDERS] or list(DEFAULT_ORDER)
     for p in DEFAULT_ORDER:                        # a provider left out of the list is still a
         if p not in order:                         # fallback, never silently unusable
             order.append(p)
@@ -85,7 +98,7 @@ def available():
 
 
 def model_of(provider):
-    return KIMI_MODEL if provider == KIMI else GEMINI_MODEL
+    return {KIMI: KIMI_MODEL, GEMINI: GEMINI_MODEL, CLAUDE: CLAUDE_MODEL}.get(provider, "")
 
 
 # --- Kimi (OpenAI compatible) --------------------------------------------------------------------
@@ -214,7 +227,78 @@ def _gemini(prefix, messages):
         r.close()
 
 
-_IMPL = {KIMI: _kimi, GEMINI: _gemini}
+# --- Claude (Anthropic Messages API) -------------------------------------------------------------
+
+def _claude(prefix, messages):
+    """Streamed Messages API.
+
+    🔴 THE SYSTEM PROMPT IS ITS OWN TOP-LEVEL FIELD, not a message with role "system". Anthropic
+    rejects a system role in `messages`, so the shared prefix that both other providers put in a
+    system message goes in `system` here. The block ORDER the prompt contract promises is
+    unchanged; only where the first block is carried differs.
+
+    🔴 `max_tokens` IS MANDATORY. The request fails without it rather than defaulting.
+    """
+    key = (os.environ.get("ANTHROPIC_API_KEY") or "").strip()
+    if not key:
+        raise ProviderError(CLAUDE, "Claude is not configured for this deployment")
+    body = {
+        "model": CLAUDE_MODEL,
+        "system": prefix,
+        "messages": [{"role": m["role"], "content": m["content"]} for m in messages],
+        "max_tokens": MAX_OUTPUT_TOKENS,
+        "stream": True,
+    }
+    # 🔴 NO `temperature`, AND FOR THE SECOND TIME ON A DIFFERENT PROVIDER. `claude-sonnet-5`
+    # answers `400 invalid_request_error: temperature is deprecated for this model`, which fails
+    # the WHOLE request, exactly as `k3` does for any value but 0.6 (see _kimi). Two providers,
+    # two different reasons, one lesson: on a retrieval assistant the sampling temperature is not
+    # worth a hard failure, so neither call sends one and both take the provider's own default.
+    # Caught because Claude silently fell back to Kimi on the first real turn.
+    try:
+        r = requests.post(CLAUDE_ENDPOINT, json=body, stream=True, timeout=TIMEOUT,
+                          headers={"x-api-key": key, "anthropic-version": CLAUDE_VERSION,
+                                   "User-Agent": USER_AGENT, "Accept": "text/event-stream",
+                                   "Content-Type": "application/json"})
+    except Exception as exc:                       # noqa: BLE001
+        raise ProviderError(CLAUDE, "could not reach Claude (%s)" % type(exc).__name__) from exc
+    if r.status_code != 200:
+        detail = r.text[:600]
+        r.close()
+        raise ProviderError(CLAUDE, "Claude answered %d" % r.status_code, status=r.status_code,
+                            body=detail)
+    sent = False
+    try:
+        for line in r.iter_lines(decode_unicode=True):
+            if not line or not line.startswith("data:"):
+                continue
+            try:
+                obj = json.loads(line[5:].strip())
+            except ValueError:
+                continue
+            kind = obj.get("type")
+            if kind == "content_block_delta":
+                delta = obj.get("delta") or {}
+                if delta.get("type") == "text_delta" and delta.get("text"):
+                    sent = True
+                    yield ("token", delta["text"])
+            elif kind == "message_start":
+                u = ((obj.get("message") or {}).get("usage")) or {}
+                if u.get("input_tokens"):
+                    yield ("usage", {"tokens_in": u.get("input_tokens"), "tokens_out": None})
+            elif kind == "message_delta":
+                u = obj.get("usage") or {}
+                if u.get("output_tokens"):
+                    yield ("usage", {"tokens_in": None, "tokens_out": u.get("output_tokens")})
+            elif kind == "error":
+                err = (obj.get("error") or {}).get("message", "")
+                raise ProviderError(CLAUDE, "Claude stream error: %s" % str(err)[:200],
+                                    pre_stream=not sent)
+    finally:
+        r.close()
+
+
+_IMPL = {KIMI: _kimi, GEMINI: _gemini, CLAUDE: _claude}
 
 
 def stream(prefix, messages, prefer=None):

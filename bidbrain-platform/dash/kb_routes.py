@@ -24,7 +24,9 @@ import kb_extract
 import kb_feedback
 import kb_index
 import kb_prompt
+import kb_settings
 import kb_store
+import kb_tts
 
 log = logging.getLogger(__name__)
 
@@ -36,6 +38,7 @@ _signed_in = None        # () -> bool: is there any session (else a page route s
 _actor = None            # () -> str: who to record as an author
 _blocked = None          # (what) -> response | None: the local-run production write guard
 _page_ctx = None         # () -> dict: logo, whether this session is staff, whether it is shared
+_clients = None          # () -> [{key, name}]: the clients THIS session may file against
 
 # The folders the library starts with, each with a one line note saying what belongs there. Seeded
 # once, only into an EMPTY library, so nobody's own structure is ever overwritten.
@@ -54,10 +57,10 @@ SEED_FOLDERS = [
 ]
 
 
-def init(app, *, allowed, signed_in, actor, mutation_blocked, page_context):
-    global _allowed, _signed_in, _actor, _blocked, _page_ctx
+def init(app, *, allowed, signed_in, actor, mutation_blocked, page_context, clients):
+    global _allowed, _signed_in, _actor, _blocked, _page_ctx, _clients
     _allowed, _signed_in, _actor, _blocked = allowed, signed_in, actor, mutation_blocked
-    _page_ctx = page_context
+    _page_ctx, _clients = page_context, clients
     app.register_blueprint(bp)
 
 
@@ -93,6 +96,22 @@ def _guard_write(what):
 
 def _json():
     return request.get_json(silent=True) or {}
+
+
+def _client_arg(value):
+    """A client key from a request, checked against the session's OWN client list.
+
+    🔴 THE REGISTRY IS THE AUTHORITY ON WHICH CLIENTS EXIST, AND THE SESSION ON WHICH IT MAY SEE.
+    An agency session gets its own clients only, so a key it has no business with resolves to the
+    agency-wide scope rather than to somebody else's library. Returns "" for agency-wide and None
+    for "not asked for" (the whole library), which are three different things and must stay so.
+    """
+    if value is None:
+        return None
+    key = kb_store.client_key(value)
+    if not key:
+        return ""
+    return key if key in {c["key"] for c in _clients()} else ""
 
 
 # --- pages ---------------------------------------------------------------------------------------
@@ -149,6 +168,25 @@ def _seed_if_empty():
     return made
 
 
+@bp.get("/clients")
+def clients():
+    """Every client this session may file against, with what each already holds.
+
+    Drawn from the REGISTRY rather than from the documents, so a client with nothing yet still
+    appears and can be filed into. A list built from existing documents could only ever show
+    clients somebody had already remembered to tag.
+    """
+    d = _deny()
+    if d:
+        return d
+    counts = kb_index.client_counts()
+    rows = [{"key": c["key"], "name": c["name"], "count": counts.get(c["key"], 0)}
+            for c in _clients()]
+    rows.sort(key=lambda r: r["name"].lower())
+    return jsonify(ok=True, clients=rows, agency_count=counts.get("", 0),
+                   untagged=sorted(k for k in counts if k and k not in {r["key"] for r in rows}))
+
+
 @bp.get("/tree")
 def tree():
     d = _deny()
@@ -159,14 +197,19 @@ def tree():
         if b:
             return b
         _seed_if_empty()
-    counts = kb_index.folder_counts()
+    # The tree is always ONE scope's tree: a client's, or the agency-wide one. Folders are
+    # not shared across clients, so a combined tree would invite filing one client's plan
+    # under a folder that happens to belong to another.
+    client = _client_arg(request.args.get("client", ""))
+    counts = kb_index.folder_counts(client=client)
     meta = kb_index.all_meta()
+    in_scope = [m for m in meta.values() if (m.get("client") or "") == client]
     paths = sorted([p for p in counts if p != kb_index.ROOT_FOLDER], key=str.lower)
-    return jsonify(ok=True,
+    return jsonify(ok=True, client=client,
                    folders=[{"path": p, "name": p.split("/")[-1], "depth": p.count("/"),
                              "count": counts[p]} for p in paths],
                    root_count=counts.get(kb_index.ROOT_FOLDER, 0),
-                   total=sum(1 for m in meta.values() if not m.get("archived")),
+                   total=sum(1 for m in in_scope if not m.get("archived")),
                    archived=sum(1 for m in meta.values() if m.get("archived")),
                    empty=not meta)
 
@@ -185,7 +228,8 @@ def _row(meta):
         state, note = "searchable", ""
     out = {k: meta.get(k) for k in ("id", "title", "folder", "kind", "source", "trust", "archived",
                                     "owner", "filename", "mime", "bytes", "chars", "created_at",
-                                    "updated_at", "updated_by", "revisions", "feedback_id")}
+                                    "updated_at", "updated_by", "revisions", "feedback_id",
+                                    "client")}
     out.update(chunks=chunks, embedded=embedded, state=state, state_note=note)
     return out
 
@@ -198,10 +242,17 @@ def list_docs():
     folder = request.args.get("folder", "")
     deep = request.args.get("deep") == "1"
     want_archived = request.args.get("archived") == "1"
+    client = _client_arg(request.args.get("client", ""))
     q = (request.args.get("q") or "").strip().lower()
     rows = []
     for meta in kb_index.all_meta().values():
         if bool(meta.get("archived")) != want_archived:
+            continue
+        # 🔴 BROWSING a client shows that client ONLY, which is NOT the retrieval rule: a
+        # client QUESTION also reads agency-wide documents (kb_index.doc_ids_for_client).
+        # A file list that mixed the playbook in would make it impossible to see what a
+        # client actually holds.
+        if (meta.get("client") or "") != client:
             continue
         f = meta.get("folder") or ""
         if folder == kb_index.ROOT_FOLDER:
@@ -258,7 +309,8 @@ def create_doc():
     if not title and not body.strip():
         return jsonify(ok=False, error="A document needs a title or some text."), 400
     doc = kb_store.make_doc(title=title, body=body, folder=j.get("folder") or "",
-                            kind=j.get("kind"), source="paste", owner=_actor())
+                            kind=j.get("kind"), source="paste", owner=_actor(),
+                            client=_client_arg(j.get("client")) or "")
     rep = kb_index.reindex_document(doc)
     _log_event("doc_added", doc_id=doc["id"], title=doc["title"], folder=doc["folder"],
                chunks=rep["chunks"], semantic=rep["semantic"])
@@ -273,6 +325,7 @@ def upload():
     if g:
         return g
     folder = request.form.get("folder") or ""
+    client = _client_arg(request.form.get("client")) or ""
     files = request.files.getlist("file")
     if not files:
         return jsonify(ok=False, error="No file was sent."), 400
@@ -288,7 +341,7 @@ def upload():
         doc = kb_store.make_doc(title=kb_extract.title_for(f.filename, got["text"]),
                                 body=got["text"], folder=folder, kind=got["kind_hint"],
                                 source="upload", owner=_actor(), filename=f.filename,
-                                mime=f.mimetype or "", size_bytes=len(data))
+                                mime=f.mimetype or "", size_bytes=len(data), client=client)
         # The original first: if indexing fails, the file a person uploaded is still there.
         try:
             doc["filename"] = kb_store.write_file(doc["id"], f.filename, data,
@@ -340,6 +393,8 @@ def patch_doc(doc_id):
         doc["kind"] = j["kind"]
     if j.get("folder") is not None:
         doc["folder"] = kb_store.normalize_folder(j["folder"])
+    if j.get("client") is not None:
+        doc["client"] = _client_arg(j["client"]) or ""
     if j.get("trust") in kb_store.TRUSTS:
         doc["trust"] = j["trust"]
     if j.get("archived") is not None:
@@ -378,7 +433,12 @@ def move_doc(doc_id):
         return jsonify(ok=False, error="bad id"), 400
     if not doc:
         return jsonify(ok=False, error="No such document."), 404
-    doc["folder"] = kb_store.normalize_folder(_json().get("folder") or "")
+    j = _json()
+    doc["folder"] = kb_store.normalize_folder(j.get("folder") or "")
+    # Moving between clients is a real operation (a document filed against the wrong one),
+    # so it goes through the same verb rather than needing a separate edit.
+    if j.get("client") is not None:
+        doc["client"] = _client_arg(j.get("client")) or ""
     doc["updated_at"] = kb_store.now()
     doc["updated_by"] = _actor()
     # Moving changes no text, so the passages stand; the copy of the metadata inside the chunks
@@ -550,7 +610,8 @@ def search():
     j = _json()
     q = str(j.get("q") or "")
     res = kb_index.search(q, limit=int(j.get("limit") or kb_index.DEFAULT_LIMIT),
-                          folders=j.get("folders") or None, strict=bool(j.get("strict")))
+                          folders=j.get("folders") or None, strict=bool(j.get("strict")),
+                          client=_client_arg(j.get("client")))
     # `docs` is what makes "which documents are never retrieved" answerable later. Ids only: the
     # passage text stays in the library, never in the usage record.
     _log_event("search", query=q[:300], scope=res["scope"], passages=len(res["excerpts"]),
@@ -598,8 +659,18 @@ def ask():
     if not question:
         return jsonify(ok=False, error="Ask something."), 400
     folders = j.get("folders") or None
+    client = _client_arg(j.get("client"))
+    # 🔴 READ BEFORE THE GENERATOR STARTS, like the actor. Settings live server side precisely
+    # because the model has to be chosen before a single token streams.
+    settings = kb_settings.read(actor_now := _actor())
+    # A spoken answer is a DIFFERENT answer, not the same words read out: markdown, citations
+    # and headings are noise to the ear. The prompt says so when the reply will be spoken.
+    spoken = bool(j.get("spoken")) and bool(settings.get("speak_replies"))
+    client_name = ""
+    if client:
+        client_name = next((c["name"] for c in _clients() if c["key"] == client), client)
     conv_id = str(j.get("conv_id") or "").strip()
-    actor = _actor()
+    actor = actor_now
 
     conv = kb_store.read_chat(actor, conv_id) if conv_id else None
     if not conv:
@@ -610,7 +681,7 @@ def ask():
     def gen():
         started = time.time()
         try:
-            res = kb_index.search(question, folders=folders, strict=True)
+            res = kb_index.search(question, folders=folders, strict=True, client=client)
         except Exception:                          # noqa: BLE001
             log.exception("kb: retrieval failed")
             yield _sse("error", {"message": "The library could not be searched just now. Nothing "
@@ -622,7 +693,8 @@ def ask():
                                             "keyword_rank", "semantic_rank", "semantic_score")}
                          for e in res["excerpts"]],
             "semantic": res["semantic"], "semantic_error": res["semantic_error"],
-            "scope": res["scope"], "outcome": res["outcome"],
+            "scope": res["scope"], "outcome": res["outcome"], "client": res.get("client"),
+            "client_name": client_name,
             "documents_searched": res["documents_searched"],
             "unembedded_documents": res["unembedded_documents"], "ms": res["ms"],
         })
@@ -638,11 +710,13 @@ def ask():
             all_folders = []
         prefix = kb_prompt.prefix(res["excerpts"], semantic=res["semantic"],
                                   semantic_error=res["semantic_error"], scope=res["scope"],
-                                  unembedded=res["unembedded_documents"], folders=all_folders)
+                                  unembedded=res["unembedded_documents"], folders=all_folders,
+                                  client_name=client_name, spoken=spoken)
         messages = kb_prompt.turns(history, question)
         answer, model_info, usage = [], None, {}
         try:
-            for kind, payload in kb_chat.stream(prefix, messages):
+            for kind, payload in kb_chat.stream(prefix, messages,
+                                                prefer=settings.get("model") or None):
                 if kind == "model":
                     model_info = payload
                     yield _sse("model", payload)
@@ -681,6 +755,7 @@ def ask():
         ms = int((time.time() - started) * 1000)
         # `actor` is the value captured before the generator started. See _log_event.
         _log_event("question", actor=actor, query=question[:300], scope=res["scope"],
+                   client=client,
                    passages=len(res["excerpts"]), semantic=res["semantic"], ms=ms,
                    model=(model_info or {}).get("model", ""),
                    provider=(model_info or {}).get("provider", ""),
@@ -778,7 +853,54 @@ def _shared_login():
         return False
 
 
-# --- observability -------------------------------------------------------------------------------
+@bp.get("/settings")
+def get_settings():
+    d = _deny()
+    if d:
+        return d
+    return jsonify(ok=True, settings=kb_settings.resolve(_actor()))
+
+
+@bp.post("/settings")
+def set_settings():
+    g = _guard_write("kb settings")
+    if g:
+        return g
+    kb_settings.write(_actor(), _json())
+    return jsonify(ok=True, settings=kb_settings.resolve(_actor()))
+
+
+@bp.post("/speak")
+def speak():
+    """Synthesize one utterance and return the MP3 BYTES.
+
+    🔴 BYTES, NEVER A URL. The panel plays them from a blob on our own origin, so nothing here
+    needs a media-src for a third-party host, and no audio link outlives the request.
+
+    A failure returns its real reason as JSON so the panel can fall back to the browser voice AND
+    SAY it did: a voice mode that silently goes quiet reads as broken, where a plainer voice does
+    not.
+    """
+    d = _deny()
+    if d:
+        return d
+    j = _json()
+    s = kb_settings.read(_actor())
+    engine = j.get("engine") or s.get("voice_engine") or kb_tts.DEFAULT_ENGINE
+    if engine == "browser":
+        return jsonify(ok=False, error="The browser voice is chosen; nothing to synthesize.",
+                       reason="browser"), 400
+    try:
+        audio = kb_tts.synthesize(str(j.get("text") or ""), engine,
+                                  voice=j.get("voice") or s.get("voice_name") or "",
+                                  style=j.get("style") or "")
+    except kb_tts.TTSError as exc:
+        return jsonify(ok=False, error=str(exc), reason="tts"), exc.status
+    return Response(audio, mimetype="audio/mpeg",
+                    headers={"Cache-Control": "no-store", "Content-Length": str(len(audio))})
+
+
+# --- observability -----------------------------------------------------------------------------------
 
 @bp.get("/obs/data")
 def obs_data():
@@ -808,7 +930,10 @@ def obs_data():
                 "kimi": {"configured": kb_chat.configured("kimi"), "model": kb_chat.KIMI_MODEL,
                          "base": kb_chat.KIMI_BASE},
                 "gemini": {"configured": kb_chat.configured("gemini"),
-                           "model": kb_chat.GEMINI_MODEL}},
+                           "model": kb_chat.GEMINI_MODEL},
+                "claude": {"configured": kb_chat.configured("claude"),
+                           "model": kb_chat.CLAUDE_MODEL}},
+        voice=kb_tts.catalog(),
         tracing=kb_trace.status(),
         guide_loaded=bool(kb_prompt.guide_text()),
         retrieval={"rrf_k": kb_index.RRF_K, "candidates": kb_index.CANDIDATES,
@@ -845,12 +970,14 @@ def obs_probe():
     res = kb_index.search(str(j.get("q") or ""), limit=int(j.get("limit") or 10),
                           folders=j.get("folders") or None,
                           strict=bool(j.get("strict", True)),
-                          trust_bonus=bool(j.get("trust_bonus", True)))
+                          trust_bonus=bool(j.get("trust_bonus", True)),
+                          client=_client_arg(j.get("client")))
     # The same query with trust OFF, so the page can SHOW what the verified nudge and the supersede
     # penalty actually did rather than asserting it.
     plain = kb_index.search(str(j.get("q") or ""), limit=int(j.get("limit") or 10),
                             folders=j.get("folders") or None,
-                            strict=bool(j.get("strict", True)), trust_bonus=False)
+                            strict=bool(j.get("strict", True)), trust_bonus=False,
+                            client=_client_arg(j.get("client")))
     return jsonify(ok=True, result=res,
                    without_trust=[{"document_id": e["document_id"], "title": e["title"],
                                    "passage_id": e["passage_id"], "score": e["score"],
@@ -873,6 +1000,10 @@ def obs_reach():
         out["kimi"] = kb_chat.probe("kimi")
     if which in ("all", "gemini") and kb_chat.configured("gemini"):
         out["gemini"] = kb_chat.probe("gemini")
+    if which in ("all", "claude") and kb_chat.configured("claude"):
+        out["claude"] = kb_chat.probe("claude")
+    if which in ("all", "tts"):
+        out["tts"] = kb_tts.probe()
     return jsonify(ok=True, probes=out)
 
 

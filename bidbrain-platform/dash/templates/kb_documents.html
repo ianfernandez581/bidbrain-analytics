@@ -17,7 +17,8 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 {% include "_premium_head.html" %}
-<link rel="stylesheet" href="/static/kb.css?v=1">
+<link rel="stylesheet" href="/static/kb.css?v=2">
+<link rel="stylesheet" href="/static/kb_panel.css?v=1">
 </head>
 <body>
 
@@ -66,30 +67,87 @@
     </div>
   </main>
 
-  {# The Ask panel is a COLUMN of this grid, not an overlay: an answer is read next to the
-     documents it cites, and clicking a citation opens that document without losing the answer. #}
-  <aside class="kb-ask" id="kbAskPanel" hidden>
-    <div class="kb-ask-head">
-      <h3>Ask</h3>
-      <div class="kb-scope" id="kbScope">
-        <button class="btn sm" id="kbScopeBtn">Entire knowledge base</button>
-        <div class="kb-scope-menu" id="kbScopeMenu" hidden></div>
-      </div>
-      <button class="btn sm" id="kbNewChat" title="Start a new conversation">＋</button>
-      <button class="btn sm" id="kbAskClose" title="Close">✕</button>
-    </div>
-    <div class="kb-thread" id="kbThread"></div>
-    <div class="kb-composer">
-      <textarea id="kbInput" rows="1" placeholder="Ask about anything in the library…"></textarea>
-      <div class="r">
-        <span id="kbAskNote" style="font-size:11px;color:var(--muted-2)"></span>
-        <span class="sp"></span>
-        <button class="btn sm" id="kbStop" hidden>Stop</button>
-        <button class="btn sm gold" id="kbSend">Ask</button>
-      </div>
-    </div>
-  </aside>
 </div>
+
+<!-- The launcher bubble, and the panel it opens. A floating window rather than a column: the
+     Explorer never reflows when it opens, and it can be dragged and resized out of the way. -->
+<button id="kbFab" type="button" title="Ask the library">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 8.5 8.5 0 0 1-3.9-.9L3 21l1.9-4.1A8.4 8.4 0 0 1 12 3a8.4 8.4 0 0 1 9 8.5z"/>
+  </svg>
+  <span>Ask</span>
+</button>
+
+<aside class="kbp" id="kbPanel" hidden aria-label="Ask the knowledge base">
+  <div class="kbp-head" id="kbHead">
+    <div class="kbp-title">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/><circle cx="12" cy="12" r="3.2"/>
+      </svg>
+      <span>Ask the library<small id="kbSub"></small></span>
+    </div>
+    <div class="kbp-head-btns">
+      <button class="kbp-icon" id="kbNewChat" type="button" title="New conversation" aria-label="New conversation">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg></button>
+      <button class="kbp-icon" id="kbHistoryBtn" type="button" title="Past conversations" aria-label="Past conversations">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></button>
+      <button class="kbp-icon" id="kbSettingsBtn" type="button" title="Settings" aria-label="Settings">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8 2 2 0 1 1-2.8 2.8 1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5 2 2 0 1 1-4 0 1.6 1.6 0 0 0-1-1.5 1.6 1.6 0 0 0-1.8.3 2 2 0 1 1-2.8-2.8 1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1 2 2 0 1 1 0-4 1.6 1.6 0 0 0 1.5-1 1.6 1.6 0 0 0-.3-1.8 2 2 0 1 1 2.8-2.8 1.6 1.6 0 0 0 1.8.3 1.6 1.6 0 0 0 1-1.5 2 2 0 1 1 4 0 1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3 2 2 0 1 1 2.8 2.8 1.6 1.6 0 0 0-.3 1.8 1.6 1.6 0 0 0 1.5 1 2 2 0 1 1 0 4 1.6 1.6 0 0 0-1.5 1z"/></svg></button>
+      <button class="kbp-icon" id="kbClose" type="button" title="Close" aria-label="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    </div>
+  </div>
+
+  <div class="kbp-chips">
+    <button class="kbp-chip on" id="kbScopeBtn" type="button" title="What I read">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5.5A1.5 1.5 0 0 1 5.5 4H19v15H5.5A1.5 1.5 0 0 0 4 20.5z"/><path d="M4 17.5A1.5 1.5 0 0 1 5.5 16H19"/></svg>
+      <span class="kbp-chip-label" id="kbScopeLabel">Everything</span>
+      <span class="kbp-caret"></span>
+    </button>
+    <label class="kbp-speak-toggle" for="kbSpeak">
+      Read aloud
+      <button class="kbp-switch sm" id="kbSpeak" type="button" role="switch" aria-checked="false"><span></span></button>
+    </label>
+  </div>
+
+  <div class="kbp-convo" id="kbConvo" hidden>
+    <span class="kbp-convo-dot" aria-hidden="true"></span>
+    <span class="kbp-convo-text" id="kbConvoText"></span>
+    <button class="kbp-btn" id="kbConvoStop" type="button">Stop</button>
+  </div>
+
+  <div class="kbp-body">
+    <div class="kbp-log" id="kbLog"></div>
+    <div class="kbp-scope" id="kbScope" hidden></div>
+
+    <div class="kbp-drawer" id="kbHistory" hidden>
+      <div class="kbp-drawer-head">
+        <span>Past conversations</span>
+        <button class="kbp-icon" id="kbHistoryClose" type="button" aria-label="Back">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      </div>
+      <div class="kbp-drawer-body" id="kbHistoryBody"></div>
+    </div>
+
+    <div class="kbp-drawer" id="kbSettings" hidden>
+      <div class="kbp-drawer-head">
+        <span>Settings</span>
+        <button class="kbp-icon" id="kbSettingsClose" type="button" aria-label="Back">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      </div>
+      <div class="kbp-drawer-body" id="kbSettingsBody"></div>
+    </div>
+  </div>
+
+  <div class="kbp-compose">
+    <button class="kbp-mic" id="kbMic" type="button" title="Dictate. It lands in the box for you to edit; nothing is sent by the microphone.">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+    </button>
+    <textarea id="kbInput" rows="1" placeholder="Ask about anything in the library…"></textarea>
+    <button class="kbp-send" id="kbSend" type="button">Ask</button>
+  </div>
+  <div class="kbp-grip" id="kbGrip" title="Drag to resize"></div>
+</aside>
 
 <div class="kb-uploads" id="kbUploads"></div>
 
@@ -99,8 +157,8 @@
   window.KB_SHARED_LOGIN = {{ shared_login | tojson }};
   window.KB_STAFF = {{ is_staff | tojson }};
 </script>
-<script src="/static/kb.js?v=1"></script>
-<script src="/static/kb_ask.js?v=1"></script>
+<script src="/static/kb.js?v=2"></script>
+<script src="/static/kb_ask.js?v=2"></script>
 {% include "_premium.html" %}
 </body>
 </html>

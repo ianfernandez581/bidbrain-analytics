@@ -499,6 +499,33 @@ def _kb_actor_is_shared():
     return not (session.get("email") or "").strip()
 
 
+def _kb_clients():
+    """The clients this session may file knowledge against, from the REGISTRY.
+
+    🔴 SCOPED TO THE SESSION, not the whole estate. Staff see every live dashboard; an agency
+    session sees only its own clients, which is the same boundary `_may_open` enforces on the
+    dashboards themselves. It is also the seam that makes this library droppable into ONE client's
+    dashboard later, where the list is a single entry.
+    """
+    if _admin_kind() in ("admin", "superadmin"):
+        # 🔴 `get_state()` HAS NO TOP-LEVEL `clients` KEY. It returns {agencies, unassigned,
+        # all_client_keys}, and the client records hang off each AGENCY. Reading a "clients" key
+        # returns an empty list and the picker silently offers no clients at all, which is exactly
+        # how this shipped the first time. Flatten across agencies AND the unassigned group,
+        # deduped by key, because one client can appear under two agencies (dual visibility).
+        st = store.get_state()
+        seen = {}
+        for group in list(st.get("agencies") or []) + [{"clients": st.get("unassigned") or []}]:
+            for c in (group.get("clients") or []):
+                if c.get("key") and c["key"] not in seen:
+                    seen[c["key"]] = {"key": c["key"], "name": c.get("name") or c["key"]}
+        return sorted(seen.values(), key=lambda c: c["name"].lower())
+    agency = _session_agency()
+    if not agency:
+        return []
+    return [{"key": c["key"], "name": c["name"]} for c in store.agency_clients(agency)]
+
+
 def _kb_page_context():
     """What the knowledge base's own pages need from the platform shell. `shared_login` is passed
     so the UI can SAY that a password session is not one person, rather than implying a privacy it
@@ -510,7 +537,7 @@ def _kb_page_context():
 
 kb_routes.init(app, allowed=_kb_allowed, signed_in=lambda: bool(session.get("kind")),
                actor=_kb_actor, mutation_blocked=_prod_mutation_blocked,
-               page_context=_kb_page_context)
+               page_context=_kb_page_context, clients=_kb_clients)
 # A no-op unless PHOENIX_COLLECTOR_ENDPOINT is set, and it swallows its own failure: observability
 # that can break the thing it observes is worse than none.
 kb_trace.configure()

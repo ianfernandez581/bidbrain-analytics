@@ -99,7 +99,12 @@ dates, "verified on") lives there too, never here.**
   as THEIR edit through the ordinary route, stamped with the date, their name and the fact the AI
   drafted it. Two verbs only, append or create - never rewrite or delete - and the model names a
   PASSAGE NUMBER from its own turn, never a document id, so it can never touch a document it was
-  not shown. Full detail, and the ten gotchas, in `bidbrain-platform/README.md` -> "The knowledge
+  not shown. **SCOPED BY CLIENT**: `client` is a FIELD on each document (a registry key, empty
+  for agency-wide), a client QUESTION reads that client PLUS agency-wide and never another
+  client, and a client FOLDER VIEW shows that client alone. Three models (Kimi, Gemini,
+  Claude) chosen per person in server-side settings, and the assistant talks back through
+  Chirp 3 HD. 🔴 NEITHER `k3` NOR `claude-sonnet-5` ACCEPTS A `temperature` - one allows only
+  0.6, the other calls it deprecated, and either 400s the whole request. Full detail, and the ten gotchas, in `bidbrain-platform/README.md` -> "The knowledge
   base".
   Registry = one private JSON in GCS. Service `platform-dash`.
 - **`status_dashboard/`** - pipeline-health data + deploy plumbing (UI is merged into the platform;

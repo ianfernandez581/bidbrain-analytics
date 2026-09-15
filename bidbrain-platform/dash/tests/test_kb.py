@@ -623,3 +623,121 @@ def test_the_index_sees_a_write_that_did_not_go_through_this_process(client):
     row = [r for r in rows if r["id"] == doc["id"]][0]
     assert row["state"] == "keyword" and row["state_note"]
     client.delete("/kb/docs/%s" % doc["id"])
+
+# --- the client dimension --------------------------------------------------------------------
+
+def test_a_client_question_reads_that_client_plus_agency_wide_and_never_another(client):
+    """🔴 THE WHOLE POINT OF THE CLIENT FIELD, and both halves matter. Agency-wide documents must
+    reach a client question (an answer without the playbook comes from a system that forgot its own
+    standards); another client's documents must never reach it (that is the isolation this exists
+    for, and what makes the library droppable into one client's own dashboard)."""
+    _staff(client)
+    a = client.post("/kb/docs", json={"title": "Alpha flight", "folder": "Media plans",
+                                      "client": "geocon",
+                                      "body": "The Trade Desk line runs from 20 August."}).get_json()["doc"]
+    b = client.post("/kb/docs", json={"title": "Beta flight", "folder": "Media plans",
+                                      "client": "cloudflare",
+                                      "body": "The Trade Desk line runs from 1 July."}).get_json()["doc"]
+    play = client.post("/kb/docs", json={"title": "Pacing basis", "folder": "Playbook",
+                                         "body": "Pacing is drawn against the measurable budget."})         .get_json()["doc"]
+    assert a["client"] == "geocon" and play["client"] == ""
+
+    s = client.post("/kb/search", json={"q": "Trade Desk line pacing", "client": "geocon"}).get_json()
+    got = {e["document_id"] for e in s["excerpts"]}
+    assert a["id"] in got, "a client must see their own documents"
+    assert play["id"] in got, "a client scope MUST carry agency-wide knowledge"
+    assert b["id"] not in got, "LEAK: another client's document was retrieved"
+
+    # Agency-wide is the shared documents ONLY, not everything.
+    s2 = client.post("/kb/search", json={"q": "Trade Desk line pacing", "client": ""}).get_json()
+    got2 = {e["document_id"] for e in s2["excerpts"]}
+    assert got2 == {play["id"]}
+
+    # BROWSING is narrower than asking, deliberately.
+    rows = client.get("/kb/docs?client=geocon").get_json()["docs"]
+    assert [r["id"] for r in rows] == [a["id"]],         "a client's file list must show what the CLIENT holds, not the playbook too"
+    assert kb_index.folder_counts(client="geocon") == {"Media plans": 1}
+    for d in (a, b, play):
+        client.delete("/kb/docs/%s" % d["id"])
+
+
+def test_a_client_key_is_never_taken_on_trust(client):
+    """A key the session has no business with resolves to agency-wide, never to somebody else's
+    library, and nothing shaped like a path gets through."""
+    import kb_store
+    assert kb_store.client_key("../../etc") == ""
+    assert kb_store.client_key("GEOCON") == "geocon"
+    assert kb_store.client_key("has spaces") == ""
+    _staff(client)
+    d = client.post("/kb/docs", json={"title": "x", "body": "y",
+                                      "client": "not-a-real-client"}).get_json()["doc"]
+    assert d["client"] == "", "an unknown key must fall back to agency-wide"
+    client.delete("/kb/docs/%s" % d["id"])
+
+
+def test_the_clients_list_is_not_empty_for_staff(client):
+    """🔴 THE REGRESSION. `store.get_state()` has no top-level `clients` key (it returns agencies,
+    unassigned, all_client_keys), so reading one returned [] and the picker silently offered no
+    clients at all."""
+    _staff(client)
+    j = client.get("/kb/clients").get_json()
+    assert j["ok"] and len(j["clients"]) > 5, "staff must see the estate's clients"
+    assert all(c.get("key") and c.get("name") for c in j["clients"])
+
+
+# --- settings, models and voice ----------------------------------------------------------------
+
+def test_settings_round_trip_and_an_unconfigured_model_says_so(client):
+    _staff(client)
+    j = client.post("/kb/settings", json={"model": "claude", "speak_replies": True,
+                                          "voice_engine": "chirp3-hd", "voice_name": "Kore"})
+    s = j.get_json()["settings"]
+    assert s["model"] == "claude" and s["speak_replies"] is True
+    assert s["voice_engine"] == "chirp3-hd" and s["voice_name"] == "Kore"
+    assert client.get("/kb/settings").get_json()["settings"]["model"] == "claude"
+    # A stale or unknown value falls back rather than erroring on somebody's next question.
+    s2 = client.post("/kb/settings", json={"model": "retired-model",
+                                           "voice_name": "NoSuchVoice"}).get_json()["settings"]
+    assert s2["model"] == "" and s2["voice_name"] in ("Aoede", "Kore")
+    assert s2["model_effective"], "there must always be an effective model when one is configured"
+    client.post("/kb/settings", json={"model": "", "speak_replies": False,
+                                      "voice_engine": "browser"})
+
+
+def test_no_provider_is_sent_a_temperature(client):
+    """🔴 BOTH REFUSE ONE, FOR DIFFERENT REASONS, AND EITHER 400s THE WHOLE REQUEST. `k3` allows
+    only 0.6; `claude-sonnet-5` calls it deprecated. Claude's was found only because it fell back
+    to Kimi on the first real turn."""
+    import inspect
+    import kb_chat
+    for fn in (kb_chat._kimi, kb_chat._claude):
+        src = inspect.getsource(fn)
+        body = src[src.index("body = {"):src.index("try:")]
+        assert '"temperature"' not in body, "%s sends a temperature" % fn.__name__
+
+
+def test_the_spoken_style_replaces_the_written_one_but_keeps_citations(client):
+    import kb_prompt
+    w = kb_prompt.prefix([], spoken=False)
+    sp = kb_prompt.prefix([], spoken=True)
+    assert "READ ALOUD" not in w and "READ ALOUD" in sp
+    # It must come last, because it deliberately contradicts the written rules.
+    assert sp.index("READ ALOUD") > sp.index("Plain markdown only")
+    # Citations STAY: the reply is shown as well as spoken, and the audio is stripped client side.
+    assert "KEEP your citation brackets" in sp
+
+
+def test_the_prompt_says_whose_question_it_is(client):
+    import kb_prompt
+    p = kb_prompt.prefix([], client_name="Geocon")
+    assert "Geocon" in p and "CANNOT see any other client" in p
+    assert "WHOSE QUESTION THIS IS" not in kb_prompt.prefix([])
+
+
+def test_speak_refuses_the_browser_engine_rather_than_synthesizing(client):
+    """The browser voice never touches the server. Asking the server for it is a mistake worth
+    naming, not a silent cloud synthesis somebody did not choose (and would be billed for)."""
+    _staff(client)
+    client.post("/kb/settings", json={"voice_engine": "browser"})
+    r = client.post("/kb/speak", json={"text": "hello"})
+    assert r.status_code == 400 and r.get_json()["reason"] == "browser"

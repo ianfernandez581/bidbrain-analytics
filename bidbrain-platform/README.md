@@ -1031,6 +1031,89 @@ earlier versions*; and the **History** tab spells the mechanism out in words, no
 earlier version is itself an edit, so the assistant's change stays in the record rather than being
 erased by the undo.
 
+### The client dimension: a field, never a folder name
+The library has two kinds of document: **agency-wide** (playbook, platform docs, standards) and
+**a client's own** (their media plans, briefs, meetings). `client` is a first-class FIELD on the
+document, holding a registry key, empty for agency-wide.
+
+- **🔴 A FIELD, NOT A FOLDER CONVENTION.** This is the dimension the retriever isolates on, and it
+  is what will scope the library when it is dropped into one client's dashboard or into the Grid's
+  client view. A convention encoded in a folder string is one rename away from leaking one client's
+  plan into another's answer.
+- **🔴 ASKING AND BROWSING ARE DELIBERATELY DIFFERENT.** A client QUESTION reads that client PLUS
+  agency-wide (`kb_index.doc_ids_for_client`), because an answer given without the playbook comes
+  from a system that has forgotten its own standards. A client FOLDER VIEW shows that client only,
+  because a file list that mixes in the playbook makes it impossible to see what a client holds.
+  Verified both ways, including that agency-wide scope is NOT "everything".
+- **The client list comes from the REGISTRY, scoped to the session** (`main._kb_clients`): staff
+  see every dashboard, an agency session sees only its own clients, the same boundary `_may_open`
+  enforces. A key the session has no business with resolves to agency-wide, never to somebody
+  else's library, and `kb_store.client_key` rejects anything that is not a bare key (path
+  traversal included).
+- **🔴 `store.get_state()` HAS NO TOP-LEVEL `clients` KEY.** It returns
+  `{agencies, unassigned, all_client_keys}` and the client records hang off each AGENCY. Reading a
+  `"clients"` key returns an empty list and the picker silently offers no clients, which is exactly
+  how this shipped the first time. Flatten across agencies and unassigned, deduped by key, because
+  dual visibility puts one client under two agencies.
+
+### The Ask panel: a bubble, not a column
+A launcher bubble bottom-right opens a floating, draggable, resizable panel (`kb_panel.css`,
+`static/kb_ask.js`). Shaped after Sentinel's assistant panel because that shape is already trusted;
+coloured like this console. The Explorer keeps two grid columns and never reflows when it opens.
+Drawers slide over the conversation for **history** and **settings**; a phone gets a sheet with no
+drag and no resize.
+
+### Settings: which model, which voice
+Stored per person at `kb/settings/<actor>.json`.
+
+- **🔴 SERVER SIDE, NOT `localStorage`.** The model has to be chosen before a single token streams,
+  so the server must be able to read it; and a choice that lives in one browser is a different
+  assistant on a phone. localStorage keeps only what is genuinely per-device: whether the panel is
+  open, and its size.
+- **Every field falls back to a server default**, because a saved preference is a stale preference
+  the moment a model is retired, and nobody migrates a settings file. `resolve()` also reports
+  `model_effective` and a `model_note`, so a chosen model with no key on this deployment says so
+  instead of being silently ignored.
+
+### Three models, and the same gotcha twice
+Kimi, Gemini and **Claude** (`claude-sonnet-5`, Anthropic Messages API, secret `anthropic-api-key`).
+
+- **🔴 NEITHER KIMI NOR CLAUDE ACCEPTS A TEMPERATURE, FOR DIFFERENT REASONS.** `k3` answers
+  `400 only 0.6 is allowed for this model`; `claude-sonnet-5` answers
+  `400 temperature is deprecated for this model`. Either one fails the WHOLE request. Neither call
+  sends one now. Claude's was caught because it fell back to Kimi on the first real turn, which is
+  precisely what the fallback is for and precisely why the panel names the model that answered.
+- Claude's system prompt is its own top-level `system` field, not a message with role `system`,
+  which Anthropic rejects. `anthropic-version` is a required header. `max_tokens` is mandatory.
+- Measured first token locally: **Claude 1.1s, Gemini 1.4s, Kimi 1.7s**.
+
+### Voice, both ways
+- **In**: the browser's own speech recognition, on the composer and on the feedback context box.
+  🔴 Dictation lands in the box as editable text. **Nothing is ever sent by the microphone or by a
+  pause** - you edit it and press Send.
+- **Out**: the browser voice (free, never touches the server) or **Chirp 3 HD** / Gemini Flash TTS
+  through `POST /kb/speak` (`kb_tts.py`), returning MP3 **bytes, never a URL**, so nothing needs a
+  `media-src` for a third party.
+- **🔴 THE RUNTIME SERVICE ACCOUNT NEEDS `roles/serviceusage.serviceUsageConsumer`.** Cloud TTS has
+  no IAM role of its own and refuses a caller that may not "use" the project, with a 403 naming
+  neither. This is the most likely reason a fresh deployment is silent.
+- **🔴 LOCALLY, USER ADC ALSO NEEDS A QUOTA PROJECT**, sent as `x-goog-user-project`. Without it
+  Cloud TTS 403s on a laptop while working fine on Cloud Run, which makes the feature untestable
+  locally, which is the same as untested.
+- A spoken reply is a **different reply**: `SPOKEN_STYLE` replaces the written rules with "talk, do
+  not write, one to three sentences". That rule is also the cost control, since Chirp bills ~$30
+  per million characters. Citations STAY in the text (they are clickable on screen) and are
+  stripped from the audio, along with markdown and the space a removed bracket leaves before a
+  full stop.
+- A cloud voice failure falls back to the browser voice **and says so once in the log**, because a
+  voice mode that simply goes quiet reads as broken.
+
+### Feedback carries the reason, not just the verdict
+Right / Right, not here / Wrong, and **all three open an optional context box**, including Right:
+"it is right" and "it is right because the Q3 plan supersedes the Q2 one" are worth very different
+amounts to the next person, and a thumbs-up with nowhere to explain it throws the second away. The
+context box can be dictated too.
+
 ### Identity, stated rather than implied
 Only Google and Microsoft sign-in set `session["email"]`. A typed admin password and the shared
 100% Digital password identify a TIER, so `_kb_actor()` records `shared:superadmin` or
@@ -1169,9 +1252,13 @@ bidbrain-platform/
     kb_feedback.py               a buyer's correction into a trusted document that outranks the passage it corrects
     kb_activity.py               the usage record: one immutable object per event, and the Observability page's store
     kb_trace.py                  optional Phoenix spans; a genuine no-op unless PHOENIX_COLLECTOR_ENDPOINT is set
+    kb_settings.py               each person's model + voice choice, server side (kb/settings/<actor>.json)
+    kb_tts.py                    Cloud Text-to-Speech: Chirp 3 HD / Gemini Flash TTS, returns MP3 bytes
     kb_routes.py                 every /kb HTTP surface as one blueprint, with the gates INJECTED (main.py imports this, not the reverse)
     kb/HOW-BIDBRAIN-KB-WORKS.md  the assistant's self-knowledge, shipped INSIDE the prompt on every turn
-    static/kb.js kb_ask.js kb_obs.js kb.css   the Documents explorer, the Ask panel, the Observability page
+    static/kb.js kb.css          the Documents explorer (client tiles, folders, the file list)
+    static/kb_ask.js kb_panel.css   the floating Ask panel: bubble, drawers, voice, feedback
+    static/kb_obs.js             the Observability page
     tests/test_kb.py             every gate in the access table, plus the feedback loop end to end (real GCS, throwaway prefix)
     build_lineage.py             builds lineage/<c>.txt digests from clients/*/README.md + sql/ headers (run after doc/sql changes)
     lineage/                     committed per-client lineage digests, shipped in the image (COPY lineage)

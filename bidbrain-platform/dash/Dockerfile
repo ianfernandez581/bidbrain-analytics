@@ -10,6 +10,8 @@ COPY internal_notes.py internal_chat.py feedback_loop_data.py ./
 # `gcloud run services update platform-dash --memory 1Gi`.
 COPY kb_store.py kb_chunk.py kb_embed.py kb_index.py kb_extract.py kb_routes.py ./
 COPY kb_chat.py kb_prompt.py kb_feedback.py kb_activity.py kb_trace.py ./
+# The assistant's own settings (which model, which voice) and Cloud Text-to-Speech.
+COPY kb_settings.py kb_tts.py ./
 # 🔴 The self-knowledge document is SHIPPED, not summarised: kb_prompt reads it and puts it in the
 # prompt on every turn, so a rule change is a text edit here rather than a code change.
 COPY kb ./kb
