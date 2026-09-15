@@ -45,7 +45,7 @@ PREFIX = os.environ.get("KB_PREFIX", "kb").strip("/") or "kb"
 
 KINDS = ("note", "plan", "brief", "meeting", "reference", "feedback")
 DEFAULT_KIND = "note"
-SOURCES = ("upload", "paste", "assistant", "feedback")
+SOURCES = ("upload", "paste", "assistant", "feedback", "fathom")   # fathom: kb_fathom.py (2026-09-15)
 DEFAULT_SOURCE = "paste"
 TRUST_VERIFIED = "verified"
 TRUST_STANDARD = "standard"

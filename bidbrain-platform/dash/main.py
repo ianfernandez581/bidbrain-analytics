@@ -44,6 +44,7 @@ import feedback_loop_data
 import internal_notes
 import internal_chat
 import kb_routes
+import kb_fathom_routes
 import kb_trace
 from store import Store, verify_pw, is_external, agency_setting
 
@@ -538,6 +539,54 @@ def _kb_page_context():
 kb_routes.init(app, allowed=_kb_allowed, signed_in=lambda: bool(session.get("kind")),
                actor=_kb_actor, mutation_blocked=_prod_mutation_blocked,
                page_context=_kb_page_context, clients=_kb_clients)
+
+
+# --- Fathom meetings into the knowledge base (kb_fathom.py, kb_fathom_routes.py; 2026-09-15) -----
+# Same gate, actor and mutation guard as kb_routes. The one extra input is `entities`: campaign /
+# ad-group / creative NAMES harvested from every live dashboard's data.json, cached 6h - the strings
+# a meeting would say out loud, for the ladder's evidence rung. A dashboard whose payload cannot
+# be fetched simply contributes nothing; the ladder still runs.
+_ENTITY_CACHE = {"at": 0.0, "by_client": {}}
+_ENTITY_TTL = 6 * 3600
+_ENTITY_KEY_RE = re.compile(r"campaign|ad_?group|adset|ad_set|creative|programme|program|line_item|tactic", re.I)
+
+
+def _harvest_entities(doc, out=None, depth=0):
+    out = out if out is not None else set()
+    if depth > 6:
+        return out
+    if isinstance(doc, dict):
+        for k, v in doc.items():
+            if isinstance(v, str) and _ENTITY_KEY_RE.search(str(k)) and 6 <= len(v) <= 120:
+                out.add(v.strip())
+            elif isinstance(v, (dict, list)):
+                _harvest_entities(v, out, depth + 1)
+    elif isinstance(doc, list):
+        for v in doc[:2000]:
+            _harvest_entities(v, out, depth + 1)
+    return out
+
+
+def _fathom_entities():
+    import json as _json
+    now = time.time()
+    if now - _ENTITY_CACHE["at"] < _ENTITY_TTL and _ENTITY_CACHE["by_client"]:
+        return _ENTITY_CACHE["by_client"]
+    by = {}
+    for ck in store.active_client_keys():
+        try:
+            if not _upstream_base(ck):
+                continue
+            by[ck] = _harvest_entities(_json.loads(_upstream_data_json(ck)))
+        except Exception:                    # noqa: BLE001
+            app.logger.info("fathom: no entities for %s (data.json unavailable)", ck)
+    _ENTITY_CACHE.update(at=now, by_client=by)
+    return by
+
+
+kb_fathom_routes.init(app, allowed=_kb_allowed, signed_in=lambda: bool(session.get("kind")),
+                      actor=_kb_actor, mutation_blocked=_prod_mutation_blocked,
+                      page_context=_kb_page_context, clients=_kb_clients, entities=_fathom_entities)
 # A no-op unless PHOENIX_COLLECTOR_ENDPOINT is set, and it swallows its own failure: observability
 # that can break the thing it observes is worse than none.
 kb_trace.configure()

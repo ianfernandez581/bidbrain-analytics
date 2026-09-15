@@ -104,7 +104,11 @@ dates, "verified on") lives there too, never here.**
   client, and a client FOLDER VIEW shows that client alone. Three models (Kimi, Gemini,
   Claude) chosen per person in server-side settings, and the assistant talks back through
   Chirp 3 HD. 🔴 NEITHER `k3` NOR `claude-sonnet-5` ACCEPTS A `temperature` - one allows only
-  0.6, the other calls it deprecated, and either 400s the whole request. Full detail, and the ten gotchas, in `bidbrain-platform/README.md` -> "The knowledge
+  0.6, the other calls it deprecated, and either 400s the whole request. **MEETINGS (2026-09-15):**
+  `/kb/meetings` files Fathom recordings (Charles's account; a key is user-scoped) into a client's
+  Meetings folder as `kind=meeting` documents - summary first, then a timestamped transcript - via
+  a deterministic ladder (internal-only -> declared invitee domain -> profile memory) and a queue
+  a person confirms for the rest; memory learns ONLY from confirmed assignments. Full detail, and the ten gotchas, in `bidbrain-platform/README.md` -> "The knowledge
   base".
   Registry = one private JSON in GCS. Service `platform-dash`.
 - **`status_dashboard/`** - pipeline-health data + deploy plumbing (UI is merged into the platform;

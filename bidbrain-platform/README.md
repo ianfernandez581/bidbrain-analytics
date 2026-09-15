@@ -1122,6 +1122,44 @@ The UI says so (`KB_SHARED_LOGIN`) instead of implying a privacy the platform ca
 `kb_store.display_actor` turns the raw string into something readable before it reaches a sentence -
 without it the assistant wrote "this follows a correction shared:superadmin made".
 
+### Meetings: Fathom into the library, filed to the right client (2026-09-15)
+`/kb/meetings` (`kb_fathom.py`, `kb_memory.py`, `kb_fathom_routes.py`, `kb_meetings.html` +
+`static/kb_meetings.js`), same gate as Documents. ONE connected Fathom account - Charles's; a Fathom
+API key is scoped to the user who created it, so his meetings are the corpus. Verified against
+developers.fathom.ai 2026-09-14/15: `https://api.fathom.ai/external/v1`, header `X-Api-Key`,
+`GET /meetings` (cursor, created_after, include_transcript, include_summary); webhooks HMAC-SHA256
+over `{webhook-id}.{webhook-timestamp}.{body}`, secret `whsec_<base64>`, header `webhook-signature`
+`v1,<b64>`, 5-min tolerance. Secrets `fathom-api-key` / `fathom-webhook-secret` as env
+`FATHOM_API_KEY` / `FATHOM_WEBHOOK_SECRET`; unset = the page says "not connected", `POST
+/kb/api/fathom/sync` and `POST /fathom/webhook` answer 503, nothing else changes.
+
+- **A meeting becomes an ordinary document**: `kind=meeting`, `source=fathom` (added to
+  `kb_store.SOURCES`), folder `Meetings` under the client, id `fathom-<recording_id>` so a
+  re-delivered webhook re-indexes rather than duplicates. Body = summary FIRST (the outcomes the
+  Meetings folder promises), then the transcript as `[HH:MM:SS] Speaker: text` lines - the inline
+  locator convention of `kb_extract`. The raw meeting JSON is kept as the document's file. Fathom
+  facts (recording id, url, invitees, who assigned it and on what evidence) ride on the doc object
+  under `fathom`; `doc_meta` ignores them, so the index does not change shape.
+- **The assignment ladder** (`kb_fathom.classify`), top rung wins, deterministic until the last:
+  no external invitee -> agency-wide; an external invitee's email domain matching exactly ONE
+  client's DECLARED domains -> that client; `kb_memory.match` (a person or recurring title
+  confirmed on exactly one client) -> that client; else an evidence bundle - entity match against
+  every live dashboard's campaign/ad-group names (`main._fathom_entities`, 6h cache), a corpus vote
+  over meetings already filed (`kb_index.search` + `all_meta`, meetings only), one
+  `gemini-2.5-flash` synthesis over the CLOSED list of registry keys - and the meeting **waits in
+  the queue** with that proposal pre-selected. `FATHOM_AUTO_ASSIGN` (default `1.01` = never) is the
+  confidence at which rung 3 would file without a click; the pilot never does.
+- **Memory is written only by confirmed assignments** (human, domain, memory rung) - never by a
+  model proposal, so a wrong guess cannot teach the next one. `<PREFIX>/fathom/memory/<client>.json`:
+  people / titles / domains / patterns (learned), `client_domains` (declared, rung 1), `facts`
+  (hand-written). `kb_memory.profile_block(client, audience)` renders facts (+ campaign patterns
+  for staff) for a prompt; `client_safe()` is facts ONLY - people and domains never leave.
+- **The queue is not the library**: `<PREFIX>/fathom/unassigned/<rid>/{meeting,proposal}.json`
+  is never indexed, so an unplaced meeting is never retrievable. Assign / Ignore on the page.
+- A 🔴 for Ian's `CLIENT_FOLDERS` note "Outcomes, not transcripts": these documents DO carry the
+  transcript after the summary. `MAX_PER_DOC=2` keeps a long transcript from crowding the library;
+  if that is not enough, `kb_fathom.meeting_body` is the one place to drop it.
+
 ### Observability, and Phoenix
 The page answers "why did it say that?" **with tracing switched off**, because the question record it
 reads is the activity log in the bucket, not this instance's memory: the instance that answered is
@@ -1255,6 +1293,11 @@ bidbrain-platform/
     kb_settings.py               each person's model + voice choice, server side (kb/settings/<actor>.json)
     kb_tts.py                    Cloud Text-to-Speech: Chirp 3 HD / Gemini Flash TTS, returns MP3 bytes
     kb_routes.py                 every /kb HTTP surface as one blueprint, with the gates INJECTED (main.py imports this, not the reverse)
+    kb_fathom.py                 Fathom meetings -> documents: webhook signature, meeting body, the assignment ladder, the queue (2026-09-15)
+    kb_memory.py                 client profile memory: learned people/titles/domains/patterns, declared domains, facts; the ladder's rung 2
+    kb_fathom_routes.py          /kb/meetings + /kb/api/fathom/* + POST /fathom/webhook, same injected gates as kb_routes
+    templates/kb_meetings.html   the Meetings page (connection, queue, declared domains, memory)
+    static/kb_meetings.js        the Meetings page's JS - talks only to /kb/api/fathom/*
     kb/HOW-BIDBRAIN-KB-WORKS.md  the assistant's self-knowledge, shipped INSIDE the prompt on every turn
     static/kb.js kb.css          the Documents explorer (client tiles, folders, the file list)
     static/kb_ask.js kb_panel.css   the floating Ask panel: bubble, drawers, voice, feedback

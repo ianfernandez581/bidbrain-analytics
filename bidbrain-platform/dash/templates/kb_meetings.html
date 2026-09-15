@@ -1,0 +1,132 @@
+{# The knowledge base's Meetings page: the Fathom connection, the queue of meetings no rung placed,
+   each client's declared email domains (the ladder's first rung) and its profile memory (what
+   confirmed assignments taught the system + hand-written facts). Same gate as Documents
+   (kb_fathom_routes.meetings_page). Everything on this page is INTERNAL. #}
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Knowledge base meetings · Bidbrain</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+{% include "_premium_head.html" %}
+<link rel="stylesheet" href="/static/kb.css?v=1">
+<style>
+body{overflow:auto}
+.fm-row{display:flex;gap:10px;align-items:flex-start;padding:12px 0;border-top:1px solid var(--border)}
+.fm-row:first-child{border-top:0}
+.fm-main{flex:1;min-width:0}
+.fm-title{font-weight:600;color:var(--text)}
+.fm-meta{font-size:12px;color:var(--muted);margin-top:2px}
+.fm-sum{font-size:12.5px;color:var(--muted-2);margin-top:6px;white-space:pre-wrap;max-height:88px;overflow:hidden}
+.fm-ev{font-size:12px;color:var(--muted);margin-top:6px}
+.fm-ev li{margin:2px 0}
+.fm-act{display:flex;gap:6px;align-items:center;flex:none}
+.fm-act select{min-width:200px}
+.fm-pill{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.04em;padding:2px 8px;border-radius:999px;
+  border:1px solid var(--border);color:var(--muted)}
+.fm-pill.on{color:var(--gold);border-color:var(--gold);background:var(--gold-dim)}
+.fm-pill.off{color:var(--danger);border-color:var(--danger)}
+.fm-kv{display:grid;grid-template-columns:140px 1fr;gap:6px 12px;font-size:12.5px;margin-top:8px}
+.fm-kv b{color:var(--muted);font-weight:600}
+.fm-tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.fm-tag{font-size:12px;padding:3px 8px;border:1px solid var(--border);border-radius:6px;color:var(--text);background:var(--panel-2)}
+.fm-tag small{color:var(--muted);margin-left:4px}
+.fm-tag button{background:none;border:0;color:var(--muted);cursor:pointer;margin-left:6px;padding:0}
+.fm-tag button:hover{color:var(--danger)}
+.fm-empty{color:var(--muted);font-size:13px;padding:10px 0}
+.fm-inline{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.fm-inline .kb-input{flex:1;min-width:220px}
+</style>
+</head>
+<body>
+
+<div class="kb-top">
+  <span class="logo">{{ logo_svg | safe }}</span>
+  <span class="kb-pill">KNOWLEDGE BASE</span>
+  <span class="label">internal - never shown to a client</span>
+  <span class="spacer"></span>
+  <a class="kb-navlink" href="/kb/">Documents</a>
+  <a class="kb-navlink on" href="/kb/meetings">Meetings</a>
+  {% if is_staff %}<a class="kb-navlink" href="/kb/observability">Observability</a>{% endif %}
+  <a class="btn sm" href="/">← Back</a>
+  <a class="btn sm" href="/logout">Log out</a>
+</div>
+
+<div class="kb-page">
+  <div class="kb-wrap">
+    <h1 class="kb-h">Meetings</h1>
+    <p class="kb-sub">Recorded meetings arrive from Fathom and are filed into a client's
+      <b>Meetings</b> folder as documents - summary first, then the transcript. A meeting whose
+      client is certain (an invitee's email domain, or a person the system has already seen on that
+      client's calls) is filed on its own. Anything else waits here for a person to confirm, with
+      the system's proposal pre-selected. Transcripts are internal; nothing on this page reaches a
+      client.</p>
+
+    <div class="kb-panel">
+      <h3>Fathom <span id="fmConn" class="fm-pill {{ 'on' if connected else 'off' }}">{{ 'CONNECTED' if connected else 'NOT CONNECTED' }}</span>
+        <span class="fm-pill {{ 'on' if webhook else '' }}" title="Fathom pushes each finished recording to /fathom/webhook, signature-verified">webhook {{ 'on' if webhook else 'off' }}</span></h3>
+      {% if not connected %}
+      <p class="note">Set <code>FATHOM_API_KEY</code> (Secret Manager <code>fathom-api-key</code>) on the
+        platform. The key is scoped to the Fathom user who created it, so that person's meetings are
+        what arrives.</p>
+      {% endif %}
+      <div class="fm-kv" id="fmState"></div>
+      <div style="margin-top:12px" class="fm-inline">
+        <button class="btn sm gold" id="fmSync" {% if not connected %}disabled{% endif %}>Sync now</button>
+        <span class="note" id="fmSyncNote">Pulls every meeting since the last sync (first run: the last 30 days) and runs each through the ladder.</span>
+      </div>
+    </div>
+
+    <div class="kb-panel">
+      <h3>Waiting for a client <span class="fm-pill" id="fmCount">0</span></h3>
+      <p class="note">Assign files the meeting under that client and <b>teaches</b> the system: the
+        external people on the invite and the recurring title are remembered for that client, so the
+        next one files itself. Ignore drops the recording without indexing it.</p>
+      <div id="fmQueue"><div class="fm-empty">Loading…</div></div>
+    </div>
+
+    <div class="kb-panel">
+      <h3>Client email domains</h3>
+      <p class="note">The ladder's first rung: an external invitee from one of these domains files the
+        meeting under that client immediately, no model involved. One line or comma per domain.</p>
+      <div class="fm-inline">
+        <select class="kb-input" id="fmDomClient" style="flex:none;min-width:220px">
+          {% for c in clients %}<option value="{{ c.key }}">{{ c.name }}</option>{% endfor %}
+        </select>
+        <input class="kb-input" id="fmDomains" placeholder="cloudflare.com, cloudflare.net" spellcheck="false">
+        <button class="btn sm" id="fmDomSave">Save</button>
+      </div>
+      <div class="note" id="fmDomNote" style="margin-top:6px"></div>
+    </div>
+
+    <div class="kb-panel">
+      <h3>Client profile memory</h3>
+      <p class="note">What confirmed assignments taught the system about each client, plus facts you
+        write here. <b>Facts</b> reach the staff assistant (and only facts may ever reach a customer's);
+        people, titles and domains steer the ladder and never leave this page. Remove anything wrong.</p>
+      <div class="fm-inline">
+        <select class="kb-input" id="fmMemClient" style="flex:none;min-width:220px">
+          {% for c in clients %}<option value="{{ c.key }}">{{ c.name }}</option>{% endfor %}
+        </select>
+        <input class="kb-input" id="fmFact" placeholder="Add a fact, e.g. 'NFP - outcomes are enquiries, not revenue'" maxlength="400">
+        <button class="btn sm" id="fmFactAdd">Add</button>
+      </div>
+      <div id="fmMemory" style="margin-top:10px"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+window.KB_MEETINGS = {
+  clients: {{ clients | tojson }},
+  connected: {{ 'true' if connected else 'false' }},
+  actor: {{ actor | tojson }}
+};
+</script>
+<script src="/static/kb_meetings.js?v=1"></script>
+{% include "_premium.html" %}
+</body>
+</html>
