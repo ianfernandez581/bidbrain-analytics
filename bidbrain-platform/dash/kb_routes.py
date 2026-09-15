@@ -40,20 +40,35 @@ _blocked = None          # (what) -> response | None: the local-run production w
 _page_ctx = None         # () -> dict: logo, whether this session is staff, whether it is shared
 _clients = None          # () -> [{key, name}]: the clients THIS session may file against
 
-# The folders the library starts with, each with a one line note saying what belongs there. Seeded
-# once, only into an EMPTY library, so nobody's own structure is ever overwritten.
+# WHERE THINGS LIVE, and the split is the whole shape of the library.
+#
+# 🔴 AGENCY-WIDE FOLDERS SIT AT THE ROOT. They are true of every client: how we work, how the
+# platform works, and what buyers have corrected. Nothing in them belongs to one account.
+#
+# 🔴 A CLIENT'S WORK LIVES INSIDE THAT CLIENT. Media plans, briefs and meetings are ABOUT somebody,
+# so they are reached by opening Clients and then the client, never as a top-level folder shared by
+# everyone. That is what makes "which client is this?" answerable from the document itself rather
+# than from whoever remembered to say so in the title.
 SEED_FOLDERS = [
+    ("Playbook", "How we do the work: process, standards, the reasoning behind a rule. True of "
+                 "every client."),
+    ("Platform docs", "How the dashboards, the pipelines and the reporting actually work."),
+    ("Media buyer knowledge", "Corrections buyers have made to the assistant's answers. These are "
+                              "trusted: an answer that leans on one says so. Written by the "
+                              "feedback loop, and by hand when somebody knows something the "
+                              "library does not."),
+]
+
+# The folders offered inside every client. They are NOT seeded as documents: a folder here exists
+# because something is in it, so these are drawn as empty placeholders the moment you open a client
+# and become real when the first document lands. That way a brand new client shows the right three
+# shelves without the library filling up with notes about itself.
+CLIENT_FOLDERS = [
     ("Media plans", "Signed media plans and the briefs they were bought against. One document per "
                     "plan, named for the campaign and the quarter."),
     ("Briefs", "Client briefs as they arrived, before we interpreted them. Keep the original "
                "wording: what a client asked for is evidence, not a draft."),
     ("Meetings", "What was decided and by whom. Outcomes, not transcripts."),
-    ("Platform docs", "How the dashboards, the pipelines and the reporting actually work."),
-    ("Playbook", "How we do the work: process, standards, the reasoning behind a rule."),
-    ("Media buyer knowledge", "Corrections buyers have made to the assistant's answers. These are "
-                              "trusted: an answer that leans on one says so. Written by the "
-                              "feedback loop, and by hand when somebody knows something the "
-                              "library does not."),
 ]
 
 
@@ -158,10 +173,11 @@ def _seed_if_empty():
         return 0
     made = 0
     for folder, blurb in SEED_FOLDERS:
+        # Agency-wide (client=""), because that is what these three are.
         doc = kb_store.make_doc(title="About this folder: %s" % folder,
                                 body="%s\n\n%s\n" % (folder, blurb),
                                 folder=folder, kind="reference", source="paste",
-                                owner="bidbrain")
+                                owner="bidbrain", client="")
         kb_index.reindex_document(doc)
         made += 1
     log.info("kb: seeded %d starting folder(s)", made)
@@ -206,6 +222,8 @@ def tree():
     in_scope = [m for m in meta.values() if (m.get("client") or "") == client]
     paths = sorted([p for p in counts if p != kb_index.ROOT_FOLDER], key=str.lower)
     return jsonify(ok=True, client=client,
+                   # Server-driven, so adding a shelf every client should have is one edit here.
+                   client_folders=[{"name": n, "note": b} for n, b in CLIENT_FOLDERS],
                    folders=[{"path": p, "name": p.split("/")[-1], "depth": p.count("/"),
                              "count": counts[p]} for p in paths],
                    root_count=counts.get(kb_index.ROOT_FOLDER, 0),

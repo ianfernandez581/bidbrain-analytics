@@ -63,7 +63,7 @@
     var i = $('#kbInput');
     i.focus();
     if (prefill) { i.value = prefill; autosize(i); }
-    localStorage.setItem(LS + 'open', '1');
+    localStorage.setItem(LS + 'panelOpen', '1');
   }
   function closePanel() {
     A.open = false;
@@ -71,7 +71,7 @@
     $('#kbFab').classList.remove('is-open');
     stopSpeaking();
     stopRecording();
-    localStorage.setItem(LS + 'open', '0');
+    localStorage.setItem(LS + 'panelOpen', '0');
   }
 
   function floats() { return window.innerWidth > 560; }
@@ -433,16 +433,29 @@
       });
     }).then(function () {
       var split = splitProposal(state.text);
+      var prop = parseProposal(split.raw, state.retrieval);
       state.text = split.prose;
-      if (split.prose.trim()) {
-        ans.innerHTML = mdToHtml(split.prose, state.retrieval, cites);
-        var prop = parseProposal(split.raw, state.retrieval);
-        if (prop) bubble.appendChild(proposalCard(prop));
-        bubble.appendChild(listenButton(split.prose));
+      // 🔴 THE CARD IS RENDERED EVEN WITH NO PROSE. The model is asked to say what it is proposing
+      // and why, and sometimes it just emits the block. Gating the card on prose meant that answer
+      // rendered as an EMPTY BUBBLE: no text, no card, no feedback buttons, and the proposal lost.
+      // Whichever half arrives is shown, and if neither does that is said rather than left blank.
+      if (split.prose.trim()) ans.innerHTML = mdToHtml(split.prose, state.retrieval, cites);
+      if (prop) {
+        if (!split.prose.trim()) {
+          ans.appendChild(el('div', 'kbp-note', 'Proposing this for the library:'));
+        }
+        bubble.appendChild(proposalCard(prop));
+      }
+      if (split.prose.trim() || prop) {
+        if (split.prose.trim()) bubble.appendChild(listenButton(split.prose));
         bubble.appendChild(verdictBar(q, state));
-        if (willSpeak) speak(split.prose, bubble);
-        else setPhase('idle');
-      } else { setPhase('idle'); }
+      } else if (!bubble.querySelector('.kbp-note.bad')) {
+        // No prose, no usable block, and no error already shown: say so rather than leave a blank.
+        bubble.appendChild(el('div', 'kbp-note bad', 'The model returned nothing usable. The '
+          + 'passages above are the real search result and are still correct.'));
+      }
+      if (willSpeak && split.prose.trim()) speak(split.prose, bubble);
+      else setPhase('idle');
     }).catch(function (err) {
       setPhase('idle');
       if (err.name === 'AbortError') {
@@ -1032,9 +1045,18 @@
           if (m.proposed_edit) meta.appendChild(el('span', 'kbp-badge', 'proposed an edit'));
           bubble.appendChild(meta);
           var a = el('div', 'ans');
-          a.innerHTML = mdToHtml(m.content || '', null, el('div'));
-          bubble.appendChild(a);
-          bubble.appendChild(listenButton(m.content || ''));
+          if ((m.content || '').trim()) {
+            a.innerHTML = mdToHtml(m.content, null, el('div'));
+            bubble.appendChild(a);
+            bubble.appendChild(listenButton(m.content));
+          } else {
+            // Its text was only a proposal block, which is stripped before storing. Say what it
+            // was rather than replaying an empty bubble; the card itself is not re-offered,
+            // because a proposal is a moment in a conversation, not a standing offer.
+            bubble.appendChild(el('div', 'kbp-note', m.proposed_edit
+              ? 'Proposed an edit here. Open the document to see whether it was approved.'
+              : 'This reply was empty.'));
+          }
         } else {
           bubble.textContent = m.content || '';
         }
@@ -1084,7 +1106,10 @@
     wireDrag();
     loadClients();
     loadSettings();
-    if (localStorage.getItem(LS + 'open') === '1' || location.hash === '#ask') openPanel();
+    // 🔴 `panelOpen`, NOT `open`. kb.js keeps the Explorer's expanded tree nodes under
+    // `bb.kb.open` as an OBJECT; writing '1' there turned it into a number and every
+    // click on a tree twisty then threw "Cannot create property on number".
+    if (localStorage.getItem(LS + 'panelOpen') === '1' || location.hash === '#ask') openPanel();
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);

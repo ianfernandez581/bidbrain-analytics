@@ -20,7 +20,25 @@
   var API = '/kb';
   var LS = 'bb.kb.';
 
+  /* WHERE YOU ARE is two things, not one: WHICH CLIENT (or the agency-wide root), and which
+   * FOLDER inside it. `view` names the three levels the rail and the breadcrumb both read:
+   *
+   *   'root'    the agency-wide shelves: Playbook, Platform docs, Media buyer knowledge
+   *   'clients' the list of clients, reached by opening the Clients folder
+   *   'client'  one client's own shelves: Media plans, Briefs, Meetings
+   *
+   * A client's work lives INSIDE that client, never as a top-level folder shared by everyone,
+   * which is what makes "whose plan is this?" answerable from the document rather than from
+   * whoever remembered to put the name in the title.
+   */
   var S = {
+    // 🔴 `level`, NOT `view`. `S.view` already means the details/icons list toggle, and the
+    // first version of this used `view` for both: the toggle overwrote the navigation level
+    // and back, so opening Clients silently did nothing and the list never showed clients.
+    level: 'root',           // root | clients | client
+    client: '',              // the registry key when view === 'client', else ''
+    clients: [],             // [{key, name, count}] from the registry
+    clientFolders: [],       // the shelves every client offers, server-driven
     cwd: '',                 // current folder path, '' = root, '/' handled as "no folder"
     view: localStorage.getItem(LS + 'view') || 'details',
     sortKey: localStorage.getItem(LS + 'sortKey') || 'title',
@@ -31,7 +49,15 @@
     docs: [], sel: [], anchor: null, q: '', archived: false,
     pollTimer: null
   };
-  try { S.open = JSON.parse(localStorage.getItem(LS + 'open') || '{}'); } catch (e) { S.open = {}; }
+  /* 🔴 A STORED VALUE IS UNTRUSTED INPUT, even our own. An earlier build wrote the Ask panel's
+   * open flag ('1') to this same key, so this parsed to the NUMBER 1 and every click on a tree
+   * twisty threw "Cannot create property on number". A try/catch does not catch that, because
+   * JSON.parse("1") succeeds. Anything that is not a plain object is discarded, so a browser that
+   * loaded the broken build heals itself on the next visit instead of having a dead tree. */
+  try {
+    var savedOpen = JSON.parse(localStorage.getItem(LS + 'open') || '{}');
+    S.open = (savedOpen && typeof savedOpen === 'object' && !Array.isArray(savedOpen)) ? savedOpen : {};
+  } catch (e) { S.open = {}; }
 
   // --- tiny helpers -----------------------------------------------------------------------
   function $(sel, root) { return (root || document).querySelector(sel); }
@@ -72,6 +98,9 @@
     doc: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#9a93a6" stroke-width="1.7"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg>',
     pdf: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#f87171" stroke-width="1.7"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg>',
     fb: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#f3c969" stroke-width="1.7"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 8.5 8.5 0 0 1-3.9-.9L3 21l1.9-4.1A8.4 8.4 0 0 1 12 3a8.4 8.4 0 0 1 9 8.5z"/></svg>',
+    clients: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#8ab4ff" stroke-width="1.7"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><circle cx="12" cy="13" r="2"/><path d="M8.5 17a3.5 3.5 0 0 1 7 0"/></svg>',
+    client: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#8ab4ff" stroke-width="1.7"><circle cx="12" cy="8" r="3.2"/><path d="M5 20a7 7 0 0 1 14 0"/></svg>',
+    bigClient: '<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#8ab4ff" stroke-width="1.3"><circle cx="12" cy="8" r="3.2"/><path d="M5 20a7 7 0 0 1 14 0"/></svg>',
     bigFolder: '<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#f3c969" stroke-width="1.4"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>',
     bigDoc: '<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#9a93a6" stroke-width="1.4"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg>'
   };
@@ -138,8 +167,18 @@
   }
 
   // --- load ---------------------------------------------------------------------------------
+  function scopeQ() { return '&client=' + encodeURIComponent(S.level === 'client' ? S.client : ''); }
+
+  function loadClients() {
+    return api('/clients').then(function (j) {
+      S.clients = j.clients || [];
+      S.agencyCount = j.agency_count || 0;
+    }).catch(function () { S.clients = []; });
+  }
+
   function loadTree() {
-    return api('/tree').then(function (j) {
+    return api('/tree?x=1' + scopeQ()).then(function (j) {
+      S.clientFolders = j.client_folders || [];
       S.folders = j.folders || [];
       S.rootCount = j.root_count || 0;
       S.total = j.total || 0;
@@ -158,7 +197,11 @@
   }
 
   function loadList() {
-    var qs = '?folder=' + encodeURIComponent(S.cwd || '') + (S.archived ? '&archived=1' : '');
+    // 🔴 THE LIST IS SCOPED TOO, not just the tree. Without the client the file list shows every
+    // document in the library from inside a client, so Geocon's folder showed the agency playbook
+    // and every other client's work. Browsing a client must show what that CLIENT holds.
+    var qs = '?folder=' + encodeURIComponent(S.cwd || '') + scopeQ()
+           + (S.archived ? '&archived=1' : '');
     if (S.q) qs += '&q=' + encodeURIComponent(S.q) + '&deep=1';
     return api('/docs' + qs).then(function (j) {
       S.docs = j.docs || [];
@@ -168,7 +211,7 @@
     });
   }
 
-  function refresh() { return Promise.all([loadTree(), loadList()]); }
+  function refresh() { return Promise.all([loadClients().then(loadTree), loadList()]); }
   window.kbRefresh = refresh;
 
   // 🔴 A row that says "indexing" has to stop saying it without a page reload, or the state reads
@@ -185,17 +228,35 @@
     wrap.innerHTML = '';
     wrap.appendChild(el('h4', null, 'Knowledge base'));
 
+    // The agency-wide root, and its shelves.
     wrap.appendChild(node({ path: '', name: 'All documents', count: S.total }, 0, true));
-    if (S.rootCount) {
-      wrap.appendChild(node({ path: '/', name: 'No folder', count: S.rootCount }, 1, false, true));
+    if (S.level !== 'client') {
+      if (S.rootCount) {
+        wrap.appendChild(node({ path: '/', name: 'No folder', count: S.rootCount }, 1, false, true));
+      }
+      (function walk(parent, depth) {
+        childrenOf(parent).forEach(function (f) {
+          var kids = childrenOf(f.path);
+          wrap.appendChild(node(f, depth, kids.length > 0));
+          if (kids.length && S.open[f.path]) walk(f.path, depth + 1);
+        });
+      })('', 1);
     }
-    (function walk(parent, depth) {
-      childrenOf(parent).forEach(function (f) {
-        var kids = childrenOf(f.path);
-        wrap.appendChild(node(f, depth, kids.length > 0));
-        if (kids.length && S.open[f.path]) walk(f.path, depth + 1);
+
+    // Clients, as a real branch of the tree. Open it to see the clients; open a client to see
+    // their shelves. Drawn from the REGISTRY, so a client with nothing yet is still there to file
+    // into rather than appearing only once somebody has remembered to tag something.
+    wrap.appendChild(clientsNode());
+    if (S.open['@clients'] || S.level !== 'root') {
+      S.clients.forEach(function (c) {
+        wrap.appendChild(clientNode(c));
+        if (S.level === 'client' && S.client === c.key) {
+          childrenOf('').forEach(function (f) {
+            wrap.appendChild(node(f, 3, childrenOf(f.path).length > 0));
+          });
+        }
       });
-    })('', 1);
+    }
 
     if (S.archivedCount) {
       var a = el('div', 'kb-node' + (S.archived ? ' on' : ''));
@@ -206,6 +267,37 @@
         + '<span class="nm">Archived</span><span class="ct">' + S.archivedCount + '</span>';
       a.onclick = function () { S.archived = true; S.cwd = ''; S.sel = []; renderTree(); loadList(); };
       wrap.appendChild(a);
+    }
+
+    function clientsNode() {
+      var n = el('div', 'kb-node' + (S.level === 'clients' ? ' on' : ''));
+      n.style.paddingLeft = '19px';
+      var tw = el('span', 'tw' + (S.open['@clients'] || S.level !== 'root' ? ' open' : ''), '\u25B6');
+      tw.onclick = function (e) {
+        e.stopPropagation();
+        S.open['@clients'] = !(S.open['@clients'] || S.level !== 'root');
+        localStorage.setItem(LS + 'open', JSON.stringify(S.open));
+        renderTree();
+      };
+      n.appendChild(tw);
+      var ic = el('span', 'ico'); ic.innerHTML = ICON.clients; n.appendChild(ic);
+      n.appendChild(el('span', 'nm', 'Clients'));
+      n.appendChild(el('span', 'ct', S.clients.length ? String(S.clients.length) : ''));
+      n.onclick = function () { goClients(); };
+      return n;
+    }
+
+    function clientNode(c) {
+      var n = el('div', 'kb-node' + (S.level === 'client' && S.client === c.key ? ' on' : ''));
+      n.style.paddingLeft = '32px';
+      var kids = S.level === 'client' && S.client === c.key;
+      n.appendChild(el('span', 'tw' + (kids ? ' open' : ''), '\u25B6'));
+      var ic = el('span', 'ico'); ic.innerHTML = ICON.client; n.appendChild(ic);
+      n.appendChild(el('span', 'nm', c.name));
+      n.appendChild(el('span', 'ct', c.count ? String(c.count) : ''));
+      n.onclick = function () { goClient(c.key); };
+      wireClientDrop(n, c.key);
+      return n;
     }
 
     function node(f, depth, hasKids, isRoot) {
@@ -237,8 +329,34 @@
 
   function go(path) {
     S.archived = false; S.cwd = path; S.sel = []; S.anchor = null;
-    var s = $('#kbSearch'); if (s && S.q) { S.q = ''; s.value = ''; }
+    clearSearch();
     renderTree(); renderCrumbs(); loadList();
+  }
+  function goClients() {
+    S.archived = false; S.level = 'clients'; S.client = ''; S.cwd = ''; S.sel = [];
+    S.open['@clients'] = true;
+    clearSearch();
+    renderTree(); renderCrumbs(); renderList(); renderStatusLine(S.clients.length, 0);
+  }
+  function goClient(key) {
+    S.archived = false; S.level = 'client'; S.client = key; S.cwd = ''; S.sel = [];
+    clearSearch();
+    renderCrumbs();
+    refresh();
+  }
+  function goRoot() {
+    S.archived = false; S.level = 'root'; S.client = ''; S.cwd = ''; S.sel = [];
+    clearSearch();
+    renderCrumbs();
+    refresh();
+  }
+  function clearSearch() {
+    var s = $('#kbSearch');
+    if (s && S.q) { S.q = ''; s.value = ''; }
+  }
+  function currentClientName() {
+    var c = S.clients.filter(function (x) { return x.key === S.client; })[0];
+    return c ? c.name : S.client;
   }
   window.kbGo = go;
 
@@ -250,10 +368,34 @@
       c.appendChild(b);
       if (!last) c.appendChild(el('span', 'sep', '›'));
     }
-    if (S.archived) { add('All documents', '', false); c.appendChild(el('span', 'cr', 'Archived')); return; }
-    if (S.cwd === '/') { add('All documents', '', false); add('No folder', '/', true); return; }
-    var parts = S.cwd ? S.cwd.split('/') : [];
-    add('All documents', '', parts.length === 0);
+    function addRoot(last) {
+      var b = el('span', 'cr', 'All documents');
+      b.onclick = goRoot;
+      c.appendChild(b);
+      if (!last) c.appendChild(el('span', 'sep', '\u203A'));
+    }
+    if (S.archived) { addRoot(false); c.appendChild(el('span', 'cr', 'Archived')); return; }
+    if (S.level === 'clients') {
+      addRoot(false);
+      c.appendChild(el('span', 'cr', 'Clients'));
+      return;
+    }
+    var parts = S.cwd && S.cwd !== '/' ? S.cwd.split('/') : [];
+    if (S.level === 'client') {
+      addRoot(false);
+      var cl = el('span', 'cr', 'Clients');
+      cl.onclick = goClients;
+      c.appendChild(cl);
+      c.appendChild(el('span', 'sep', '\u203A'));
+      if (!parts.length) { c.appendChild(el('span', 'cr', currentClientName())); return; }
+      var me = el('span', 'cr', currentClientName());
+      me.onclick = function () { go(''); };
+      c.appendChild(me);
+      c.appendChild(el('span', 'sep', '\u203A'));
+    } else {
+      if (S.cwd === '/') { addRoot(false); add('No folder', '/', true); return; }
+      addRoot(parts.length === 0);
+    }
     var acc = '';
     parts.forEach(function (p, i) {
       acc = acc ? acc + '/' + p : p;
@@ -276,7 +418,22 @@
     // '/' is the "documents in no folder" view, which by definition has no subfolders. A search
     // is deep, so listing folders under it would be a second, contradicting answer.
     if (S.archived || S.q || S.cwd === '/') return [];
-    return childrenOf(S.cwd);
+    var out = childrenOf(S.cwd);
+    if (S.level === 'client' && !S.cwd) {
+      // 🔴 THE STANDARD SHELVES ARE OFFERED, NOT SEEDED. A folder exists because something is in
+      // it, so a new client would otherwise open on nothing at all and leave somebody guessing
+      // where a media plan goes. These are drawn faint until the first document lands in them,
+      // exactly like a folder you have just created.
+      var have = {};
+      out.forEach(function (f) { have[f.name] = 1; });
+      S.clientFolders.forEach(function (cf) {
+        if (!have[cf.name]) {
+          out.push({ path: cf.name, name: cf.name, depth: 0, count: 0, ghost: true, note: cf.note });
+        }
+      });
+      out.sort(function (a, b) { return a.name.toLowerCase() < b.name.toLowerCase() ? -1 : 1; });
+    }
+    return out;
   }
 
   function sortedDocs() {
@@ -292,12 +449,43 @@
   function renderList() {
     var host = $('#kbList');
     host.innerHTML = '';
+    // The Clients level lists CLIENTS, not documents: it is a folder of folders.
+    if (S.level === 'clients') {
+      host.appendChild(clientsView());
+      renderStatusLine(S.clients.length, 0);
+      return;
+    }
     var folders = sortedFolders(), docs = sortedDocs();
 
     if (!folders.length && !docs.length) { host.appendChild(emptyState()); return; }
     if (S.view === 'icons') { host.appendChild(iconsView(folders, docs)); }
     else { host.appendChild(detailsView(folders, docs)); }
     renderStatusLine(folders.length, docs.length);
+  }
+
+  function clientsView() {
+    // The clients level is always tiles: they are places, not files, so the details/icons
+    var g = el('div', 'kb-icons');
+    if (!S.clients.length) {
+      var e = el('div', 'kb-empty');
+      e.appendChild(el('h3', null, 'No clients on this account'));
+      e.appendChild(el('p', null, 'The client list comes from the platform registry. A dashboard '
+        + 'you can open is a client you can file against.'));
+      return e;
+    }
+    S.clients.forEach(function (c) {
+      var t = el('div', 'kb-tile');
+      var i = el('div'); i.innerHTML = ICON.bigClient; t.appendChild(i);
+      t.appendChild(el('div', 'nm', c.name));
+      var sub = el('span', 'kb-state ' + (c.count ? 'searchable' : 'empty'),
+        c.count ? c.count + (c.count === 1 ? ' document' : ' documents') : 'nothing yet');
+      t.appendChild(sub);
+      t.ondblclick = function () { goClient(c.key); };
+      t.onclick = function () { goClient(c.key); };
+      wireClientDrop(t, c.key);
+      g.appendChild(t);
+    });
+    return g;
   }
 
   function emptyState() {
@@ -330,6 +518,14 @@
           .catch(function (err) { if (!err.auth) toast(err.message, true); b.disabled = false; });
       };
       e.appendChild(b);
+      return e;
+    }
+    if (S.level === 'client' && !S.cwd) {
+      e.appendChild(el('h3', null, 'Nothing filed for ' + currentClientName() + ' yet'));
+      e.appendChild(el('p', null, 'Their media plans, briefs and meetings go in here. Drop files '
+        + 'anywhere on this list, or use New document. Anything filed here is read when somebody '
+        + 'asks about ' + currentClientName() + ', alongside the agency-wide playbook, and is '
+        + 'never read for another client.'));
       return e;
     }
     e.appendChild(el('h3', null, 'This folder is empty'));
@@ -499,9 +695,35 @@
     });
   }
 
+  /* Dropping a document onto a CLIENT re-files it against that client, keeping its folder. The
+   * same gesture as dropping onto a folder, because "this plan belongs to Geocon" is the same kind
+   * of correction as "this plan belongs in Media plans". */
+  function wireClientDrop(node, key) {
+    node.addEventListener('dragover', function (e) {
+      if (!(e.dataTransfer.types || []).some(function (t) { return t === 'text/bb-docs'; })) return;
+      e.preventDefault(); e.dataTransfer.dropEffect = 'move';
+      node.classList.add('drop');
+    });
+    node.addEventListener('dragleave', function () { node.classList.remove('drop'); });
+    node.addEventListener('drop', function (e) {
+      node.classList.remove('drop');
+      var raw = e.dataTransfer.getData('text/bb-docs');
+      if (!raw) return;
+      e.preventDefault(); e.stopPropagation();
+      var ids = JSON.parse(raw);
+      Promise.all(ids.map(function (id) {
+        return api('/docs/' + id + '/move', { method: 'POST', body: { client: key } });
+      })).then(function () {
+        toast(ids.length + ' moved to ' + (S.clients.filter(function (c) { return c.key === key; })[0] || {}).name);
+        S.sel = []; return refresh();
+      }).catch(function (err) { if (!err.auth) toast(err.message, true); });
+    });
+  }
+
   function moveDocs(ids, folder) {
     Promise.all(ids.map(function (id) {
-      return api('/docs/' + id + '/move', { method: 'POST', body: { folder: folder } });
+      return api('/docs/' + id + '/move', { method: 'POST',
+        body: { folder: folder, client: S.level === 'client' ? S.client : '' } });
     })).then(function () {
       toast(ids.length + ' moved to ' + (folder || 'no folder'));
       S.sel = []; return refresh();
@@ -818,7 +1040,8 @@
         if (!body.trim() && !$('#kbNT', root).value.trim()) { toast('Give it a title or some text.', true); return; }
         api('/docs', { method: 'POST', body: {
           title: $('#kbNT', root).value, body: body,
-          folder: $('#kbNF', root).value, kind: $('#kbNK', root).value } })
+          folder: $('#kbNF', root).value, kind: $('#kbNK', root).value,
+          client: S.level === 'client' ? S.client : '' } })
           .then(function (j) {
             close();
             toast(j.index.semantic ? 'Added and searchable.'
@@ -844,6 +1067,7 @@
       var fd = new FormData();
       fd.append('file', f);
       fd.append('folder', S.cwd === '/' ? '' : S.cwd);
+      fd.append('client', S.level === 'client' ? S.client : '');
       var xhr = new XMLHttpRequest();
       xhr.open('POST', API + '/upload');
       xhr.upload.onprogress = function (e) {
@@ -884,7 +1108,10 @@
     } else if (e.key === 'Delete' && S.sel.length) {
       e.preventDefault(); deleteDocs(S.sel);
     } else if (e.key === 'Backspace' && !S.archived) {
-      e.preventDefault(); if (S.cwd) go(S.cwd === '/' ? '' : parentOf(S.cwd));
+      e.preventDefault();
+      if (S.cwd) go(S.cwd === '/' ? '' : parentOf(S.cwd));
+      else if (S.level === 'client') goClients();
+      else if (S.level === 'clients') goRoot();
     } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') {
       e.preventDefault(); S.sel = S.docs.map(function (d) { return d.id; }); paintSel();
     } else if (e.key === 'Escape') {
