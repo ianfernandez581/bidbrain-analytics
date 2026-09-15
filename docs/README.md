@@ -21,6 +21,7 @@ narrative record of work done (per the repo's docs rule, see GL-22).
 | [stage-spec.md](stage-spec.md) | The six shipped stages from `rulebook.json` and the evidence each one reads. |
 | [platform-checklist.md](platform-checklist.md) | Draft per-platform required-asset matrix feeding GL-15. |
 | `greenlight-issues.json` | Machine-readable source `create-greenlight-backlog.ps1` reads. If it disagrees with the md files, the JSON wins. |
+| [rag-assistant-design.md](rag-assistant-design.md) | ADR (2026-09-11; CONVERGED onto `/kb` 2026-09-15 - see its §0): the dashboard chatbots' retrieval layer, the Fathom connector + assignment ladder + client profile memory, and the dark Client Assistant. Not Greenlight - the platform's. |
 
 ## Where the backlog stands (v2, 2026-08-05)
 

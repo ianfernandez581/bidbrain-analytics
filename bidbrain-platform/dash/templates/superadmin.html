@@ -48,7 +48,7 @@
   .btn.sm{font-size:12px;padding:6px 11px}
   .btn.ghost{border-color:rgba(243,201,105,.32);color:var(--gold)}
   .btn.ghost:hover{background:var(--gold-dim)}
-  .multbtn.set{border-color:var(--gold);color:var(--gold);background:var(--gold-dim)}
+  .multbtn.set,.chatbtn.set{border-color:var(--gold);color:var(--gold);background:var(--gold-dim)}
   /* hero */
   .hero{position:relative;overflow:hidden;border-bottom:1px solid var(--border);
         background:radial-gradient(900px 380px at 18% -40%,rgba(243,201,105,.18) 0%,rgba(243,201,105,0) 60%),
@@ -322,6 +322,10 @@
                     data-key="{{ d.key }}" data-name="{{ d.name }}" data-mult='{{ d.spend_multipliers|tojson }}'
                     title="Client-billed spend multiplier (what the client sees as 'spent'), per channel">
               Multiplier{% if d.spend_multipliers %} &middot; {{ d.spend_multipliers|length }}{% endif %}</button>
+            <button type="button" class="btn sm chatbtn{{ ' set' if d.client_chat else '' }}"
+                    data-key="{{ d.key }}" data-on="{{ '1' if d.client_chat else '0' }}"
+                    title="Customer Assistant on this dashboard - the customer's own chatbot (billed spend, their documents only). Pilot flag; default off.">
+              Customer chat &middot; {{ 'On' if d.client_chat else 'Off' }}</button>
             <a class="btn gold sm open" href="/d/{{ d.key }}/" target="_blank" rel="noopener">Open →</a>
           </div>
           {% elif d.url %}
@@ -616,6 +620,24 @@
       mxErr.textContent=''; mxSave.textContent='Save';
       mxscrim.classList.add('on');
       setTimeout(()=>mxInputs()[0] && mxInputs()[0].focus(), 30);
+    });
+  });
+  // Customer Assistant flag: one click toggles it and re-labels the button (no modal - a boolean).
+  document.querySelectorAll('.chatbtn').forEach(b=>{
+    b.addEventListener('click', async ()=>{
+      const on = b.dataset.on !== '1';
+      if(on && !confirm('Turn the Customer Assistant ON for this dashboard?\n\nThe customer will see a chatbot on their own dashboard (billed spend, their client-visible documents only).')) return;
+      b.disabled = true;
+      try{
+        const r = await fetch('/super/api/client-chat', {method:'POST', headers:{'Content-Type':'application/json'},
+                              body: JSON.stringify({key: b.dataset.key, on})});
+        const j = await r.json();
+        if(!j.ok){ alert(j.error || 'Could not change the flag.'); return; }
+        b.dataset.on = on ? '1' : '0';
+        b.classList.toggle('set', on);
+        b.innerHTML = 'Customer chat &middot; ' + (on ? 'On' : 'Off');
+      }catch(e){ alert('Could not reach the server.'); }
+      finally{ b.disabled = false; }
     });
   });
   function closeMult(){ mxscrim.classList.remove('on'); }

@@ -831,6 +831,60 @@ open. A MutationObserver re-appends the tab on rails that are REBUILT per render
   built-in Web Speech API (`webkitSpeechRecognition` — Chrome/Edge/Safari; the button hides itself
   where the API is missing, e.g. Firefox). Dictation is reviewable text — Send still submits.
 
+### The assistant reads the knowledge base for its client (`kb_bridge.py`, 2026-09-15, behind `KNOWLEDGE_RETRIEVAL=on`)
+The one bridge between the two AI surfaces, in one direction: the dashboard assistant reads the
+library's WORDS for ITS client; `/kb` still cannot see a dashboard, and the customer assistant does
+not come through here. **Two gates, both required**: the session may see this dashboard's staff
+widget (`_internal_allowed`) AND may open `/kb` (`_kb_allowed` - every admin + 100% Digital), so an
+outside agency sharing a dashboard, or an internal agency Ian has not admitted to `/kb`, gets no
+passages. `KNOWLEDGE_RETRIEVAL` defaults off; when off the prompt carries no LIBRARY block at all.
+- **Scope** = `kb_index.search(q, client=<key>)`: that client plus agency-wide, never another
+  client (`doc_ids_for_client`). Six passages; a dashboard turn already carries `data.json`.
+- **The query is shaped**: a short follow-up ("and for Q3?", "why?") is prefixed with the previous
+  question, because on its own it retrieves nothing useful.
+- **The prompt says what each source is for**: DATA is authoritative for live figures, LIBRARY for
+  what was agreed/planned/decided; when they disagree the model says which says what. A **verified
+  correction** is labelled in the context so the answer can say it follows a colleague's fix; when
+  meaning search was unavailable the context says WORDING ONLY (the `/kb` rule: a gap must never
+  read as absence).
+- **Citations are real**: `[n]` in the answer maps to a *Library sources* list under the reply -
+  title, folder, `verified` badge, the passage on click, and `↗` opening the document in `/kb`
+  (`/kb/?doc=<id>`, a deep link `kb.js` now honours after the explorer loads).
+- The **client profile** (`kb_memory.profile_block`: facts + confirmed campaign-name patterns) rides
+  in the same context. Every dashboard question is logged into `kb_activity` (kind `question`,
+  `source=dashboard`) so Observability counts it beside `/kb` questions.
+- A library failure degrades to the dashboard-only answer and is logged; it never blocks the turn.
+
+## Client Assistant (`client_chat.py` - BUILT, DARK; 2026-09-15)
+The first chatbot a CLIENT would ever see on their own dashboard (`/d/<c>/`, bottom-RIGHT pill,
+`#bbcc-*`, no INTERNAL badge). No client has one today and none will until Jerome + Ian decide.
+**Three independent layers keep it dark, and all three default off:**
+
+1. **`CLIENT_CHAT_ENABLED`** (env, default off) - the master switch. Off => `_client_chat_allowed`
+   is False for every client, so the proxy injects nothing and `POST /client-chat/<c>` is 403.
+2. **`client_chat`** per-client registry flag (absent = off; the super-admin console's
+   "Customer chat · On/Off" per dashboard row, `POST /super/api/client-chat`, superadmin only).
+   `EXTERNAL_SAFE_DEFAULTS["client_chat"] = False`, so an outside agency never receives it.
+3. **Retrieval filters on a document field that does not exist yet.** `kb_bridge.retrieve_for_client`
+   keeps only documents with `visibility == "client"` and never a meeting; Ian's documents carry no
+   `visibility` (the held K7-02 change adds it, default internal), so the assistant retrieves
+   NOTHING and would answer from dashboard data alone even with 1 and 2 on.
+
+Gate `_client_chat_allowed` = master AND flag AND `_ext_setting("client_chat")` AND `_may_open` -
+a `client` session reaches only its own dashboard; staff can preview. **What the client's model
+sees** is `_customer_data_json()` = the SAME transform an external tenant's proxied JSON gets
+(excluded blocks dropped, `_gross_external_payload` billed basis per `_EXTERNAL_SPEND_SPEC` - a
+money field the spec does not cover, or a client with NO spec, is SUPPRESSED, never raw;
+`_scrub_external_payload` for named individuals) + `glossary/<c>.md` (hand-reviewed, client-safe;
+rules in `glossary/README.md`; a `.draft.md` is never read) + the client-audience retrieval above.
+No tools, no thinking output. `client_chat.build_context` REFUSES a context carrying
+`spend_multipliers` / `BB_SPEND_MULT` / `_rawSpend` / "margin" (502, never a leak); the route fails
+CLOSED when the billed basis cannot be prepared. `CLIENT_CHAT_MODEL` picks the model (default
+`gemini-2.5-flash`; Ian's Kimi-first `kb_chat` is the A/B candidate). Every turn is logged to
+`<kb prefix>/client-chat-log/<c>/`. Red-team: `tests/test_red_team.py` (15 prompts; LIVE mode ran
+15/15 on 2026-09-14 after two prompt fixes - re-run before any prompt change ships).
+**Pilot prerequisite unchanged:** `_EXTERNAL_SPEND_SPEC` covers `geocon` + `resetdata` only.
+
 ## "How The Brain works" explainers (The Brain tab, 100% Digital portal, 2026-09-14)
 Three interactive walkthroughs of the Bidbrain Premium retrieval system render as cards under the
 work-in-progress card in **The Brain** tab: Part 1 *Documents to Vectors*, Part 2 *Inside the
@@ -883,7 +937,7 @@ a different question). Staff from any session; otherwise only a 100% Digital age
 | `kb_chunk.py` | ~220-word passages with 40 of overlap, packed on structure, and the ONE tokenizer. |
 | `kb_embed.py` | Vertex `text-embedding-005` in `australia-southeast1`, over stdlib `urllib`. |
 | `kb_index.py` | BM25 + cosine fused by rank, the in-memory corpus, and `reindex_document`. |
-| `kb_extract.py` | An upload into text: PDF via pypdf, text/Markdown/CSV, everything else refused by name. |
+| `kb_extract.py` | An upload into text: PDF via pypdf; Word, PowerPoint, Excel (python-docx / python-pptx / openpyxl, lazy) and WebVTT/SRT transcripts (2026-09-15, ported from the RAG branch) each writing its locator into the text like `[page N]`; text/Markdown/CSV; legacy .doc/.xls/.ppt and archives refused by name. |
 | `kb_prompt.py` | The five prompt blocks, in a fixed order, identical for both providers. |
 | `kb_chat.py` | Kimi streaming, Gemini as the named fallback. |
 | `kb_feedback.py` | A correction into a trusted document that outranks what it corrects. |
@@ -1122,6 +1176,65 @@ The UI says so (`KB_SHARED_LOGIN`) instead of implying a privacy the platform ca
 `kb_store.display_actor` turns the raw string into something readable before it reaches a sentence -
 without it the assistant wrote "this follows a correction shared:superadmin made".
 
+### Meetings: Fathom into the library, filed to the right client (2026-09-15)
+`/kb/meetings` (`kb_fathom.py`, `kb_memory.py`, `kb_fathom_routes.py`, `kb_meetings.html` +
+`static/kb_meetings.js`), same gate as Documents. ONE connected Fathom account - Charles's; a Fathom
+API key is scoped to the user who created it, so his meetings are the corpus. Verified against
+developers.fathom.ai 2026-09-14/15: `https://api.fathom.ai/external/v1`, header `X-Api-Key`,
+`GET /meetings` (cursor, created_after, include_transcript, include_summary); webhooks HMAC-SHA256
+over `{webhook-id}.{webhook-timestamp}.{body}`, secret `whsec_<base64>`, header `webhook-signature`
+`v1,<b64>`, 5-min tolerance. Secrets `fathom-api-key` / `fathom-webhook-secret` as env
+`FATHOM_API_KEY` / `FATHOM_WEBHOOK_SECRET`; unset = the page says "not connected", `POST
+/kb/api/fathom/sync` and `POST /fathom/webhook` answer 503, nothing else changes.
+
+- **A meeting becomes an ordinary document**: `kind=meeting`, `source=fathom` (added to
+  `kb_store.SOURCES`), folder `Meetings` under the client, id `fathom-<recording_id>` so a
+  re-delivered webhook re-indexes rather than duplicates. Body = summary FIRST (the outcomes the
+  Meetings folder promises), then the transcript as `[HH:MM:SS] Speaker: text` lines - the inline
+  locator convention of `kb_extract`. The raw meeting JSON is kept as the document's file. Fathom
+  facts (recording id, url, invitees, who assigned it and on what evidence) ride on the doc object
+  under `fathom`; `doc_meta` ignores them, so the index does not change shape.
+- **The assignment ladder** (`kb_fathom.classify`), top rung wins, deterministic until the last:
+  no external invitee -> agency-wide; an external invitee's email domain matching exactly ONE
+  client's DECLARED domains -> that client; `kb_memory.match` (a person or recurring title
+  confirmed on exactly one client) -> that client; else an evidence bundle - entity match against
+  every live dashboard's campaign/ad-group names (`main._fathom_entities`, 6h cache), a corpus vote
+  over meetings already filed (`kb_index.search` + `all_meta`, meetings only), one
+  `gemini-2.5-flash` synthesis over the CLOSED list of registry keys - and the meeting **waits in
+  the queue** with that proposal pre-selected. `FATHOM_AUTO_ASSIGN` (default `1.01` = never) is the
+  confidence at which rung 3 would file without a click; the pilot never does.
+- **Memory is written only by confirmed assignments** (human, domain, memory rung) - never by a
+  model proposal, so a wrong guess cannot teach the next one. `<PREFIX>/fathom/memory/<client>.json`:
+  people / titles / domains / patterns (learned), `client_domains` (declared, rung 1), `facts`
+  (hand-written). `kb_memory.profile_block(client, audience)` renders facts (+ campaign patterns
+  for staff) for a prompt; `client_safe()` is facts ONLY - people and domains never leave.
+- **The queue is not the library**: `<PREFIX>/fathom/unassigned/<rid>/{meeting,proposal}.json`
+  is never indexed, so an unplaced meeting is never retrievable. Assign / Ignore on the page.
+- **The card says what Assign will teach** (`will_learn` on each queue item = `kb_memory.teaches`):
+  "Will remember: priya@cloudflare.com · cloudflare.com · 'cloudflare weekly'", each with a tick
+  box. Unticked items travel as `skip` on `POST /kb/api/fathom/assign` and `learn(skip=...)` leaves
+  them out; the meeting is filed either way. Picking a client other than the proposal renames the
+  button "Assign to <client>" so an override is visible before the click; assigning removes only
+  that card (no queue rebuild, so edits on other cards survive).
+- **🔴 The webhook REPLIES FIRST, then classifies** (`kb_fathom_routes.accept`, 2026-09-15). Fathom
+  (Svix-style) retries an endpoint that does not answer within seconds, and the evidence rung reads
+  every live dashboard's `data.json` - measured at over two minutes for 18 dashboards on a cold
+  cache in the level-2 test. So: `already_indexed` (one GET) -> `store_unassigned` (the meeting is
+  in the queue, with no proposal yet) -> `200 {decision: "accepted"}` -> the ladder runs in a
+  daemon thread and writes the proposal (or files the meeting) when it finishes. **Sync now** has
+  the same shape (`sync_in_progress` in `fathom/state.json`; the page polls every 5 s). The entity
+  harvest itself (`main._fathom_entities`) never blocks either: a cold cache returns `{}` and warms
+  in the background, so the very first meeting's evidence rung simply contributes nothing.
+  **Cloud Run caveat, stated not solved:** with request-based CPU allocation the background thread
+  can be throttled after the reply; the meeting is already queued, so the worst case is a proposal
+  that never arrives and a person picks the client unaided. If that shows up in the pilot, give
+  `platform-dash` CPU-always-allocated or move the ladder onto the next request / Sync.
+- `kb_fathom.synthesise` says WHY the classifier was unavailable (no key vs no candidates) in the
+  proposal's `why`, so the queue card never shows a bare "unavailable" again.
+- A 🔴 for Ian's `CLIENT_FOLDERS` note "Outcomes, not transcripts": these documents DO carry the
+  transcript after the summary. `MAX_PER_DOC=2` keeps a long transcript from crowding the library;
+  if that is not enough, `kb_fathom.meeting_body` is the one place to drop it.
+
 ### Observability, and Phoenix
 The page answers "why did it say that?" **with tracing switched off**, because the question record it
 reads is the activity log in the bucket, not this instance's memory: the instance that answered is
@@ -1241,12 +1354,16 @@ bidbrain-platform/
     feedback.py                  feedback capture: save()/list_recent()/update_record()/load_blob() over the platform's GCS bucket
     feedback_ai.py               one Gemini call: transcribe the voice note + interpret feedback into summary + action items
     internal_notes.py            staff-only Internal Notes store (one JSON per client in the platform bucket)
-    internal_chat.py             staff-only Assistant: Gemini turn over live data.json + lineage digest, with note tools + visible thinking
+    internal_chat.py             staff-only Assistant: Gemini turn over live data.json + lineage digest (+ LIBRARY passages and the client profile when kb_bridge hands them over), with note tools + visible thinking
+    kb_bridge.py                 the dashboard assistant's read of the knowledge base: shaped query, client+agency scope, numbered context, sources (2026-09-15); retrieve_for_client = the client-visible-only read
+    client_chat.py               the Client Assistant turn (DARK: CLIENT_CHAT_ENABLED + per-client flag + visibility all default off); forbidden-token guard, billed basis only
+    glossary_draft.py            drafts glossary/<c>.draft.md from the lineage digest for a human to review (one Gemini call); the assistant never reads a draft
+    glossary/                    reviewed client-safe KPI glossaries (<c>.md) + README rules; resetdata.draft.md awaits review
     kb_store.py                  knowledge base storage: docs / chunks / files / chats / feedback under kb/ in the platform bucket
     kb_chunk.py                  ~220-word passages packed on structure, 40-word overlap, and the ONE tokenizer
     kb_embed.py                  Vertex text-embedding-005 over stdlib urllib; RETRIEVAL_DOCUMENT vs RETRIEVAL_QUERY; fails soft and says so
     kb_index.py                  BM25 + cosine fused by rank (RRF), incremental in-memory corpus, and the reindex write path
-    kb_extract.py                an upload into text (PDF via pypdf, text/Markdown/CSV); anything else refused BY NAME, never stored as mojibake
+    kb_extract.py                an upload into text (PDF, Word, PowerPoint, Excel, WebVTT/SRT, text/Markdown/CSV; locators inline like [page N]); legacy binaries refused BY NAME, never stored as mojibake
     kb_prompt.py                 the five prompt blocks in a fixed order, identical for both providers
     kb_chat.py                   Kimi streaming with Gemini as the NAMED fallback (the panel says which answered)
     kb_feedback.py               a buyer's correction into a trusted document that outranks the passage it corrects
@@ -1255,6 +1372,11 @@ bidbrain-platform/
     kb_settings.py               each person's model + voice choice, server side (kb/settings/<actor>.json)
     kb_tts.py                    Cloud Text-to-Speech: Chirp 3 HD / Gemini Flash TTS, returns MP3 bytes
     kb_routes.py                 every /kb HTTP surface as one blueprint, with the gates INJECTED (main.py imports this, not the reverse)
+    kb_fathom.py                 Fathom meetings -> documents: webhook signature, meeting body, the assignment ladder, the queue (2026-09-15)
+    kb_memory.py                 client profile memory: learned people/titles/domains/patterns, declared domains, facts; the ladder's rung 2
+    kb_fathom_routes.py          /kb/meetings + /kb/api/fathom/* + POST /fathom/webhook, same injected gates as kb_routes
+    templates/kb_meetings.html   the Meetings page (connection, queue, declared domains, memory)
+    static/kb_meetings.js        the Meetings page's JS - talks only to /kb/api/fathom/*
     kb/HOW-BIDBRAIN-KB-WORKS.md  the assistant's self-knowledge, shipped INSIDE the prompt on every turn
     static/kb.js kb.css          the Documents explorer (client tiles, folders, the file list)
     static/kb_ask.js kb_panel.css   the floating Ask panel: bubble, drawers, voice, feedback

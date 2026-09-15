@@ -86,6 +86,8 @@ EXTERNAL_SAFE_DEFAULTS = {
     "feedback_loop":        False,  # no Feedback Loop tab: it records, verbatim, what went wrong
                                     # on whose report, so the agency it is ABOUT only sees it once
                                     # a 100% Digital admin turns it on from the tab itself
+    "client_chat":          False,  # no Customer Assistant widget on a dashboard an outside agency
+                                    # opens - it is the CUSTOMER's chatbot, and per-client flagged
 }
 # Today's behaviour for every internal agency. `scrub_payload` False = payloads pass through
 # untouched, exactly as before.
@@ -639,6 +641,26 @@ class Store:
         self._save(doc)
         return True
 
+    # --- Customer Assistant flag (docs/rag-assistant-design.md §8) ----------------------------
+    # Per-client, default OFF. When on, the proxy injects the customer-facing assistant widget for
+    # sessions that may open the dashboard (client / staff); the design pilots it on one client.
+    # Absent key == False, so every existing registry record is unaffected.
+    def get_client_chat(self, key):
+        c = self._client(key)
+        return bool(c and c.get("client_chat"))
+
+    def set_client_chat(self, key, on):
+        doc = self._load()
+        c = doc.get("clients", {}).get(key)
+        if not c:
+            return False
+        if on:
+            c["client_chat"] = True
+        else:
+            c.pop("client_chat", None)       # off == absent, keeps old records byte-identical
+        self._save(doc)
+        return True
+
     def get_super_state(self):
         """Everything the god-mode console reveals. Dashboard (standalone) passwords are filled in
         by main.py from Secret Manager; here we surface the registry-owned passwords in clear."""
@@ -654,6 +676,7 @@ class Store:
             "status": c.get("status", "active"), "url": c.get("url", ""),
             "note": c.get("note", ""),
             "spend_multipliers": clean_multipliers(c.get("spend_multipliers")),
+            "client_chat": bool(c.get("client_chat")),
         } for k, c in sorted(clients.items(), key=lambda kv: kv[1].get("order", 0))]
         # Which agency owns each dashboard, so the console can group them per agency (100% Digital,
         # Transmission, …) instead of one flat list. Agencies keep their registry `order`; a client

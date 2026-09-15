@@ -93,7 +93,12 @@ dates, "verified on") lives there too, never here.**
   panel whose every answer cites its passages, a feedback loop that turns a buyer's correction into
   a trusted document outranking what it corrects, and a staff-only Observability page. Staff and
   100% Digital only, never a client and never another agency. It holds the WORDS; the per-dashboard
-  Internal Assistant above holds the NUMBERS, and neither reads the other's source. Everything lives
+  Internal Assistant above holds the NUMBERS. Since 2026-09-15 the dashboard assistant may READ
+  the library for its own client (`kb_bridge.py`, behind `KNOWLEDGE_RETRIEVAL=on`, only for a
+  session that may also open `/kb`) and cites it as [n]; `/kb` still never sees a dashboard. A
+  **Client Assistant** (`client_chat.py`) is BUILT AND DARK behind three off-by-default layers
+  (`CLIENT_CHAT_ENABLED`, per-client `client_chat`, and a `visibility` field no document carries
+  yet) - no client has a chatbot until Jerome + Ian decide. Everything lives
   under `kb/` in the platform bucket - no database, no vector store. **The assistant can also KEEP
   IT CURRENT**: it proposes an append or a new document, a person approves a card, and it then runs
   as THEIR edit through the ordinary route, stamped with the date, their name and the fact the AI
@@ -104,7 +109,11 @@ dates, "verified on") lives there too, never here.**
   client, and a client FOLDER VIEW shows that client alone. Three models (Kimi, Gemini,
   Claude) chosen per person in server-side settings, and the assistant talks back through
   Chirp 3 HD. 🔴 NEITHER `k3` NOR `claude-sonnet-5` ACCEPTS A `temperature` - one allows only
-  0.6, the other calls it deprecated, and either 400s the whole request. Full detail, and the ten gotchas, in `bidbrain-platform/README.md` -> "The knowledge
+  0.6, the other calls it deprecated, and either 400s the whole request. **MEETINGS (2026-09-15):**
+  `/kb/meetings` files Fathom recordings (Charles's account; a key is user-scoped) into a client's
+  Meetings folder as `kind=meeting` documents - summary first, then a timestamped transcript - via
+  a deterministic ladder (internal-only -> declared invitee domain -> profile memory) and a queue
+  a person confirms for the rest; memory learns ONLY from confirmed assignments. Full detail, and the ten gotchas, in `bidbrain-platform/README.md` -> "The knowledge
   base".
   Registry = one private JSON in GCS. Service `platform-dash`.
 - **`status_dashboard/`** - pipeline-health data + deploy plumbing (UI is merged into the platform;

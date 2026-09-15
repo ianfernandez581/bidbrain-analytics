@@ -27,6 +27,7 @@ private by default, deployed with --no-invoker-iam-check so this app's gate is t
 import os
 import re
 import time
+import threading
 import base64
 from pathlib import Path
 
@@ -44,7 +45,9 @@ import feedback_loop_data
 import internal_notes
 import internal_chat
 import kb_routes
+import kb_fathom_routes
 import kb_trace
+import client_chat
 from store import Store, verify_pw, is_external, agency_setting
 
 app = Flask(__name__)
@@ -538,6 +541,82 @@ def _kb_page_context():
 kb_routes.init(app, allowed=_kb_allowed, signed_in=lambda: bool(session.get("kind")),
                actor=_kb_actor, mutation_blocked=_prod_mutation_blocked,
                page_context=_kb_page_context, clients=_kb_clients)
+
+
+# --- Fathom meetings into the knowledge base (kb_fathom.py, kb_fathom_routes.py; 2026-09-15) -----
+# Same gate, actor and mutation guard as kb_routes. The one extra input is `entities`: campaign /
+# ad-group / creative NAMES harvested from every live dashboard's data.json, cached 6h - the strings
+# a meeting would say out loud, for the ladder's evidence rung. A dashboard whose payload cannot
+# be fetched simply contributes nothing; the ladder still runs.
+_ENTITY_CACHE = {"at": 0.0, "by_client": {}}
+_ENTITY_TTL = 6 * 3600
+_ENTITY_KEY_RE = re.compile(r"campaign|ad_?group|adset|ad_set|creative|programme|program|line_item|tactic", re.I)
+
+
+def _harvest_entities(doc, out=None, depth=0):
+    out = out if out is not None else set()
+    if depth > 6:
+        return out
+    if isinstance(doc, dict):
+        for k, v in doc.items():
+            if isinstance(v, str) and _ENTITY_KEY_RE.search(str(k)) and 6 <= len(v) <= 120:
+                out.add(v.strip())
+            elif isinstance(v, (dict, list)):
+                _harvest_entities(v, out, depth + 1)
+    elif isinstance(doc, list):
+        for v in doc[:2000]:
+            _harvest_entities(v, out, depth + 1)
+    return out
+
+
+_ENTITY_LOCK = threading.Lock()
+
+
+def _harvest_all_entities():
+    import json as _json
+    by = {}
+    for ck in store.active_client_keys():
+        try:
+            if not _upstream_base(ck):
+                continue
+            by[ck] = _harvest_entities(_json.loads(_upstream_data_json(ck)))
+        except Exception:                    # noqa: BLE001
+            app.logger.info("fathom: no entities for %s (data.json unavailable)", ck)
+    _ENTITY_CACHE.update(at=time.time(), by_client=by, warming=False)
+
+
+def _fathom_entities():
+    """{client_key: {names}} from the cache; NEVER blocks the caller. A cold or stale cache returns
+    what it has (possibly {}) and warms itself once in the background - so the ladder's evidence rung
+    simply contributes nothing on the very first meeting rather than holding a webhook for minutes
+    (measured 2+ min for 18 dashboards, 2026-09-15)."""
+    now = time.time()
+    fresh = now - _ENTITY_CACHE["at"] < _ENTITY_TTL and _ENTITY_CACHE["by_client"]
+    if not fresh:
+        with _ENTITY_LOCK:
+            if not _ENTITY_CACHE.get("warming"):
+                _ENTITY_CACHE["warming"] = True
+                threading.Thread(target=_harvest_all_entities, name="fathom-entities", daemon=True).start()
+    return _ENTITY_CACHE["by_client"]
+
+
+def _kb_registry_clients():
+    """Every registry client, regardless of session - for the Fathom ladder, which runs from a
+    webhook (no session) and in a background thread (no request context). `_kb_clients` above
+    reads the session and must stay the list the PAGE and Assign use."""
+    seen = {}
+    st = store.get_state()
+    for group in list(st.get("agencies") or []) + [{"clients": st.get("unassigned") or []}]:
+        for c in (group.get("clients") or []):
+            if c.get("key") and c["key"] not in seen:
+                seen[c["key"]] = {"key": c["key"], "name": c.get("name") or c["key"]}
+    return sorted(seen.values(), key=lambda c: c["name"].lower())
+
+
+kb_fathom_routes.init(app, allowed=_kb_allowed, signed_in=lambda: bool(session.get("kind")),
+                      actor=_kb_actor, mutation_blocked=_prod_mutation_blocked,
+                      page_context=_kb_page_context, clients=_kb_clients,
+                      registry_clients=_kb_registry_clients, entities=_fathom_entities)
 # A no-op unless PHOENIX_COLLECTOR_ENDPOINT is set, and it swallows its own failure: observability
 # that can break the thing it observes is worse than none.
 kb_trace.configure()
@@ -2085,6 +2164,221 @@ def super_dashboard_password():
     return jsonify(ok=True)
 
 
+# --- Customer Assistant flag (docs/rag-assistant-design.md §8, K5-01) -----------------------
+# Per-client registry boolean `client_chat`, default off. The gate below is what the proxy will
+# use to inject the customer-facing widget (K5-05) and what /client-chat/<c> will enforce (K5-02):
+# the session must be able to OPEN the dashboard (_may_open - a client session resolves to its own
+# key only; staff can open any, which is how a superadmin previews it), the flag must be on, and an
+# EXTERNAL agency never receives it (`client_chat` is in store.EXTERNAL_SAFE_DEFAULTS as off).
+# MASTER SWITCH (Jerome, 2026-09-15: "do the code but don't show it in the clients for now").
+# Three layers keep the Client Assistant dark: this env (default off), the per-client registry
+# flag (absent = off), and retrieval that returns nothing until documents carry `visibility`.
+CLIENT_CHAT_ENABLED = os.environ.get("CLIENT_CHAT_ENABLED", "off").strip().lower() == "on"
+
+
+def _client_chat_allowed(client):
+    if not CLIENT_CHAT_ENABLED:
+        return False
+    if not store.get_client_chat(client):
+        return False
+    if not _ext_setting("client_chat"):
+        return False
+    return _may_open(client)
+
+
+def _retrieve_for_chat(client, msgs, audience="client"):
+    """The Client Assistant's library read (kb_bridge.retrieve_for_client). None = no block at all."""
+    if audience != "client":
+        return None
+    try:
+        import kb_bridge
+        return kb_bridge.retrieve_for_client(client, msgs)
+    except Exception:                        # noqa: BLE001
+        app.logger.exception("client-chat: library lookup failed")
+        return None
+
+
+def _client_glossary(client):
+    """glossary/<client>.md - the hand-reviewed, client-safe KPI glossary (K5-03). '' when absent."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    path = os.path.join(here, "glossary", f"{client}.md")
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            return fh.read()
+    except OSError:
+        return ""
+
+
+def _customer_data_json(client):
+    """The client's live data.json prepared for the CUSTOMER: excluded blocks dropped, every spend
+    field grossed to the billed figure by the client's spec (_gross_external_payload - a money field
+    the spec does not cover, or a client with NO spec, is suppressed, never raw), named individuals
+    scrubbed. This is the SAME transform an external tenant's proxied JSON gets. Fails closed: any
+    error raises, and the route answers with an error rather than a turn over the raw payload."""
+    import json as _json
+    doc = _json.loads(_upstream_data_json(client))
+    if not isinstance(doc, dict):
+        raise ValueError("data.json is not an object")
+    for blk in _EXTERNAL_EXCLUDED_BLOCKS.get(client, ()):
+        doc.pop(blk, None)
+    mults = store.get_spend_multipliers(client) or {}
+    doc, suppressed = _gross_external_payload(client, doc, mults)
+    if suppressed:
+        app.logger.info("client-chat %s: %d money fields suppressed (no billed basis)", client, len(suppressed))
+    doc = _scrub_external_payload(doc, client)
+    return _json.dumps(doc)
+
+
+def _log_customer_turn(client, question, res):
+    """One object per turn under <kb prefix>/client-chat-log/<client>/ for the pilot's model A/B.
+    Best-effort - never fails the turn."""
+    if not _PLATFORM_BUCKET:
+        return
+    try:
+        import uuid
+        import kb_store
+        ts = time.strftime("%Y-%m-%dT%H%M%SZ", time.gmtime())
+        kb_store._write_json(f"client-chat-log/{client}/{ts}-{uuid.uuid4().hex[:6]}.json", {
+            "ts": ts, "client": client, "model": client_chat.MODEL, "kind": session.get("kind"),
+            "question": question[:4000], "answer": res.get("answer", "")[:8000],
+            "sources": [{k: v for k, v in s.items() if k != "snippet"} for s in res.get("sources", [])],
+        })
+    except Exception:                        # noqa: BLE001
+        app.logger.exception("client-chat log failed (non-fatal)")
+
+
+@app.post("/client-chat/<client>")
+def client_chat_turn(client):
+    """The Customer Assistant turn. Gate = _client_chat_allowed (flag + external-safe + _may_open)."""
+    if not _client_chat_allowed(client):
+        return jsonify(ok=False, error="not allowed"), 403
+    if not client_chat.enabled():
+        return jsonify(ok=False, error="assistant not configured"), 503
+    msgs = (request.get_json(silent=True) or {}).get("messages")
+    if not isinstance(msgs, list) or not msgs:
+        return jsonify(ok=False, error="no messages"), 400
+    try:
+        data_txt = _customer_data_json(client)
+    except Exception:
+        # fail CLOSED: no billed basis => no turn. Never answer over the raw payload.
+        app.logger.exception("client-chat %s: could not prepare billed data", client)
+        return jsonify(ok=False, error="The assistant is unavailable right now - please try again later."), 503
+    retrieved = _retrieve_for_chat(client, msgs, audience="client")
+    question = next((str(m.get("content") or "") for m in reversed(msgs) if (m or {}).get("role") == "user"), "")
+    try:
+        res = client_chat.chat(client, msgs, data_txt, glossary=_client_glossary(client), retrieved=retrieved)
+    except ValueError:
+        app.logger.exception("client-chat %s: forbidden token in context - refused", client)
+        return jsonify(ok=False, error="The assistant is unavailable right now - please try again later."), 502
+    except Exception:
+        app.logger.exception("client-chat %s: turn failed", client)
+        return jsonify(ok=False, error="Something went wrong - please try again."), 502
+    _log_customer_turn(client, question, res)
+    return jsonify(ok=True, **res)
+
+
+# The customer widget: a pill bottom-RIGHT (the staff widget owns bottom-left, so a staff preview
+# shows both), no INTERNAL badge, its own #bbcc-* namespace, inline-styled like the others.
+_CLIENT_WIDGET = (
+    "<style>"
+    "#bbcc-dock{position:fixed;bottom:18px;right:18px;z-index:2147483645}"
+    ".bbcc-pill{display:inline-flex;align-items:center;gap:7px;padding:10px 15px;border-radius:999px;"
+    "border:1px solid rgba(255,255,255,.22);font:600 13px/1 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;"
+    "color:#f3f4f6;cursor:pointer;background:rgba(20,22,27,.92);box-shadow:0 2px 12px rgba(0,0,0,.32)}"
+    "#bbcc-panel{position:fixed;bottom:66px;right:18px;z-index:2147483645;width:420px;max-width:calc(100vw - 36px);"
+    "max-height:min(74vh,640px);display:none;flex-direction:column;border-radius:14px;overflow:hidden;"
+    "background:#14161b;color:#f3f4f6;border:1px solid rgba(255,255,255,.14);box-shadow:0 12px 44px rgba(0,0,0,.5);"
+    "font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}"
+    "#bbcc-panel.open{display:flex}"
+    ".bbcc-hd{display:flex;align-items:center;gap:8px;padding:13px 16px;border-bottom:1px solid rgba(255,255,255,.1)}"
+    ".bbcc-hd h3{margin:0;font-size:15px;font-weight:700;flex:1}"
+    ".bbcc-x{background:none;border:none;color:#9ca3af;font-size:19px;cursor:pointer;padding:0 2px;line-height:1}"
+    "#bbcc-log{flex:1;min-height:220px;overflow-y:auto;padding:14px 16px;display:flex;flex-direction:column;gap:10px}"
+    "#bbcc-row{display:flex;gap:8px;padding:12px 16px;border-top:1px solid rgba(255,255,255,.1)}"
+    "#bbcc-in{flex:1;resize:none;padding:9px 10px;border-radius:9px;background:#0e1014;color:#f3f4f6;"
+    "border:1px solid rgba(255,255,255,.16);font:inherit;outline:none}"
+    ".bbcc-send{padding:8px 14px;border-radius:9px;border:1px solid rgba(255,255,255,.3);background:#f3f4f6;color:#14161b;"
+    "font:700 13px/1 inherit;cursor:pointer;align-self:flex-end}"
+    ".bbcc-send:disabled{opacity:.5;cursor:default}"
+    ".bbcc-mu{align-self:flex-end;max-width:86%;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);"
+    "border-radius:12px 12px 3px 12px;padding:8px 11px;font-size:13px;white-space:pre-wrap}"
+    ".bbcc-ma{align-self:flex-start;max-width:92%;background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.1);"
+    "border-radius:12px 12px 12px 3px;padding:9px 12px;font-size:13px}"
+    ".bbcc-ma code{background:rgba(255,255,255,.09);border-radius:4px;padding:1px 4px;font-size:12px}"
+    ".bbcc-wait:after{display:inline-block;content:'';animation:bbccdots 1.2s steps(4,end) infinite}"
+    "@keyframes bbccdots{0%{content:''}25%{content:'.'}50%{content:'..'}75%{content:'...'}}"
+    "</style>"
+    "<div id='bbcc-dock'><button id='bbcc-btn' class='bbcc-pill' type='button'>"
+    "<svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' "
+    "stroke-linecap='round' stroke-linejoin='round'><path d='M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 "
+    "8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5 "
+    "a8.48 8.48 0 0 1 8 8v.5z'></path></svg>Ask about your dashboard</button></div>"
+    "<div id='bbcc-panel' role='dialog' aria-label='Ask about your dashboard'>"
+    "<div class='bbcc-hd'><h3>Ask about your dashboard</h3>"
+    "<button class='bbcc-x' id='bbcc-x' type='button' aria-label='Close'>&times;</button></div>"
+    "<div id='bbcc-log'></div>"
+    "<div id='bbcc-row'><textarea id='bbcc-in' rows='2' placeholder='Ask about a figure on this dashboard…'></textarea>"
+    "<button class='bbcc-send' id='bbcc-send' type='button'>Send</button></div></div>"
+    "<script>(function(){"
+    "var CLIENT='__CLIENT__';"
+    "function el(i){return document.getElementById(i);}"
+    "function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;')"
+    ".replace(/>/g,'&gt;').replace(/\"/g,'&quot;');}"
+    "function md(s){s=esc(s);s=s.replace(/\\*\\*([^*]+)\\*\\*/g,'<b>$1</b>')"
+    ".replace(/`([^`]+)`/g,'<code>$1</code>');return s.replace(/\\n/g,'<br>');}"
+    "var panel=el('bbcc-panel'),log=el('bbcc-log'),inp=el('bbcc-in'),send=el('bbcc-send');"
+    "el('bbcc-btn').onclick=function(){panel.classList.toggle('open');if(panel.classList.contains('open'))inp.focus();};"
+    "el('bbcc-x').onclick=function(){panel.classList.remove('open');};"
+    "var hist=[],busy=false;"
+    "function bubble(cls,html){var d=document.createElement('div');d.className=cls;d.innerHTML=html;"
+    "log.appendChild(d);log.scrollTop=log.scrollHeight;return d;}"
+    "bubble('bbcc-ma','Hi - ask me about any figure on this dashboard, or what it suggests for your campaigns.');"
+    "function sources(list){if(!list||!list.length)return'';var h='<div style=\"margin-top:10px;border-top:1px solid rgba(255,255,255,.1);"
+    "padding-top:7px;display:flex;flex-direction:column;gap:4px\"><div style=\"font:700 10px/1 system-ui,sans-serif;"
+    "letter-spacing:.08em;color:#9ca3af\">SOURCES</div>';"
+    "list.forEach(function(s){h+='<details style=\"border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:5px 9px\">'"
+    "+'<summary style=\"display:flex;align-items:center;gap:7px;font-size:12px;cursor:pointer;list-style:none\">'"
+    "+'<span style=\"font:700 10.5px/1 system-ui,sans-serif;color:#14161b;background:#f3f4f6;border-radius:4px;padding:2px 5px\">'+s.n+'</span>'"
+    "+'<span style=\"font-weight:600\">'+esc(s.title||'')+'</span><span style=\"color:#9ca3af\">'+esc([s.locator].filter(Boolean).join(''))+'</span></summary>'"
+    "+(s.snippet?'<div style=\"margin-top:6px;font-size:12px;color:#d1d5db;border-left:2px solid rgba(255,255,255,.25);padding-left:8px;white-space:pre-wrap\">'+esc(s.snippet)+'</div>':'')+'</details>';});"
+    "return h+'</div>';}"
+    "function doSend(){var q=inp.value.trim();if(!q||busy)return;busy=true;send.disabled=true;"
+    "hist.push({role:'user',content:q});bubble('bbcc-mu',esc(q));inp.value='';"
+    "var p=bubble('bbcc-ma','<span class=\"bbcc-wait\" style=\"color:#9ca3af\">Thinking</span>');"
+    "fetch('/client-chat/'+CLIENT,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},"
+    "body:JSON.stringify({messages:hist})}).then(function(r){return r.json();}).catch(function(){return null;})"
+    ".then(function(j){busy=false;send.disabled=false;"
+    "if(!j||!j.ok){p.innerHTML='<span style=\"color:#f87171\">'+esc((j&&j.error)||'Could not reach the assistant - please try again.')+'</span>';hist.pop();return;}"
+    "p.innerHTML=md(j.answer)+sources(j.sources);log.scrollTop=log.scrollHeight;"
+    "hist.push({role:'assistant',content:j.answer});});}"
+    "send.onclick=doSend;"
+    "inp.addEventListener('keydown',function(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();doSend();}});"
+    "})();</script>"
+).encode()
+
+
+def _client_widget(client):
+    return _CLIENT_WIDGET.replace(b"__CLIENT__", client.encode())
+
+
+@app.post("/super/api/client-chat")
+def super_client_chat():
+    """Body: {key, on: bool}. Superadmin only - this is a customer-visible change."""
+    _require_super()
+    d = request.get_json(silent=True) or {}
+    key = (d.get("key") or "").strip()
+    on = bool(d.get("on"))
+    if key not in store._all_clients():
+        return jsonify(ok=False, error="Unknown dashboard."), 404
+    blocked = _prod_mutation_blocked(f"{'enable' if on else 'disable'} customer chat for {key}")
+    if blocked:
+        return blocked
+    if not store.set_client_chat(key, on):
+        return jsonify(ok=False, error="Unknown dashboard."), 404
+    app.logger.info("client_chat %s for %s by %s", "ON" if on else "OFF", key, _actor())
+    return jsonify(ok=True, key=key, client_chat=on)
+
+
 # --- admin CRUD API (admin session only) --------------------------------------------------
 @app.post("/admin/api/agency")
 def api_agency():
@@ -2584,6 +2878,13 @@ _INTERNAL_WIDGET = (
     "var h='';if(j.thinking)h+=think(j.thinking);h+=md(j.answer);"
     "(j.actions||[]).forEach(function(a){h+='<div style=\"margin-top:7px;font:600 11px/1 system-ui,sans-serif;"
     "color:#7dd3a0\">\\u270e '+esc(a)+'</div>';});"
+    "if(j.sources&&j.sources.length){h+='<div style=\"margin-top:8px;padding-top:6px;border-top:1px dashed rgba(255,255,255,.12)\">'"
+    "+'<div style=\"font:700 10px/1 system-ui,sans-serif;letter-spacing:.09em;color:#9ca3af;margin-bottom:5px\">LIBRARY SOURCES</div>';"
+    "j.sources.forEach(function(s){h+='<details style=\"margin:3px 0;font-size:12px\"><summary style=\"cursor:pointer;color:#cbd5e1\">'"
+    "+'<b style=\"color:#e8b955\">['+s.n+']</b> '+esc(s.title||'untitled')+(s.folder?' <span style=\"color:#6b7280\">· '+esc(s.folder)+'</span>':'')"
+    "+(s.trust==='verified'?' <span style=\"color:#7dd3a0;font-weight:700\">verified</span>':'')"
+    "+' <a href=\"/kb/?doc='+encodeURIComponent(s.doc_id||'')+'\" target=\"_blank\" style=\"color:#9ca3af;text-decoration:none\" title=\"Open in the knowledge base\">\\u2197</a></summary>'"
+    "+'<div style=\"margin:4px 0 0 14px;color:#9ca3af;white-space:pre-wrap\">'+esc(s.snippet||'')+'</div></details>';});h+='</div>';}"
     "p.innerHTML=h;clog.scrollTop=clog.scrollHeight;"
     "hist.push({role:'assistant',content:j.answer});"
     "if(j.notes_changed)loadNotes();});}"
@@ -2796,6 +3097,25 @@ def _upstream_data_json(client):
     return r.text
 
 
+# The dashboard assistant reads the knowledge base ONLY when both gates pass: this session may see
+# this dashboard's staff widget (_internal_allowed) AND may open /kb (_kb_allowed - Ian's rule: every
+# admin + 100% Digital). Behind KNOWLEDGE_RETRIEVAL=on so it ships dark. kb_bridge.py has the why.
+KNOWLEDGE_RETRIEVAL = os.environ.get("KNOWLEDGE_RETRIEVAL", "off").strip().lower() == "on"
+
+
+def _library_for_chat(client, msgs):
+    """-> (retrieved | None, profile str). None means the prompt carries no LIBRARY block at all."""
+    if not (KNOWLEDGE_RETRIEVAL and _kb_allowed()):
+        return None, ""
+    try:
+        import kb_bridge
+        import kb_memory
+        return kb_bridge.retrieve(client, msgs, actor=_kb_actor()), kb_memory.profile_block(client, "internal")
+    except Exception:                        # noqa: BLE001 - the library is additive, never blocking
+        app.logger.exception("internal chat: library lookup failed")
+        return None, ""
+
+
 @app.post("/internal-chat/<client>")
 def internal_chat_turn(client):
     if not _internal_allowed(client):
@@ -2810,8 +3130,9 @@ def internal_chat_turn(client):
     except Exception:                               # answer from lineage/notes alone rather than 500
         app.logger.exception("internal chat: data.json fetch failed")
         data_txt = "(live data.json unavailable right now)"
+    retrieved, profile = _library_for_chat(client, msgs)
     try:
-        res = internal_chat.chat(client, msgs, data_txt, author=_actor())
+        res = internal_chat.chat(client, msgs, data_txt, author=_actor(), retrieved=retrieved, profile=profile)
     except Exception:
         app.logger.exception("internal chat turn failed")
         return jsonify(ok=False, error="assistant error - please try again"), 502
@@ -3283,6 +3604,8 @@ def proxy(client, subpath):
                 tail += _feedback_widget(client)
             if _internal_allowed(client):           # staff-only: Internal Notes + Assistant widget
                 tail += _internal_widget(client)
+            if _client_chat_allowed(client):        # per-client pilot flag: the Customer Assistant
+                tail += _client_widget(client)
             if _ext_setting("scrub_payload"):       # external: strip excluded tabs from the rail
                 tail += _EXCLUDED_TABS_SCRIPT
             body = body.replace(b"</body>", tail + b"</body>", 1)

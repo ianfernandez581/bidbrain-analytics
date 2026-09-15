@@ -1216,7 +1216,13 @@
     if (ask) ask.onclick = function () { if (window.kbAsk) window.kbAsk.open(); };
     wireDropZone();
     renderCrumbs();
-    refresh().catch(function (err) { if (!err.auth) toast(err.message, true); });
+    refresh().catch(function (err) { if (!err.auth) toast(err.message, true); }).then(function () {
+      // Deep link from a dashboard citation (kb_bridge): /kb/?doc=<id> opens that document.
+      try {
+        var want = new URLSearchParams(location.search).get('doc');
+        if (want && /^[A-Za-z0-9_-]{3,64}$/.test(want)) openDoc(want);
+      } catch (e) {}
+    });
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
