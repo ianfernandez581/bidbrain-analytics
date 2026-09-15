@@ -50,12 +50,12 @@ details.fm-help li b{color:var(--text);font-weight:600}
 /* the card's zones */
 .fm-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
 .fm-chip{font-size:11.5px;color:var(--muted);border:1px solid var(--border);border-radius:6px;padding:2px 7px;font-variant-numeric:tabular-nums;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.fm-guess{margin-top:10px;background:var(--panel-2);border:1px solid var(--border);border-radius:9px;padding:9px 11px}
+.fm-guess{display:inline-block;max-width:100%;margin-top:10px;background:var(--panel-2);border:1px solid var(--border);border-radius:9px;padding:8px 11px}
 .fm-guess-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12.5px}
 .fm-guess-head .lbl{color:var(--muted);font-weight:600}
 .fm-guess-head .who{color:var(--text);font-weight:700;font-size:13px}
 .fm-guess-head .kb-state{font-size:10.5px}
-.fm-why-btn{margin-left:auto;background:none;border:0;color:var(--gold);font:inherit;font-size:11.5px;font-weight:600;cursor:pointer;padding:2px 4px;border-radius:5px}
+.fm-why-btn{margin-left:4px;background:none;border:0;color:var(--gold);font:inherit;font-size:11.5px;font-weight:600;cursor:pointer;padding:2px 4px;border-radius:5px}
 .fm-why-btn:hover{text-decoration:underline}
 .fm-why{margin-top:8px;padding-top:8px;border-top:1px solid var(--border);font-size:12px;color:var(--muted);line-height:1.55}
 .fm-why[hidden]{display:none}
@@ -95,7 +95,7 @@ details.fm-more[open] summary{color:var(--text)}
 .fm-meta{font-size:12px;color:var(--muted);margin-top:3px;display:flex;flex-wrap:wrap;gap:4px 10px;font-variant-numeric:tabular-nums}
 .fm-meta .who{color:var(--muted)}
 .fm-sum{font-size:12.5px;color:var(--muted);margin-top:8px;line-height:1.55;white-space:pre-wrap;position:relative}
-.fm-sum.clip{max-height:3.1em;overflow:hidden;-webkit-mask-image:linear-gradient(#000 55%,transparent);mask-image:linear-gradient(#000 55%,transparent)}
+.fm-sum.clip{max-height:4.6em;overflow:hidden;-webkit-mask-image:linear-gradient(#000 55%,transparent);mask-image:linear-gradient(#000 55%,transparent)}
 .fm-more-btn{background:none;border:0;color:var(--gold);font:inherit;font-size:11.5px;font-weight:600;cursor:pointer;padding:2px 0;margin-top:2px}
 .fm-more-btn:hover{text-decoration:underline}
 .fm-prop{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-top:10px;font-size:12.5px}
@@ -256,7 +256,7 @@ window.KB_MEETINGS = {
   actor: {{ actor | tojson }}
 };
 </script>
-<script src="/static/kb_meetings.js?v=3"></script>
+<script src="/static/kb_meetings.js?v=4"></script>
 {% include "_premium.html" %}
 </body>
 </html>

@@ -128,8 +128,9 @@
             return '<label><input type="checkbox" checked data-skip="' + esc(x.k) + '">' + esc(x.t) + '</label>';
           }).join('') + '</div>'
         : '';
-      var sum = m.summary ? '<div class="fm-sum clip">' + esc(m.summary) + '</div>' +
-        (m.summary.length > 180 ? '<button class="fm-more-btn" type="button" aria-expanded="false">Show more</button>' : '') : '';
+      var longSum = (m.summary || '').length > 180;             // clip ONLY when there is a Show more to release it
+      var sum = m.summary ? '<div class="fm-sum' + (longSum ? ' clip' : '') + '">' + esc(m.summary) + '</div>' +
+        (longSum ? '<button class="fm-more-btn" type="button" aria-expanded="false">Show more</button>' : '') : '';
       return '<article class="fm-row" data-rid="' + esc(m.recording_id) + '" data-prop="' + (hasProp ? esc(p.client_key) : '') + '"' +
         (hasProp ? ' data-hasprop="1"' : '') + '>' +
         '<div class="fm-main"><div class="fm-title">' + esc(m.title) + '</div>' +
