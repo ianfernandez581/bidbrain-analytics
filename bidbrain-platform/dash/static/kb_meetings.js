@@ -108,16 +108,17 @@
       var hasProp = p.client_key !== undefined && p.client_key !== null;
       var inv = (m.invitees || []).filter(function (i) { return i.external !== false && i.email; })
         .map(function (i) { return esc(i.email); });
-      var meta = '<span title="' + esc(m.created_at || '') + '">' + esc(when(m.created_at)) + '</span>' +
-        (m.duration_min ? '<span>' + m.duration_min + ' min</span>' : '') +
-        '<span class="who">' + (inv.length ? inv.join(', ') : 'no external invitees') + '</span>';
-      var prop = hasProp
-        ? '<div class="fm-prop"><span class="lbl">Best guess</span><span class="who">' + esc(clientName(p.client_key)) + '</span>' +
-          (p.confidence != null ? '<span class="kb-state ' + confClass(p.confidence) + '">' + pct(p.confidence) + '% sure</span>' : '') +
-          (p.why ? '<span class="why">' + esc(p.why) + '</span>' : '') + '</div>'
-        : '<div class="fm-prop"><span class="lbl">Best guess</span><span class="kb-state empty">none - pick a client</span>' +
-          (p.why ? '<span class="why">' + esc(p.why) + '</span>' : '') + '</div>';
-      var evl = ev.length ? '<ul class="fm-ev">' + ev.slice(0, 4).map(function (e) { return '<li>' + esc(e) + '</li>'; }).join('') + '</ul>' : '';
+      var chips = '<span class="fm-chip" title="' + esc(m.created_at || '') + '">' + esc(when(m.created_at)) + '</span>' +
+        (m.duration_min ? '<span class="fm-chip">' + m.duration_min + ' min</span>' : '') +
+        (inv.length ? inv.map(function (e) { return '<span class="fm-chip">' + e + '</span>'; }).join('') : '<span class="fm-chip">no external invitees</span>');
+      var why = (p.why ? esc(p.why) : '') +
+        (ev.length ? '<ul>' + ev.slice(0, 4).map(function (e) { return '<li>' + esc(e) + '</li>'; }).join('') + '</ul>' : '');
+      var guess = '<div class="fm-guess"><div class="fm-guess-head"><span class="lbl">System\'s guess</span>' +
+        (hasProp ? '<span class="who">' + esc(clientName(p.client_key)) + '</span>' +
+          (p.confidence != null ? '<span class="kb-state ' + confClass(p.confidence) + '">' + pct(p.confidence) + '% sure</span>' : '')
+          : '<span class="kb-state empty">none - pick a client</span>') +
+        (why ? '<button class="fm-why-btn" type="button" aria-expanded="false">Why?</button>' : '') + '</div>' +
+        (why ? '<div class="fm-why" hidden>' + why + '</div>' : '') + '</div>';
       var teach = [].concat(
         (wl.people || []).map(function (e) { return {k: e, t: e}; }),
         (wl.domains || []).map(function (d) { return {k: d, t: '@' + d}; }),
@@ -132,7 +133,7 @@
       return '<article class="fm-row" data-rid="' + esc(m.recording_id) + '" data-prop="' + (hasProp ? esc(p.client_key) : '') + '"' +
         (hasProp ? ' data-hasprop="1"' : '') + '>' +
         '<div class="fm-main"><div class="fm-title">' + esc(m.title) + '</div>' +
-        '<div class="fm-meta">' + meta + '</div>' + sum + prop + evl + teachHtml + '</div>' +
+        '<div class="fm-chips">' + chips + '</div>' + sum + guess + teachHtml + '</div>' +
         '<div class="fm-act"><select class="kb-input fm-sel" aria-label="File under client">' + opts + '</select>' +
         '<button class="btn sm gold fm-assign">Assign</button>' +
         '<button class="btn sm fm-ignore" title="Drop the recording without indexing it">Ignore</button></div></article>';
@@ -161,6 +162,11 @@
   var ignoreTimers = {};
   $('fmQueue').addEventListener('click', function (e) {
     var b = e.target.closest('button'); if (!b) return;
+    if (b.classList.contains('fm-why-btn')) {
+      var w = b.closest('.fm-guess').querySelector('.fm-why'), shown = w.hidden;
+      w.hidden = !shown; b.textContent = shown ? 'Hide' : 'Why?'; b.setAttribute('aria-expanded', shown ? 'true' : 'false');
+      return;
+    }
     if (b.classList.contains('fm-more-btn')) {
       var s = b.previousElementSibling, open = s.classList.toggle('clip');
       b.textContent = open ? 'Show more' : 'Show less';

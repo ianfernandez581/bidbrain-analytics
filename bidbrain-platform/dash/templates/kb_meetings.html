@@ -36,6 +36,31 @@ details.fm-help summary::before{content:"";width:0;height:0;border:4px solid tra
 details.fm-help[open] summary::before{transform:rotate(90deg)}
 details.fm-help summary:hover{color:var(--text)}
 details.fm-help p{margin:8px 0 0;line-height:1.6}
+details.fm-help ol{margin:10px 0 0;padding-left:20px;line-height:1.6}
+details.fm-help li{margin:4px 0}
+details.fm-help li b{color:var(--text);font-weight:600}
+.fm-hint{font-size:12px;color:var(--muted);margin:0 0 12px;line-height:1.55}
+.fm-hint b{color:var(--text);font-weight:600}
+.fm-panel-head{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:6px}
+.fm-panel-head h2{margin:0}
+.fm-pick{display:inline-flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);font-weight:600;margin-left:auto}
+.fm-pick select{width:auto;min-width:240px;padding:6px 28px 6px 9px;font-size:12.5px;background-position:calc(100% - 16px) 12px,calc(100% - 11px) 12px}
+.fm-cols{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:0 28px}
+.fm-h3-note{font-weight:500;letter-spacing:0;text-transform:none;color:var(--muted);margin-left:8px}
+/* the card's zones */
+.fm-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.fm-chip{font-size:11.5px;color:var(--muted);border:1px solid var(--border);border-radius:6px;padding:2px 7px;font-variant-numeric:tabular-nums;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fm-guess{margin-top:10px;background:var(--panel-2);border:1px solid var(--border);border-radius:9px;padding:9px 11px}
+.fm-guess-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12.5px}
+.fm-guess-head .lbl{color:var(--muted);font-weight:600}
+.fm-guess-head .who{color:var(--text);font-weight:700;font-size:13px}
+.fm-guess-head .kb-state{font-size:10.5px}
+.fm-why-btn{margin-left:auto;background:none;border:0;color:var(--gold);font:inherit;font-size:11.5px;font-weight:600;cursor:pointer;padding:2px 4px;border-radius:5px}
+.fm-why-btn:hover{text-decoration:underline}
+.fm-why{margin-top:8px;padding-top:8px;border-top:1px solid var(--border);font-size:12px;color:var(--muted);line-height:1.55}
+.fm-why[hidden]{display:none}
+.fm-why ul{margin:6px 0 0;padding-left:16px}
+.fm-teach{margin-top:8px}
 
 /* the Fathom strip: one line, details behind a fold */
 .fm-strip{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding-bottom:12px;margin-bottom:12px;border-bottom:1px solid var(--border);font-size:12.5px}
@@ -121,8 +146,10 @@ details.fm-more[open] summary{color:var(--text)}
 .kb-page ::selection{background:var(--sel);color:var(--text)}
 .kb-page{scrollbar-color:#2a2e3d var(--bg)}
 
+@media (max-width:900px){.fm-cols{grid-template-columns:1fr}}
 @media (max-width:720px){
   .fm-row{flex-direction:column;gap:10px}
+  .fm-pick{margin-left:0;flex:1}.fm-pick select{flex:1;min-width:0}
   .fm-act{width:100%;max-width:none;justify-content:flex-start}
   .fm-act select{flex:1;min-width:0}
   .fm-kv{grid-template-columns:110px 1fr}
@@ -151,13 +178,12 @@ details.fm-more[open] summary{color:var(--text)}
       <h1 class="kb-h">Meetings</h1>
       <details class="fm-help">
         <summary>How filing works</summary>
-        <p>Recorded meetings arrive from Fathom and are filed into a client's <b>Meetings</b> folder
-          as documents - summary first, then the transcript. A meeting whose client is certain (an
-          invitee's email domain, or a person the system has already seen on that client's calls)
-          is filed on its own. Anything else waits below for a person to confirm, with the system's
-          best guess and its confidence shown. Confirming teaches the system, so the next meeting
-          with the same people or the same recurring title files itself. Transcripts are internal;
-          nothing on this page reaches a client.</p>
+        <ol>
+          <li><b>A recording arrives</b> from Fathom and the system reads who was on the call and what was said.</li>
+          <li><b>If the client is certain</b> - a known email domain or a person seen before - it is filed under that client's <b>Meetings</b> folder on its own.</li>
+          <li><b>Otherwise it waits here</b> with the system's best guess. A person confirms, and the system remembers the people and the title so the next one files itself.</li>
+        </ol>
+        <p>Everything on this page is internal. Nothing here reaches a client.</p>
       </details>
     </div>
 
@@ -172,60 +198,52 @@ details.fm-more[open] summary{color:var(--text)}
         <details class="fm-more">
           <summary>Details</summary>
           <div class="fm-kv" id="fmState"></div>
-          <p class="note" style="margin:10px 0 0">Sync pulls every meeting since the last sync (first run: the last 30 days) and runs each through the same filing steps as a webhook delivery. <span id="fmSyncStatus"></span></p>
+          <p class="fm-hint">Sync pulls every meeting since the last sync (first run: the last 30 days). <span id="fmSyncStatus"></span></p>
         </details>
       </div>
       {% if not connected %}
-      <p class="note">Set <code>FATHOM_API_KEY</code> (Secret Manager <code>fathom-api-key</code>) on the
-        platform to connect. The key is scoped to the Fathom user who created it, so that person's
-        meetings are what arrives.</p>
+      <p class="fm-hint">Not connected yet - add the Fathom API key (Secret Manager <code>fathom-api-key</code>) and recordings start arriving here.</p>
       {% endif %}
       <h2 id="fmQueueH">Waiting for a client <span class="fm-pill count zero" id="fmCount" aria-live="polite">…</span></h2>
-      <p class="note">Assign files the meeting under the chosen client and remembers the ticked
-        people and title for that client. Ignore drops the recording without indexing it.</p>
       <div id="fmQueue"><div class="fm-empty">Loading…</div></div>
     </section>
 
     <section class="kb-panel" aria-labelledby="fmMemH">
-      <h2 id="fmMemH">Client memory</h2>
-      <p class="note">What each client's confirmed meetings taught the system, plus what you declare
-        and write. People, titles and domains steer filing and never leave this page; only
-        <b>facts</b> reach the staff assistant.</p>
-      <div class="fm-inline">
-        <label>Client
+      <div class="fm-panel-head">
+        <h2 id="fmMemH">Client memory</h2>
+        <label class="fm-pick">Client
           <select class="kb-input" id="fmClient">
             {% for c in clients %}<option value="{{ c.key }}">{{ c.name }}</option>{% endfor %}
           </select>
         </label>
       </div>
+      <p class="fm-hint">What steers filing for this client. Only <b>facts</b> reach the staff assistant; people and domains never leave this page.</p>
 
-      <div class="fm-block">
-        <h3 class="fm-h3">Declared email domains</h3>
-        <p class="note">An external invitee from one of these domains files the meeting under this
-          client at once, no AI involved. Optional - the system also learns domains from confirmed
-          meetings (see below). Comma or space separated.</p>
-        <div class="fm-inline">
-          <input class="kb-input" id="fmDomains" placeholder="cloudflare.com, cloudflare.net" spellcheck="false" aria-label="Declared email domains">
-          <button class="btn sm" id="fmDomSave">Save</button>
+      <div class="fm-cols">
+        <div class="fm-col">
+          <div class="fm-block">
+            <h3 class="fm-h3">Email domains <span class="fm-h3-note">files meetings here instantly</span></h3>
+            <div class="fm-inline">
+              <input class="kb-input" id="fmDomains" placeholder="cloudflare.com, cloudflare.net" spellcheck="false" aria-label="Declared email domains">
+              <button class="btn sm" id="fmDomSave">Save</button>
+            </div>
+            <div class="fm-status" id="fmDomNote"></div>
+          </div>
+          <div class="fm-block">
+            <h3 class="fm-h3">Facts <span class="fm-h3-note">quotable by the staff assistant</span></h3>
+            <div class="fm-inline">
+              <input class="kb-input" id="fmFact" placeholder="e.g. NFP - outcomes are enquiries, not revenue" maxlength="400" aria-label="New fact">
+              <button class="btn sm" id="fmFactAdd">Add</button>
+            </div>
+            <div id="fmFacts" style="margin-top:8px"></div>
+          </div>
         </div>
-        <div class="fm-status" id="fmDomNote"></div>
-      </div>
-
-      <div class="fm-block">
-        <h3 class="fm-h3">Facts</h3>
-        <p class="note">Short truths about the client that the staff assistant may quote.</p>
-        <div class="fm-inline">
-          <input class="kb-input" id="fmFact" placeholder="Add a fact, e.g. 'NFP - outcomes are enquiries, not revenue'" maxlength="400" aria-label="New fact">
-          <button class="btn sm" id="fmFactAdd">Add</button>
+        <div class="fm-col">
+          <div class="fm-block">
+            <h3 class="fm-h3">Learned from confirmed meetings <span class="fm-h3-note">n× = meetings seen on · ✕ forgets</span></h3>
+            <div id="fmMemory"></div>
+          </div>
         </div>
-        <div id="fmFacts" style="margin-top:8px"></div>
-      </div>
-
-      <div class="fm-block">
-        <h3 class="fm-h3">Learned from confirmed meetings</h3>
-        <p class="note">The number is how many meetings each was seen on. Remove anything wrong;
-          the system stops trusting it at once.</p>
-        <div id="fmMemory"></div>
       </div>
     </section>
   </div>
@@ -238,7 +256,7 @@ window.KB_MEETINGS = {
   actor: {{ actor | tojson }}
 };
 </script>
-<script src="/static/kb_meetings.js?v=2"></script>
+<script src="/static/kb_meetings.js?v=3"></script>
 {% include "_premium.html" %}
 </body>
 </html>
