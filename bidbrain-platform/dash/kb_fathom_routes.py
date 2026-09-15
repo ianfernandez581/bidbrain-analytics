@@ -20,6 +20,7 @@ webhook answer 503, and nothing else in the knowledge base changes.
 import os
 import json
 import logging
+import threading
 import time
 
 from flask import Blueprint, abort, jsonify, redirect, render_template, request
@@ -117,6 +118,35 @@ def process(meeting):
     return res
 
 
+def accept(meeting):
+    """The FAST half of a webhook: park the meeting in the queue (no proposal yet) so it is visible
+    and safe, then hand the slow ladder to a background thread. Returns before any dashboard is
+    fetched or any model is called.
+
+    🔴 WHY: Fathom (Svix-style) expects an answer within seconds and retries otherwise. The evidence
+    rung reads every live dashboard's data.json - measured at over two minutes on 2026-09-15 for 18
+    dashboards on a cold cache - so running the ladder before replying made every real delivery a
+    timeout. The queue write happens BEFORE the reply, so even if the background work is starved
+    (Cloud Run throttles CPU after a response unless the service has CPU always allocated), the
+    meeting is never lost: it waits for a person with no proposal, which is the pilot's honest
+    fallback. `already_indexed` is one GET and stays synchronous so a re-delivery is a no-op.
+    -> {"decision": "accepted"|"exists", "client_key"}."""
+    already = kb_fathom.already_indexed(meeting)
+    if already is not None:
+        return {"decision": "exists", "client_key": already}
+    kb_fathom.store_unassigned(meeting, proposal=None)
+    t = threading.Thread(target=_process_quietly, args=(meeting,), name="fathom-ladder", daemon=True)
+    t.start()
+    return {"decision": "accepted", "client_key": None}
+
+
+def _process_quietly(meeting):
+    try:
+        process(meeting)
+    except Exception:                        # noqa: BLE001 - the meeting is already in the queue
+        log.exception("fathom: background ladder failed for %s", kb_fathom.recording_id(meeting))
+
+
 def _safe_entities():
     try:
         return _entities() or {}
@@ -172,12 +202,24 @@ def sync():
         return jsonify(ok=False, error="Fathom is not connected (FATHOM_API_KEY unset)."), 503
     d = request.get_json(silent=True) or {}
     st = kb_fathom.state()
+    if st.get("sync_in_progress") and time.time() - float(st.get("sync_started_ts") or 0) < 1800:
+        return jsonify(ok=False, error="A sync is already running.", state=st), 409
     since = (d.get("since") or st.get("last_created_after") or
              time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() - 30 * 86400)))
+    st.update(sync_in_progress=True, sync_started_ts=time.time(), by=_actor())
+    kb_fathom.save_state(st)
+    # The same rule as the webhook: reply now, work in the background. A 30-meeting first sync on a
+    # cold entity cache is minutes, and a button that hangs for minutes reads as broken.
+    threading.Thread(target=_sync_quietly, args=(os.environ["FATHOM_API_KEY"], since, _actor()),
+                     name="fathom-sync", daemon=True).start()
+    return jsonify(ok=True, started=True, since=since, state=st)
+
+
+def _sync_quietly(api_key, since, actor):
     counts = {"seen": 0, "assigned": 0, "queued": 0, "exists": 0, "errors": 0}
-    newest = since
+    newest, error = since, ""
     try:
-        for m in kb_fathom.fetch_meetings(os.environ["FATHOM_API_KEY"], created_after=since):
+        for m in kb_fathom.fetch_meetings(api_key, created_after=since):
             counts["seen"] += 1
             try:
                 res = process(m)
@@ -188,11 +230,13 @@ def sync():
             newest = max(newest, str(m.get("created_at") or ""))
     except Exception as e:                   # noqa: BLE001
         log.exception("fathom sync failed")
-        return jsonify(ok=False, error=f"Sync failed: {str(e)[:160]}", counts=counts), 502
-    st.update(last_created_after=newest, last_sync_at=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-              last_counts=counts, by=_actor())
+        error = f"Sync failed: {str(e)[:160]}"
+    st = kb_fathom.state()
+    st.update(sync_in_progress=False, last_sync_at=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+              last_counts=counts, by=actor, last_error=error)
+    if not error:
+        st["last_created_after"] = newest
     kb_fathom.save_state(st)
-    return jsonify(ok=True, counts=counts, state=st)
 
 
 @bp.get("/kb/api/fathom/unassigned")
@@ -303,8 +347,8 @@ def webhook():
     if b:
         return b
     try:
-        res = process(meeting)
+        res = accept(meeting)                # queue first, reply now, ladder in the background
     except Exception:                        # noqa: BLE001
-        log.exception("fathom webhook: ingest failed")
+        log.exception("fathom webhook: could not queue")
         return jsonify(ok=False, error="ingest failed"), 500
     return jsonify(ok=True, decision=res["decision"], client_key=res.get("client_key"))

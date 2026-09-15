@@ -24,7 +24,10 @@
     api('/kb/api/fathom/status').then(function (j) {
       if (!j.ok) { $('fmQueue').innerHTML = '<div class="fm-empty">' + esc(j.error || 'Could not load.') + '</div>'; return; }
       var st = j.state || {}, lc = st.last_counts || {};
+      if (st.sync_in_progress) setTimeout(loadStatus, 5000);      // poll until the background sync finishes
       $('fmState').innerHTML =
+        (st.sync_in_progress ? '<b>Sync</b><span>running in the background…</span>' : '') +
+        (st.last_error ? '<b>Last error</b><span style="color:var(--danger)">' + esc(st.last_error) + '</span>' : '') +
         '<b>Filed meetings</b><span>' + j.indexed + '</span>' +
         '<b>Last sync</b><span>' + (st.last_sync_at ? esc(when(st.last_sync_at)) + (st.by ? ' by ' + esc(st.by) : '') : 'never') + '</span>' +
         '<b>Last result</b><span>' + (st.last_counts ? esc(lc.seen + ' seen · ' + lc.assigned + ' filed · ' + lc.queued + ' queued · ' + lc.exists + ' already · ' + lc.errors + ' errors') : '-') + '</span>' +
@@ -80,8 +83,7 @@
     api('/kb/api/fathom/sync', {}).then(function (j) {
       b.disabled = false;
       if (!j.ok) { $('fmSyncNote').textContent = j.error || 'Sync failed.'; return; }
-      var c = j.counts || {};
-      $('fmSyncNote').textContent = c.seen + ' seen · ' + c.assigned + ' filed · ' + c.queued + ' queued · ' + c.exists + ' already filed';
+      $('fmSyncNote').textContent = 'Sync started (meetings since ' + (j.since || '').slice(0, 10) + ') - this page updates as it runs.';
       loadStatus();
     }).catch(function () { b.disabled = false; $('fmSyncNote').textContent = 'Sync failed.'; });
   });

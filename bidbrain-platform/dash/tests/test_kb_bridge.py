@@ -221,5 +221,23 @@ class Route(unittest.TestCase):
         self.assertIsNotNone(kw["retrieved"])
 
 
+
+class Entities(unittest.TestCase):
+    def test_entity_harvest_never_blocks_the_caller(self):
+        """A cold cache returns {} immediately and warms in the background (2026-09-15: the
+        synchronous harvest held a webhook for 2+ minutes)."""
+        import main
+        main._ENTITY_CACHE.update(at=0.0, by_client={}, warming=False)
+        with mock.patch.object(main.threading, "Thread") as thr:
+            got = main._fathom_entities()
+        self.assertEqual(got, {})
+        self.assertEqual(thr.call_args.kwargs["name"], "fathom-entities")
+        self.assertTrue(main._ENTITY_CACHE["warming"])
+        with mock.patch.object(main.threading, "Thread") as thr2:      # a second cold call does not start another
+            main._fathom_entities()
+        thr2.assert_not_called()
+        main._ENTITY_CACHE.update(at=0.0, by_client={}, warming=False)
+
+
 if __name__ == "__main__":
     unittest.main()

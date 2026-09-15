@@ -356,7 +356,11 @@ def synthesise(meeting, candidates, evidence_lines, _post=None):
     confidence, why}. A key outside the list is rejected (-> agency-wide, confidence 0)."""
     key = os.environ.get("GEMINI_API_KEY")
     if not key or not candidates:
-        return {"client_key": AGENCY, "confidence": 0.0, "why": "classifier unavailable"}
+        # Name the reason: on 2026-09-15 a test rig showed "classifier unavailable" and nobody could
+        # tell a missing key from an empty client list without reading the code.
+        why = "classifier unavailable: " + ("no GEMINI_API_KEY in this process" if not key else "no candidate clients")
+        log.warning("fathom synthesise: %s", why)
+        return {"client_key": AGENCY, "confidence": 0.0, "why": why}
     excerpt = "\n".join(f"{(t.get('speaker') or {}).get('display_name', '')}: {t.get('text', '')}"
                         for t in (meeting.get("transcript") or [])[:40])[:8000]
     prompt = (

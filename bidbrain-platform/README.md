@@ -1210,6 +1210,21 @@ over `{webhook-id}.{webhook-timestamp}.{body}`, secret `whsec_<base64>`, header 
   for staff) for a prompt; `client_safe()` is facts ONLY - people and domains never leave.
 - **The queue is not the library**: `<PREFIX>/fathom/unassigned/<rid>/{meeting,proposal}.json`
   is never indexed, so an unplaced meeting is never retrievable. Assign / Ignore on the page.
+- **🔴 The webhook REPLIES FIRST, then classifies** (`kb_fathom_routes.accept`, 2026-09-15). Fathom
+  (Svix-style) retries an endpoint that does not answer within seconds, and the evidence rung reads
+  every live dashboard's `data.json` - measured at over two minutes for 18 dashboards on a cold
+  cache in the level-2 test. So: `already_indexed` (one GET) -> `store_unassigned` (the meeting is
+  in the queue, with no proposal yet) -> `200 {decision: "accepted"}` -> the ladder runs in a
+  daemon thread and writes the proposal (or files the meeting) when it finishes. **Sync now** has
+  the same shape (`sync_in_progress` in `fathom/state.json`; the page polls every 5 s). The entity
+  harvest itself (`main._fathom_entities`) never blocks either: a cold cache returns `{}` and warms
+  in the background, so the very first meeting's evidence rung simply contributes nothing.
+  **Cloud Run caveat, stated not solved:** with request-based CPU allocation the background thread
+  can be throttled after the reply; the meeting is already queued, so the worst case is a proposal
+  that never arrives and a person picks the client unaided. If that shows up in the pilot, give
+  `platform-dash` CPU-always-allocated or move the ladder onto the next request / Sync.
+- `kb_fathom.synthesise` says WHY the classifier was unavailable (no key vs no candidates) in the
+  proposal's `why`, so the queue card never shows a bare "unavailable" again.
 - A 🔴 for Ian's `CLIENT_FOLDERS` note "Outcomes, not transcripts": these documents DO carry the
   transcript after the summary. `MAX_PER_DOC=2` keeps a long transcript from crowding the library;
   if that is not enough, `kb_fathom.meeting_body` is the one place to drop it.

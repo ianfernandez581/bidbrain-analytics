@@ -27,6 +27,7 @@ private by default, deployed with --no-invoker-iam-check so this app's gate is t
 import os
 import re
 import time
+import threading
 import base64
 from pathlib import Path
 
@@ -568,11 +569,11 @@ def _harvest_entities(doc, out=None, depth=0):
     return out
 
 
-def _fathom_entities():
+_ENTITY_LOCK = threading.Lock()
+
+
+def _harvest_all_entities():
     import json as _json
-    now = time.time()
-    if now - _ENTITY_CACHE["at"] < _ENTITY_TTL and _ENTITY_CACHE["by_client"]:
-        return _ENTITY_CACHE["by_client"]
     by = {}
     for ck in store.active_client_keys():
         try:
@@ -581,8 +582,22 @@ def _fathom_entities():
             by[ck] = _harvest_entities(_json.loads(_upstream_data_json(ck)))
         except Exception:                    # noqa: BLE001
             app.logger.info("fathom: no entities for %s (data.json unavailable)", ck)
-    _ENTITY_CACHE.update(at=now, by_client=by)
-    return by
+    _ENTITY_CACHE.update(at=time.time(), by_client=by, warming=False)
+
+
+def _fathom_entities():
+    """{client_key: {names}} from the cache; NEVER blocks the caller. A cold or stale cache returns
+    what it has (possibly {}) and warms itself once in the background - so the ladder's evidence rung
+    simply contributes nothing on the very first meeting rather than holding a webhook for minutes
+    (measured 2+ min for 18 dashboards, 2026-09-15)."""
+    now = time.time()
+    fresh = now - _ENTITY_CACHE["at"] < _ENTITY_TTL and _ENTITY_CACHE["by_client"]
+    if not fresh:
+        with _ENTITY_LOCK:
+            if not _ENTITY_CACHE.get("warming"):
+                _ENTITY_CACHE["warming"] = True
+                threading.Thread(target=_harvest_all_entities, name="fathom-entities", daemon=True).start()
+    return _ENTITY_CACHE["by_client"]
 
 
 kb_fathom_routes.init(app, allowed=_kb_allowed, signed_in=lambda: bool(session.get("kind")),

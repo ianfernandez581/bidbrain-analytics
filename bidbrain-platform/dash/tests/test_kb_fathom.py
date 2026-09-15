@@ -206,7 +206,7 @@ class Ladder(unittest.TestCase):
     def test_synthesise_without_a_key_is_unavailable_not_a_call(self):
         with mock.patch.dict(os.environ, {"GEMINI_API_KEY": ""}):
             out = kb_fathom.synthesise(MEETING, CANDIDATES, [], _post=mock.Mock(side_effect=AssertionError("called")))
-        self.assertEqual(out["why"], "classifier unavailable")
+        self.assertEqual(out["why"], "classifier unavailable: no GEMINI_API_KEY in this process")
 
     def test_entity_match_ignores_short_and_shared_names(self):
         ents = {"cloudflare": {"APAC Core DG", "Q3"}, "mongodb": {"APAC Core DG", "Atlas Growth Wave"}}
@@ -332,13 +332,38 @@ class Routes(unittest.TestCase):
                                                   "webhook-signature": "v1,bad"}).status_code, 401)
             ts = str(int(time.time()))
             sig = base64.b64encode(hmac.new(base64.b64decode(raw), f"m.{ts}.".encode() + body, hashlib.sha256).digest()).decode()
+            import threading
             r = self.c.post("/fathom/webhook", data=body,
                             headers={"webhook-id": "m", "webhook-timestamp": ts, "webhook-signature": "v1," + sig})
-        self.assertEqual(r.status_code, 200)
-        self.assertEqual(r.get_json()["decision"], "queue")        # no domains, no memory, no key -> a person decides
+            # 2026-09-15: the webhook answers FIRST (Fathom retries a slow endpoint) and the meeting
+            # is already in the queue when it does; the ladder runs in a background thread.
+            self.assertEqual(r.status_code, 200)
+            self.assertEqual(r.get_json()["decision"], "accepted")
+            self.assertIn(f"{kb_store.PREFIX}/fathom/unassigned/7781/meeting.json", self.fs.objects)
+            for t in threading.enumerate():
+                if t.name == "fathom-ladder":
+                    t.join(timeout=10)
+        # no declared domain, no memory, no key -> the ladder QUEUED it with a proposal; a person decides
+        self.assertIn(f"{kb_store.PREFIX}/fathom/unassigned/7781/proposal.json", self.fs.objects)
         self._as("admin", "charles@100.digital")
         q = self.c.get("/kb/api/fathom/unassigned").get_json()["items"]
         self.assertEqual([x["recording_id"] for x in q], ["7781"])
+        self.assertIn("no GEMINI_API_KEY", q[0]["proposal"]["why"])
+
+    def test_webhook_replies_before_the_ladder_runs(self):
+        """The slow half must never sit in front of the reply: accept() returns with process() not yet
+        called, and a re-delivered meeting that is already filed is 'exists' without queueing."""
+        import kb_fathom_routes as FR
+        started = []
+        with mock.patch.object(FR, "process", side_effect=lambda m: started.append(kb_fathom.recording_id(m))), \
+             mock.patch.object(FR.threading, "Thread") as thr:
+            res = FR.accept(MEETING)
+        self.assertEqual(res["decision"], "accepted")
+        self.assertEqual(started, [])                                   # not run inline
+        self.assertEqual(thr.call_args.kwargs["name"], "fathom-ladder")
+        self.assertIn(f"{kb_store.PREFIX}/fathom/unassigned/7781/meeting.json", self.fs.objects)
+        with mock.patch.object(kb_store, "read_doc", return_value={"id": "fathom-7781", "client": "cloudflare"}):
+            self.assertEqual(FR.accept(MEETING), {"decision": "exists", "client_key": "cloudflare"})
 
     def test_assign_files_and_teaches_then_queue_is_empty(self):
         self._as("admin", "charles@100.digital")
