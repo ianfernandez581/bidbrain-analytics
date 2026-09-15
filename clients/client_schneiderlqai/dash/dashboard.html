@@ -283,6 +283,31 @@
   table td.num,table th.num{text-align:right;font-variant-numeric:tabular-nums}
   table tr:hover td{background:#FAFBFA}
   table tr.total td{font-weight:700;background:#F1FAF2;border-bottom:none}
+  /* LONG-TABLE CONTAINMENT (2026-09-15). crTable renders one row per creative - 500 today, ~56px
+     each - so it alone added ~28,000px of page and buried everything under it. Same pattern as
+     client_cloudflare's 1,000-row lead table: cap the wrapper and scroll INSIDE it, so every row
+     stays reachable and sort/search still run over the whole set (unlike a "show top N", which
+     silently hides the row someone is searching for).
+     The sticky header needs an OPAQUE background and a z-index or rows scroll through it, and the
+     border-bottom must sit on the th itself - a table border-collapse drops the container's border
+     when the header detaches. */
+  .tbl-scroll{overflow:auto;max-height:520px}
+  /* The vendored bb-sortable search box is inserted INSIDE this wrapper, as the table's previous
+     sibling, and the engine RECREATES it if you move it out (its duplicate guard is exactly that
+     sibling test). So it has to be pinned here too, and the header sits below it. --tbl-search-h
+     is the one number tying the two together - measure it, do not guess it. */
+  .tbl-scroll{--tbl-search-h:42px}
+  .tbl-scroll .bb-search{position:sticky;top:0;left:0;z-index:4;margin:0;padding:6px 0;
+    background:#fff;box-sizing:border-box;height:var(--tbl-search-h)}
+  .tbl-scroll thead th{position:sticky;top:var(--tbl-search-h);z-index:2;background:#FAFBFA;
+    box-shadow:inset 0 -1px 0 var(--se-line)}
+  /* Rows were tall because of WRAPPING, not padding: "The Trade Desk" broke onto two lines in
+     every Trade Desk row. Keeping the channel pill and the short dimensions on one line is what
+     actually reclaims the height; Concept is left free to wrap, since truncating a creative name
+     is what makes a table like this unreadable. */
+  #crTable td,#crTable th{padding:6px 10px}
+  #crTable td:nth-child(1),#crTable td:nth-child(2),
+  #crTable td:nth-child(4),#crTable td:nth-child(5){white-space:nowrap}
   .pill{display:inline-flex;align-items:center;gap:6px;padding:3px 9px;border-radius:999px;font-size:11px;font-weight:600;background:#F1F4F2;color:var(--se-dark)}
   .pill .dot{width:8px;height:8px;border-radius:50%}
   .tag{font-size:10px;font-weight:700;letter-spacing:.4px;padding:2px 8px;border-radius:999px;text-transform:uppercase;white-space:nowrap}
@@ -686,8 +711,8 @@
         <div class="card card-tall"><h3>Trade Desk - banner format mix</h3><div class="hint">Share of impressions by ad size.</div><div class="chart-wrap"><canvas id="crTtdFormat"></canvas></div></div>
         <div class="card card-tall"><h3>Best-performing creatives</h3><div class="hint">Top creatives by CTR (min 1,000 impressions).</div><div class="chart-wrap"><canvas id="crTopCtr"></canvas></div></div>
       </div>
-      <div class="section"><h2 style="font-size:15px">Creative detail</h2><span class="sub">Every creative for the selected countries. Click a header to sort; search to filter.</span></div>
-      <div class="card" style="margin-top:14px"><div style="overflow:auto">
+      <div class="section"><h2 style="font-size:15px">Creative detail</h2><span class="sub">Every creative in the current filter. Click a header to sort; search to filter. The table scrolls - use Export this tab for the full list.</span></div>
+      <div class="card" style="margin-top:14px"><div class="hint" id="crCount"></div><div class="tbl-scroll">
         <table id="crTable"><thead><tr><th>Channel</th><th>Line item</th><th>Concept</th><th>Format</th><th>Country</th><th class="num">Imps</th><th class="num">Clicks</th><th class="num">CTR</th><th class="num">Spend</th></tr></thead><tbody></tbody></table>
       </div></div>
     </div>
@@ -1815,6 +1840,10 @@ function renderCreative(){
 
   // creative detail table
   const rows=crRows().slice().sort((a,b)=>(b.imps||0)-(a.imps||0));
+  // Once a table scrolls inside a fixed height, its row count stops being visible - say it.
+  el('crCount').textContent = rows.length
+    ? `${fmtN(rows.length)} creative${rows.length===1?'':'s'} in the current filter, largest first.`
+    : '';
   el('crTable').querySelector('tbody').innerHTML = rows.length
     ? rows.map(r=>`<tr><td><span class="pill"><span class="dot" style="background:${r.platform==='linkedin'?C.li:C.td}"></span>${PLAT_LABEL[r.platform]||r.platform}</span></td><td>${r.tactic||r.phase||'-'}</td><td>${r.concept}</td><td>${r.format}</td><td>${r.country}</td><td class="num">${fmtN(r.imps)}</td><td class="num">${fmtN(r.clicks)}</td><td class="num">${fmtPct(pct(r.clicks,r.imps),2)}</td><td class="num">${money(r.spend_aud)}</td></tr>`).join('')
     : `<tr><td colspan="9" style="text-align:center;color:var(--se-mute);padding:14px">No creatives in the current filter.</td></tr>`;
