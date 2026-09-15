@@ -40,6 +40,7 @@ import base64
 import hashlib
 import logging
 import datetime as _dt
+from concurrent.futures import ThreadPoolExecutor
 
 import requests
 
@@ -237,25 +238,28 @@ def list_unassigned():
         if len(rest) != 2:
             continue
         seen.setdefault(rest[0], {})[rest[1]] = blob
-    out = []
-    for rid, files in seen.items():
+    def _read(rid, files):
         if "meeting.json" not in files:
-            continue
+            return None
         try:
             m = json.loads(files["meeting.json"].download_as_bytes().decode("utf-8"))
         except Exception:                    # noqa: BLE001
-            continue
+            return None
         prop = {}
         if "proposal.json" in files:
             try:
                 prop = json.loads(files["proposal.json"].download_as_bytes().decode("utf-8"))
             except Exception:                # noqa: BLE001
                 prop = {}
-        out.append({"recording_id": rid, "title": m.get("title") or m.get("meeting_title") or "(untitled)",
-                    "created_at": m.get("created_at") or m.get("recording_start_time"),
-                    "duration_min": _duration_min(m), "invitees": invitees(m),
-                    "summary": str(m.get("default_summary") or "")[:600], "proposal": prop,
-                    "will_learn": kb_memory.teaches(m)})
+        return {"recording_id": rid, "title": m.get("title") or m.get("meeting_title") or "(untitled)",
+                "created_at": m.get("created_at") or m.get("recording_start_time"),
+                "duration_min": _duration_min(m), "invitees": invitees(m),
+                "summary": str(m.get("default_summary") or "")[:600], "proposal": prop,
+                "will_learn": kb_memory.teaches(m)}
+    # Two GETs per queued meeting; sequentially that is ~20 s for a dozen from a laptop, so read them
+    # side by side (2026-09-15, found when Jerome asked to see a full queue).
+    with ThreadPoolExecutor(max_workers=8) as ex:
+        out = [r for r in ex.map(lambda kv: _read(*kv), list(seen.items())) if r]
     out.sort(key=lambda x: x.get("created_at") or "", reverse=True)
     return out
 

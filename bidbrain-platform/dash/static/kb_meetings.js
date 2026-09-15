@@ -98,52 +98,120 @@
       (C.connected ? 'New recordings land here as they finish, or press Sync now to pull anything missed.' : 'Connect Fathom to start receiving recordings.') + '</p></div>';
   }
 
+  var READY = 0.9;                                 // a guess at/above this sits in "Ready to confirm"
+  function isReady(m) {
+    var p = m.proposal || {};
+    return p.client_key !== undefined && p.client_key !== null && p.confidence != null && p.confidence >= READY;
+  }
+
+  function cardHtml(m, opts) {
+    var p = m.proposal || {}, ev = p.evidence || [], wl = m.will_learn || {};
+    var hasProp = p.client_key !== undefined && p.client_key !== null;
+    var inv = (m.invitees || []).filter(function (i) { return i.external !== false && i.email; })
+      .map(function (i) { return esc(i.email); });
+    var chips = '<span class="fm-chip" title="' + esc(m.created_at || '') + '">' + esc(when(m.created_at)) + '</span>' +
+      (m.duration_min ? '<span class="fm-chip">' + m.duration_min + ' min</span>' : '') +
+      (inv.length ? inv.map(function (e) { return '<span class="fm-chip">' + e + '</span>'; }).join('') : '<span class="fm-chip">no external invitees</span>');
+    var why = (p.why ? esc(p.why) : '') +
+      (ev.length ? '<ul>' + ev.slice(0, 4).map(function (e) { return '<li>' + esc(e) + '</li>'; }).join('') + '</ul>' : '');
+    var guess = '<div class="fm-guess"><div class="fm-guess-head"><span class="lbl">System\'s guess</span>' +
+      (hasProp ? '<span class="who">' + esc(clientName(p.client_key)) + '</span>' +
+        (p.confidence != null ? '<span class="kb-state ' + confClass(p.confidence) + '">' + pct(p.confidence) + '% sure</span>' : '')
+        : '<span class="kb-state empty">none - pick a client</span>') +
+      (why ? '<button class="fm-why-btn" type="button" aria-expanded="false">Why?</button>' : '') + '</div>' +
+      (why ? '<div class="fm-why" hidden>' + why + '</div>' : '') + '</div>';
+    var teach = [].concat(
+      (wl.people || []).map(function (e) { return {k: e, t: e}; }),
+      (wl.domains || []).map(function (d) { return {k: d, t: '@' + d}; }),
+      wl.title ? [{k: wl.title, t: '\u201c' + wl.title + '\u201d'}] : []);
+    var teachHtml = teach.length
+      ? '<div class="fm-teach"><span class="lbl">Will remember</span>' + teach.map(function (x) {
+          return '<label><input type="checkbox" checked data-skip="' + esc(x.k) + '">' + esc(x.t) + '</label>';
+        }).join('') + '</div>'
+      : '';
+    var longSum = (m.summary || '').length > 180;             // clip ONLY when there is a Show more to release it
+    var sum = m.summary ? '<div class="fm-sum' + (longSum ? ' clip' : '') + '">' + esc(m.summary) + '</div>' +
+      (longSum ? '<button class="fm-more-btn" type="button" aria-expanded="false">Show more</button>' : '') : '';
+    // Compact by default: title + chips + the guess. Summary and "Will remember" open on the chevron
+    // or the title (2026-09-15, Jerome on a 13-card queue: "overwhelming in the eyes").
+    return '<article class="fm-row" data-rid="' + esc(m.recording_id) + '" data-prop="' + (hasProp ? esc(p.client_key) : '') + '"' +
+      (hasProp ? ' data-hasprop="1"' : '') + '>' +
+      '<button class="fm-tog" type="button" aria-expanded="false" aria-label="Show details">&#9656;</button>' +
+      '<div class="fm-main"><div class="fm-line1"><span class="fm-title">' + esc(m.title) + '</span>' +
+      '<span class="fm-chips">' + chips + '</span></div>' + guess +
+      '<div class="fm-detail" hidden>' + sum + teachHtml + '</div></div>' +
+      '<div class="fm-act"><select class="kb-input fm-sel" aria-label="File under client">' + opts + '</select>' +
+      '<button class="btn sm gold fm-assign">Assign</button>' +
+      '<button class="btn sm fm-ignore" title="Drop the recording without indexing it">Ignore</button></div></article>';
+  }
+
+  function groupHtml(key, title, sub, items, opts, extra) {
+    if (!items.length) return '';
+    return '<section class="fm-group" data-group="' + key + '"><div class="fm-group-head">' +
+      '<h3 class="fm-group-h">' + title + ' <span class="fm-pill count fm-gcount">' + items.length + '</span></h3>' +
+      '<span class="fm-group-sub">' + sub + '</span>' + (extra || '') + '</div>' +
+      items.map(function (m) { return cardHtml(m, opts); }).join('') + '</section>';
+  }
+
   function renderQueue(items) {
     setCount(items.length);
     if (!items.length) { emptyState(); return; }
     var opts = '<option value="">Agency-wide (no single client)</option>' +
       C.clients.map(function (c) { return '<option value="' + esc(c.key) + '">' + esc(c.name) + '</option>'; }).join('');
-    $('fmQueue').innerHTML = items.map(function (m) {
-      var p = m.proposal || {}, ev = p.evidence || [], wl = m.will_learn || {};
-      var hasProp = p.client_key !== undefined && p.client_key !== null;
-      var inv = (m.invitees || []).filter(function (i) { return i.external !== false && i.email; })
-        .map(function (i) { return esc(i.email); });
-      var chips = '<span class="fm-chip" title="' + esc(m.created_at || '') + '">' + esc(when(m.created_at)) + '</span>' +
-        (m.duration_min ? '<span class="fm-chip">' + m.duration_min + ' min</span>' : '') +
-        (inv.length ? inv.map(function (e) { return '<span class="fm-chip">' + e + '</span>'; }).join('') : '<span class="fm-chip">no external invitees</span>');
-      var why = (p.why ? esc(p.why) : '') +
-        (ev.length ? '<ul>' + ev.slice(0, 4).map(function (e) { return '<li>' + esc(e) + '</li>'; }).join('') + '</ul>' : '');
-      var guess = '<div class="fm-guess"><div class="fm-guess-head"><span class="lbl">System\'s guess</span>' +
-        (hasProp ? '<span class="who">' + esc(clientName(p.client_key)) + '</span>' +
-          (p.confidence != null ? '<span class="kb-state ' + confClass(p.confidence) + '">' + pct(p.confidence) + '% sure</span>' : '')
-          : '<span class="kb-state empty">none - pick a client</span>') +
-        (why ? '<button class="fm-why-btn" type="button" aria-expanded="false">Why?</button>' : '') + '</div>' +
-        (why ? '<div class="fm-why" hidden>' + why + '</div>' : '') + '</div>';
-      var teach = [].concat(
-        (wl.people || []).map(function (e) { return {k: e, t: e}; }),
-        (wl.domains || []).map(function (d) { return {k: d, t: '@' + d}; }),
-        wl.title ? [{k: wl.title, t: '“' + wl.title + '”'}] : []);
-      var teachHtml = teach.length
-        ? '<div class="fm-teach"><span class="lbl">Will remember</span>' + teach.map(function (x) {
-            return '<label><input type="checkbox" checked data-skip="' + esc(x.k) + '">' + esc(x.t) + '</label>';
-          }).join('') + '</div>'
-        : '';
-      var longSum = (m.summary || '').length > 180;             // clip ONLY when there is a Show more to release it
-      var sum = m.summary ? '<div class="fm-sum' + (longSum ? ' clip' : '') + '">' + esc(m.summary) + '</div>' +
-        (longSum ? '<button class="fm-more-btn" type="button" aria-expanded="false">Show more</button>' : '') : '';
-      return '<article class="fm-row" data-rid="' + esc(m.recording_id) + '" data-prop="' + (hasProp ? esc(p.client_key) : '') + '"' +
-        (hasProp ? ' data-hasprop="1"' : '') + '>' +
-        '<div class="fm-main"><div class="fm-title">' + esc(m.title) + '</div>' +
-        '<div class="fm-chips">' + chips + '</div>' + sum + guess + teachHtml + '</div>' +
-        '<div class="fm-act"><select class="kb-input fm-sel" aria-label="File under client">' + opts + '</select>' +
-        '<button class="btn sm gold fm-assign">Assign</button>' +
-        '<button class="btn sm fm-ignore" title="Drop the recording without indexing it">Ignore</button></div></article>';
-    }).join('');
-    // pre-select the proposal, then let the card reflect it
+    var look = items.filter(function (m) { return !isReady(m); }), ready = items.filter(isReady);
+    // The doubtful ones FIRST: a wrong 95% is easier to catch when the eye is already reading.
+    $('fmQueue').innerHTML =
+      groupHtml('look', 'Needs a look', 'unsure, or no guess - read these', look, opts) +
+      groupHtml('ready', 'Ready to confirm', 'guessed at ' + Math.round(READY * 100) + '% or more - check the client, then confirm', ready, opts,
+        '<button class="btn sm gold" id="fmConfirmAll" type="button">Confirm all ' + ready.length + ' as guessed</button>');
     Array.prototype.forEach.call($('fmQueue').querySelectorAll('.fm-row'), function (row) {
       if (row.hasAttribute('data-hasprop')) row.querySelector('.fm-sel').value = row.getAttribute('data-prop');
       reflectChoice(row);
     });
+  }
+
+  function refreshGroups() {
+    var total = 0;
+    Array.prototype.forEach.call($('fmQueue').querySelectorAll('.fm-group'), function (g) {
+      var n = g.querySelectorAll('.fm-row').length;
+      total += n;
+      if (!n) { g.remove(); return; }
+      g.querySelector('.fm-gcount').textContent = n;
+      var b = g.querySelector('#fmConfirmAll'); if (b) b.textContent = 'Confirm all ' + n + ' as guessed';
+    });
+    setCount(total);
+    if (!total) emptyState();
+    return total;
+  }
+
+  function skipsOf(row) {
+    return Array.prototype.map.call(row.querySelectorAll('.fm-teach input:not(:checked)'), function (i) { return i.getAttribute('data-skip'); });
+  }
+
+  function toggleRow(row, open) {
+    var d = row.querySelector('.fm-detail'), t = row.querySelector('.fm-tog');
+    if (open === undefined) open = d.hidden;
+    d.hidden = !open; row.classList.toggle('open', open);
+    t.setAttribute('aria-expanded', open ? 'true' : 'false'); t.setAttribute('aria-label', open ? 'Hide details' : 'Show details');
+  }
+
+  function confirmAll() {
+    var rows = Array.prototype.slice.call($('fmQueue').querySelectorAll('[data-group="ready"] .fm-row'));
+    var btn = $('fmConfirmAll');
+    if (!rows.length || !btn) return;
+    var total = rows.length, done = 0, failed = 0;
+    btn.disabled = true;
+    (function next() {
+      var row = rows.shift();
+      if (!row) {
+        toast(done + ' filed as guessed' + (failed ? ' - ' + failed + ' failed and stay in the list' : '') + '.', !!failed);
+        var b = $('fmConfirmAll'); if (b) { b.disabled = false; }
+        refreshGroups();
+        return;
+      }
+      btn.textContent = 'Confirming ' + (done + failed + 1) + ' of ' + total + '…';
+      act(row, row.querySelector('.fm-sel').value, skipsOf(row), true).then(function (ok) { if (ok) done++; else failed++; next(); });
+    })();
   }
 
   function reflectChoice(row) {
@@ -162,7 +230,11 @@
 
   var ignoreTimers = {};
   $('fmQueue').addEventListener('click', function (e) {
+    var t = e.target.closest('.fm-title');
+    if (t) { toggleRow(t.closest('.fm-row')); return; }
     var b = e.target.closest('button'); if (!b) return;
+    if (b.id === 'fmConfirmAll') { confirmAll(); return; }
+    if (b.classList.contains('fm-tog')) { toggleRow(b.closest('.fm-row')); return; }
     if (b.classList.contains('fm-why-btn')) {
       var w = b.closest('.fm-guess').querySelector('.fm-why'), shown = w.hidden;
       w.hidden = !shown; b.textContent = shown ? 'Hide' : 'Why?'; b.setAttribute('aria-expanded', shown ? 'true' : 'false');
@@ -187,30 +259,31 @@
       return;
     }
     if (b.classList.contains('fm-assign')) {
-      var skip = Array.prototype.map.call(row.querySelectorAll('.fm-teach input:not(:checked)'), function (i) { return i.getAttribute('data-skip'); });
-      act(row, row.querySelector('.fm-sel').value, skip);
+      act(row, row.querySelector('.fm-sel').value, skipsOf(row));
     }
   });
 
-  function act(row, ck, skip) {
+  function act(row, ck, skip, quiet) {
     var rid = row.getAttribute('data-rid');
     row.classList.add('busy');
-    api('/kb/api/fathom/assign', {recording_id: rid, client_key: ck, skip: skip}).then(function (j) {
-      if (!j.ok) { row.classList.remove('busy'); toast(j.error || 'That did not work - try again.', true); return; }
-      var next = row.nextElementSibling || row.previousElementSibling;
+    return api('/kb/api/fathom/assign', {recording_id: rid, client_key: ck, skip: skip}).then(function (j) {
+      if (!j.ok) { row.classList.remove('busy'); if (!quiet) toast(j.error || 'That did not work - try again.', true); return false; }
+      var next = row.nextElementSibling;
+      if (!next || !next.classList.contains('fm-row')) next = row.previousElementSibling;
       row.remove();
-      var left = $('fmQueue').querySelectorAll('.fm-row').length;
-      setCount(left);
-      if (!left) emptyState();
-      else if (next && next.querySelector('.fm-sel')) next.querySelector('.fm-sel').focus();
-      if (ck === 'ignore') toast('Recording dropped - nothing was indexed.');
-      else {
+      var left = refreshGroups();
+      if (left && !quiet && next && next.querySelector && next.querySelector('.fm-sel')) next.querySelector('.fm-sel').focus();
+      if (ck !== 'ignore') {
         indexed += 1;
         var b = $('fmStrip').querySelector('b.n'); if (b) b.textContent = indexed;
-        toast('Filed under ' + clientName(ck) + (ck !== '' && skip.length ? ' - ' + skip.length + ' item' + (skip.length > 1 ? 's' : '') + ' not remembered' : '') + '.');
         if ($('fmClient').value === ck) loadClient();           // the memory panel shows the new lesson
       }
-    }).catch(function () { row.classList.remove('busy'); toast('Could not reach the platform.', true); });
+      if (!quiet) {
+        if (ck === 'ignore') toast('Recording dropped - nothing was indexed.');
+        else toast('Filed under ' + clientName(ck) + (ck !== '' && skip.length ? ' - ' + skip.length + ' item' + (skip.length > 1 ? 's' : '') + ' not remembered' : '') + '.');
+      }
+      return true;
+    }).catch(function () { row.classList.remove('busy'); if (!quiet) toast('Could not reach the platform.', true); return false; });
   }
 
   $('fmSync').addEventListener('click', function () {

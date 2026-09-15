@@ -50,7 +50,7 @@ details.fm-help li b{color:var(--text);font-weight:600}
 /* the card's zones */
 .fm-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
 .fm-chip{font-size:11.5px;color:var(--muted);border:1px solid var(--border);border-radius:6px;padding:2px 7px;font-variant-numeric:tabular-nums;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.fm-guess{display:inline-block;max-width:100%;margin-top:10px;background:var(--panel-2);border:1px solid var(--border);border-radius:9px;padding:8px 11px}
+.fm-guess{display:inline-block;max-width:100%;margin-top:7px;background:var(--panel-2);border:1px solid var(--border);border-radius:9px;padding:5px 10px}
 .fm-guess-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12.5px}
 .fm-guess-head .lbl{color:var(--muted);font-weight:600}
 .fm-guess-head .who{color:var(--text);font-weight:700;font-size:13px}
@@ -61,6 +61,21 @@ details.fm-help li b{color:var(--text);font-weight:600}
 .fm-why[hidden]{display:none}
 .fm-why ul{margin:6px 0 0;padding-left:16px}
 .fm-teach{margin-top:8px}
+/* groups + compact rows */
+.fm-group+.fm-group{margin-top:18px}
+.fm-group-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 0 6px;border-bottom:1px solid var(--border)}
+.fm-group-h{margin:0;font-size:12.5px;font-weight:700;display:flex;align-items:center;gap:8px;color:var(--text)}
+.fm-group-sub{font-size:12px;color:var(--muted)}
+.fm-group-head .btn{margin-left:auto}
+.fm-tog{flex:none;width:22px;height:22px;margin-top:2px;border:1px solid var(--border);border-radius:6px;background:transparent;color:var(--muted);cursor:pointer;font-size:11px;line-height:1;display:inline-flex;align-items:center;justify-content:center;transition:transform .12s,color .12s}
+.fm-tog:hover{color:var(--text);border-color:var(--border-2)}
+.fm-row.open .fm-tog{transform:rotate(90deg);color:var(--gold);border-color:rgba(243,201,105,.35)}
+.fm-line1{display:flex;align-items:center;gap:8px 10px;flex-wrap:wrap}
+.fm-title{cursor:pointer}
+.fm-title:hover{color:var(--gold)}
+.fm-line1 .fm-chips{margin-top:0;display:inline-flex}
+.fm-detail{margin-top:8px}
+.fm-detail[hidden]{display:none}
 
 /* the Fathom strip: one line, details behind a fold */
 .fm-strip{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding-bottom:12px;margin-bottom:12px;border-bottom:1px solid var(--border);font-size:12.5px}
@@ -87,7 +102,7 @@ details.fm-more[open] summary{color:var(--text)}
 .fm-kv .n{font-variant-numeric:tabular-nums}
 
 /* queue cards */
-.fm-row{display:flex;gap:14px;align-items:flex-start;padding:14px 0;border-top:1px solid var(--border)}
+.fm-row{display:flex;gap:10px;align-items:flex-start;padding:10px 0;border-top:1px solid var(--border)}
 .fm-row:first-child{border-top:0;padding-top:6px}
 .fm-row.busy{opacity:.55;pointer-events:none}
 .fm-main{flex:1;min-width:0}
@@ -148,7 +163,9 @@ details.fm-more[open] summary{color:var(--text)}
 
 @media (max-width:900px){.fm-cols{grid-template-columns:1fr}}
 @media (max-width:720px){
-  .fm-row{flex-direction:column;gap:10px}
+  .fm-row{flex-wrap:wrap;gap:8px 10px}
+  .fm-row .fm-main{flex-basis:calc(100% - 32px)}
+  .fm-group-head .btn{margin-left:0;flex-basis:100%}
   .fm-pick{margin-left:0;flex:1}.fm-pick select{flex:1;min-width:0}
   .fm-act{width:100%;max-width:none;justify-content:flex-start}
   .fm-act select{flex:1;min-width:0}
@@ -256,7 +273,7 @@ window.KB_MEETINGS = {
   actor: {{ actor | tojson }}
 };
 </script>
-<script src="/static/kb_meetings.js?v=4"></script>
+<script src="/static/kb_meetings.js?v=5"></script>
 {% include "_premium.html" %}
 </body>
 </html>
