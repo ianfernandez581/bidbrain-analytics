@@ -156,6 +156,16 @@ details.fm-more[open] summary{color:var(--text)}
 .fm-queue .kb-empty{padding:30px 16px 22px}
 .fm-queue .kb-empty h3{font-size:14px}
 
+/* gold buttons: a quiet hover on this page - no sheen sweep, no lift, no brightness flash
+   (Jerome, 2026-09-15). The shared premium layer and kb.css are left as they are; this only
+   out-ranks them here. */
+.kb-page .btn.gold{overflow:visible;transition:background .12s,box-shadow .12s}
+.kb-page .btn.gold::after{display:none}
+.kb-page .btn.gold:hover:not(:disabled){filter:none;translate:0 0;box-shadow:none;
+  background:linear-gradient(135deg,#f7d47c,#e8b52e)}
+.kb-page .btn.gold:active:not(:disabled){scale:1;background:linear-gradient(135deg,var(--gold-2),#c9960f)}
+.kb-page .btn.gold:focus-visible{outline:2px solid var(--sel-line);outline-offset:2px}
+
 /* browser surfaces */
 .kb-page :focus-visible{outline:2px solid var(--sel-line);outline-offset:2px;border-radius:6px}
 .kb-page ::selection{background:var(--sel);color:var(--text)}
