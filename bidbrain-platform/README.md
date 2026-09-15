@@ -883,7 +883,7 @@ a different question). Staff from any session; otherwise only a 100% Digital age
 | `kb_chunk.py` | ~220-word passages with 40 of overlap, packed on structure, and the ONE tokenizer. |
 | `kb_embed.py` | Vertex `text-embedding-005` in `australia-southeast1`, over stdlib `urllib`. |
 | `kb_index.py` | BM25 + cosine fused by rank, the in-memory corpus, and `reindex_document`. |
-| `kb_extract.py` | An upload into text: PDF via pypdf, text/Markdown/CSV, everything else refused by name. |
+| `kb_extract.py` | An upload into text: PDF via pypdf; Word, PowerPoint, Excel (python-docx / python-pptx / openpyxl, lazy) and WebVTT/SRT transcripts (2026-09-15, ported from the RAG branch) each writing its locator into the text like `[page N]`; text/Markdown/CSV; legacy .doc/.xls/.ppt and archives refused by name. |
 | `kb_prompt.py` | The five prompt blocks, in a fixed order, identical for both providers. |
 | `kb_chat.py` | Kimi streaming, Gemini as the named fallback. |
 | `kb_feedback.py` | A correction into a trusted document that outranks what it corrects. |
@@ -1246,7 +1246,7 @@ bidbrain-platform/
     kb_chunk.py                  ~220-word passages packed on structure, 40-word overlap, and the ONE tokenizer
     kb_embed.py                  Vertex text-embedding-005 over stdlib urllib; RETRIEVAL_DOCUMENT vs RETRIEVAL_QUERY; fails soft and says so
     kb_index.py                  BM25 + cosine fused by rank (RRF), incremental in-memory corpus, and the reindex write path
-    kb_extract.py                an upload into text (PDF via pypdf, text/Markdown/CSV); anything else refused BY NAME, never stored as mojibake
+    kb_extract.py                an upload into text (PDF, Word, PowerPoint, Excel, WebVTT/SRT, text/Markdown/CSV; locators inline like [page N]); legacy binaries refused BY NAME, never stored as mojibake
     kb_prompt.py                 the five prompt blocks in a fixed order, identical for both providers
     kb_chat.py                   Kimi streaming with Gemini as the NAMED fallback (the panel says which answered)
     kb_feedback.py               a buyer's correction into a trusted document that outranks the passage it corrects
