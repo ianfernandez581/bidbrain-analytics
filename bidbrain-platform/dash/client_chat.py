@@ -92,7 +92,7 @@ def sources_for(retrieved):
 def build_context(client, data_json_text, glossary, retrieved, profile=None):
     """The systemInstruction context block. Raises ValueError if anything forbidden is present -
     the route maps that to a 502 rather than sending it. `profile` = the CLIENT-SAFE facts only
-    (knowledge_memory.client_safe, K5-08) - the route never passes people / domains / patterns."""
+    (kb_memory.client_safe) - the route never passes people / domains / patterns."""
     import kb_bridge
     data_txt = (data_json_text or "")[:MAX_DATA_CHARS]
     ctx = (f"CLIENT DASHBOARD: {client}\n\n"
