@@ -494,7 +494,7 @@
   table td.num,table th.num{text-align:right;font-variant-numeric:tabular-nums}
   table tr:hover td{background:#FAFBFA}
   table tr.total td{font-weight:700;background:#F1FAF2;border-bottom:none}
-  .plan-badge{display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:.3px;color:var(--se-mute);background:#F1F3F5;border:1px solid var(--se-line);border-radius:999px;padding:2px 9px}
+  .plan-badge{display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:.3px;color:var(--se-mute);background:#F1F3F5;border:1px solid var(--se-line);border-radius:999px;padding:2px 9px;white-space:nowrap}
   /* Other Channels - publisher-report actuals (2026-09-14). The status chips are .plan-badge
      variants so they inherit its shape and only the colour changes; four states that must never
      look alike: delivered / delivered-but-still-running / plan-only / actuals with no plan row. */
@@ -3133,12 +3133,20 @@ function pubStatusChip(m, hasActuals){
     return '<span class="plan-badge warn">Actuals · missing plan row</span>';
   // A line whose booking has not gone live is not the same as one with no feed: the account team
   // has confirmed it is coming, so say that rather than implying nothing will ever report.
+  // Leads with the fact that the buy IS booked, then the status - it is confirmed and coming, not
+  // an absence.
   if(!hasActuals) return m.delivery_status==='not_live'
-    ? '<span class="plan-badge">Booking not yet live</span>'
+    ? '<span class="plan-badge">Booked · not yet live</span>'
     : '<span class="plan-badge">Plan only · no feed</span>';
-  return m.delivery_status==='in_progress'
-    ? '<span class="plan-badge info">Actuals below &darr; · in progress</span>'
-    : '<span class="plan-badge ok">Actuals below &darr;</span>';
+  // A publisher that is reporting gets the GREEN chip whether or not its flight has finished. The
+  // chip answers "is there real delivery here", which is a status fact and is positive; it is NOT a
+  // performance verdict, so nothing here reads on pacing - a line one month into a three-month
+  // flight must not be coloured as though it were behind.
+  //
+  // The "in progress" qualifier is deliberately NOT repeated here: the Pacing cell one column over
+  // already says "still running", where it earns its place by explaining why the percentage is low.
+  // Carrying it in both places made every in-flight row read twice as hedged as it is.
+  return '<span class="plan-badge ok">Actuals below &darr;</span>';
 }
 // "Jul-Aug 2026", and "(to 26 Aug)" when the last period stops short of its month end - which is how
 // the Energy Magazine card states that Q3 is still running, without anyone hand-editing the caption.
