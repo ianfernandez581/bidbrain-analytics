@@ -769,8 +769,8 @@
         <div class="kpi m-clk"><span class="stripe"></span><div class="label">Flight elapsed</div><div class="value" id="pl_elapsed">-</div><div class="delta" id="pl_elapsed_sub">-</div></div>
       </div>
 
-      <div class="section"><h2 style="font-size:15px">Delivered vs target - live channels</h2><span class="sub">Whole-flight, all-country delivery against the plan targets for the live Awareness lines.</span></div>
-      <div class="card" style="margin-top:14px"><div id="planPacing"></div></div>
+      <div class="section"><h2 style="font-size:15px">Delivered vs target - Awareness lines</h2><span class="sub" id="planPaceSub">Whole-flight, all-country delivery against the plan's Awareness targets.</span></div>
+      <div class="card" style="margin-top:14px"><div id="planPacing"></div><div class="info-note" id="planPaceNote" style="display:none"></div></div>
 
       <div class="section"><h2 style="font-size:15px">Full media plan</h2><span class="sub">Every line from the brief. Impression / reach / click / spend targets are whole-flight.</span></div>
       <div class="card" style="margin-top:14px"><div style="overflow:auto">
@@ -1889,17 +1889,56 @@ function renderPlan(){
   const byCh=fullByChannel();
   const spent=Object.values(byCh).reduce((a,e)=>a+e.spend,0);
   const tf=elapsedFrac(flight.start,flight.end);
-  el('pl_total').textContent=money(plan.total_budget||0);
+  // Both budget tiles must derive from the plan's own EUR column, or they disagree by the FX
+  // round-trip: total_budget is an AUD sum x rate (EUR 300,001.20) while paid_media_budget_eur sums
+  // the EUR column (EUR 281,274.31). EUR 1.19 apart, on two tiles side by side. The EUR column is
+  // the authority here - see the FX note above - so sum it and fall back to the old field only for
+  // a payload published before the column existed.
+  const _eurLines=(plan.lines||[]).reduce((a,l)=>a+(Number(l.spend_target_eur)||0),0);
+  el('pl_total').textContent=money(_eurLines || plan.total_budget || 0);
   el('pl_paid').textContent=money((DATA.plan&&DATA.plan.paid_media_budget_eur)||0);
   el('pl_spent').textContent=money(spent);
   el('pl_spent_sub').textContent=`${fmtPct(pct(spent, (plan.paid_media_budget_eur||0)),0)} of the paid media budget`;
   el('pl_elapsed').textContent=tf!=null?fmtPct(tf,0):'-';
   el('pl_elapsed_sub').textContent=`${dateLabel(flight.start)} → ${dateLabel(flight.end)}`;
 
-  // per-live-channel delivered vs target
+  // PACE-CARD BASIS (fixed 2026-09-15). The target side is plan.channels, which the export job
+  // builds ONLY from the seeded-live lines - Awareness today. The delivered side was fullByChannel(),
+  // which sums EVERY row for a platform, so LinkedIn's Retargeting delivery (live 09-11) was being
+  // measured against an Awareness-only target: impressions read 220% instead of 214%, spend 57.2%
+  // instead of 53.6%. Small today and GROWING - retargeting carries ~EUR 96k still to spend, all of
+  // which would land on the delivered side of a target that does not cover it. Repo-wide rule: pace
+  // in the unit the plan is bought in, and fix the basis on the WHOLE card.
+  //
+  // So the delivered side is scoped to exactly the phases the targets were summed from. Derived
+  // from the SEED flag, not planLineIsLive(), because it has to mirror what the JOB did - deriving
+  // it from delivery instead would re-admit retargeting on both sides and silently restore the
+  // target change this deliberately avoids.
+  // fullByChannel() is untouched: the Spend-to-date tile above is ALL spend and must stay that way.
+  const paceScope={};
+  (plan.lines||[]).forEach(l=>{ if(l.live) (paceScope[l.channel_key]=paceScope[l.channel_key]||new Set()).add(l.phase); });
+  const paceBy={};
+  (DATA.delivery||[]).forEach(r=>{
+    const sc=paceScope[r.platform]; if(!sc||!sc.has(r.phase)) return;
+    const e=paceBy[r.platform]||(paceBy[r.platform]={imps:0,clk:0,spend:0});
+    e.imps+=r.imps||0; e.clk+=r.clicks||0; e.spend+=r.spend_aud||0; });
+
+  // FIX 2: the Media Plan table now derives Live from delivery, so lines can read Live while having
+  // no bar here (Google Search, both Retargeting lines). That is DELIBERATE - Search's plan line is
+  // documented as not wired to pacing - but two panels on one tab must not disagree silently. Name
+  // the live lines this card does not pace, rather than leaving the reader to notice.
+  const _sc=planDeliveredCombos();
+  const unpaced=(plan.lines||[]).filter(l=>planLineIsLive(l,_sc)
+      && !((paceScope[l.channel_key]||new Set()).has(l.phase)))
+    .map(l=>`${l.channel} (${l.phase})`);
+  const pn=el('planPaceNote');
+  if(unpaced.length){ pn.style.display='';
+    pn.innerHTML=`Delivering but <b>not paced here</b>: ${unpaced.join(', ')}. These lines carry plan targets that are not wired to this card, so both sides of every bar above stay on one basis. Their delivery is in <b>Spend to date</b> and on the Overview tab.`;
+  } else pn.style.display='none';
+
   const host=el('planPacing');
   host.innerHTML=(plan.channels||[]).map(c=>{
-    const d=byCh[c.key]||{imps:0,clk:0,spend:0};
+    const d=paceBy[c.key]||{imps:0,clk:0,spend:0};
     return `<div style="margin-bottom:16px">
       <div style="font-size:13px;font-weight:700;color:var(--se-dark);margin-bottom:4px"><span class="pill"><span class="dot" style="background:${c.key==='linkedin'?C.li:C.td}"></span>${c.label}</span></div>
       ${paceBar('Spend', d.spend, c.spend_target, true)}
