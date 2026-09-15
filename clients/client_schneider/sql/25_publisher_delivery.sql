@@ -1,100 +1,157 @@
--- Schneider Electric - PUBLISHER REPORT DELIVERY (Other Channels tab), added 2026-09-14.
+-- Schneider Electric - PUBLISHER REPORT DELIVERY (Other Channels tab). r2, 2026-09-15.
 --
 -- Direct publisher buys that have NO API feed and never will: Capital Brief, Energy Magazine
--- (Project ENGY) and Westwick-Farrow (ECD Online / Sustainability Matters) for the Advancing Energy
--- Technology brief. The publishers email a PDF or a workbook each month; those figures are re-keyed
--- into data/publisher_reports.csv + data/publisher_report_meta.csv, loaded by load_seeds.py, and
--- read here. This is the SAME committed-CSV -> seed_* -> view -> job path the plan targets on this
--- tab already take (data/media_plan.csv -> seed_media_plan), which is why no new mechanism was
--- invented for it: a monthly reload is a CSV edit plus deploy_seeds_schneider.ps1.
+-- (Project ENGY) and the two Westwick-Farrow mastheads - ECD Online and Sustainability Matters -
+-- for the Advancing Energy Technology brief. The publishers email a PDF or a workbook each month;
+-- those figures are re-keyed into data/aet_publisher_reports_normalized.csv, loaded by
+-- load_seeds.py, and read here.
 --
--- WHY NOT SNOWFLAKE: our roles on the shared warehouse are READ-ONLY, so we cannot write a
--- hand-keyed publisher report there at all, and these numbers have no upstream system to be
--- sourced FROM - they exist first as a PDF in an inbox. A committed CSV is also the only form that
--- travels with the repo and can be diffed when a figure is questioned.
+-- r2 REPLACED the earlier hand-rolled narrow CSV with the account team's own normalised export
+-- (one row per publisher x product x placement x month, wide measure columns). Its shape is kept
+-- VERBATIM so a re-export drops straight in; this view does the mapping. The Snowflake sibling
+-- data/load_publisher_reports_snowflake.sql holds the same rows for a warehouse route we do NOT
+-- take - our roles on the shared warehouse are read-only, so we could not run it even if we wanted
+-- the dependency, and these figures have no upstream system to be sourced FROM: they exist first
+-- as an email attachment.
 --
 -- =====================================================================================
--- `unit` IS THE SAFETY MECHANISM, NOT A LABEL. Read this before adding a row.
+-- `product_type` IS THE SAFETY MECHANISM, NOT A LABEL. Read this before adding a row.
 -- =====================================================================================
 -- These publishers report several things that all look like a big number in a spreadsheet cell and
--- are NOT the same measure. Article views are people reading a sponsored article; solus eDM sends
+-- are NOT the same measure. Sponsored-article views are people reading an article; solus eDM sends
 -- are emails despatched; neither is an impression, and summing any of them into an impression total
--- would overstate reach on a line the client is buying on reach. So the total is not defined as
--- "sum the quantity column" - it is defined as "sum the quantity column WHERE unit = 'impressions'",
--- and everything else is structurally excluded rather than excluded by whoever writes the next
--- consumer remembering to exclude it.
---   impressions   - the only unit that may enter an impression total.
---   sends         - solus eDM despatches. Carry clicks; never impressions.
---   article_views - sponsored-article reads, paced against booked_quantity, never against a plan
---                   impression target.
---   rate          - a publisher-reported rate (open rate, viewability). NEVER summed anywhere; the
---                   dashboard takes a delivery-weighted mean. `metric` names which rate it is.
--- Anything outside that vocabulary lands in unit = 'UNKNOWN', is excluded from EVERY total, and is
--- WARNed by the export job - the loud failure, not a silent absorption into impressions.
+-- would overstate reach on a line the client is buying on reach. So the impression total is not
+-- "sum the impressions column" - it is "sum WHERE unit = 'impressions'", and `unit` is derived from
+-- a CLOSED list of product types:
+--   content_newsletter / content_web / adv_newsletter / adv_display -> impressions
+--   solus_edm                                                        -> sends
+--   sponsored_article                                                -> article_views
+-- Anything else lands in unit = 'UNKNOWN', is counted in NO total, and is WARNed by the export job.
+-- The ELSE arm is deliberately loud rather than a real value: a new product type must be classified
+-- by a human, not absorbed into impressions by a default.
 --
 -- CLICKS sum across all three DELIVERY units (a solus click is a real click the publisher reports)
--- but never across rate rows. That asymmetry is deliberate and is why clicks are not gated on
--- counts_as_impressions.
+-- but never across rate rows. That asymmetry is why clicks are not gated on the impression flag.
 --
--- GRAIN: campaign x publisher x period x placement. One row per line the publisher reports. Where a
--- publisher states an impression count once across two slots that shared a send (Westwick's paired
--- text panels and side bars), the second slot's quantity is left NULL rather than zeroed - NULL is
--- "not separately reported", 0 would be a claim that it delivered nothing.
+-- SOME ROWS CARRY CLICKS WITH NULL IMPRESSIONS and must never be dropped - the publisher reports one
+-- impression count for a shared eNews send or a paired left/right side-bar position and attributes
+-- clicks to each half. A NULL there means "not separately reported", never zero.
 --
--- NO SPEND, NO MARKET, NO DAY. These are monthly aggregates with no cost and no region split, so
--- they must never reach pm_delivery, the blended KPI band, or any spend/CPM figure - and a date
--- range that cuts mid-month cannot be honoured from a month bucket. The tab renders them whole-
--- flight, exactly as it already renders the plan lines.
+-- CAMPAIGN comes from the META table, joined on the publisher string, because the export carries a
+-- job number but no campaign. A publisher with no meta row therefore resolves to a NULL campaign,
+-- renders nowhere, and is WARNed by name - see sql/26 and the job's audit.
+--
+-- GRAIN OUT: campaign x publisher x period x placement, one row per reported measure, plus one row
+-- per publisher-reported RATE. NO SPEND, NO MARKET, NO DAY: monthly aggregates that must never
+-- reach pm_delivery, the blended KPI band or any CPM/CPC figure.
 CREATE OR REPLACE VIEW `bidbrain-analytics.client_schneider.publisher_delivery` AS
 WITH src AS (
   SELECT
-    TRIM(internal_campaign_id)                                  AS campaign,
-    LOWER(TRIM(publisher))                                      AS publisher,
-    TRIM(period_label)                                          AS period_label,
-    period_start,
-    period_end,
-    NULLIF(TRIM(COALESCE(placement_group, '')), '')             AS placement_group,
-    NULLIF(TRIM(COALESCE(placement, '')), '')                   AS placement,
-    LOWER(TRIM(COALESCE(unit, '')))                             AS unit_raw,
-    NULLIF(TRIM(COALESCE(metric, '')), '')                      AS metric,
-    quantity,
-    clicks,
-    booked_quantity,
-    NULLIF(TRIM(COALESCE(note, '')), '')                        AS note
+    LOWER(TRIM(publisher))                                       AS pub_key,
+    TRIM(publisher)                                              AS publisher,
+    report_month,
+    LOWER(TRIM(COALESCE(product_type, '')))                      AS product_type,
+    NULLIF(TRIM(COALESCE(placement_name, '')), '')               AS placement,
+    start_date, end_date,
+    impressions, clicks, sends, open_rate, viewability, booked_views, delivered_views
   FROM `bidbrain-analytics.client_schneider.seed_publisher_reports`
-  -- A wholly blank line (trailing newline in a hand-edited CSV) is not a data point.
-  WHERE COALESCE(TRIM(internal_campaign_id), '') <> ''
-    AND COALESCE(TRIM(publisher), '') <> ''
+  -- a wholly blank line (a trailing newline in a hand-edited export) is not a data point
+  WHERE COALESCE(TRIM(publisher), '') <> '' AND report_month IS NOT NULL
+),
+meta AS (
+  SELECT LOWER(TRIM(publisher)) AS pub_key, TRIM(internal_campaign_id) AS campaign
+  FROM `bidbrain-analytics.client_schneider.seed_publisher_report_meta`
+  WHERE COALESCE(TRIM(publisher), '') <> ''
+),
+-- A publisher that reports CONTENT separately (Capital Brief) presents its report as content vs
+-- advertising, and that split is what its card shows month by month. Every other publisher presents
+-- its report by product. Derived from the data rather than hardcoded per publisher, so a second
+-- content-reporting publisher gets the same treatment without a code change.
+content_pubs AS (
+  SELECT DISTINCT pub_key FROM src WHERE STARTS_WITH(product_type, 'content_')
+),
+typed AS (
+  SELECT
+    s.*,
+    CASE s.product_type
+      WHEN 'content_newsletter' THEN 'impressions'
+      WHEN 'content_web'        THEN 'impressions'
+      WHEN 'adv_newsletter'     THEN 'impressions'
+      WHEN 'adv_display'        THEN 'impressions'
+      WHEN 'solus_edm'          THEN 'sends'
+      WHEN 'sponsored_article'  THEN 'article_views'
+      ELSE 'UNKNOWN'
+    END AS unit,
+    CASE
+      WHEN STARTS_WITH(s.product_type, 'content_')    THEN 'Content distribution'
+      WHEN s.product_type = 'solus_edm'               THEN 'Solus eDM'
+      WHEN s.product_type = 'sponsored_article'       THEN 'Featured Content Plus'
+      WHEN s.pub_key IN (SELECT pub_key FROM content_pubs) THEN 'Advertising'
+      WHEN s.product_type = 'adv_newsletter'          THEN 'eNewsletter'
+      WHEN s.product_type = 'adv_display'             THEN 'Website display'
+      ELSE 'Unclassified'
+    END AS placement_group
+  FROM src s
+),
+delivery AS (
+  SELECT
+    m.campaign,
+    t.publisher,
+    FORMAT_DATE('%B %Y', t.report_month)                         AS period_label,
+    COALESCE(t.start_date, t.report_month)                       AS period_start,
+    COALESCE(t.end_date, LAST_DAY(t.report_month))               AS period_end,
+    t.placement_group,
+    t.placement,
+    t.unit,
+    CAST(NULL AS STRING)                                         AS metric,
+    -- Pre-split measures, so a consumer physically cannot add a send to an impression by summing
+    -- one column. Each is NULL - never 0 - outside its own unit: 0 would assert a measured zero.
+    IF(t.unit = 'impressions',   t.impressions,     NULL)        AS impressions,
+    IF(t.unit = 'sends',         t.sends,           NULL)        AS sends,
+    IF(t.unit = 'article_views', t.delivered_views, NULL)        AS article_views,
+    CAST(NULL AS FLOAT64)                                        AS rate_value,
+    t.clicks,
+    IF(t.unit = 'article_views', t.booked_views,    NULL)        AS booked_quantity,
+    CAST(NULL AS STRING)                                         AS note
+  FROM typed t
+  LEFT JOIN meta m USING (pub_key)
+),
+-- Publisher-reported RATES, one row per publisher x period x metric. The export repeats a rate on
+-- every row it applies to (Capital Brief states one open rate against both its newsletter lines),
+-- so they are de-duplicated here rather than averaged downstream. A rate is attached to a placement
+-- group ONLY when every row carrying it sits in one group - otherwise it belongs to the publisher's
+-- whole month and carrying a group would weight it against a fraction of its own delivery.
+rate_src AS (
+  SELECT pub_key, publisher, report_month, placement_group,
+         CASE WHEN product_type = 'solus_edm' THEN 'solus_open_rate'
+              ELSE 'newsletter_open_rate' END AS metric,
+         open_rate AS pct
+  FROM typed WHERE open_rate IS NOT NULL
+  UNION ALL
+  SELECT pub_key, publisher, report_month, placement_group, 'display_viewability', viewability
+  FROM typed WHERE viewability IS NOT NULL
+),
+rates AS (
+  SELECT
+    m.campaign,
+    r.publisher,
+    FORMAT_DATE('%B %Y', r.report_month)                         AS period_label,
+    DATE_TRUNC(r.report_month, MONTH)                            AS period_start,
+    LAST_DAY(r.report_month)                                     AS period_end,
+    IF(COUNT(DISTINCT r.placement_group) = 1, ANY_VALUE(r.placement_group), NULL) AS placement_group,
+    CAST(NULL AS STRING)                                         AS placement,
+    'rate'                                                       AS unit,
+    r.metric,
+    CAST(NULL AS INT64) AS impressions, CAST(NULL AS INT64) AS sends,
+    CAST(NULL AS INT64) AS article_views,
+    -- the export states rates as PERCENTAGES (54, 26.75); everything downstream expects a fraction
+    MAX(r.pct) / 100                                             AS rate_value,
+    CAST(NULL AS INT64) AS clicks, CAST(NULL AS INT64) AS booked_quantity,
+    CAST(NULL AS STRING) AS note
+  FROM rate_src r
+  LEFT JOIN meta m USING (pub_key)
+  GROUP BY m.campaign, r.publisher, r.report_month, r.metric
 )
-SELECT
-  campaign,
-  publisher,
-  period_label,
-  period_start,
-  period_end,
-  placement_group,
-  placement,
-  -- Closed vocabulary. An unrecognised unit is named UNKNOWN and counted nowhere.
-  CASE unit_raw
-    WHEN 'impressions'   THEN 'impressions'
-    WHEN 'sends'         THEN 'sends'
-    WHEN 'article_views' THEN 'article_views'
-    WHEN 'rate'          THEN 'rate'
-    ELSE 'UNKNOWN'
-  END                                                            AS unit,
-  metric,
-  quantity,
-  -- The single enforcement point every consumer reads instead of re-testing the unit string.
-  (unit_raw = 'impressions')                                     AS counts_as_impressions,
-  (unit_raw = 'rate')                                            AS is_rate,
-  -- Pre-split measures, so a consumer physically cannot add a send to an impression by writing
-  -- SUM(quantity). Each is NULL - never 0 - outside its own unit: 0 would assert a measured zero.
-  IF(unit_raw = 'impressions',   quantity, NULL)                 AS impressions,
-  IF(unit_raw = 'sends',         quantity, NULL)                 AS sends,
-  IF(unit_raw = 'article_views', quantity, NULL)                 AS article_views,
-  IF(unit_raw = 'rate',          quantity, NULL)                 AS rate_value,
-  -- Clicks are real on every delivery unit, and meaningless on a rate row.
-  IF(unit_raw = 'rate', NULL, clicks)                            AS clicks,
-  IF(unit_raw = 'rate', NULL, booked_quantity)                   AS booked_quantity,
-  note
-FROM src;
+SELECT * FROM delivery
+UNION ALL
+SELECT * FROM rates;

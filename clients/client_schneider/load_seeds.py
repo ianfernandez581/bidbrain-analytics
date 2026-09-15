@@ -66,12 +66,16 @@ SEED_SCHEMAS = {
     # impressions, and 'rate' rows are publisher-reported rates that are never summed. Anything
     # outside that vocabulary is excluded from every total and WARNed by the export job - see
     # sql/25_publisher_delivery.sql. Run validate_publisher_reports.py before loading.
-    "publisher_reports": ("seed_publisher_reports", [
-        ("internal_campaign_id", "STRING"), ("publisher", "STRING"), ("period_label", "STRING"),
-        ("period_start", "DATE"), ("period_end", "DATE"), ("placement_group", "STRING"),
-        ("placement", "STRING"), ("unit", "STRING"), ("metric", "STRING"),
-        ("quantity", "FLOAT"), ("clicks", "INTEGER"), ("booked_quantity", "INTEGER"),
-        ("note", "STRING")]),
+    # r2 (2026-09-15): the account team's own normalised export, kept in ITS shape so a re-export
+    # drops straight in. sql/25 maps it onto the model the tab renders. `product_type` is the closed
+    # vocabulary that decides which total a row may enter - see that view's header.
+    "aet_publisher_reports_normalized": ("seed_publisher_reports", [
+        ("report_month", "DATE"), ("job_number", "STRING"), ("publisher", "STRING"),
+        ("product_type", "STRING"), ("placement_name", "STRING"),
+        ("start_date", "DATE"), ("end_date", "DATE"),
+        ("impressions", "INTEGER"), ("clicks", "INTEGER"), ("sends", "INTEGER"),
+        ("open_rate", "FLOAT"), ("viewability", "FLOAT"),
+        ("booked_views", "INTEGER"), ("delivered_views", "INTEGER")]),
     # plan_channel is the JOIN KEY onto seed_media_plan.channel (same internal_campaign_id). BLANK is
     # meaningful and is NOT a typo: it means this publisher has no media-plan line, which the tab
     # surfaces as "missing plan row" rather than inventing a target. A non-blank value that matches
@@ -80,6 +84,10 @@ SEED_SCHEMAS = {
         ("seq", "INTEGER"), ("internal_campaign_id", "STRING"), ("publisher", "STRING"),
         ("publisher_label", "STRING"), ("plan_channel", "STRING"), ("report_source", "STRING"),
         ("report_label", "STRING"), ("report_job", "STRING"), ("delivery_status", "STRING"),
+        # booked_article_views is PLAN data (the rate card), not something the publisher report
+        # states - a flight can book more articles than have been published, so the card paces
+        # delivered views against this rather than against the rows that happen to exist.
+        ("booked_article_views", "INTEGER"),
         ("status_note", "STRING"), ("internal_note", "STRING")]),
     "salesforce_map": ("seed_salesforce_map", [
         ("salesforce_campaign_id", "STRING"), ("internal_campaign_id", "STRING"),

@@ -3012,6 +3012,15 @@ function pubMetaRows(){
     .sort((a,b)=>(a.seq||999)-(b.seq||999) || String(a.publisher).localeCompare(String(b.publisher)));
 }
 function pubRowsFor(m){ return pubRows().filter(r=>r.campaign===m.campaign && r.publisher===m.publisher); }
+// Booked article views for a publisher: the PLAN's flight booking where the meta states one, else
+// the sum of the booked figures on the articles that have actually been published. A flight can
+// book more articles than have run (ECD books 2 and has published 1; Sustainability Matters books
+// 14 and has published 6), so pacing delivered views against only the published rows would read
+// 124% and 118% on buys that are really 62% and 51% through their booking.
+function pubBooked(m, agg){
+  const planned=Number(m && m.booked_article_views);
+  return Number.isFinite(planned) && planned>0 ? planned : (agg.hasBooked?agg.booked:0);
+}
 // Key order is the DISPLAY order: BigQuery returns no meaningful row order for rate rows (they
 // share a null placement), so without an explicit precedence the KPI strip and the month columns
 // would reorder themselves between runs.
@@ -3278,11 +3287,15 @@ function renderPublisherCard(m){
   // ---- KPI strip: impressions, clicks, each reported rate, then articles vs booked -------------
   const kp=[];
   if(a.hasImps) kp.push(pubKpi(fmtN(a.imps), m.delivery_status==='in_progress'?'Impressions to date':'Total impressions'));
-  if(a.hasClicks) kp.push(pubKpi(fmtN(a.clicks), a.hasArticles?'Display + eNews clicks':'Total clicks'));
+  if(a.hasClicks){
+    const clickGroups=pubGroups(rows).filter(g=>pubAgg(rows.filter(r=>r.placement_group===g)).hasClicks);
+    kp.push(pubKpi(fmtN(a.clicks), (a.hasArticles && clickGroups.length>1) ? 'Display + eNews clicks' : 'Total clicks'));
+  }
   rateKeys.forEach(k=>{ if(pubRateMean(rows,k)!=null) kp.push(pubKpi(fmtRate(rows,k), pubRateLabel(k))); });
   if(a.hasArticles){
+    const bk=pubBooked(m,a);
     kp.push(pubKpi(fmtN(a.articles),'Sponsored article views'));
-    if(a.booked>0) kp.push(pubKpi(fmtPct(a.articles/a.booked,0),'Articles vs booked'));
+    if(bk>0) kp.push(pubKpi(fmtPct(a.articles/bk,0),'Views vs booked'));
   }
 
   // ---- header -----------------------------------------------------------------------------------
@@ -3307,9 +3320,12 @@ function renderPublisherCard(m){
       // "published so far", not "delivered": more articles can be booked than have run, and the
       // booked total on this card counts all of them. Saying "7 articles delivered X" beside a
       // 14,000 booked figure would read as though 7 were the whole booking.
-      notes.push(`The ${arts.length} article${arts.length>1?'s':''} published so far delivered `
-        +(lo===hi?`${fmtN(lo)} views each`:`between ${fmtN(lo)} and ${fmtN(hi)} views each`)
-        +(bk.length?` against ${fmtN(bk[0])} booked each${allOver?' - all over-delivered':''}`:'')+'.');
+      const bkTot=pubBooked(m,a), many=arts.length>1;
+      notes.push(`The ${many?arts.length+' articles':'article'} published so far delivered `
+        +(lo===hi?`${fmtN(lo)} views`:`between ${fmtN(lo)} and ${fmtN(hi)} views`)
+        +(many?' each':'')
+        +(bk.length?` against ${fmtN(bk[0])} booked${many?' each':''}${allOver?(many?' - all over-delivered':' - over-delivered'):''}`:'')
+        +(bkTot>0?`, and ${fmtN(a.articles)} of the ${fmtN(bkTot)} views booked across the flight`:'')+'.');
     }
   }
   // Say this only where it is actually load-bearing - on a card with neither eDM nor articles it is
@@ -3322,7 +3338,7 @@ function renderPublisherCard(m){
   return `<div class="card" style="margin-top:12px">
     <div class="pub-head"><h3>${escH(m.publisher_label||m.publisher)}</h3>${chips.join('')}${src}</div>
     ${kp.length?`<div class="pub-kpis">${kp.join('')}</div>`:''}
-    <div style="overflow:auto">${layout==='months'?pubMonthTable(rows,a):pubProductTable(rows,a)}</div>
+    <div style="overflow:auto">${layout==='months'?pubMonthTable(rows,a):pubProductTable(rows,a,pubBooked(m,a))}</div>
     <div class="pub-note">${notes.join(' ')}</div>
   </div>`;
 }
@@ -3356,7 +3372,7 @@ function pubMonthTable(rows, agg){
 // PRODUCT layout: rows are the publisher's placement groups. Every column is rendered only if some
 // row actually populates it, so a publisher that runs no eDM gets no empty eDM column, and one that
 // books article views gets the booked-vs-delivered pair.
-function pubProductTable(rows, agg){
+function pubProductTable(rows, agg, bookedTotal){
   const groups=pubGroups(rows);
   const anySends=agg.hasSends, anyArticles=agg.hasArticles;
   const groupRate=g=>{ const gr=rows.filter(r=>r.placement_group===g), k=pubRateMetrics(gr)[0];
@@ -3376,7 +3392,7 @@ function pubProductTable(rows, agg){
       +`<td class="num">${qty}</td><td class="num">${ga.hasClicks?fmtN(ga.clicks):'-'}</td>`
       +`<td class="num">${den?fmtPct(ga.clicks/den,2):'-'}</td>`
       +(anyRate?`<td class="num">${rt?rt.txt:'-'}</td>`:'')
-      +(anyArticles?`<td class="num">${ga.hasBooked?fmtN(ga.booked):'-'}</td><td class="num">${ga.hasArticles?fmtN(ga.articles):'-'}</td>`:'')
+      +(anyArticles?`<td class="num">${ga.hasArticles?fmtN(bookedTotal):'-'}</td><td class="num">${ga.hasArticles?fmtN(ga.articles):'-'}</td>`:'')
       +'</tr>';
   }).join('');
   // Total impressions EXCLUDE sends and article views by construction (pubAgg keeps them apart), and
@@ -3386,7 +3402,7 @@ function pubProductTable(rows, agg){
     +`<td class="num">${agg.hasImps?fmtN(agg.imps)+' impr.':'-'}</td><td class="num">${fmtN(agg.clicks)}</td>`
     +`<td class="num">${agg.imps?fmtPct(agg.impClicks/agg.imps,2):'-'}</td>`
     +(anyRate?'<td class="num"></td>':'')
-    +(anyArticles?`<td class="num">${fmtN(agg.booked)}</td><td class="num">${fmtN(agg.articles)}</td>`:'')
+    +(anyArticles?`<td class="num">${fmtN(bookedTotal)}</td><td class="num">${fmtN(agg.articles)}</td>`:'')
     +'</tr>';
   return `<table>${head}<tbody>${body}${tot}</tbody></table>`;
 }

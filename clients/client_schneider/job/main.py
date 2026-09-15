@@ -197,6 +197,11 @@ def main():
                       f"sql/25_publisher_delivery.sql for the vocabulary.")
         # Scope to the dashboard's programs. Dropping is under-inclusion, which is normally the
         # silent failure - so it is only ever done alongside the WARNING above that names the id.
+        no_camp = sorted({r["publisher"] for r in pub_rows if not r["campaign"]})
+        for pubname in no_camp:
+            print(f"WARNING: publisher {pubname!r} has delivery rows but no publisher_report_meta "
+                  f"row, so its campaign cannot be resolved (the export carries a job number, not a "
+                  f"campaign). Its rows are dropped and render nowhere.")
         kept = [r for r in pub_rows if r["campaign"] in CS_PROGRAMS]
         for r in pub_rows:
             if r["campaign"] not in CS_PROGRAMS:
@@ -494,6 +499,9 @@ def main():
             # carried: this dashboard has no staff/client session distinction, so anything in the
             # payload is on the client's screen (or one devtools tab away from it).
             "status_note": m["status_note"], "plan_match": m["plan_match"],
+            # PLAN data (the rate card), not a reported figure: a flight can book more articles than
+            # have been published, so the card paces delivered views against this.
+            "booked_article_views": num(m["booked_article_views"]),
             # A publisher can be planned and not yet reporting; the tab paces the plan line and
             # renders no card for it, so the two facts have to travel separately.
             "has_delivery": m["has_delivery"],

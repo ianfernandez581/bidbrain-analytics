@@ -257,7 +257,7 @@ system to source it from anyway.
 
 | Stage | Where |
 |---|---|
-| the monthly figures | `data/publisher_reports.csv` (campaign x publisher x period x placement) |
+| the monthly figures | `data/aet_publisher_reports_normalized.csv` - the account team's own normalised export, kept in ITS shape so a re-export drops straight in |
 | per-publisher settings | `data/publisher_report_meta.csv` (label, `plan_channel`, source, status, notes, card order) |
 | agency-only commentary | the `internal_note` column of that file - printed by the job, **never** in the payload |
 | pre-load validation | `validate_publisher_reports.py` (run first by all three deploy scripts) |
@@ -267,8 +267,11 @@ system to source it from anyway.
 | UI | `dash/dashboard.html` -> `renderOther()` (plan table) + `renderPublisherCards()` |
 
 ### Reloading next month (the whole procedure)
-1. Add the new month's rows to `data/publisher_reports.csv`. Copy the previous month's block and
-   change the figures; keep one row per line the publisher reports.
+1. Drop the new export over `data/aet_publisher_reports_normalized.csv` (or add the new month's rows
+   to it). One row per publisher x product x placement x month; keep every row the publisher
+   reports, including the ones that carry clicks with NO impressions - a shared eNews send or a
+   paired left/right side-bar position is reported with one impression count and clicks against each
+   half, and a NULL there means "not separately reported", never zero.
 2. Only if something changed about the report itself (a new job number, a buy finishing, a plan line
    finally existing) touch `data/publisher_report_meta.csv`.
 3. `.\clients\client_schneider\deploy_seeds_schneider.ps1` - it validates, loads and re-runs the
@@ -276,7 +279,34 @@ system to source it from anyway.
    without the force the edit is a silent no-op). **No view, job or dashboard deploy is needed.**
 The validator prints per-publisher totals; check them against the report before moving on.
 
-### `unit` is the safety mechanism, not a label
+### The r2 export, and the Westwick split (2026-09-15)
+The fact file is now the account team's own normalised export. Its columns are wide
+(`impressions / clicks / sends / open_rate / viewability / booked_views / delivered_views`), rates
+are stated as **percentages** (54, 26.75 - `sql/25` divides by 100), and it carries a **job number
+but no campaign**, so the campaign is resolved by joining the META file on the publisher string. A
+publisher with no meta row therefore resolves NO campaign and renders nowhere - which is the one
+failure here that is silent on screen, so the validator makes it an ERROR and the job WARNs by name.
+`data/load_publisher_reports_snowflake.sql` holds the same rows for a warehouse route we do NOT
+take: our roles on that warehouse are read-only.
+
+**Westwick-Farrow is now TWO publishers**, at the account team's request - `ECD Online
+(Westwick-Farrow)` and `Sustainability Matters (Westwick-Farrow)`. The publisher's report labels
+every row by site, so the split is exact and the two sum to the previously reported combined
+figures (82,108 + 24,003 = 106,111 impressions; 178 + 24 = 202 clicks; 1,241 + 7,083 = 8,324 article
+views). Each has its own plan row, its own pacing and its own card; the combined row and its
+"missing plan row" flag are gone.
+
+**Article pacing is per publication, and both bookings are corroborated in the plan's WFMEdia
+rate-card sheet** - ECD books TWO "Featured Content Plus - 1,000 + views" line items (August and
+October, A$1,600 each) = 2,000 views; Sustainability Matters books "14 articles all receiving 1,000
+targeted views each over the period - $16,800" = 14,000 views. The rate card's own totals reconcile
+to the plan lines (A$23,450 and A$27,800, summing to the A$51,250 the combined row used to carry).
+That booking lives in `booked_article_views` on the META file because it is PLAN data: a flight can
+book more articles than have run (ECD has published 1 of 2, SM 6 of 14), so pacing delivered views
+against only the published rows would read 124% and 118% on buys that are really 62% and 51%
+through their booking.
+
+### `product_type` is the safety mechanism, not a label
 These publishers report several things that all look like a big number in a spreadsheet cell and are
 **not the same measure**. Sponsored-article views are people reading an article; solus eDM sends are
 emails despatched. Neither is an impression, and the brief for this work was explicit that they must
@@ -286,11 +316,15 @@ So the impression total is not defined as "sum the quantity column". It is defin
 **"sum where `unit = 'impressions'"**, and everything else is excluded *structurally* rather than by
 whoever writes the next consumer remembering to exclude it:
 
-- `impressions` - the only unit that may enter an impression total.
-- `sends` - solus eDM despatches. Carries clicks; never impressions.
-- `article_views` - paced against `booked_quantity`, never against a plan impression target.
-- `rate` - a publisher-reported rate (`metric` names which). **Never summed anywhere.**
-- anything else -> `UNKNOWN`, counted nowhere, WARNed by the job and rejected by the validator.
+- `content_newsletter` / `content_web` / `adv_newsletter` / `adv_display` -> **impressions**, the
+  only unit that may enter an impression total.
+- `solus_edm` -> **sends**. Carries clicks; never impressions.
+- `sponsored_article` -> **article_views**, paced against the booking, never against a plan
+  impression target.
+- publisher-reported **rates** ride alongside as their own rows and are **never summed anywhere**.
+- anything else -> `UNKNOWN`, counted nowhere, WARNed by the job and rejected by the validator. The
+  `ELSE` arm is deliberately loud: a new product type must be classified by a human, not absorbed
+  into impressions by a default.
 
 The payload reinforces it: each row's number is emitted in exactly ONE of `impressions` / `sends` /
 `article_views` / `rate_value`, each NULL (never 0) outside its own unit, and there is **no generic

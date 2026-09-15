@@ -2,16 +2,19 @@ r"""Validate the hand-keyed publisher-report seeds BEFORE they are loaded into B
 
 These two CSVs are the one part of the Schneider pipeline a human retypes every month, from a PDF
 or a publisher workbook, so they get the checks the rest of the estate gets from its upstream APIs.
-This runs OFFLINE against the committed CSVs (no BigQuery, no credentials) and is wired into both
-deploy scripts, so a monthly reload cannot get past a typo.
+This runs OFFLINE against the committed CSVs (no BigQuery, no credentials) and is wired into all
+three deploy scripts, so a monthly reload cannot get past a typo.
 
     .\.venv\Scripts\python.exe clients\client_schneider\validate_publisher_reports.py
 
-WHY HERE AND NOT ONLY IN SQL: sql/26_publisher_report_meta.sql re-asserts the plan join at query
-time and the export job WARNs on it, but that warning lands in a Cloud Run log an hour after the
-person who made the typo has walked away. This fails on their screen, before the load, and prints
-the per-publisher totals so they can be checked straight against the report that was just keyed.
-The two layers cover different moments deliberately; the SQL side stays the runtime safety net.
+r2 (2026-09-15): the fact file is the account team's own normalised export
+(data/aet_publisher_reports_normalized.csv) - wide measure columns, one row per publisher x product
+x placement x month, rates stated as PERCENTAGES. sql/25 maps it onto the model the tab renders.
+
+WHY HERE AND NOT ONLY IN SQL: sql/26 re-asserts the plan join at query time and the export job WARNs
+on it, but that warning lands in a Cloud Run log an hour after the person who made the typo has
+walked away. This fails on their screen, before the load, and prints the per-publisher totals so
+they can be checked straight against the report that was just keyed.
 
 EXIT CODE 1 on any error. Warnings print and do not block.
 """
@@ -22,25 +25,28 @@ from collections import Counter, defaultdict
 import pandas as pd
 
 DATA = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
-FACT = os.path.join(DATA, "publisher_reports.csv")
+FACT = os.path.join(DATA, "aet_publisher_reports_normalized.csv")
 META = os.path.join(DATA, "publisher_report_meta.csv")
 PLAN = os.path.join(DATA, "media_plan.csv")
 CMAP = os.path.join(DATA, "campaign_map.csv")
 
-# Closed vocabulary - see sql/25_publisher_delivery.sql. ONLY 'impressions' may enter an impression
-# total; 'sends' and 'article_views' are delivery in other units; 'rate' is never summed at all.
-UNITS = {"impressions", "sends", "article_views", "rate"}
-# not_live = booked but not yet running, so a meta row with no delivery rows is EXPECTED for it.
+# Closed vocabulary - see sql/25_publisher_delivery.sql. product_type is what decides which total a
+# row may enter; anything outside this list is counted in NO total.
+UNIT_OF = {
+    "content_newsletter": "impressions", "content_web": "impressions",
+    "adv_newsletter": "impressions", "adv_display": "impressions",
+    "solus_edm": "sends", "sponsored_article": "article_views",
+}
 STATUSES = {"complete", "in_progress", "not_live"}
 
-FACT_COLS = ["internal_campaign_id", "publisher", "period_label", "period_start", "period_end",
-             "placement_group", "placement", "unit", "metric", "quantity", "clicks",
-             "booked_quantity", "note"]
+FACT_COLS = ["report_month", "job_number", "publisher", "product_type", "placement_name",
+             "start_date", "end_date", "impressions", "clicks", "sends", "open_rate",
+             "viewability", "booked_views", "delivered_views"]
 META_COLS = ["seq", "internal_campaign_id", "publisher", "publisher_label", "plan_channel",
-             "report_source", "report_label", "report_job", "delivery_status", "status_note",
-             "internal_note"]
+             "report_source", "report_label", "report_job", "delivery_status",
+             "booked_article_views", "status_note", "internal_note"]
 
-errors, warnings = [], []
+errors, warnings, notes = [], [], []
 
 
 def err(m):
@@ -52,9 +58,8 @@ def warn(m):
 
 
 def read(path, cols, label, owned=True):
-    """`owned` = one of the two files this validator is responsible for; a reference file
-    (media_plan / campaign_map) is read for a couple of columns only, so an unlisted column
-    there is normal and must not be reported as a surprise."""
+    """`owned` = one of the two files this validator is responsible for; a reference file is read
+    for a couple of columns only, so an unlisted column there is normal."""
     if not os.path.exists(path):
         err("%s: missing file %s" % (label, path))
         return None
@@ -71,11 +76,8 @@ def read(path, cols, label, owned=True):
     return df
 
 
-def num(s, field, where, required=False, integer=True):
-    """Blank -> None. A non-numeric value is an error, never a silent NaN."""
+def num(s, field, where, integer=True):
     if s == "":
-        if required:
-            err("%s: %s is required and is blank" % (where, field))
         return None
     try:
         v = float(s)
@@ -87,20 +89,95 @@ def num(s, field, where, required=False, integer=True):
     return v
 
 
-def check_meta(meta, plan_lines, known_campaigns, has_plan, status_by_key):
-    seen_seq, meta_keys = Counter(), set()
+def check_fact(fact):
+    grain, keys = Counter(), set()
+    tot = defaultdict(lambda: defaultdict(float))
+    for i, r in enumerate(fact.itertuples(), start=2):
+        where = "aet_publisher_reports_normalized.csv line %d (%s / %s)" % (
+            i, r.publisher or "?", r.placement_name or "?")
+        if not r.publisher:
+            err("%s: publisher is required - it is the join key onto the meta file, and the export "
+                "carries no campaign column, so a row without it can resolve no campaign" % where)
+            continue
+        key = r.publisher.lower()
+        keys.add(key)
+        pt = r.product_type.lower()
+        if pt not in UNIT_OF:
+            err("%s: product_type %r is not one of %s. An unknown product type is counted in NO "
+                "total - classify it in sql/25 rather than letting the row disappear"
+                % (where, r.product_type, sorted(UNIT_OF)))
+            continue
+        unit = UNIT_OF[pt]
+
+        if not r.report_month:
+            err("%s: report_month is required" % where)
+        elif pd.isna(pd.to_datetime(r.report_month, errors="coerce", format="%Y-%m-%d")):
+            err("%s: report_month %r is not a YYYY-MM-DD date" % (where, r.report_month))
+        for f, v in (("start_date", r.start_date), ("end_date", r.end_date)):
+            if v and pd.isna(pd.to_datetime(v, errors="coerce", format="%Y-%m-%d")):
+                err("%s: %s %r is not a YYYY-MM-DD date" % (where, f, v))
+        if r.start_date and r.end_date and r.start_date > r.end_date:
+            err("%s: start_date %s is after end_date %s" % (where, r.start_date, r.end_date))
+
+        imp = num(r.impressions, "impressions", where)
+        clk = num(r.clicks, "clicks", where)
+        snd = num(r.sends, "sends", where)
+        bkd = num(r.booked_views, "booked_views", where)
+        dlv = num(r.delivered_views, "delivered_views", where)
+        # Rates are stated as PERCENTAGES in this export (54, 26.75) and divided by 100 in sql/25.
+        for f, v in (("open_rate", r.open_rate), ("viewability", r.viewability)):
+            x = num(v, f, where, integer=False)
+            if x is not None and not 0 < x <= 100:
+                err("%s: %s %s is out of range - this export states rates as PERCENTAGES, so 54%% "
+                    "is 54, not 0.54" % (where, f, v))
+            if x is not None and x <= 1:
+                warn("%s: %s is %s - suspiciously low for a percentage. If that is a fraction it "
+                     "will be divided by 100 again and render as %s%%" % (where, f, v, x / 100))
+
+        if unit == "sends" and snd is None:
+            err("%s: a solus_edm row must carry sends" % where)
+        if unit == "article_views" and dlv is None and bkd is None:
+            err("%s: a sponsored_article row must carry booked_views and/or delivered_views" % where)
+        if unit == "impressions" and imp is None and clk is None:
+            warn("%s: neither impressions nor clicks - the row contributes nothing" % where)
+        if unit != "sends" and snd is not None:
+            err("%s: sends on a %s row would be counted as eDM despatches" % (where, pt))
+        if unit != "article_views" and (bkd is not None or dlv is not None):
+            err("%s: booked/delivered views on a %s row are only rendered for sponsored_article"
+                % (where, pt))
+        if unit == "impressions" and imp is None and clk is not None:
+            notes.append("%s: clicks with no impressions - a shared send or a paired position. "
+                         "Counted, never dropped." % where)
+
+        tot[key]["impressions"] += imp or 0 if unit == "impressions" else 0
+        tot[key]["sends"] += snd or 0 if unit == "sends" else 0
+        tot[key]["article_views"] += dlv or 0 if unit == "article_views" else 0
+        tot[key]["booked"] += bkd or 0 if unit == "article_views" else 0
+        tot[key]["clicks"] += clk or 0
+        if unit == "article_views":
+            tot[key]["articles"] += 1
+
+        grain[(key, r.report_month, pt, r.placement_name, r.start_date, r.end_date)] += 1
+    for gk, c in grain.items():
+        if c > 1 and gk[2] != "adv_display":
+            warn("aet_publisher_reports_normalized.csv: %d rows share %s / %s / %s / %s - fine if "
+                 "the publisher really reported them separately, otherwise sum them"
+                 % (c, gk[0], gk[1], gk[2], gk[3] or "(no placement)"))
+    return keys, tot
+
+
+def check_meta(meta, plan_lines, known_campaigns, has_plan):
+    seen_seq, keys, status = Counter(), set(), {}
     for i, r in enumerate(meta.itertuples(), start=2):
         where = "publisher_report_meta.csv line %d (%s)" % (i, r.publisher or "?")
         if not r.internal_campaign_id or not r.publisher:
             err("%s: internal_campaign_id and publisher are both required" % where)
             continue
-        key = (r.internal_campaign_id, r.publisher.lower())
-        if key in meta_keys:
-            err("%s: duplicate meta row for %s / %s" % (where, key[0], key[1]))
-        meta_keys.add(key)
-        status_by_key[key] = (r.delivery_status or "").lower()
-        if r.publisher != r.publisher.lower() or " " in r.publisher:
-            err("%s: publisher must be a lowercase key with no spaces (got %r)" % (where, r.publisher))
+        key = r.publisher.lower()
+        if key in keys:
+            err("%s: duplicate meta row for %r" % (where, r.publisher))
+        keys.add(key)
+        status[key] = r.delivery_status.lower()
         if not r.publisher_label:
             err("%s: publisher_label is required - it is the card heading" % where)
         if known_campaigns and r.internal_campaign_id not in known_campaigns:
@@ -109,8 +186,6 @@ def check_meta(meta, plan_lines, known_campaigns, has_plan, status_by_key):
         if r.delivery_status and r.delivery_status.lower() not in STATUSES:
             err("%s: delivery_status %r is not one of %s"
                 % (where, r.delivery_status, sorted(STATUSES)))
-        # A BLANK plan_channel is a real statement ("no plan row"); a WRONG one is a broken join.
-        # The two must never be confusable, which is why only one of them is an error.
         if r.plan_channel:
             if has_plan and (r.internal_campaign_id, r.plan_channel.lower()) not in plan_lines:
                 err("%s: plan_channel %r matches no line in media_plan.csv for %s. Leave it BLANK "
@@ -118,86 +193,21 @@ def check_meta(meta, plan_lines, known_campaigns, has_plan, status_by_key):
                     % (where, r.plan_channel, r.internal_campaign_id))
         else:
             warn("%s: no plan_channel, so this publisher renders flagged 'missing plan row' with no "
-                 "pacing. Add a media-plan line and set plan_channel to pace it" % where)
-        num(r.seq, "seq", where, required=True)
+                 "pacing" % where)
+        num(r.seq, "seq", where)
+        if not r.seq:
+            err("%s: seq is required - it is the card order" % where)
+        num(r.booked_article_views, "booked_article_views", where)
         seen_seq[r.seq] += 1
-    for s, n in seen_seq.items():
-        if n > 1:
+    for s, c in seen_seq.items():
+        if c > 1:
             err("publisher_report_meta.csv: seq %s used %d times - card order would be arbitrary"
-                % (s, n))
-    return meta_keys
-
-
-def check_fact(fact):
-    grain, fact_keys = Counter(), set()
-    tot = defaultdict(lambda: defaultdict(float))
-    for i, r in enumerate(fact.itertuples(), start=2):
-        where = "publisher_reports.csv line %d (%s / %s)" % (
-            i, r.publisher or "?", r.period_label or "?")
-        if not r.internal_campaign_id or not r.publisher:
-            err("%s: internal_campaign_id and publisher are both required" % where)
-            continue
-        key = (r.internal_campaign_id, r.publisher.lower())
-        fact_keys.add(key)
-        unit = r.unit.lower()
-        if unit not in UNITS:
-            err("%s: unit %r is not one of %s. An unknown unit is counted in NO total - fix it "
-                "rather than letting the row disappear" % (where, r.unit, sorted(UNITS)))
-            continue
-        for f, v in (("period_start", r.period_start), ("period_end", r.period_end)):
-            if not v:
-                err("%s: %s is required" % (where, f))
-            elif pd.isna(pd.to_datetime(v, errors="coerce", format="%Y-%m-%d")):
-                err("%s: %s %r is not a YYYY-MM-DD date" % (where, f, v))
-        if r.period_start and r.period_end and r.period_start > r.period_end:
-            err("%s: period_start %s is after period_end %s" % (where, r.period_start, r.period_end))
-        if not r.period_label:
-            err("%s: period_label is required - it is what the card prints" % where)
-
-        if unit == "rate":
-            if not r.metric:
-                err("%s: a rate row must name its metric (e.g. newsletter_open_rate)" % where)
-            v = num(r.quantity, "quantity", where, required=True, integer=False)
-            if v is not None and not 0 < v <= 1:
-                err("%s: a rate must be a fraction between 0 and 1 (got %s). 54%% is 0.54, not 54"
-                    % (where, r.quantity))
-            for f, val in (("clicks", r.clicks), ("booked_quantity", r.booked_quantity)):
-                if val:
-                    err("%s: a rate row must not carry %s - rates are never summed or paced"
-                        % (where, f))
-        else:
-            if r.metric:
-                err("%s: metric is only for rate rows (got %r on a %s row)" % (where, r.metric, unit))
-            q = num(r.quantity, "quantity", where)   # blank is legal: "not separately reported"
-            c = num(r.clicks, "clicks", where)
-            b = num(r.booked_quantity, "booked_quantity", where)
-            if unit == "article_views" and b is None:
-                warn("%s: article_views with no booked_quantity - booked vs delivered cannot be "
-                     "shown for this article" % where)
-            if unit == "article_views" and q is None and b is not None:
-                print("note: %s: booked with nothing delivered yet - counted in booked, not in "
-                      "delivered." % where)
-            if unit != "article_views" and b is not None:
-                warn("%s: booked_quantity on a %s row is only rendered for article_views"
-                     % (where, unit))
-            tot[key][unit] += q or 0
-            tot[key]["clicks"] += c or 0
-            if unit == "article_views":
-                tot[key]["booked"] += b or 0
-
-        gk = (r.internal_campaign_id, r.publisher.lower(), r.period_label, r.placement_group,
-              r.placement, unit, r.metric)
-        grain[gk] += 1
-    for gk, n in grain.items():
-        if n > 1:
-            err("publisher_reports.csv: %d rows share the grain key %s / %s / %s / %s - the "
-                "publisher reported one line, so sum them into a single row rather than repeating "
-                "the key" % (n, gk[1], gk[2], gk[4] or "(no placement)", gk[5]))
-    return fact_keys, tot
+                % (s, c))
+    return keys, status
 
 
 def main():
-    fact = read(FACT, FACT_COLS, "publisher_reports.csv")
+    fact = read(FACT, FACT_COLS, "aet_publisher_reports_normalized.csv")
     meta = read(META, META_COLS, "publisher_report_meta.csv")
     plan = read(PLAN, ["internal_campaign_id", "channel"], "media_plan.csv", owned=False)
     cmap = read(CMAP, ["internal_campaign_id"], "campaign_map.csv", owned=False)
@@ -205,45 +215,47 @@ def main():
         report()
         return
 
-    known_campaigns = set(cmap["internal_campaign_id"]) if cmap is not None else set()
+    known = set(cmap["internal_campaign_id"]) if cmap is not None else set()
     plan_lines = set()
     if plan is not None:
         plan_lines = set((r.internal_campaign_id, r.channel.lower()) for r in plan.itertuples())
 
-    status_by_key = {}
-    meta_keys = check_meta(meta, plan_lines, known_campaigns, plan is not None, status_by_key)
     fact_keys, tot = check_fact(fact)
+    meta_keys, status = check_meta(meta, plan_lines, known, plan is not None)
 
-    # The two files must describe the same publishers, or a card loses its heading / its data.
+    # The export carries no campaign column, so a publisher with no meta row can resolve no campaign
+    # and renders nowhere at all. That is the one failure here that is completely silent on screen.
     for k in sorted(fact_keys - meta_keys):
-        err("publisher_report_meta.csv: no meta row for %r on %r, which has delivery rows. Without "
-            "one the card has no heading, source or plan match" % (k[1], k[0]))
+        err("publisher_report_meta.csv: no row for publisher %r, which HAS delivery rows. The "
+            "export carries no campaign column, so without a meta row its campaign cannot be "
+            "resolved and every one of its rows is dropped" % k)
     for k in sorted(meta_keys - fact_keys):
-        st = status_by_key.get(k, "")
-        if st == "not_live":
-            print("note: %r on %r is marked not_live - a plan line with no report yet, which is the "
-                  "point of that status. It renders on the plan table with no card." % (k[1], k[0]))
+        if status.get(k) == "not_live":
+            notes.append("%r is marked not_live - a plan line with no report yet, which is the "
+                         "point of that status. It renders on the plan table with no card." % k)
         else:
-            warn("publisher_report_meta.csv: %r on %r has a meta row but no delivery rows yet - it "
-                 "will not render a card until a report is keyed in. Set delivery_status=not_live if "
-                 "that is deliberate" % (k[1], k[0]))
+            warn("publisher_report_meta.csv: %r has a meta row but no delivery rows. Set "
+                 "delivery_status=not_live if that is deliberate" % k)
 
-    # Reconciliation print: check this against the report that was just keyed in.
     if tot:
         print("\nPer-publisher totals - check these against the publisher report:")
-        print("  %-18s %12s %8s %8s %9s %8s"
-              % ("publisher", "impressions", "clicks", "sends", "articles", "booked"))
+        print("  %-42s %12s %8s %8s %9s %8s %8s"
+              % ("publisher", "impressions", "clicks", "sends", "articles", "views", "booked"))
         for k in sorted(tot):
             t = tot[k]
-            print("  %-18s %12s %8s %8s %9s %8s"
-                  % (k[1], format(int(t["impressions"]), ","), format(int(t["clicks"]), ","),
-                     format(int(t["sends"]), ","), format(int(t["article_views"]), ","),
-                     format(int(t["booked"]), ",")))
-        print("  (impressions EXCLUDE solus sends and sponsored-article views by construction)")
+            print("  %-42s %12s %8s %8s %9s %8s %8s"
+                  % (k, format(int(t["impressions"]), ","), format(int(t["clicks"]), ","),
+                     format(int(t["sends"]), ","), int(t["articles"]),
+                     format(int(t["article_views"]), ","), format(int(t["booked"]), ",")))
+        print("  (impressions EXCLUDE solus sends and sponsored-article views by construction;")
+        print("   `booked` is what the PUBLISHED articles booked - the flight booking is")
+        print("   booked_article_views in publisher_report_meta.csv)")
     report()
 
 
 def report():
+    for m in notes:
+        print("note: %s" % m)
     for w in warnings:
         print("WARNING: %s" % w)
     for e in errors:

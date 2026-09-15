@@ -32,13 +32,14 @@ WITH meta AS (
   SELECT
     seq,
     TRIM(internal_campaign_id)                          AS campaign,
-    LOWER(TRIM(publisher))                              AS publisher,
+    TRIM(publisher)                                     AS publisher,
     NULLIF(TRIM(COALESCE(publisher_label, '')), '')     AS publisher_label,
     NULLIF(TRIM(COALESCE(plan_channel, '')), '')        AS plan_channel,
     NULLIF(TRIM(COALESCE(report_source, '')), '')       AS report_source,
     NULLIF(TRIM(COALESCE(report_label, '')), '')        AS report_label,
     NULLIF(TRIM(COALESCE(report_job, '')), '')          AS report_job,
     LOWER(NULLIF(TRIM(COALESCE(delivery_status, '')), '')) AS delivery_status,
+    booked_article_views,
     -- status_note is CLIENT-FACING and is rendered. internal_note is NOT: it is agency
      -- commentary (a publisher's figures to query, a plan line to add) that the export job
      -- prints and deliberately never puts in the payload, so it cannot reach a client screen.
@@ -64,12 +65,13 @@ SELECT
   COALESCE(m.campaign,  p.campaign)                           AS campaign,
   COALESCE(m.publisher, p.publisher)                          AS publisher,
   -- A publisher with no meta row still gets a legible name rather than vanishing.
-  COALESCE(m.publisher_label, INITCAP(REPLACE(COALESCE(m.publisher, p.publisher), '_', ' '))) AS publisher_label,
+  COALESCE(m.publisher_label, m.publisher, p.publisher)       AS publisher_label,
   m.plan_channel,
   m.report_source,
   m.report_label,
   m.report_job,
   COALESCE(m.delivery_status, 'complete')                     AS delivery_status,
+  m.booked_article_views,
   m.status_note,
   m.internal_note,
   COALESCE(p.n_rows, 0)                                       AS n_rows,
@@ -96,4 +98,4 @@ SELECT
                                                               AS campaign_known
 FROM meta m
 FULL OUTER JOIN present p
-  ON m.campaign = p.campaign AND m.publisher = p.publisher;
+  ON m.campaign = p.campaign AND LOWER(m.publisher) = LOWER(p.publisher);
