@@ -831,6 +831,30 @@ open. A MutationObserver re-appends the tab on rails that are REBUILT per render
   built-in Web Speech API (`webkitSpeechRecognition` — Chrome/Edge/Safari; the button hides itself
   where the API is missing, e.g. Firefox). Dictation is reviewable text — Send still submits.
 
+### The assistant reads the knowledge base for its client (`kb_bridge.py`, 2026-09-15, behind `KNOWLEDGE_RETRIEVAL=on`)
+The one bridge between the two AI surfaces, in one direction: the dashboard assistant reads the
+library's WORDS for ITS client; `/kb` still cannot see a dashboard, and the customer assistant does
+not come through here. **Two gates, both required**: the session may see this dashboard's staff
+widget (`_internal_allowed`) AND may open `/kb` (`_kb_allowed` - every admin + 100% Digital), so an
+outside agency sharing a dashboard, or an internal agency Ian has not admitted to `/kb`, gets no
+passages. `KNOWLEDGE_RETRIEVAL` defaults off; when off the prompt carries no LIBRARY block at all.
+- **Scope** = `kb_index.search(q, client=<key>)`: that client plus agency-wide, never another
+  client (`doc_ids_for_client`). Six passages; a dashboard turn already carries `data.json`.
+- **The query is shaped**: a short follow-up ("and for Q3?", "why?") is prefixed with the previous
+  question, because on its own it retrieves nothing useful.
+- **The prompt says what each source is for**: DATA is authoritative for live figures, LIBRARY for
+  what was agreed/planned/decided; when they disagree the model says which says what. A **verified
+  correction** is labelled in the context so the answer can say it follows a colleague's fix; when
+  meaning search was unavailable the context says WORDING ONLY (the `/kb` rule: a gap must never
+  read as absence).
+- **Citations are real**: `[n]` in the answer maps to a *Library sources* list under the reply -
+  title, folder, `verified` badge, the passage on click, and `↗` opening the document in `/kb`
+  (`/kb/?doc=<id>`, a deep link `kb.js` now honours after the explorer loads).
+- The **client profile** (`kb_memory.profile_block`: facts + confirmed campaign-name patterns) rides
+  in the same context. Every dashboard question is logged into `kb_activity` (kind `question`,
+  `source=dashboard`) so Observability counts it beside `/kb` questions.
+- A library failure degrades to the dashboard-only answer and is logged; it never blocks the turn.
+
 ## "How The Brain works" explainers (The Brain tab, 100% Digital portal, 2026-09-14)
 Three interactive walkthroughs of the Bidbrain Premium retrieval system render as cards under the
 work-in-progress card in **The Brain** tab: Part 1 *Documents to Vectors*, Part 2 *Inside the
@@ -1279,7 +1303,8 @@ bidbrain-platform/
     feedback.py                  feedback capture: save()/list_recent()/update_record()/load_blob() over the platform's GCS bucket
     feedback_ai.py               one Gemini call: transcribe the voice note + interpret feedback into summary + action items
     internal_notes.py            staff-only Internal Notes store (one JSON per client in the platform bucket)
-    internal_chat.py             staff-only Assistant: Gemini turn over live data.json + lineage digest, with note tools + visible thinking
+    internal_chat.py             staff-only Assistant: Gemini turn over live data.json + lineage digest (+ LIBRARY passages and the client profile when kb_bridge hands them over), with note tools + visible thinking
+    kb_bridge.py                 the dashboard assistant's read of the knowledge base: shaped query, client+agency scope, numbered context, sources (2026-09-15)
     kb_store.py                  knowledge base storage: docs / chunks / files / chats / feedback under kb/ in the platform bucket
     kb_chunk.py                  ~220-word passages packed on structure, 40-word overlap, and the ONE tokenizer
     kb_embed.py                  Vertex text-embedding-005 over stdlib urllib; RETRIEVAL_DOCUMENT vs RETRIEVAL_QUERY; fails soft and says so

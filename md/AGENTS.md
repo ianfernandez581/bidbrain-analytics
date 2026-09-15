@@ -93,7 +93,9 @@ dates, "verified on") lives there too, never here.**
   panel whose every answer cites its passages, a feedback loop that turns a buyer's correction into
   a trusted document outranking what it corrects, and a staff-only Observability page. Staff and
   100% Digital only, never a client and never another agency. It holds the WORDS; the per-dashboard
-  Internal Assistant above holds the NUMBERS, and neither reads the other's source. Everything lives
+  Internal Assistant above holds the NUMBERS. Since 2026-09-15 the dashboard assistant may READ
+  the library for its own client (`kb_bridge.py`, behind `KNOWLEDGE_RETRIEVAL=on`, only for a
+  session that may also open `/kb`) and cites it as [n]; `/kb` still never sees a dashboard. Everything lives
   under `kb/` in the platform bucket - no database, no vector store. **The assistant can also KEEP
   IT CURRENT**: it proposes an append or a new document, a person approves a card, and it then runs
   as THEIR edit through the ordinary route, stamped with the date, their name and the fact the AI

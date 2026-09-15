@@ -2633,6 +2633,13 @@ _INTERNAL_WIDGET = (
     "var h='';if(j.thinking)h+=think(j.thinking);h+=md(j.answer);"
     "(j.actions||[]).forEach(function(a){h+='<div style=\"margin-top:7px;font:600 11px/1 system-ui,sans-serif;"
     "color:#7dd3a0\">\\u270e '+esc(a)+'</div>';});"
+    "if(j.sources&&j.sources.length){h+='<div style=\"margin-top:8px;padding-top:6px;border-top:1px dashed rgba(255,255,255,.12)\">'"
+    "+'<div style=\"font:700 10px/1 system-ui,sans-serif;letter-spacing:.09em;color:#9ca3af;margin-bottom:5px\">LIBRARY SOURCES</div>';"
+    "j.sources.forEach(function(s){h+='<details style=\"margin:3px 0;font-size:12px\"><summary style=\"cursor:pointer;color:#cbd5e1\">'"
+    "+'<b style=\"color:#e8b955\">['+s.n+']</b> '+esc(s.title||'untitled')+(s.folder?' <span style=\"color:#6b7280\">· '+esc(s.folder)+'</span>':'')"
+    "+(s.trust==='verified'?' <span style=\"color:#7dd3a0;font-weight:700\">verified</span>':'')"
+    "+' <a href=\"/kb/?doc='+encodeURIComponent(s.doc_id||'')+'\" target=\"_blank\" style=\"color:#9ca3af;text-decoration:none\" title=\"Open in the knowledge base\">\\u2197</a></summary>'"
+    "+'<div style=\"margin:4px 0 0 14px;color:#9ca3af;white-space:pre-wrap\">'+esc(s.snippet||'')+'</div></details>';});h+='</div>';}"
     "p.innerHTML=h;clog.scrollTop=clog.scrollHeight;"
     "hist.push({role:'assistant',content:j.answer});"
     "if(j.notes_changed)loadNotes();});}"
@@ -2845,6 +2852,25 @@ def _upstream_data_json(client):
     return r.text
 
 
+# The dashboard assistant reads the knowledge base ONLY when both gates pass: this session may see
+# this dashboard's staff widget (_internal_allowed) AND may open /kb (_kb_allowed - Ian's rule: every
+# admin + 100% Digital). Behind KNOWLEDGE_RETRIEVAL=on so it ships dark. kb_bridge.py has the why.
+KNOWLEDGE_RETRIEVAL = os.environ.get("KNOWLEDGE_RETRIEVAL", "off").strip().lower() == "on"
+
+
+def _library_for_chat(client, msgs):
+    """-> (retrieved | None, profile str). None means the prompt carries no LIBRARY block at all."""
+    if not (KNOWLEDGE_RETRIEVAL and _kb_allowed()):
+        return None, ""
+    try:
+        import kb_bridge
+        import kb_memory
+        return kb_bridge.retrieve(client, msgs, actor=_kb_actor()), kb_memory.profile_block(client, "internal")
+    except Exception:                        # noqa: BLE001 - the library is additive, never blocking
+        app.logger.exception("internal chat: library lookup failed")
+        return None, ""
+
+
 @app.post("/internal-chat/<client>")
 def internal_chat_turn(client):
     if not _internal_allowed(client):
@@ -2859,8 +2885,9 @@ def internal_chat_turn(client):
     except Exception:                               # answer from lineage/notes alone rather than 500
         app.logger.exception("internal chat: data.json fetch failed")
         data_txt = "(live data.json unavailable right now)"
+    retrieved, profile = _library_for_chat(client, msgs)
     try:
-        res = internal_chat.chat(client, msgs, data_txt, author=_actor())
+        res = internal_chat.chat(client, msgs, data_txt, author=_actor(), retrieved=retrieved, profile=profile)
     except Exception:
         app.logger.exception("internal chat turn failed")
         return jsonify(ok=False, error="assistant error - please try again"), 502
