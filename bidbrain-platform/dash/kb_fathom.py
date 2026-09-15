@@ -174,10 +174,11 @@ def already_indexed(meeting):
     return doc.get("client") or AGENCY
 
 
-def index_meeting(meeting, client_key, assigned_by, evidence=None, actor=""):
+def index_meeting(meeting, client_key, assigned_by, evidence=None, actor="", skip_learning=None):
     """File one meeting as a kb document under `client_key` ("" = agency-wide), keep the raw JSON as
     its file, LEARN from it when the assignment was deterministic or human, and clear the queue
-    entry. Returns the document meta (kb_store.doc_meta + chunks)."""
+    entry. `skip_learning` = the items the person unticked on the card (see kb_memory.teaches).
+    Returns the document meta (kb_store.doc_meta + chunks)."""
     rid = recording_id(meeting)
     ck = kb_store.client_key(client_key)
     body = meeting_body(meeting)
@@ -202,7 +203,8 @@ def index_meeting(meeting, client_key, assigned_by, evidence=None, actor=""):
         try:
             kb_memory.learn(ck, meeting, doc["id"],
                             patterns=[e.split("campaign ", 1)[1].split('"')[1] for e in (evidence or [])
-                                      if e.startswith('campaign "')])
+                                      if e.startswith('campaign "')],
+                            skip=skip_learning)
         except Exception:                    # noqa: BLE001 - memory mirrors; the document is filed
             log.exception("fathom: memory.learn failed for %s", rid)
     drop_unassigned(rid)
@@ -226,7 +228,8 @@ def store_unassigned(meeting, proposal=None):
 
 
 def list_unassigned():
-    """-> [{recording_id, title, created_at, duration_min, invitees[], proposal{}}], newest first."""
+    """-> [{recording_id, title, created_at, duration_min, invitees[], summary, proposal{},
+    will_learn{people, domains, title}}], newest first."""
     prefix = f"{kb_store.PREFIX}/{_UNASSIGNED}/"
     seen = {}
     for blob in kb_store._storage().list_blobs(kb_store.bucket_name(), prefix=prefix):
@@ -251,7 +254,8 @@ def list_unassigned():
         out.append({"recording_id": rid, "title": m.get("title") or m.get("meeting_title") or "(untitled)",
                     "created_at": m.get("created_at") or m.get("recording_start_time"),
                     "duration_min": _duration_min(m), "invitees": invitees(m),
-                    "summary": str(m.get("default_summary") or "")[:600], "proposal": prop})
+                    "summary": str(m.get("default_summary") or "")[:600], "proposal": prop,
+                    "will_learn": kb_memory.teaches(m)})
     out.sort(key=lambda x: x.get("created_at") or "", reverse=True)
     return out
 

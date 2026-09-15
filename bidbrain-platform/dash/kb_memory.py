@@ -118,19 +118,43 @@ def _bump(section, key, evidence):
 
 # --- learn / edit --------------------------------------------------------------------------------
 
-def learn(client_key, meeting, evidence, patterns=None):
+def teaches(meeting):
+    """What `learn` WOULD record for this meeting - shown on the queue card before the click so the
+    person can untick anything that should not be remembered (a guest who was only there once, a
+    one-off title). -> {"people": [emails], "domains": [domains], "title": normalised title or ""}."""
+    people, domains = [], []
+    for inv in meeting.get("calendar_invitees") or []:
+        email = (inv.get("email") or "").strip().lower()
+        if not email or not inv.get("is_external", True):
+            continue
+        dom = (inv.get("email_domain") or email.rsplit("@", 1)[-1]).lower()
+        if email not in people:
+            people.append(email)
+        if dom not in domains:
+            domains.append(dom)
+    return {"people": people, "domains": domains,
+            "title": norm_title(meeting.get("title") or meeting.get("meeting_title"))}
+
+
+def learn(client_key, meeting, evidence, patterns=None, skip=None):
     """Record what a CONFIRMED assignment teaches: every external invitee -> people (and their
     domain -> domains), the normalised title -> titles, campaign tokens the evidence bundle matched
-    -> patterns. `evidence` is the document id. Returns the saved memory."""
+    -> patterns. `evidence` is the document id. `skip` = items (emails, domains, the normalised
+    title) the person unticked on the card; they are not recorded. Returns the saved memory."""
+    skip = {str(s).strip().lower() for s in (skip or []) if str(s).strip()}
     doc = load(client_key)
     for inv in meeting.get("calendar_invitees") or []:
         email = (inv.get("email") or "").strip().lower()
         if not email or not inv.get("is_external", True):
             continue
-        _bump(doc["people"], email, evidence)
         dom = (inv.get("email_domain") or email.rsplit("@", 1)[-1]).lower()
-        _bump(doc["domains"], dom, evidence)
-    _bump(doc["titles"], norm_title(meeting.get("title") or meeting.get("meeting_title")), evidence)
+        if email not in skip:
+            _bump(doc["people"], email, evidence)
+        if dom not in skip:
+            _bump(doc["domains"], dom, evidence)
+    title = norm_title(meeting.get("title") or meeting.get("meeting_title"))
+    if title and title not in skip:
+        _bump(doc["titles"], title, evidence)
     for p in patterns or []:
         _bump(doc["patterns"], str(p).strip(), evidence)
     return save(client_key, doc)

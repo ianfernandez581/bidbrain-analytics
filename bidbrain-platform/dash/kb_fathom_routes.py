@@ -259,10 +259,12 @@ def unassigned():
 
 @bp.post("/kb/api/fathom/assign")
 def assign():
-    """Body: {recording_id, client_key}. client_key = a registry key, "" (agency-wide) or "ignore"."""
+    """Body: {recording_id, client_key, skip?}. client_key = a registry key, "" (agency-wide) or
+    "ignore". `skip` = the will_learn items the person unticked (emails, domains, the title)."""
     d = request.get_json(silent=True) or {}
     rid = str(d.get("recording_id") or "").strip()
     raw = d.get("client_key")
+    skip = [str(s) for s in (d.get("skip") or []) if isinstance(s, (str, int))][:50]
     g = _guard_write(f"fathom assign {rid}")
     if g:
         return g
@@ -280,7 +282,8 @@ def assign():
         log.info("fathom %s ignored by %s", rid, _actor())
         return jsonify(ok=True, ignored=True)
     try:
-        meta = kb_fathom.index_meeting(meeting, ck, "human", evidence=[f"assigned by {_actor()}"], actor=_actor())
+        meta = kb_fathom.index_meeting(meeting, ck, "human", evidence=[f"assigned by {_actor()}"], actor=_actor(),
+                                       skip_learning=skip)
     except Exception:                        # noqa: BLE001
         log.exception("fathom assign failed")
         return jsonify(ok=False, error="Could not file the meeting - please try again."), 502

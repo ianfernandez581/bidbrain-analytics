@@ -1210,6 +1210,12 @@ over `{webhook-id}.{webhook-timestamp}.{body}`, secret `whsec_<base64>`, header 
   for staff) for a prompt; `client_safe()` is facts ONLY - people and domains never leave.
 - **The queue is not the library**: `<PREFIX>/fathom/unassigned/<rid>/{meeting,proposal}.json`
   is never indexed, so an unplaced meeting is never retrievable. Assign / Ignore on the page.
+- **The card says what Assign will teach** (`will_learn` on each queue item = `kb_memory.teaches`):
+  "Will remember: priya@cloudflare.com · cloudflare.com · 'cloudflare weekly'", each with a tick
+  box. Unticked items travel as `skip` on `POST /kb/api/fathom/assign` and `learn(skip=...)` leaves
+  them out; the meeting is filed either way. Picking a client other than the proposal renames the
+  button "Assign to <client>" so an override is visible before the click; assigning removes only
+  that card (no queue rebuild, so edits on other cards survive).
 - **🔴 The webhook REPLIES FIRST, then classifies** (`kb_fathom_routes.accept`, 2026-09-15). Fathom
   (Svix-style) retries an endpoint that does not answer within seconds, and the evidence rung reads
   every live dashboard's `data.json` - measured at over two minutes for 18 dashboards on a cold

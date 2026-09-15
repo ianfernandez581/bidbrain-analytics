@@ -387,6 +387,24 @@ class Routes(unittest.TestCase):
         mem = self.c.get("/kb/api/fathom/memory/cloudflare").get_json()["memory"]
         self.assertIn("priya@cloudflare.com", mem["people"])
 
+    def test_queue_says_what_assign_will_teach_and_unticked_items_are_not_learned(self):
+        """The card shows 'Will remember: ...' with tick boxes (2026-09-15 polish). Unticking sends
+        the item in `skip`; the meeting is still filed, the item is simply not recorded."""
+        self._as("admin", "charles@100.digital")
+        with mock.patch.dict(os.environ, {"GEMINI_API_KEY": ""}):
+            self.fs.write_json("fathom/unassigned/7781/meeting.json", MEETING)
+            item = self.c.get("/kb/api/fathom/unassigned").get_json()["items"][0]
+            self.assertEqual(item["will_learn"]["people"], ["priya@cloudflare.com"])
+            self.assertEqual(item["will_learn"]["domains"], ["cloudflare.com"])
+            self.assertEqual(item["will_learn"]["title"], "cloudflare weekly")
+            r = self.c.post("/kb/api/fathom/assign", json={"recording_id": "7781", "client_key": "cloudflare",
+                                                           "skip": ["priya@cloudflare.com", "cloudflare weekly"]})
+        self.assertEqual(r.status_code, 200, r.get_data(as_text=True))
+        mem = self.c.get("/kb/api/fathom/memory/cloudflare").get_json()["memory"]
+        self.assertNotIn("priya@cloudflare.com", mem["people"])        # unticked
+        self.assertNotIn("cloudflare weekly", mem["titles"])           # unticked
+        self.assertIn("cloudflare.com", mem["domains"])                # still ticked -> learned
+
     def test_memory_edits(self):
         self._as("admin", "charles@100.digital")
         r = self.c.post("/kb/api/fathom/memory/cloudflare", json={"domains": ["cloudflare.com", "bad domain"]})
