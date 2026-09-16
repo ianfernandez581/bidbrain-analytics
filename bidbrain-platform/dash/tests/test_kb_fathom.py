@@ -90,6 +90,25 @@ REAL_SHAPE = dict(MEETING, recording_id=7782, title="Daily Dev Standup",
 
 
 class RealFathomShape(unittest.TestCase):
+    def test_summary_links_are_stripped_and_one_link_kept(self):
+        m = dict(REAL_SHAPE, share_url="https://fathom.video/share/abc",
+                 default_summary={"template_name": "Enhanced", "markdown_formatted":
+                                  "## Key Takeaways\n\n  - [**Reports first:** replicate the UI.](https://fathom.video/share/abc?t=394)"})
+        body = kb_fathom.meeting_body(m)
+        self.assertIn("- **Reports first:** replicate the UI.", body)
+        self.assertNotIn("?t=394", body)                       # the per-line link is gone
+        self.assertEqual(body.count("https://fathom.video/share/abc"), 1)   # ... one link stays, at the top
+
+    def test_transcript_merges_consecutive_lines_of_one_speaker(self):
+        m = dict(REAL_SHAPE, transcript=[
+            {"speaker": {"display_name": "Charles"}, "text": "Yan.", "timestamp": "00:00:07"},
+            {"speaker": {"display_name": "Charles"}, "text": "Yan, yan.", "timestamp": "00:00:08"},
+            {"speaker": {"display_name": "Juan"}, "text": "Depende.", "timestamp": "00:00:24"},
+            {"speaker": {"display_name": "Charles"}, "text": "Sige.", "timestamp": "00:00:30"}])
+        lines, cut = kb_fathom.transcript_turns(m)
+        self.assertEqual(lines, ["[00:00:07] Charles: Yan. Yan, yan.", "[00:00:24] Juan: Depende.", "[00:00:30] Charles: Sige."])
+        self.assertFalse(cut)
+
     def test_object_summary_is_read_not_stringified(self):
         body = kb_fathom.meeting_body(REAL_SHAPE)
         self.assertIn("Shipped the Meetings page.", body)
@@ -121,7 +140,7 @@ def gemini_reply(client_key, confidence, why="named the client"):
 class Document(unittest.TestCase):
     def test_body_is_summary_first_then_timestamped_turns(self):
         b = kb_fathom.meeting_body(MEETING)
-        self.assertTrue(b.startswith("## Summary\nAgreed to hold LinkedIn"))
+        self.assertTrue(b.startswith("## Summary\nOpen in Fathom: https://fathom.video/calls/7781\n\nAgreed to hold LinkedIn"), b[:120])
         self.assertIn("## Transcript\n[00:00:04] Priya: CTR dropped", b)
         self.assertLess(b.index("## Summary"), b.index("## Transcript"))
 

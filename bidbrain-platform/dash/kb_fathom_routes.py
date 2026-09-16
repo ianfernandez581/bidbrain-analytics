@@ -320,6 +320,26 @@ def assign():
     return jsonify(ok=True, doc=meta)
 
 
+@bp.post("/kb/api/fathom/rebuild")
+def rebuild():
+    """Body: {recording_id}. Re-derives a filed meeting's text from its raw file (maintenance)."""
+    d = request.get_json(silent=True) or {}
+    rid = str(d.get("recording_id") or "").strip()
+    g = _guard_write(f"fathom rebuild {rid}")
+    if g:
+        return g
+    if not rid:
+        return jsonify(ok=False, error="recording_id is required."), 400
+    try:
+        meta = kb_fathom.rebuild_document(rid)
+    except Exception:                        # noqa: BLE001
+        log.exception("fathom rebuild failed")
+        return jsonify(ok=False, error="Could not rebuild."), 502
+    if meta is None:
+        return jsonify(ok=False, error="No filed meeting with that id."), 404
+    return jsonify(ok=True, doc=meta)
+
+
 @bp.get("/kb/api/fathom/memory/<client>")
 def memory_get(client):
     d = _deny()

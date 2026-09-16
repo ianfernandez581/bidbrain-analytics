@@ -132,14 +132,21 @@ def summary_text(meeting):
     return str(s or "").strip()
 
 
-def meeting_body(meeting, max_transcript_chars=MAX_TRANSCRIPT_CHARS):
-    """Summary first (outcomes), then the transcript as `[HH:MM:SS] Speaker: text` lines. A cut is
-    declared in the text (the kb_extract rule)."""
-    parts = []
-    summary = summary_text(meeting)
-    if summary:
-        parts.append("## Summary\n" + summary)
-    lines, used, cut = [], 0, False
+_MD_LINK = re.compile(r"\[([^\]]*)\]\((https?://[^)\s]+)\)")
+
+
+def clean_summary(text):
+    """Fathom wraps EVERY summary line in a link back to the recording at that second. Good in Fathom,
+    noise in a document (and in every chunk the search sees). Keep the words, drop the links; the
+    document carries one 'Open in Fathom' link instead."""
+    return _MD_LINK.sub(r"\1", text or "").strip()
+
+
+def transcript_turns(meeting, max_chars=MAX_TRANSCRIPT_CHARS):
+    """Fathom emits one line per utterance ('Yan.' / 'Yan, yan.' each with its own timestamp).
+    Merge consecutive lines by the same speaker into one turn, stamped with the turn's first time.
+    -> (lines, cut)."""
+    turns, cut = [], False
     for it in meeting.get("transcript") or []:
         text = (it.get("text") or "").strip()
         if not text:
@@ -147,12 +154,31 @@ def meeting_body(meeting, max_transcript_chars=MAX_TRANSCRIPT_CHARS):
         sp = it.get("speaker") or {}
         name = (sp.get("display_name") or "").strip() if isinstance(sp, dict) else str(sp)
         ts = (it.get("timestamp") or "").strip()
-        line = (f"[{ts}] " if ts else "") + (f"{name}: {text}" if name else text)
-        if used + len(line) > max_transcript_chars:
+        if turns and turns[-1][1] == name:
+            turns[-1][2].append(text)
+        else:
+            turns.append([ts, name, [text]])
+    lines, used = [], 0
+    for ts, name, texts in turns:
+        line = (f"[{ts}] " if ts else "") + (f"{name}: " if name else "") + " ".join(texts)
+        if used + len(line) > max_chars:
             cut = True
             break
         lines.append(line)
         used += len(line) + 1
+    return lines, cut
+
+
+def meeting_body(meeting, max_transcript_chars=MAX_TRANSCRIPT_CHARS):
+    """Summary first (outcomes, plain text, one link to the recording), then the transcript as one
+    `[HH:MM:SS] Speaker: ...` line per speaker TURN. A cut is declared in the text (the kb_extract
+    rule)."""
+    parts = []
+    summary = clean_summary(summary_text(meeting))
+    link = meeting.get("share_url") or meeting.get("url") or ""
+    if summary:
+        parts.append("## Summary\n" + (f"Open in Fathom: {link}\n\n" if link else "") + summary)
+    lines, cut = transcript_turns(meeting, max_transcript_chars)
     if lines:
         parts.append("## Transcript\n" + "\n".join(lines))
     if cut:
@@ -222,6 +248,26 @@ def index_meeting(meeting, client_key, assigned_by, evidence=None, actor="", ski
     meta = kb_store.doc_meta(doc)
     meta.update(chunks=rep.get("chunks", 0), semantic=rep.get("semantic", False),
                 assigned_by=assigned_by, recording_id=rid)
+    return meta
+
+
+def rebuild_document(rid):
+    """Re-derive a filed meeting's TEXT from the raw meeting.json kept as its file, keeping id,
+    client, folder and every other header. For documents filed before a body-format change (the
+    first real sync filed one with the summary's raw object in it). -> doc meta, or None."""
+    did = doc_id({"recording_id": rid})
+    doc = kb_store.read_doc(did)
+    if not doc:
+        return None
+    data, _ct = kb_store.read_file(did, "meeting.json")        # -> (bytes, content_type) or (None, None)
+    if not data:
+        return None
+    meeting = json.loads(data.decode("utf-8") if isinstance(data, bytes) else data)
+    doc["body"] = meeting_body(meeting)
+    doc["title"] = meeting_title(meeting)
+    rep = kb_index.reindex_document(doc)
+    meta = kb_store.doc_meta(doc)
+    meta.update(chunks=rep.get("chunks", 0), semantic=rep.get("semantic", False), recording_id=str(rid))
     return meta
 
 
