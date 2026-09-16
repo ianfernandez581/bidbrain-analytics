@@ -239,6 +239,29 @@ def test_create_read_move_search_and_delete(client):
     assert client.delete("/kb/docs/%s" % doc["id"]).status_code == 404
 
 
+def test_the_root_lists_only_what_sits_directly_in_it(client):
+    """🔴 The top of a scope is a FOLDER like any other. An empty `folder` used to mean "no
+    filter at all", so a document filed in Media plans was listed there AND at the root - the same
+    file in two places, which reads as filing gone wrong rather than as a listing bug. `deep=1` is
+    what the flat views (a search, the Archived shelf) ask for, and it still sees everything."""
+    _staff(client)
+    filed = client.post("/kb/docs", json={"title": "Filed plan", "body": "Starts in July.",
+                                          "folder": "Media plans"}).get_json()["doc"]
+    loose = client.post("/kb/docs", json={"title": "Loose note",
+                                          "body": "Nobody filed this one."}).get_json()["doc"]
+
+    ids = [d["id"] for d in client.get("/kb/docs").get_json()["docs"]]
+    assert loose["id"] in ids and filed["id"] not in ids
+    # '/' is the same question the root now answers, so the two may not disagree.
+    assert [d["id"] for d in client.get("/kb/docs?folder=%2F").get_json()["docs"]] == ids
+
+    deep = [d["id"] for d in client.get("/kb/docs?deep=1").get_json()["docs"]]
+    assert filed["id"] in deep and loose["id"] in deep
+
+    for d in (filed, loose):
+        client.delete("/kb/docs/%s" % d["id"])
+
+
 def test_edit_writes_a_revision_and_a_stale_generation_is_refused(client):
     _staff(client)
     doc = client.post("/kb/docs", json={"title": "Flight dates", "body": "Starts 1 July.",

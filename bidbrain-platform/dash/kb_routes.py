@@ -280,6 +280,16 @@ def list_docs():
             norm = kb_store.normalize_folder(folder)
             if not (f == norm or (deep and f.startswith(norm + "/"))):
                 continue
+        elif not deep and f:
+            # 🔴 THE TOP OF A SCOPE IS A FOLDER LIKE ANY OTHER: it lists what sits DIRECTLY
+            # in it. An empty `folder` used to mean "no folder filter at all", so a document filed
+            # in Media plans was listed BOTH there and at the client's root - the same file in two
+            # places, which reads as a filing mistake rather than a listing one, and left every
+            # folder row looking like it had failed to collect anything. Every folder below shows
+            # only its own direct children, so the root has to as well.
+            # `deep` is the exception and stays library-wide: it is what a search and the Archived
+            # view are, and neither draws folder rows to be consistent with.
+            continue
         if q and q not in (meta.get("title") or "").lower() \
                 and q not in (meta.get("filename") or "").lower():
             continue
