@@ -181,6 +181,56 @@ summing to the headline.
 **Deploy order is job THEN dash.** The live payload carries no `accepted_count` / `offer_type`
 until the job ships, so a dash-first deploy renders every figure as zero.
 
+### The headline rate is now enriched-over-AVAILABLE (2026-09-16, Jade)
+
+**The denominator changed, and the benchmark card was retired into the headline.** Client: *"the
+enrichment rate (18.4%) is calculated using the existing enriched leads divided by the total amount
+of leads, which presents as a really low number. However, our media plan has outlined that only
+leads who filled out the 4 question pulse survey OR the 3 question qualification survey will be
+enriched ... we'd like for the enrichment rate to represent the % of pulse survey + qualification
+survey leads we have received that have been enriched."*
+
+So every RATE on the tab - headline, weekly, per market - is now `enriched / available to enrich`,
+where available = accepted **Pulse Survey + Qualification Questions** leads. **18.4% -> 80.9%**
+(292 of 361 at 2026-09-16). Two new accessors, `enrAvail` / `enrEnrAvail`, mirror the existing
+`enrEnrScoped` and are the single lever; `enrLeads` / `enrEnrScoped` stay the FULL accepted
+population.
+
+**The KPI band prints BOTH populations, in the order the client's own sentence puts them** -
+`Accepted leads 1,868` (context, never a denominator) then `Available to enrich 361`, `Enriched
+292`, `Enrichment rate 80.9%`. Two totals on one screen are normally the thing this repo warns
+about; they are safe here only because each is LABELLED as its own population and only one is ever
+divided by. **The by-offer table is the bridge** and is the one panel still on the full population:
+its total row is its own sum (`All offers 1,868 / 343 / 18.4%`), NOT the KPI band's, so the figure
+that ties this tab to Content Syndication is never off screen, and the two rows the headline is
+drawn on carry an `enriched` pill.
+
+**The benchmark card is GONE, not hidden.** It was the staff-only preview of exactly this figure,
+so once the headline moved it would have printed the same three numbers twice. Both of its rules
+survive in the code above it: the available count sits beside its own numerator, and a week with
+nothing available is DROPPED rather than drawn as `0 / 0 / -`. **The client instruction that kept it
+internal ("keep the target hidden in the client's view for now", 2026-09-10) was superseded by this
+request; the WORDING rule was not** - this is still never called a target, and there is still no
+shortfall figure.
+
+**A week whose leads are all still UNREVIEWED sums to zero and must be dropped.** Leads land in
+Monday batches and acceptance lags: at 2026-09-16 the 15 Sep batch was 118 delivered / **0**
+accepted, so the newest week bucketed at `0 / 0 / -` and drew as a week enrichment had failed in.
+`weeks` is filtered on `leads > 0`. This is the normal state of the current week, not an edge case.
+
+**VRSM is still outside the rate** (466 accepted / 51 enriched) and sits in the offer table only,
+because its two lead types cannot be separated - see the CQ-tag note below. Transmission's own
+denominator of 196 for it is still unreproducible; Jade has asked Nabeel to supply the split.
+
+**The `NA` sentinel is ambiguous and must NOT become part of the denominator** (this closes the
+OPEN question in `sql/20`'s header, in the conservative direction). If `NA` meant "submitted, no
+match found", then Precision MQL is being enriched - it carries **990 accepted NA leads** - which
+the client states it is not. So on that offer `NA` is simply the default for a lead outside the
+programme. But Pulse Survey and Qualification Questions carry 62 accepted NAs between them, which
+probably ARE genuine no-matches. Same value, two meanings, no way to tell them apart in the feed:
+keep counting NA as not enriched. (Dashes remain VRSM-concentrated - 306 of 333 accepted - and
+still mean "never submitted".)
+
 ### Enrichment is only RUN on two offers, and the reconciliation to Transmission's own report (2026-09-10)
 
 **Precision MQL is not enriched, and its 36 enriched leads are a batch.** Client (Jade): *"Precision

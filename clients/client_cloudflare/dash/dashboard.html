@@ -1370,39 +1370,18 @@
     <div class="panel hidden" id="panel-enriched">
       <div class="qoq-note">
         <b>Weekly enriched leads</b> - Content Syndication leads that came through with an extra
-        phone number on top of the one every lead already has. Counted on <b>accepted</b> leads
-        across every Core DG campaign, so the totals here match the Content Syndication tab. The
-        date picker above scopes the whole tab.
-        <br><span style="color:var(--cf-mute)">Only <b>pulse survey</b> and <b>qualification
-        questions</b> leads get enriched, so the overall rate sits below those two. Precision MQL
-        reads zero. Enrichment started <b id="enrFirst">-</b>, and earlier weeks show as 0% rather
-        than being hidden.</span>
+        phone number on top of the one every lead already has. Enrichment is only run on
+        <b>pulse survey</b> and <b>qualification questions</b> leads, so the rate is those leads
+        that enriched, out of those we received. Counted on <b>accepted</b> leads, bucketed by
+        lead date. The date picker above scopes the whole tab.
+        <br><span style="color:var(--cf-mute)">The first figure below is every Core DG lead, for
+        context, and is not what the rate is divided by. Not every lead can be matched, so this is
+        a share of what was available to enrich and not a target. Enrichment started
+        <b id="enrFirst">-</b>. VRSM runs both lead types through one campaign, so it sits in the
+        offer table below rather than in the rate.</span>
       </div>
 
       <div class="kpis" id="enrKpis" style="grid-template-columns:repeat(4,1fr)"></div>
-
-      <!-- BENCHMARK (2026-09-10, client request via Jade: "for the target would be ALL leads
-           with pulse survey and qualification questions ... so there's a benchmark"). Every
-           accepted lead on those offers is expected to carry an enriched number, so the target
-           IS that count. It sits beside its OWN numerator, not under the headline: the headline
-           counts every campaign, and comparing that to a two-offer target reads as ahead of
-           benchmark while those offers are really 69 leads short. Hides itself when the
-           selection holds none of the target offers. The offer set is ENR_TARGET_OFFERS - one
-           array, because whether VRSM's Lead Magnet belongs in it is still open. -->
-      <div class="card hidden" id="enrBenchCard" style="margin-top:var(--gap-lg)">
-        <div class="card-head">
-          <div><h3>Enriched vs available to enrich <span class="pill" style="font-size:10px">internal</span></h3>
-          <div class="hint">Accepted <b id="enrBenchOffers">-</b> leads are the ones enrichment is
-            run on, so that count is what was <b>available</b> to enrich. Not every lead can be
-            matched, so this is a share of what was available and <b>not a target</b>. Scoped by
-            the date range, campaign and market selections above.
-            <br><b>Not shown in the client view</b> (client request, 2026-09-10): it covers
-            Roverpath and Final Funnel only. VRSM runs both lead types through one campaign, and
-            the CQ tag on the campaign name identifies about 142 of its ~196 survey leads, so
-            folding it in would still understate what was available.</div></div>
-        </div>
-        <div id="enrBenchVals"></div>
-      </div>
 
       <!-- BY OFFER TYPE (2026-09-10). The reason the blended rate is what it is: moving the tab
            onto every campaign took it from 41% to 20%, and without this split that reads as
@@ -1412,8 +1391,9 @@
       <div class="card" id="enrOfferCard" style="margin-top:var(--gap-lg)">
         <div class="card-head">
           <div><h3>By offer type</h3>
-          <div class="hint">Accepted leads and how many enriched, per offer. Rates are derived
-            from each row's own two counts, never averaged.</div></div>
+          <div class="hint">Every accepted lead by offer, and how many carried an enriched number.
+            The two offers tagged <b>enriched</b> are the ones the rate above is drawn on. Rates
+            here are derived from each row's own two counts, never averaged.</div></div>
         </div>
         <div style="overflow:auto">
           <table class="qoq-table bb-sortable" id="enrOfferTbl">
@@ -1435,8 +1415,8 @@
       <div class="card" id="enrMarketCard" style="margin-top:var(--gap-lg)">
         <div class="card-head">
           <div><h3>Enrichment by market</h3>
-          <div class="hint">Accepted leads and enrichment rate per market, over the selected date range
-            and campaign. The rate is re-derived per market from its own two counts, never
+          <div class="hint">Pulse survey and qualification questions leads, and how many of them
+            enriched, per market. The rate is re-derived per market from its own two counts, never
             averaged. Click a market to scope the whole tab to it.</div></div>
         </div>
         <div class="filter-row" id="enrMarketChipRow" style="margin-bottom:var(--gap)">
@@ -1446,7 +1426,7 @@
         <div style="overflow:auto">
           <table class="qoq-table bb-sortable" id="enrMarketTbl">
             <thead><tr>
-              <th>Market</th><th class="num">Accepted</th><th class="num">Enriched</th>
+              <th>Market</th><th class="num">Available to enrich</th><th class="num">Enriched</th>
               <th class="num">Enrichment rate</th>
             </tr></thead>
             <tbody></tbody>
@@ -1457,9 +1437,10 @@
       <div class="card" style="margin-top:var(--gap-lg)">
         <div class="card-head">
           <div><h3>Weekly summary</h3>
-          <div class="hint">Accepted leads, enriched leads and the enrichment rate per week. The rate is
-            re-derived from the two counts at whichever scope is selected, never averaged across
-            campaigns.</div></div>
+          <div class="hint">Leads available to enrich, how many enriched, and the rate per week.
+            The rate is re-derived from the two counts at whichever scope is selected, never
+            averaged across campaigns. A week with no survey leads is left out rather than drawn
+            as zero.</div></div>
           <div>
             <select id="enrCampaign" class="dash-select" onchange="renderEnriched()"
                     style="max-width:340px"></select>
@@ -1468,7 +1449,7 @@
         <div style="overflow:auto">
           <table class="qoq-table bb-sortable" id="enrWeeklyTbl">
             <thead><tr>
-              <th>Week</th><th class="num">Accepted</th><th class="num">Enriched</th>
+              <th>Week</th><th class="num">Available to enrich</th><th class="num">Enriched</th>
               <th class="num">Enrichment rate</th>
             </tr></thead>
             <tbody></tbody>
@@ -8433,6 +8414,21 @@ const enrOfferIsEnriched = (o) => ENR_NOT_ENRICHED_OFFERS.indexOf(o) < 0;
 // The scoped enriched count. Every headline figure uses THIS, never enrEnr() directly.
 const enrEnrScoped = (r) => enrOfferIsEnriched(r.offer_type) ? enrEnr(r) : 0;
 
+// THE HEADLINE POPULATION (2026-09-16, Jade). Enrichment is bought on PULSE SURVEY +
+// QUALIFICATION QUESTIONS only, so those are the only leads that were ever AVAILABLE to be
+// enriched, and dividing by every Core DG lead understates the rate roughly four-fold: "the
+// enrichment rate (18.4%) is calculated using the existing enriched leads divided by the total
+// amount of leads, which presents as a really low number ... we'd like for the enrichment rate
+// to represent the % of pulse survey + qualification survey leads we have received that have
+// been enriched."
+//   So every RATE on this tab - headline, weekly, per market - is enriched-over-available.
+//   `enrLeads`/`enrEnrScoped` stay the full accepted population and are still what the by-offer
+//   table sums, so the 1,868 that ties this tab to Content Syndication is never off screen. Two
+//   totals on one screen are only safe because they are LABELLED as two populations: the KPI
+//   band prints both, in the order the client's own sentence puts them.
+const enrAvail    = (r) => enrIsTargetOffer(r.offer_type) ? enrLeads(r) : 0;
+const enrEnrAvail = (r) => enrIsTargetOffer(r.offer_type) ? enrEnr(r)   : 0;
+
 // DISPLAY NAMES for the offer column (2026-09-10, client: "we're mixing lead types with
 // vendors"). OFFER_TYPE carries three real lead types plus 'Lead Magnet', which is not a lead
 // type at all - it is VRSM's single campaign, holding pulse survey AND qualification questions
@@ -8573,17 +8569,24 @@ function renderEnriched(){
     const back = (dow === 0 ? 6 : dow - 1);       // Monday-anchored
     return new Date(t - back*86400000).toISOString().slice(0,10);
   };
+  // Only the offers enrichment is run on. A week with no survey leads is not a 0% week, it is
+  // a week the question does not apply to, so it never gets a bucket and is never drawn.
   const byWeek = {};
   for (const r of daily){
-    if (!r.day) continue;
+    if (!r.day || !enrIsTargetOffer(r.offer_type)) continue;
     const k = isoMonday(r.day);
     const o = byWeek[k] || (byWeek[k] = { leads: 0, enriched: 0 });
-    o.leads    += enrLeads(r);
-    o.enriched += enrEnrScoped(r);
+    o.leads    += enrAvail(r);
+    o.enriched += enrEnrAvail(r);
   }
-  const weeks = Object.keys(byWeek).sort();
+  const weeks = Object.keys(byWeek).sort().filter(k => byWeek[k].leads > 0);
   const totL = weeks.reduce((a,k) => a + byWeek[k].leads, 0);
   const totE = weeks.reduce((a,k) => a + byWeek[k].enriched, 0);
+
+  // The FULL accepted population, kept for the context tile and the by-offer table. This is the
+  // figure that ties to the Content Syndication tab; it is never a denominator here.
+  let totAcc = 0, totAccEnr = 0;
+  for (const r of daily){ totAcc += enrLeads(r); totAccEnr += enrEnrScoped(r); }
 
   // The first week that actually enriched anything - the honest start of the feed. Null while
   // nothing has enriched, in which case say so rather than printing a date.
@@ -8599,97 +8602,27 @@ function renderEnriched(){
     + '<div class="delta">' + sub + '</div></div>';
   const rate = totL ? totE / totL : null;
 
-  // THE BENCHMARK. Built from the SAME rows as the KPIs above it, then narrowed to the target
-  // offers - so the two can never disagree about the selection. Both halves come from that one
-  // population: comparing all-campaign enriched (374) against a PS+QQ target (361) would read
-  // as 104% and AHEAD, while those offers are really 292 of 361, so 81% and 69 leads short.
-  // That is why the target is rendered beside its own numerator, not under the headline.
-  let tgtL = 0, tgtE = 0, tgtRows = 0;
-  const tgtWeek = {};
-  for (const r of enrScopeRows()){
-    if (!enrIsTargetOffer(r.offer_type)) continue;
-    tgtRows++; tgtL += enrLeads(r); tgtE += enrEnrScoped(r);
-    // WEEKLY, per the client (2026-09-10): "this number would ideally be shown on a weekly basis
-    // based on the volume of leads we got". Same isoMonday() the table above uses, so the two
-    // cannot bucket a lead into different weeks.
-    if (r.day){
-      const k = isoMonday(r.day);
-      const o = tgtWeek[k] || (tgtWeek[k] = { avail: 0, enr: 0 });
-      o.avail += enrLeads(r); o.enr += enrEnrScoped(r);
-    }
-  }
-  const tgtRate = tgtL ? tgtE / tgtL : null;
-
+  // The band reads in the order the client's own sentence does: all the leads, then the ones
+  // enrichment is run on, then how many of those enriched. The first tile is CONTEXT and is
+  // deliberately not the denominator of anything on screen.
   const k = document.getElementById('enrKpis');
   if (k) k.innerHTML =
-      kpi('Accepted leads', fmtNum(totL), weeks.length + ' week' + (weeks.length === 1 ? '' : 's')
-          + (narrowed() ? ' in range' : ''))
-    + kpi('Enriched leads', fmtNum(totE), 'accepted, with a real phone number', 'accent')
+      kpi('Accepted leads', fmtNum(totAcc), 'every Core DG lead'
+          + (narrowed() ? ' in range' : '') + ', all offers')
+    + kpi('Available to enrich', fmtNum(totL), 'pulse survey + qualification questions')
+    + kpi('Enriched', fmtNum(totE),
+          (totL ? 'of the ' + fmtNum(totL) + ' available' : 'nothing here is enriched'), 'accent')
     + kpi('Enrichment rate', (rate == null ? '-' : fmtPct2(rate, 1)),
-          (rate == null ? 'no accepted leads in scope' : fmtNum(totE) + ' of ' + fmtNum(totL)))
-    + kpi('Not enriched', fmtNum(totL - totE), 'no phone number found', 'warn');
+          (rate == null ? 'no survey leads in scope'
+                        : fmtNum(totL - totE) + ' could not be matched'));
 
-  // Benchmark card. HIDDEN rather than zeroed when the selection holds none of the target
-  // offers (pick Precision MQL alone and there is no benchmark to show) - a target of 0 with a
-  // 0% bar reads as a failed campaign rather than an offer the benchmark does not cover.
-  {
-    // STAFF-ONLY since 2026-09-10 (Jade: "let's keep the target hidden in the client's view
-    // for now then"). The benchmark covers 4 of the 5 enriched campaigns - VRSM's Pulse Survey
-    // and Qualification Questions leads cannot be separated from its Lead Magnet leads, so the
-    // target understates what should be enriching and the client must not pace against it
-    // until Transmission can split that campaign. A CLIENT INSTRUCTION, not a measurement
-    // judgement: do not un-hide it because the figure looks right.
-    //   Same gate as #enrDetailCard: the markup ships `hidden`, this is the ONLY reveal, and it
-    //   requires BB_INTERNAL as well as having target rows - so any future path that forgets to
-    //   call this leaves the card hidden rather than exposed.
-    const bc = document.getElementById('enrBenchCard');
-    if (bc) bc.classList.toggle('hidden', !window.BB_INTERNAL || !tgtRows || !tgtL);
-    const bv = document.getElementById('enrBenchVals');
-    // Hiding the card is not enough - the figures would still sit in a client's DOM, one
-    // inspector away and read by any print stylesheet. Never build them at all.
-    if (bv && !window.BB_INTERNAL) bv.innerHTML = '';
-    else if (bv && tgtRows && tgtL){
-      // NOT A TARGET, and the wording is the client's own (2026-09-10): "a note to not present
-      // this number as the 'target' but rather x amount of leads enriched compared to the total
-      // leads available to be enriched. We know that not ALL the leads will be able to be
-      // enriched by Apollo, so we don't want to make it seem like we are not reaching an
-      // unattainable target". So: no "target", no "short", no shortfall figure, and the bar is a
-      // share of what was available rather than progress towards a goal.
-      let wk = '';
-      const wks = Object.keys(tgtWeek).sort();
-      for (const k of wks){
-        const o = tgtWeek[k];
-        // A week with NO available leads is not a 0% week, it is a week the question does not
-        // apply to - usually a part-week at the edge of the range. Drawing it as 0/0/- reads as
-        // a failed week. A week WITH leads and no enrichment still prints, as a real 0%.
-        if (!o.avail) continue;
-        const rr = o.avail ? o.enr / o.avail : null;
-        wk += '<tr><td>w/c ' + esc(k) + '</td>'
-           +  '<td class="num">' + fmtNum(o.avail) + '</td>'
-           +  '<td class="num">' + fmtNum(o.enr) + '</td>'
-           +  '<td class="num">' + (rr == null ? '-' : fmtPct2(rr, 1)) + '</td></tr>';
-      }
-      wk += '<tr class="total" style="font-weight:700"><td>Total</td>'
-         +  '<td class="num">' + fmtNum(tgtL) + '</td>'
-         +  '<td class="num">' + fmtNum(tgtE) + '</td>'
-         +  '<td class="num">' + (tgtRate == null ? '-' : fmtPct2(tgtRate, 1)) + '</td></tr>';
-
-      bv.innerHTML =
-          '<div class="kpis" style="grid-template-columns:repeat(3,1fr)">'
-        +   kpi('Available to enrich', fmtNum(tgtL), 'accepted pulse survey + QQ leads')
-        +   kpi('Enriched', fmtNum(tgtE), 'of the ' + fmtNum(tgtL) + ' available', 'accent')
-        +   kpi('Enrichment rate', fmtPct2(tgtRate, 1), 'not every lead can be matched')
-        + '</div>'
-        + '<div style="overflow:auto;margin-top:var(--gap-lg)">'
-        +   '<table class="qoq-table bb-sortable"><thead><tr>'
-        +     '<th>Week</th><th class="num">Available</th><th class="num">Enriched</th>'
-        +     '<th class="num">Enrichment rate</th>'
-        +   '</tr></thead><tbody>' + wk + '</tbody></table>'
-        + '</div>';
-    }
-    const bo = document.getElementById('enrBenchOffers');
-    if (bo) bo.textContent = ENR_TARGET_OFFERS.join(' and ');
-  }
+  // The benchmark card built on 2026-09-10 has been RETIRED, not hidden: it was the staff-only
+  // preview of enriched-over-available, and since 2026-09-16 that IS the headline, so the card
+  // would have printed the same three figures a second time. Its two rules survive above - the
+  // available count sits beside its own numerator, and a week with nothing available is dropped
+  // rather than drawn as 0/0/-. The client instruction that kept it internal ("keep the target
+  // hidden in the client's view for now", 2026-09-10) was superseded by the request to make this
+  // the reported rate; the wording rule was NOT - this is still never called a target.
 
   // ---- by offer type ------------------------------------------------------
   // The reason the headline rate is what it is. Without this the drop from 41% to 20% (when
@@ -8720,10 +8653,18 @@ function renderEnriched(){
           +  '<td class="num">' + fmtNum(v.enriched) + '</td>'
           +  '<td class="num">' + (rr == null ? '-' : fmtPct2(rr, 1)) + '</td></tr>';
       }
-      h += '<tr class="total" style="font-weight:700"><td>Total</td>'
-        +  '<td class="num">' + fmtNum(totL) + '</td>'
-        +  '<td class="num">' + fmtNum(totE) + '</td>'
-        +  '<td class="num">' + (rate == null ? '-' : fmtPct2(rate, 1)) + '</td></tr>';
+      // This table is the ONE panel still on the full accepted population - it is the bridge
+      // between the 1,868 that ties to Content Syndication and the 361 the rate is drawn on, so
+      // its total is its own sum and deliberately NOT the KPI band's. The blended rate in this
+      // row is what the client asked us to stop reporting as the headline; it stays here, on a
+      // row that names every offer feeding it.
+      let offL = 0, offE = 0;
+      for (const o of offs){ offL += byOff[o].leads; offE += byOff[o].enriched; }
+      const offR = offL ? offE / offL : null;
+      h += '<tr class="total" style="font-weight:700"><td>All offers</td>'
+        +  '<td class="num">' + fmtNum(offL) + '</td>'
+        +  '<td class="num">' + fmtNum(offE) + '</td>'
+        +  '<td class="num">' + (offR == null ? '-' : fmtPct2(offR, 1)) + '</td></tr>';
       ob.innerHTML = h;
     }
   }
@@ -8737,8 +8678,10 @@ function renderEnriched(){
     for (const r of enrScopeRows()){
       const m = enrMarketKey(r.market);
       const o = byMkt[m] || (byMkt[m] = { leads: 0, enriched: 0 });
-      o.leads    += enrLeads(r);
-      o.enriched += enrEnrScoped(r);
+      // Available-to-enrich, matching the KPI band - a market's rate must be the same kind of
+      // number as the headline or the two panels are answering different questions.
+      o.leads    += enrAvail(r);
+      o.enriched += enrEnrAvail(r);
     }
     const mkts = enrMarketSort(Object.keys(byMkt));
     const on   = enrMarketActive();
@@ -8781,12 +8724,17 @@ function renderEnriched(){
         +  '<td class="num">' + fmtNum(sL) + '</td>'
         +  '<td class="num">' + fmtNum(sE) + '</td>'
         +  '<td class="num">' + (sR == null ? '-' : fmtPct2(sR, 1)) + '</td></tr>';
-      mb.innerHTML = mkts.length
+      mb.innerHTML = (mkts.length && totL)
         ? h
-        : '<tr><td colspan="4" style="color:var(--cf-mute)">No leads in scope.</td></tr>';
+        : '<tr><td colspan="4" style="color:var(--cf-mute)">'
+          + (totAcc && !totL
+              ? 'No pulse survey or qualification questions leads in this selection, so there '
+                + 'is nothing to break down by market.'
+              : 'No leads in scope.')
+          + '</td></tr>';
       // The market total must equal the KPI strip. If it does not, one of them is lying.
       if (sL !== totL){
-        console.warn('[cs-enriched] market total', sL, '!= leads in scope', totL);
+        console.warn('[cs-enriched] market total', sL, '!= available to enrich', totL);
       }
     }
   }
@@ -8796,9 +8744,13 @@ function renderEnriched(){
   if (tb){
     if (!weeks.length){
       tb.innerHTML = '<tr><td colspan="4" style="color:var(--cf-mute)">'
-        + (narrowed()
-            ? 'No leads in the selected date range for this campaign selection.'
-            : 'No leads for this campaign selection.')
+        + (totAcc
+            ? 'This selection has ' + fmtNum(totAcc) + ' accepted lead'
+              + (totAcc === 1 ? '' : 's') + ', but none on the offers enrichment runs on '
+              + '(pulse survey and qualification questions), so there is no rate to show.'
+            : (narrowed()
+                ? 'No leads in the selected date range for this campaign selection.'
+                : 'No leads for this campaign selection.'))
         + '</td></tr>';
     } else {
       let h = '';
@@ -8825,9 +8777,12 @@ function renderEnriched(){
   const db = document.querySelector('#enrDetailTbl tbody');
   const dh = document.getElementById('enrDetailHint');
   if (dh){
+    // NOTE this list covers every offer enrichment ran on, VRSM's mixed campaign included, so
+    // it is larger than the headline count - the headline is the four campaigns whose lead type
+    // we can actually resolve. Compare it to totAccEnr, never to totE.
     dh.textContent = detail.length
-      ? 'Only the leads that actually enriched - ' + fmtNum(detail.length)
-        + ' of ' + fmtNum(totL) + ' accepted leads in scope. Newest first.'
+      ? 'Every lead that enriched - ' + fmtNum(detail.length) + ' across all offers, against '
+        + fmtNum(totE) + ' on the survey offers the rate is drawn on. Newest first.'
       : 'Only the leads that actually enriched.';
   }
   if (db && !window.BB_INTERNAL){
@@ -8848,8 +8803,8 @@ function renderEnriched(){
       // The summary and the drill-down are two reads of ONE view, so a mismatch means the
       // payload is internally inconsistent. Log it rather than rendering a table that quietly
       // contradicts the KPI above it.
-      if (detail.length !== totE){
-        console.warn('[cs-enriched] detail rows', detail.length, '!= enriched count', totE);
+      if (detail.length !== totAccEnr){
+        console.warn('[cs-enriched] detail rows', detail.length, '!= enriched count', totAccEnr);
       }
       db.innerHTML = detail.map(r =>
           '<tr><td>' + esc(r.day || '') + '</td>'
