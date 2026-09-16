@@ -163,7 +163,10 @@ def _safe_entities():
 
 def _indexed_count():
     try:
-        return sum(1 for m in kb_index.all_meta(include_archived=False)
+        # all_meta -> {doc_id: meta}. Iterating it directly yields KEYS (strings): the counter read
+        # 0 on the first real sync (2026-09-16) while two meetings were filed. Same slip was in
+        # kb_bridge and corpus_vote, and the tests had mocked all_meta as a LIST, which is why it passed.
+        return sum(1 for m in kb_index.all_meta(include_archived=False).values()
                    if m.get("kind") == kb_fathom.KIND and m.get("source") == kb_fathom.SOURCE)
     except Exception:                        # noqa: BLE001
         return 0
@@ -221,6 +224,32 @@ def sync():
     return jsonify(ok=True, started=True, since=since, state=st)
 
 
+def _needs_retry(item):
+    """A queued meeting whose ladder never produced a proposal (a classifier error, an old bug): the
+    card shows no guess, and nothing would ever revisit it. Sync gives it another run."""
+    p = item.get("proposal") or {}
+    return "client_key" not in p
+
+
+def retry_unproposed(counts):
+    """Re-run the ladder over queued meetings with no proposal. Found necessary on the first real sync
+    (2026-09-16): seven meetings were queued by a crash in the evidence rung and the next sync,
+    which only pulls meetings NEWER than the watermark, would never have touched them again."""
+    for item in kb_fathom.list_unassigned():
+        if not _needs_retry(item):
+            continue
+        meeting = kb_fathom.load_unassigned(item["recording_id"])
+        if meeting is None:
+            continue
+        counts["retried"] = counts.get("retried", 0) + 1
+        try:
+            res = process(meeting)
+            counts["assigned" if res["decision"] == "assign" else "exists" if res["decision"] == "exists" else "queued"] += 1
+        except Exception:                    # noqa: BLE001
+            counts["errors"] += 1
+            log.exception("fathom sync: retry failed for %s", item["recording_id"])
+
+
 def _sync_quietly(api_key, since, actor):
     counts = {"seen": 0, "assigned": 0, "queued": 0, "exists": 0, "errors": 0}
     newest, error = since, ""
@@ -234,6 +263,7 @@ def _sync_quietly(api_key, since, actor):
                 counts["errors"] += 1
                 log.exception("fathom sync: meeting failed")
             newest = max(newest, str(m.get("created_at") or ""))
+        retry_unproposed(counts)
     except Exception as e:                   # noqa: BLE001
         log.exception("fathom sync failed")
         error = f"Sync failed: {str(e)[:160]}"

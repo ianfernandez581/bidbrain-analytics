@@ -1247,6 +1247,13 @@ over `{webhook-id}.{webhook-timestamp}.{body}`, secret `whsec_<base64>`, header 
   can be throttled after the reply; the meeting is already queued, so the worst case is a proposal
   that never arrives and a person picks the client unaided. If that shows up in the pilot, give
   `platform-dash` CPU-always-allocated or move the ladder onto the next request / Sync.
+- **🔴 Two facts about the LIVE Fathom API that the docs' examples do not show** (first real sync,
+  2026-09-16, Christian's key): `default_summary` is an OBJECT `{template_name, markdown_formatted}`
+  - read it through `kb_fathom.summary_text`, never `str()` it; and `is_external` is relative to
+  the RECORDER's domain, so a 100.digital colleague on a bidbrain.ai recording is flagged external.
+  `kb_memory.INTERNAL_DOMAINS` (env `FATHOM_INTERNAL_DOMAINS`, default `100.digital,bidbrain.ai`)
+  makes an agency invitee internal whatever Fathom says - it gates the internal-only rung, the
+  declared-domain rung, memory learning/matching and the card's "Will remember" list together.
 - `kb_fathom.synthesise` says WHY the classifier was unavailable (no key vs no candidates) in the
   proposal's `why`, so the queue card never shows a bare "unavailable" again.
 - A 🔴 for Ian's `CLIENT_FOLDERS` note "Outcomes, not transcripts": these documents DO carry the

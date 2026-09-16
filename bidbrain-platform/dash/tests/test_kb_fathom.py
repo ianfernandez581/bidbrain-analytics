@@ -80,6 +80,35 @@ MEETING = {
 CANDIDATES = [{"key": "cloudflare", "name": "Cloudflare"}, {"key": "mongodb", "name": "MongoDB"}]
 
 
+REAL_SHAPE = dict(MEETING, recording_id=7782, title="Daily Dev Standup",
+                  recorded_by={"email": "christian@bidbrain.ai", "email_domain": "bidbrain.ai"},
+                  # the LIVE API: summary is an object, and the 100.digital colleague is "external" to a
+                  # bidbrain.ai recorder (2026-09-16, first real sync)
+                  default_summary={"template_name": "general", "markdown_formatted": "## Notes\nShipped the Meetings page."},
+                  calendar_invitees=[{"email": "christian@bidbrain.ai", "email_domain": "bidbrain.ai", "is_external": False},
+                                     {"email": "charles@100.digital", "email_domain": "100.digital", "is_external": True}])
+
+
+class RealFathomShape(unittest.TestCase):
+    def test_object_summary_is_read_not_stringified(self):
+        body = kb_fathom.meeting_body(REAL_SHAPE)
+        self.assertIn("Shipped the Meetings page.", body)
+        self.assertNotIn("markdown_formatted", body)           # no dict repr in the document
+        self.assertNotIn("{", kb_fathom.summary_text(REAL_SHAPE))
+        # the evidence rung and the vote read the same text without raising
+        self.assertEqual(kb_fathom.entity_match(REAL_SHAPE, {"cloudflare": {"Core DG APAC"}}), {})
+
+    def test_agency_domain_is_internal_whatever_fathom_says(self):
+        self.assertFalse(kb_memory.is_external({"email": "charles@100.digital", "email_domain": "100.digital", "is_external": True}))
+        self.assertTrue(kb_memory.is_external({"email": "priya@cloudflare.com", "email_domain": "cloudflare.com", "is_external": True}))
+        # rung 0: a stand-up of bidbrain.ai + 100.digital people is INTERNAL -> agency-wide, no model
+        r = kb_fathom.classify(REAL_SHAPE, {}, {}, CANDIDATES, _post=lambda b: self.fail("model must not be called"))
+        self.assertEqual((r["decision"], r["client_key"], r["assigned_by"]), ("assign", "", "domain"))
+        # and a colleague is never offered as something to remember about a client
+        self.assertEqual(kb_memory.teaches(REAL_SHAPE)["people"], [])
+        self.assertEqual(kb_fathom.external_domains(REAL_SHAPE), [])
+
+
 def gemini_reply(client_key, confidence, why="named the client"):
     r = mock.Mock()
     r.json.return_value = {"candidates": [{"content": {"parts": [{"text": json.dumps(
@@ -220,7 +249,7 @@ class Ladder(unittest.TestCase):
         metas = [{"id": "fathom-1", "kind": "meeting", "source": "fathom", "client": "cloudflare"},
                  {"id": "fathom-2", "kind": "meeting", "source": "fathom", "client": "cloudflare"},
                  {"id": "d_plan", "kind": "plan", "source": "upload", "client": "mongodb"}]
-        with mock.patch.object(kb_index, "search", return_value=res), mock.patch.object(kb_index, "all_meta", return_value=metas):
+        with mock.patch.object(kb_index, "search", return_value=res), mock.patch.object(kb_index, "all_meta", return_value={m["id"]: m for m in metas}):
             tally, ev = kb_fathom.corpus_vote(MEETING)
         self.assertEqual(tally, {"cloudflare": 2})
         self.assertEqual(ev, ["2 of 2 similar passages are from cloudflare meetings"])
@@ -283,7 +312,7 @@ class Routes(unittest.TestCase):
                                                                           {"key": "mongodb", "name": "MongoDB"}]),
             mock.patch.object(main, "_prod_mutation_blocked", return_value=None),
             mock.patch.object(main, "_fathom_entities", return_value={}),
-            mock.patch.object(kb_index, "all_meta", return_value=[]),
+            mock.patch.object(kb_index, "all_meta", return_value={}),
             mock.patch.object(kb_index, "search", return_value={"excerpts": []}),
             mock.patch.object(kb_index, "reindex_document", return_value={"chunks": 2, "semantic": True}),
             mock.patch.object(kb_store, "write_file", return_value="meeting.json"),
@@ -384,8 +413,27 @@ class Routes(unittest.TestCase):
         self.assertEqual(r.status_code, 200, r.get_data(as_text=True))
         self.assertEqual(r.get_json()["doc"]["client"], "cloudflare")
         self.assertEqual(self.c.get("/kb/api/fathom/unassigned").get_json()["items"], [])
+        # the "N filed" counter reads all_meta's VALUES ({doc_id: meta}); iterating the dict itself gave 0
+        with mock.patch.object(kb_index, "all_meta", return_value={"fathom-7781": {"id": "fathom-7781", "kind": "meeting", "source": "fathom"},
+                                                                    "d2": {"id": "d2", "kind": "reference", "source": "upload"}}):
+            self.assertEqual(self.c.get("/kb/api/fathom/status").get_json()["indexed"], 1)
         mem = self.c.get("/kb/api/fathom/memory/cloudflare").get_json()["memory"]
         self.assertIn("priya@cloudflare.com", mem["people"])
+
+    def test_sync_retries_a_queued_meeting_that_never_got_a_proposal(self):
+        """Seven real meetings sat in the queue with no guess after a classifier crash; the watermark
+        meant no later sync would revisit them (2026-09-16). Sync now re-runs the ladder on them."""
+        import kb_fathom_routes as FR
+        self._as("admin", "charles@100.digital")
+        internal = dict(REAL_SHAPE, recording_id=7790)          # all-agency stand-up: rung 0 files it
+        self.fs.write_json("fathom/unassigned/7790/meeting.json", internal)
+        self.fs.write_json("fathom/unassigned/7790/proposal.json", {"evidence": ["classifier error"]})
+        with mock.patch.dict(os.environ, {"GEMINI_API_KEY": ""}), \
+             mock.patch.object(kb_fathom, "fetch_meetings", return_value=[]):
+            FR._sync_quietly("key", "2026-09-01T00:00:00Z", "tester")
+        self.assertEqual(self.c.get("/kb/api/fathom/unassigned").get_json()["items"], [])
+        st = kb_fathom.state()
+        self.assertEqual((st["last_counts"]["retried"], st["last_counts"]["assigned"]), (1, 1))
 
     def test_queue_says_what_assign_will_teach_and_unticked_items_are_not_learned(self):
         """The card shows 'Will remember: ...' with tick boxes (2026-09-15 polish). Unticking sends

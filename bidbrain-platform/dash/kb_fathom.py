@@ -122,11 +122,21 @@ def meeting_title(meeting):
     return t or f"Fathom meeting {recording_id(meeting)}"
 
 
+def summary_text(meeting):
+    """Fathom's `default_summary` is an OBJECT on the live API - {template_name, markdown_formatted}
+    (found on the first real sync, 2026-09-16; the docs' examples and our fixtures had a string).
+    Accept both, and never str() a dict into the document body."""
+    s = meeting.get("default_summary")
+    if isinstance(s, dict):
+        s = s.get("markdown_formatted") or s.get("markdown_formatted_summary") or s.get("text") or ""
+    return str(s or "").strip()
+
+
 def meeting_body(meeting, max_transcript_chars=MAX_TRANSCRIPT_CHARS):
     """Summary first (outcomes), then the transcript as `[HH:MM:SS] Speaker: text` lines. A cut is
     declared in the text (the kb_extract rule)."""
     parts = []
-    summary = str(meeting.get("default_summary") or "").strip()
+    summary = summary_text(meeting)
     if summary:
         parts.append("## Summary\n" + summary)
     lines, used, cut = [], 0, False
@@ -154,7 +164,7 @@ def meeting_body(meeting, max_transcript_chars=MAX_TRANSCRIPT_CHARS):
 
 
 def invitees(meeting):
-    return [{"email": i.get("email"), "domain": i.get("email_domain"), "external": i.get("is_external", True),
+    return [{"email": i.get("email"), "domain": i.get("email_domain"), "external": kb_memory.is_external(i),
              "name": i.get("name")} for i in (meeting.get("calendar_invitees") or [])]
 
 
@@ -254,7 +264,7 @@ def list_unassigned():
         return {"recording_id": rid, "title": m.get("title") or m.get("meeting_title") or "(untitled)",
                 "created_at": m.get("created_at") or m.get("recording_start_time"),
                 "duration_min": _duration_min(m), "invitees": invitees(m),
-                "summary": str(m.get("default_summary") or "")[:600], "proposal": prop,
+                "summary": summary_text(m)[:600], "proposal": prop,
                 "will_learn": kb_memory.teaches(m)}
     # Two GETs per queued meeting; sequentially that is ~20 s for a dozen from a laptop, so read them
     # side by side (2026-09-15, found when Jerome asked to see a full queue).
@@ -287,7 +297,7 @@ def save_state(st):
 def external_domains(meeting):
     return sorted({(i.get("email_domain") or (i.get("email") or "").rsplit("@", 1)[-1]).lower()
                    for i in (meeting.get("calendar_invitees") or [])
-                   if i.get("is_external", True) and (i.get("email_domain") or i.get("email"))} - {""})
+                   if kb_memory.is_external(i) and (i.get("email_domain") or i.get("email"))} - {""})
 
 
 def rung_domain(meeting, client_domains):
@@ -312,7 +322,7 @@ def entity_match(meeting, entities_by_client, max_hits=5):
     """`entities_by_client` = {client_key: {"campaign names", ...}} harvested from each client's live
     dashboard data by the caller. -> {client_key: [evidence]} for exact (case-insensitive) hits of a
     client's entity in the meeting text. Entities under 6 chars or shared by 2+ clients are ignored."""
-    text = " ".join([meeting.get("title") or "", meeting.get("default_summary") or ""] +
+    text = " ".join([meeting.get("title") or "", summary_text(meeting)] +
                     [(t.get("text") or "") for t in (meeting.get("transcript") or [])]).lower()
     owners = {}
     for ck, ents in (entities_by_client or {}).items():
@@ -335,13 +345,13 @@ def corpus_vote(meeting, limit=20):
     that come back. Only FILED meetings exist as documents, and every filed meeting was placed by a
     deterministic rung or a person (auto-assign is off), so the vote is over confirmed placements
     by construction. -> ({client: n}, [evidence]); ({}, []) when nothing votes or search fails."""
-    probe = " ".join(filter(None, [meeting.get("title"), meeting.get("default_summary")] +
+    probe = " ".join(filter(None, [meeting.get("title"), summary_text(meeting)] +
                             [(t.get("text") or "") for t in (meeting.get("transcript") or [])[:12]]))[:6000]
     if not probe.strip():
         return {}, []
     try:
         res = kb_index.search(probe, limit=limit)
-        metas = {m["id"]: m for m in kb_index.all_meta(include_archived=False)}
+        metas = dict(kb_index.all_meta(include_archived=False))        # {doc_id: meta}
     except Exception:                        # noqa: BLE001 - the vote is advisory
         log.exception("fathom: corpus vote failed")
         return {}, []
@@ -379,7 +389,7 @@ def synthesise(meeting, candidates, evidence_lines, _post=None):
         "CANDIDATES:\n" + "\n".join(f"- {c['key']}: {c['name']}" + (f" - {c['desc']}" if c.get("desc") else "")
                                     for c in candidates) +
         "\n\nEVIDENCE ALREADY GATHERED:\n" + ("\n".join(f"- {e}" for e in evidence_lines) or "- none") +
-        f"\n\nTITLE: {meeting.get('title') or ''}\nSUMMARY: {(meeting.get('default_summary') or '')[:3000]}\n"
+        f"\n\nTITLE: {meeting.get('title') or ''}\nSUMMARY: {summary_text(meeting)[:3000]}\n"
         f"TRANSCRIPT (start):\n{excerpt}")
     body = {"contents": [{"role": "user", "parts": [{"text": prompt}]}],
             "generationConfig": {"temperature": 0.0, "maxOutputTokens": 400, "responseMimeType": "application/json",
@@ -413,7 +423,7 @@ def classify(meeting, client_domains, memories, candidates, entities_by_client=N
     threshold = AUTO_ASSIGN if auto_assign is None else auto_assign
     # rung 0: no external invitee at all -> agency-wide, deterministic
     inv = meeting.get("calendar_invitees") or []
-    if inv and not any(i.get("is_external", True) for i in inv):
+    if inv and not any(kb_memory.is_external(i) for i in inv):
         return {"decision": "assign", "client_key": AGENCY, "assigned_by": "domain", "confidence": 1.0,
                 "evidence": ["no external invitee - internal meeting"], "proposal": None}
     # rung 1: declared domain

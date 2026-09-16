@@ -90,7 +90,7 @@ class Offline(unittest.TestCase):
                  {"id": "d_shared", "visibility": "client", "kind": "reference"},
                  {"id": "d_unmarked", "kind": "plan"}]                               # Ian's documents today
         with mock.patch.object(kb_index, "search", return_value={"excerpts": excerpts, "semantic": True}) as s, \
-             mock.patch.object(kb_index, "all_meta", return_value=metas):
+             mock.patch.object(kb_index, "all_meta", return_value={m["id"]: m for m in metas}):
             ret = KB.retrieve_for_client("mongodb", [{"role": "user", "content": "what did the plan say about budget?"}])
         self.assertEqual(s.call_args.kwargs["client"], "mongodb")           # never another client's scope
         self.assertEqual([p["doc_id"] for p in ret["passages"]], ["d_shared"])
