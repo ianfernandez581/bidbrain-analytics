@@ -1,0 +1,99 @@
+# Knowledge base sync - this repo's markdown into the library at dashboards.bidbrain.ai/kb
+#
+# WHY IT RUNS HERE. The knowledge base answers from the agency's written record, and the largest
+# part of that record is the markdown in this repo. A library loaded by hand once is a library that
+# starts answering from the old wording the day somebody edits a README, and nothing on screen says
+# so. So the sync is attached to the thing that changes the record: a push.
+#
+# What it runs is scripts/kb_repo_sync.py, which is the whole of the logic and is equally runnable
+# from a laptop. This file is only the trigger and the credentials.
+#
+# ONE-TIME SETUP (keyless, no service-account key anywhere): scripts\setup_kb_sync_auth.ps1
+name: Knowledge base sync
+
+on:
+  push:
+    branches: [main]
+    paths:
+      # '**.md', not '**/*.md' - GitHub's path filter treats ** as "any characters, / included", and
+      # the starred form is the one that reliably matches a file at the repo ROOT (README.md,
+      # CLAUDE.md) as well as a nested one.
+      - '**.md'
+      # A change to the splitter re-cuts every document, so it has to trigger a run of its own.
+      - 'scripts/kb_repo_sync.py'
+      - '.github/workflows/kb-sync.yml'
+  # A RECONCILE, NOT A SUBSTITUTE. It catches a run that failed, a push made while the workflow was
+  # disabled, and - the reason there is a schedule at all - any document indexed WITHOUT VECTORS
+  # because Vertex was briefly unavailable. Those stay searchable by keyword and nothing on screen
+  # announces that the ranking is degraded, so something has to come back for them.
+  #
+  # 🔴 FOUR TIMES A DAY, NOT HOURLY, AND THAT IS A BILLING DECISION. This repo is PRIVATE, so Actions
+  # minutes are metered: an hourly reconcile is ~720 runs a month against a 2,000-minute free tier,
+  # for a job that almost always finds nothing to do. Pushes are the real trigger and they are
+  # event-driven; this is only the safety net.
+  schedule:
+    - cron: '17 */6 * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Plan only - report what would change and write nothing'
+        type: boolean
+        default: false
+
+# 🔴 QUEUE, NEVER CANCEL. Two syncs writing the same documents at once is the one way this can
+# leave the library inconsistent, and cancelling one mid-write can leave a document whose text and
+# passages disagree. Serialise instead: a run takes seconds when nothing changed.
+concurrency:
+  group: kb-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    # Generous because the FIRST run loads the whole repo: ~880 documents, three object writes and
+    # one Vertex call each, from a US runner to australia-southeast1. Every later run touches only
+    # what changed and finishes in well under a minute, so this ceiling never costs anything.
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      id-token: write        # required for keyless (workload identity) auth to Google Cloud
+
+    steps:
+      - uses: actions/checkout@v4
+        # The sync enumerates files with `git ls-files`, so it needs the checkout and nothing else -
+        # no history, no submodules.
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install what the knowledge base modules import
+        run: pip install --quiet google-cloud-storage google-auth numpy
+
+      # Keyless by default. The fallback exists so a GCP org policy that blocks workload identity
+      # federation cannot leave this unrunnable; if you use it, the key is a repository SECRET and
+      # never a file in the repo.
+      - name: Authenticate to Google Cloud (workload identity)
+        if: vars.GCP_WIF_PROVIDER != ''
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_SYNC_SA }}
+
+      - name: Authenticate to Google Cloud (service account key)
+        if: vars.GCP_WIF_PROVIDER == ''
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Sync
+        env:
+          # 🔴 BOTH OF THESE ARE LOAD-BEARING. `kb_store.bucket_name()` reads GCS_BUCKET and raises
+          # a bare KeyError without it; and a workload-identity credential carries NO project, so
+          # `storage.Client()` and the Vertex call both need GOOGLE_CLOUD_PROJECT stated here. This
+          # is the commonest way a keyless CI job fails on its first run.
+          GCS_BUCKET: bidbrain-analytics-platform-dash
+          GOOGLE_CLOUD_PROJECT: bidbrain-analytics
+        run: |
+          python scripts/kb_repo_sync.py \
+            ${{ (github.event_name == 'workflow_dispatch' && inputs.dry_run) && '--dry-run' || '--yes' }}
