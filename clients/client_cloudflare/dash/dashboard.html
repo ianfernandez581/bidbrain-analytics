@@ -1377,34 +1377,11 @@
         <br><span style="color:var(--cf-mute)">The first figure below is every Core DG lead, for
         context, and is not what the rate is divided by. Not every lead can be matched, so this is
         a share of what was available to enrich and not a target. Enrichment started
-        <b id="enrFirst">-</b>. VRSM runs both lead types through one campaign, so it sits in the
-        offer table below rather than in the rate.</span>
+        <b id="enrFirst">-</b>. VRSM runs both lead types through one campaign and they cannot be told
+        apart, so its leads are not counted here yet.</span>
       </div>
 
       <div class="kpis" id="enrKpis" style="grid-template-columns:repeat(4,1fr)"></div>
-
-      <!-- BY OFFER TYPE (2026-09-10). The reason the blended rate is what it is: moving the tab
-           onto every campaign took it from 41% to 20%, and without this split that reads as
-           enrichment failing everywhere rather than one offer it is not bought on. Built from
-           the same rows as the KPI band, so the total row ties exactly. Hides itself when one
-           offer is in scope, where it would only restate the band above it. -->
-      <div class="card" id="enrOfferCard" style="margin-top:var(--gap-lg)">
-        <div class="card-head">
-          <div><h3>By offer type</h3>
-          <div class="hint">Every accepted lead by offer, and how many carried an enriched number.
-            The two offers tagged <b>enriched</b> are the ones the rate above is drawn on. Rates
-            here are derived from each row's own two counts, never averaged.</div></div>
-        </div>
-        <div style="overflow:auto">
-          <table class="qoq-table bb-sortable" id="enrOfferTbl">
-            <thead><tr>
-              <th>Offer</th><th class="num">Accepted</th><th class="num">Enriched</th>
-              <th class="num">Enrichment rate</th>
-            </tr></thead>
-            <tbody></tbody>
-          </table>
-        </div>
-      </div>
 
       <!-- MARKET BREAKDOWN (2026-09-10, client request via Jade). Markets are the LEAD's own
            country folded to the coarse 7 the Content Syndication chips already use, resolved
@@ -8434,8 +8411,6 @@ const enrEnrAvail = (r) => enrIsTargetOffer(r.offer_type) ? enrEnr(r)   : 0;
 // type at all - it is VRSM's single campaign, holding pulse survey AND qualification questions
 // leads that nothing in the feed separates. Labelling it as a peer of the other three reads as a
 // fourth lead type. Renamed HERE and not in sql/10, whose OFFER_TYPE other surfaces depend on.
-const ENR_OFFER_LABELS = { 'Lead Magnet': 'VRSM (lead types not separated)' };
-const enrOfferLabel = (o) => ENR_OFFER_LABELS[o] || o || '(not recorded)';
 
 let enrMarketSel = {};
 function enrMarketActive(){ return Object.keys(enrMarketSel).filter(k => enrMarketSel[k]); }
@@ -8624,50 +8599,12 @@ function renderEnriched(){
   // hidden in the client's view for now", 2026-09-10) was superseded by the request to make this
   // the reported rate; the wording rule was NOT - this is still never called a target.
 
-  // ---- by offer type ------------------------------------------------------
-  // The reason the headline rate is what it is. Without this the drop from 41% to 20% (when
-  // the tab moved onto every campaign) reads as enrichment failing everywhere, when it is one
-  // offer that is not enriched at all. Same rows as the KPIs, so the total ties exactly.
-  {
-    const byOff = {};
-    for (const r of enrScopeRows()){
-      const key = r.offer_type || '(not recorded)';
-      const o = byOff[key] || (byOff[key] = { leads: 0, enriched: 0 });
-      o.leads += enrLeads(r); o.enriched += enrEnrScoped(r);
-    }
-    const offs = Object.keys(byOff).sort((a,b) => byOff[b].leads - byOff[a].leads);
-    const ob = document.querySelector('#enrOfferTbl tbody');
-    const oc = document.getElementById('enrOfferCard');
-    // One offer in scope means the table restates the KPI band. Hide it.
-    if (oc) oc.classList.toggle('hidden', offs.length < 2);
-    if (ob){
-      let h = '';
-      for (const o of offs){
-        const v = byOff[o];
-        // A rate needs a denominator. No accepted leads prints a dash, never 0%.
-        const rr = v.leads ? v.enriched / v.leads : null;
-        h += '<tr><td>' + esc(enrOfferLabel(o))
-          +      (enrIsTargetOffer(o) ? ' <span class="pill" style="font-size:10px">enriched</span>' : '')
-          +    '</td>'
-          +  '<td class="num">' + fmtNum(v.leads) + '</td>'
-          +  '<td class="num">' + fmtNum(v.enriched) + '</td>'
-          +  '<td class="num">' + (rr == null ? '-' : fmtPct2(rr, 1)) + '</td></tr>';
-      }
-      // This table is the ONE panel still on the full accepted population - it is the bridge
-      // between the 1,868 that ties to Content Syndication and the 361 the rate is drawn on, so
-      // its total is its own sum and deliberately NOT the KPI band's. The blended rate in this
-      // row is what the client asked us to stop reporting as the headline; it stays here, on a
-      // row that names every offer feeding it.
-      let offL = 0, offE = 0;
-      for (const o of offs){ offL += byOff[o].leads; offE += byOff[o].enriched; }
-      const offR = offL ? offE / offL : null;
-      h += '<tr class="total" style="font-weight:700"><td>All offers</td>'
-        +  '<td class="num">' + fmtNum(offL) + '</td>'
-        +  '<td class="num">' + fmtNum(offE) + '</td>'
-        +  '<td class="num">' + (offR == null ? '-' : fmtPct2(offR, 1)) + '</td></tr>';
-      ob.innerHTML = h;
-    }
-  }
+  // The BY OFFER TYPE table was removed on 2026-09-16 at the client's request (John: "it
+  // doesn't add any value"; Jade agreed). It was the bridge between the full accepted
+  // population and the survey population the rate is drawn on, so two things moved with it:
+  // the VRSM sentence in the panel intro (it pointed AT that table), and `ENR_OFFER_LABELS`,
+  // which existed only to rename Lead Magnet in its rows. `totAcc` survives - the KPI band's
+  // first tile and both empty states still need the full count.
 
   // ---- market breakdown ---------------------------------------------------
   // Built from enrScopeRows() (theatre + campaign + date range, NO market filter) so a market

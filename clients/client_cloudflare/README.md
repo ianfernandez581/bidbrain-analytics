@@ -196,6 +196,16 @@ where available = accepted **Pulse Survey + Qualification Questions** leads. **1
 `enrEnrScoped` and are the single lever; `enrLeads` / `enrEnrScoped` stay the FULL accepted
 population.
 
+**THE BY OFFER TYPE TABLE WAS REMOVED the same day** (John: *"can we remove the By offer type
+table ... it doesn't add any value"*; Jade agreed). It was the BRIDGE between the two populations,
+so two things had to move with it: the VRSM sentence in the panel intro POINTED AT IT (a dangling
+reference the moment the table went), and `ENR_OFFER_LABELS` existed only to rename Lead Magnet in
+its rows. The tab is now intro -> KPI band -> Enrichment by market -> Weekly summary, which is the
+shape the client named as the one they want. `totAcc` survives - the KPI band's first tile and both
+empty states still read it - so the full accepted figure is still on screen, just without a
+breakdown. **VRSM now appears NOWHERE on the tab**, which is why the intro has to state in prose
+that its leads are not counted yet.
+
 **The KPI band prints BOTH populations, in the order the client's own sentence puts them** -
 `Accepted leads 1,868` (context, never a denominator) then `Available to enrich 361`, `Enriched
 292`, `Enrichment rate 80.9%`. Two totals on one screen are normally the thing this repo warns
