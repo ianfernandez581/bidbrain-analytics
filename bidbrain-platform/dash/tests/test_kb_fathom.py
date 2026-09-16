@@ -122,7 +122,7 @@ class RealFathomShape(unittest.TestCase):
         self.assertTrue(kb_memory.is_external({"email": "priya@cloudflare.com", "email_domain": "cloudflare.com", "is_external": True}))
         # rung 0: a stand-up of bidbrain.ai + 100.digital people is INTERNAL -> a SURE agency-wide guess, no model
         r = kb_fathom.classify(REAL_SHAPE, {}, {}, CANDIDATES, _post=lambda b: self.fail("model must not be called"))
-        self.assertEqual((r["decision"], r["proposal"]["client_key"], r["proposal"]["sure_by"]), ("queue", "", "internal"))
+        self.assertEqual((r["decision"], r["client_key"], r["assigned_by"]), ("assign", "", "internal"))
         # and a colleague is never offered as something to remember about a client
         self.assertEqual(kb_memory.teaches(REAL_SHAPE)["people"], [])
         self.assertEqual(kb_fathom.external_domains(REAL_SHAPE), [])
@@ -206,12 +206,12 @@ class Queue(unittest.TestCase):
 class Ladder(unittest.TestCase):
     def test_rung0_internal_only_is_agency_wide(self):
         m = dict(MEETING, calendar_invitees=[{"email": "a@100.digital", "is_external": False}])
+        # DEFAULT (Jerome, 2026-09-16: "95-100% auto assign"): a sure rung is 100% -> it files itself
         r = kb_fathom.classify(m, {}, {}, CANDIDATES, vote=lambda m: ({}, []))
-        # PILOT: a sure rung is a 100% guess, not a filing (Jerome, 2026-09-16: "don't auto assign")
-        self.assertEqual((r["decision"], r["confidence"], r["proposal"]["client_key"], r["proposal"]["sure_by"]), ("queue", 1.0, "", "internal"))
-        # ... and files itself only when that rung is switched on
-        r = kb_fathom.classify(m, {}, {}, CANDIDATES, vote=lambda m: ({}, []), auto_file={"internal"})
         self.assertEqual((r["decision"], r["client_key"], r["assigned_by"]), ("assign", "", "internal"))
+        # ... and with self-filing switched off it becomes a 100% guess a person confirms
+        r = kb_fathom.classify(m, {}, {}, CANDIDATES, vote=lambda m: ({}, []), auto_file=frozenset())
+        self.assertEqual((r["decision"], r["confidence"], r["proposal"]["client_key"], r["proposal"]["sure_by"]), ("queue", 1.0, "", "internal"))
 
     def test_watch_list_titles_always_wait_even_when_filing_is_on(self):
         m = dict(MEETING, title="Interview - senior media buyer", calendar_invitees=[{"email": "a@100.digital", "is_external": False}])
@@ -226,10 +226,10 @@ class Ladder(unittest.TestCase):
     def test_rung1_declared_domain_assigns_without_a_model(self):
         post = mock.Mock()
         r = kb_fathom.classify(MEETING, {"cloudflare": ["cloudflare.com"]}, {}, CANDIDATES, _post=post, vote=lambda m: ({}, []))
-        self.assertEqual((r["decision"], r["proposal"]["client_key"], r["proposal"]["confidence"], r["proposal"]["sure_by"]), ("queue", "cloudflare", 1.0, "domain"))
-        post.assert_not_called()
-        r = kb_fathom.classify(MEETING, {"cloudflare": ["cloudflare.com"]}, {}, CANDIDATES, _post=post, vote=lambda m: ({}, []), auto_file={"domain"})
         self.assertEqual((r["decision"], r["client_key"], r["assigned_by"]), ("assign", "cloudflare", "domain"))
+        post.assert_not_called()
+        r = kb_fathom.classify(MEETING, {"cloudflare": ["cloudflare.com"]}, {}, CANDIDATES, _post=post, vote=lambda m: ({}, []), auto_file=frozenset())
+        self.assertEqual((r["decision"], r["proposal"]["client_key"], r["proposal"]["confidence"], r["proposal"]["sure_by"]), ("queue", "cloudflare", 1.0, "domain"))
 
     def test_rung1_two_clients_same_domain_is_a_hint_not_an_assignment(self):
         r = kb_fathom.classify(MEETING, {"cloudflare": ["cloudflare.com"], "mongodb": ["cloudflare.com"]}, {}, CANDIDATES,
@@ -240,9 +240,9 @@ class Ladder(unittest.TestCase):
     def test_rung2_memory_assigns_on_an_unambiguous_person(self):
         mems = {"cloudflare": {"people": {"priya@cloudflare.com": {"n": 3}}, "titles": {}}}
         r = kb_fathom.classify(MEETING, {}, mems, CANDIDATES, vote=lambda m: ({}, []))
-        self.assertEqual((r["decision"], r["proposal"]["client_key"], r["proposal"]["sure_by"]), ("queue", "cloudflare", "memory"))
-        r = kb_fathom.classify(MEETING, {}, mems, CANDIDATES, vote=lambda m: ({}, []), auto_file={"memory"})
         self.assertEqual((r["decision"], r["client_key"], r["assigned_by"]), ("assign", "cloudflare", "memory"))
+        r = kb_fathom.classify(MEETING, {}, mems, CANDIDATES, vote=lambda m: ({}, []), auto_file=frozenset())
+        self.assertEqual((r["decision"], r["proposal"]["client_key"], r["proposal"]["sure_by"]), ("queue", "cloudflare", "memory"))
 
     def test_rung2_person_on_two_clients_demotes_to_hint(self):
         mems = {"cloudflare": {"people": {"priya@cloudflare.com": {"n": 3}}, "titles": {}},
@@ -250,13 +250,21 @@ class Ladder(unittest.TestCase):
         r = kb_fathom.classify(MEETING, {}, mems, CANDIDATES, _post=lambda b: gemini_reply("cloudflare", 0.5), vote=lambda m: ({}, []))
         self.assertEqual(r["decision"], "queue")
 
-    def test_rung3_queues_in_the_pilot_even_at_high_confidence(self):
+    def test_rung3_files_at_95_and_waits_below_it(self):
+        """Jerome, 2026-09-16: 95-100% files itself; when the system is not sure, a person decides."""
         with mock.patch.dict(os.environ, {"GEMINI_API_KEY": "k"}):
             r = kb_fathom.classify(MEETING, {}, {}, CANDIDATES, _post=lambda b: gemini_reply("cloudflare", 0.98),
                                    vote=lambda m: ({"cloudflare": 4}, ["4 of 4 similar passages are from cloudflare meetings"]))
-        self.assertEqual(r["decision"], "queue")
-        self.assertEqual(r["proposal"]["client_key"], "cloudflare")
-        self.assertIn("4 of 4 similar passages are from cloudflare meetings", r["evidence"])
+            self.assertEqual((r["decision"], r["client_key"], r["assigned_by"]), ("assign", "cloudflare", "model"))
+            self.assertIn("4 of 4 similar passages are from cloudflare meetings", r["evidence"])
+            r = kb_fathom.classify(MEETING, {}, {}, CANDIDATES, _post=lambda b: gemini_reply("cloudflare", 0.95), vote=lambda m: ({}, []))
+            self.assertEqual(r["decision"], "assign")                                      # 95 is in
+            r = kb_fathom.classify(MEETING, {}, {}, CANDIDATES, _post=lambda b: gemini_reply("cloudflare", 0.94), vote=lambda m: ({}, []))
+            self.assertEqual((r["decision"], r["proposal"]["client_key"]), ("queue", "cloudflare"))   # 94 waits
+            # a model filing NEVER teaches memory (index_meeting learns only from domain/memory/human/internal)
+            r = kb_fathom.classify(MEETING, {}, {}, CANDIDATES, _post=lambda b: gemini_reply("cloudflare", 0.98),
+                                   vote=lambda m: ({}, []), auto_assign=1.01)
+            self.assertEqual(r["decision"], "queue")                                       # and 1.01 still means never
 
     def test_rung3_assigns_when_the_threshold_is_lowered(self):
         with mock.patch.dict(os.environ, {"GEMINI_API_KEY": "k"}):
@@ -468,11 +476,10 @@ class Routes(unittest.TestCase):
         with mock.patch.dict(os.environ, {"GEMINI_API_KEY": ""}), \
              mock.patch.object(kb_fathom, "fetch_meetings", return_value=[]):
             FR._sync_quietly("key", "2026-09-01T00:00:00Z", "tester")
-        # pilot: the retried stand-up is now a SURE agency-wide guess waiting for a click, not filed
-        items = self.c.get("/kb/api/fathom/unassigned").get_json()["items"]
-        self.assertEqual([(i["recording_id"], i["proposal"]["client_key"], i["proposal"]["confidence"]) for i in items], [("7790", "", 1.0)])
+        # the retried stand-up is SURE (internal) -> it files itself and leaves the queue
+        self.assertEqual(self.c.get("/kb/api/fathom/unassigned").get_json()["items"], [])
         st = kb_fathom.state()
-        self.assertEqual((st["last_counts"]["retried"], st["last_counts"]["queued"]), (1, 1))
+        self.assertEqual((st["last_counts"]["retried"], st["last_counts"]["assigned"]), (1, 1))
 
     def test_queue_says_what_assign_will_teach_and_unticked_items_are_not_learned(self):
         """The card shows 'Will remember: ...' with tick boxes (2026-09-15 polish). Unticking sends

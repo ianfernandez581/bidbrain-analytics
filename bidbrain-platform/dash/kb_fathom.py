@@ -25,7 +25,7 @@ THE ASSIGNMENT LADDER (decision 2026-09-14) - top rung wins, each deterministic 
                     registry keys -> {client_key, confidence, why}
     4. human      - the Meetings queue: a person clicks Assign / Ignore, with rung 3's proposal
                     pre-selected.
-FATHOM_AUTO_ASSIGN is the confidence at/above which rung 3 files without a click. PILOT = 1.01
+FATHOM_AUTO_ASSIGN is the confidence at/above which rung 3 files without a click (default 0.95)
 (never). Rungs 0-2 always file. Every rung's signals travel with the decision and are logged.
 
 Until assigned a meeting waits at <PREFIX>/fathom/unassigned/<recording_id>/{meeting,proposal}.json
@@ -52,13 +52,15 @@ log = logging.getLogger("kb_fathom")
 
 API_BASE = "https://api.fathom.ai/external/v1"
 SIGNATURE_TOLERANCE_S = 300
-AUTO_ASSIGN = float(os.environ.get("FATHOM_AUTO_ASSIGN", "1.01"))     # 1.01 == never (rung 3, the model)
-# Which SURE rungs may file without a click: any of "internal" (only agency people on the invite),
-# "domain" (a declared client domain on the invite), "memory" (a person seen before on that client's
-# calls). EMPTY = the pilot rule (Jerome, 2026-09-16): nothing files itself - a sure rung becomes a
-# 100% guess in "Ready to confirm", one click via Confirm all, and Ignore keeps a private call out of
-# the library entirely. Charles's Fathom records EVERY meeting he lets it join, not only client ones.
-AUTO_FILE = frozenset(x.strip().lower() for x in (os.environ.get("FATHOM_AUTO_FILE") or "").split(",") if x.strip())
+# THE RULE (Jerome, 2026-09-16): 95-100% sure files itself; anything less waits for a person.
+# AUTO_ASSIGN is the model's threshold (rung 3); 1.01 would mean "never".
+AUTO_ASSIGN = float(os.environ.get("FATHOM_AUTO_ASSIGN", "0.95"))
+# Which SURE rungs (always 100%) may file without a click: "internal" (only agency people on the
+# invite), "domain" (a declared client domain on the invite), "memory" (a person seen before on that
+# client's calls). Default all three. Set FATHOM_AUTO_FILE="" to make every meeting wait for a click
+# (a sure rung then becomes a 100% guess in "Ready to confirm"); a title on QUEUE_TITLES waits regardless.
+AUTO_FILE = frozenset(x.strip().lower() for x in os.environ.get("FATHOM_AUTO_FILE", "internal,domain,memory").split(",")
+                      if x.strip())
 # Titles that ALWAYS wait for a person, whatever AUTO_FILE says. Word-bounded, case-insensitive.
 QUEUE_TITLES = [x.strip() for x in (os.environ.get("FATHOM_QUEUE_TITLES") or
                 "1:1,1-1,one on one,one-on-one,interview,hr,performance review,personal,salary,payroll,catch-up,catch up").split(",")
@@ -409,7 +411,7 @@ def corpus_vote(meeting, limit=20):
     deterministic rung or a person (auto-assign is off), so the vote is over confirmed placements
     by construction. -> ({client: n}, [evidence]); ({}, []) when nothing votes or search fails."""
     probe = " ".join(filter(None, [meeting.get("title"), summary_text(meeting)] +
-                            [(t.get("text") or "") for t in (meeting.get("transcript") or [])[:12]]))[:6000]
+                            transcript_turns(meeting, max_chars=4000)[0]))[:6000]
     if not probe.strip():
         return {}, []
     try:
@@ -442,8 +444,9 @@ def synthesise(meeting, candidates, evidence_lines, _post=None):
         why = "classifier unavailable: " + ("no GEMINI_API_KEY in this process" if not key else "no candidate clients")
         log.warning("fathom synthesise: %s", why)
         return {"client_key": AGENCY, "confidence": 0.0, "why": why}
-    excerpt = "\n".join(f"{(t.get('speaker') or {}).get('display_name', '')}: {t.get('text', '')}"
-                        for t in (meeting.get("transcript") or [])[:40])[:8000]
+    # Speaker TURNS (transcript_turns), not raw utterances: the same 12k characters carry roughly
+    # three times the conversation, and the transcript is the strongest evidence there is.
+    excerpt = "\n".join(transcript_turns(meeting, max_chars=12000)[0])
     prompt = (
         "You assign a recorded agency meeting to ONE client. Choose ONLY from the candidate keys "
         "below, or '' (empty string) if the meeting is about the agency itself, several clients at "
