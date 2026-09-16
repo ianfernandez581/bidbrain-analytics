@@ -953,7 +953,25 @@
   }
 
   // --- voice IN -------------------------------------------------------------------------------
-  var rec = { on: false, r: null, base: '', target: null, btn: null };
+  /* 🔴 TWO SEPARATE THINGS MADE A PAUSE LOSE WHAT YOU HAD ALREADY SAID, and each one on its
+   * own is enough to do it - so fixing either alone still looks broken.
+   *
+   * (1) `onresult` hands you the results that CHANGED, from `e.resultIndex` - NOT the whole
+   *     transcript. Reading only that slice and writing it over the box meant each new sentence
+   *     REPLACED the finished one before it: stop for breath, and the box rewound to what you
+   *     were saying just now. Finalised results are therefore accumulated here, exactly once
+   *     each, and only the unfinished tail is redrawn.
+   *
+   * (2) `continuous = true` does NOT mean "until I stop it". Chrome ends the session by itself
+   *     after a few seconds of silence and fires `onend`, which used to switch the microphone
+   *     off - so thinking mid-sentence ended dictation. A session that ends on its own is
+   *     started again; only the button, or an error that is genuinely fatal, stops it.
+   *
+   * The restart is why every handler is gated on `mine()`: `rec` is reassigned on stop, and a
+   * recogniser we have finished with can still deliver one last result afterwards, which would
+   * otherwise write into whatever box is being dictated into NOW.
+   */
+  var rec = { on: false, r: null, base: '', said: '', tail: '', target: null, btn: null };
 
   function dictateInto(target, btn) {
     if (rec.on) { stopRecording(); return; }
@@ -962,33 +980,90 @@
     r.continuous = true;
     r.interimResults = true;
     r.lang = 'en-AU';
-    rec = { on: true, r: r, base: target.value, target: target, btn: btn };
+    // `base` is what was in the box before the microphone was pressed; `said` is everything
+    // dictated since, across however many browser sessions the pauses have cost us.
+    var S = { on: true, r: r, base: target.value, said: '', tail: '', target: target, btn: btn,
+              lastStart: 0, spins: 0 };
+    rec = S;
     if (btn) btn.classList.add('on');
-    setPhase('recording', 'listening - press the microphone again to stop');
+    setPhase('recording', 'listening - pause as long as you like, press the microphone to stop');
     primeSpeechForce();
+
+    function mine() { return rec === S && S.on; }
+
+    function paint() {
+      var head = S.base ? S.base.replace(/\s*$/, '') + ' ' : '';
+      var body = S.said + (S.tail ? (S.said ? ' ' : '') + S.tail : '');
+      target.value = head + body;
+      if (target.tagName === 'TEXTAREA') autosize(target);
+    }
+
     r.onresult = function (e) {
-      var said = '';
-      for (var i = e.resultIndex; i < e.results.length; i++) said += e.results[i][0].transcript;
+      if (!mine()) return;
+      var tail = '';
+      for (var i = e.resultIndex; i < e.results.length; i++) {
+        var heard = String(e.results[i][0].transcript || '');
+        if (e.results[i].isFinal) S.said += (S.said ? ' ' : '') + heard.trim();
+        else tail += heard;
+      }
       // 🔴 IT LANDS IN THE BOX AND STAYS THERE. Nothing is sent by the microphone or by a pause:
       // dictation is reviewable text that you edit, add to, and then send yourself.
-      var joined = (rec.base ? rec.base.replace(/\s*$/, '') + ' ' : '') + said.trim();
-      target.value = joined;
-      if (target.tagName === 'TEXTAREA') autosize(target);
+      S.tail = tail.trim();
+      paint();
     };
+
     r.onerror = function (e) {
+      var err = (e && e.error) || '';
+      // A silence is not a failure, and `aborted` is what Chrome reports when it ends one
+      // session before the next. Both are just a pause: `onend` restarts us.
+      if (err === 'no-speech' || err === 'aborted') return;
       stopRecording();
-      if (e && e.error === 'not-allowed') {
+      if (err === 'not-allowed' || err === 'service-not-allowed') {
         window.kbToast('The microphone is blocked for this site. Allow it in the address bar.', true);
+      } else if (err === 'audio-capture') {
+        window.kbToast('No microphone was found.', true);
+      } else if (err) {
+        window.kbToast('Dictation stopped (' + err + '). Press the microphone to carry on.', true);
       }
     };
-    r.onend = function () { if (rec.on) stopRecording(); };
-    try { r.start(); } catch (e) { stopRecording(); }
+
+    r.onend = function () {
+      if (!mine()) return;
+      // The half-finished phrase is banked BEFORE the restart. A session that ends mid-sentence
+      // does not always finalise what it had heard, and the next session starts its numbering
+      // again - so anything still unconfirmed would be painted over and lost, which is the very
+      // thing this is here to prevent. Banking it cannot double up: a phrase that WAS finalised
+      // arrives through the loop above, which clears the tail in the same pass.
+      if (S.tail) { S.said += (S.said ? ' ' : '') + S.tail; S.tail = ''; }
+      begin();
+    };
+
+    function begin() {
+      var now = Date.now();
+      // A microphone that dies the moment it starts would otherwise restart for ever. Several
+      // immediate ends in a row is that; a person pausing is not.
+      S.spins = (now - S.lastStart < 500) ? S.spins + 1 : 0;
+      if (S.spins > 8) {
+        stopRecording();
+        window.kbToast('Dictation keeps stopping. Press the microphone to try again.', true);
+        return;
+      }
+      S.lastStart = now;
+      // The only realistic throw is "already started", which means the microphone is live -
+      // which is what this was for.
+      try { r.start(); } catch (e) { /* already listening */ }
+    }
+    begin();
   }
 
   function stopRecording() {
-    if (rec.btn) rec.btn.classList.remove('on');
-    if (rec.r) { try { rec.r.stop(); } catch (e) {} }
-    rec = { on: false, r: null, base: '', target: null, btn: null };
+    var S = rec;
+    S.on = false;
+    if (S.btn) S.btn.classList.remove('on');
+    // The handler goes BEFORE stop(), or the restart above fires on the way out and the
+    // microphone never switches off.
+    if (S.r) { try { S.r.onend = null; S.r.stop(); } catch (e) {} }
+    rec = { on: false, r: null, base: '', said: '', tail: '', target: null, btn: null };
     var bar = $('#kbConvo');
     if (bar && bar.classList.contains('is-recording')) setPhase('idle');
   }

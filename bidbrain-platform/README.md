@@ -961,7 +961,7 @@ gs://bidbrain-analytics-platform-dash/kb/
 `KB_PREFIX` overrides `kb`, which is how a local verification run writes into `kb-dev/` instead of
 the real library. No database and no vector store: the corpus is thousands of chunks, not millions.
 
-### The ten things that will bite somebody
+### The things that will bite somebody
 - **🔴 The freshness signal is the OBJECT LISTING, not `manifest.json`.** A manifest is a mutable
   object every write must read-modify-write, and Cloud Run runs several instances: two uploads
   landing together lose an increment and the loser never notices a document again. `list_blobs` over
@@ -1017,6 +1017,24 @@ the real library. No database and no vector store: the corpus is thousands of ch
 - **🔴 No class in `kb.css` may be `.card`, `.drow` or `.shead`.** The premium layer's scroll-reveal
   targets those by name and starts them at opacity 0 until an observer fires. On a list that
   re-renders on every click that means rows invisible until you scroll, which reads as data loss.
+- **🔴 THE ROOT OF A SCOPE IS A FOLDER LIKE ANY OTHER (fixed 2026-09-16).** `/kb/docs?folder=`
+  meant "no folder filter at all", so a document filed in Media plans was listed there AND at the
+  client's root - one file in two places, which reads as filing gone wrong rather than as a listing
+  bug, and made every folder row look like it had collected nothing. The root now lists only what
+  sits directly in it, so anything that draws NO folder rows has to ask for the subtree: a search
+  already passed `deep=1`, the Archived shelf did not and would have shown only unfiled documents.
+  The rail's "No folder" node went with it - it had become a second name for the same list.
+- **🔴 `continuous = true` DOES NOT MEAN "until I stop", AND `onresult` IS NOT THE WHOLE
+  TRANSCRIPT (both fixed 2026-09-16).** Two independent defects with one symptom - pause for
+  breath and the Ask panel's microphone lost what you had already said. (1) Chrome ends a speech
+  session by itself after a few seconds of silence and fires `onend`; that used to switch the
+  microphone off, so it has to be restarted (and the unfinalised tail banked first - a session
+  that ends mid-sentence does not always finalise what it heard). (2) `onresult` hands you the
+  results that CHANGED, from `e.resultIndex`, so writing that slice over the box made each new
+  sentence replace the finished one before it: accumulate the finals yourself and redraw only the
+  tail. `no-speech` and `aborted` are pauses, not failures; only `not-allowed`, `service-not-allowed`
+  and `audio-capture` may stop it, plus a spin guard so a dead microphone cannot restart for ever.
+  The same `onend` half is still in the dashboards' Internal Assistant widget (`main.py`).
 
 ### Trust, and why these numbers
 One retriever's 40 candidates span 0.0064 of fused score. `TRUST_NUDGE = 0.004` lifts a

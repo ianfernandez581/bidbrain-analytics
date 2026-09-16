@@ -201,8 +201,12 @@
     // 🔴 THE LIST IS SCOPED TOO, not just the tree. Without the client the file list shows every
     // document in the library from inside a client, so Geocon's folder showed the agency playbook
     // and every other client's work. Browsing a client must show what that CLIENT holds.
+    // 🔴 `deep` IS NOT AN OPTIMISATION, IT IS WHAT THESE TWO VIEWS ARE. A folder - the
+    // root included - lists its own direct children, so anything that draws no folder rows has
+    // to ask for the whole subtree or it silently shows only what happens to be unfiled. That is
+    // a search, and it is the Archived shelf, which is one flat list of everything put away.
     var qs = '?folder=' + encodeURIComponent(S.cwd || '') + scopeQ()
-           + (S.archived ? '&archived=1' : '');
+           + (S.archived ? '&archived=1&deep=1' : '');
     if (S.q) qs += '&q=' + encodeURIComponent(S.q) + '&deep=1';
     return api('/docs' + qs).then(function (j) {
       S.docs = j.docs || [];
@@ -253,9 +257,10 @@
     // The agency-wide root, and its shelves.
     wrap.appendChild(node({ path: '', name: 'All documents', count: S.total }, 0, true));
     if (S.level !== 'client') {
-      if (S.rootCount) {
-        wrap.appendChild(node({ path: '/', name: 'No folder', count: S.rootCount }, 1, false, true));
-      }
+      // There is no "No folder" node any more: since the root lists what sits directly in it,
+      // that node showed the same documents under a second name, and two places saying one
+      // thing is how they start disagreeing. The '/' path still works (the Ask panel scopes
+      // with it, and it is what an old bookmark holds), it just is not offered twice.
       (function walk(parent, depth) {
         childrenOf(parent).forEach(function (f) {
           var kids = childrenOf(f.path);
