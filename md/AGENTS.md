@@ -113,7 +113,8 @@ dates, "verified on") lives there too, never here.**
   `/kb/meetings` files Fathom recordings (Charles's account; a key is user-scoped) into a client's
   Meetings folder as `kind=meeting` documents - summary first, then a timestamped transcript - via
   a deterministic ladder (internal-only -> declared invitee domain -> profile memory) and a queue
-  a person confirms for the rest; memory learns ONLY from confirmed assignments. Full detail, and its gotchas, in `bidbrain-platform/README.md` -> "The knowledge
+  a person confirms for the rest - and in the pilot NOTHING files itself (`FATHOM_AUTO_FILE` empty):
+  a sure rung is a 100% guess one click away; memory learns ONLY from confirmed assignments. Full detail, and the ten gotchas, in `bidbrain-platform/README.md` -> "The knowledge
   base".
   Registry = one private JSON in GCS. Service `platform-dash`.
 - **`status_dashboard/`** - pipeline-health data + deploy plumbing (UI is merged into the platform;

@@ -72,7 +72,9 @@
       '<b>Filed meetings</b><span class="n">' + indexed + '</span>' +
       '<b>Last sync</b><span>' + (st.last_sync_at ? esc(when(st.last_sync_at)) + (st.by ? ' by ' + esc(st.by) : '') : 'never') + '</span>' +
       '<b>Last result</b><span class="n">' + (st.last_counts ? esc(lc.seen + ' seen · ' + lc.assigned + ' filed · ' + lc.queued + ' queued · ' + lc.exists + ' already filed · ' + lc.errors + ' errors') : '-') + '</span>' +
-      '<b>Auto-assign</b><span>' + (j.auto_assign > 1 ? 'never (pilot) - a person confirms every proposal' : 'at confidence ≥ ' + pct(j.auto_assign) + '%') + '</span>';
+      '<b>Files itself</b><span>' + ((j.auto_file || []).length ? 'when sure by: ' + esc(j.auto_file.join(', ')) : 'nothing (pilot) - a person confirms every meeting, even the sure ones') + '</span>' +
+      '<b>AI guess files</b><span>' + (j.auto_assign > 1 ? 'never' : 'at confidence ≥ ' + pct(j.auto_assign) + '%') + '</span>' +
+      '<b>Always waits</b><span>titles with ' + esc((j.queue_titles || []).join(', ')) + '</span>';
     if (st.sync_in_progress) setTimeout(loadStatus, 5000);      // poll until the background sync finishes
   }
   function loadStatus() {

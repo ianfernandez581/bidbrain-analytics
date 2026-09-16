@@ -198,7 +198,8 @@ def status():
     except Exception:                        # noqa: BLE001
         log.exception("fathom status")
     return jsonify(ok=True, connected=kb_fathom.enabled(), webhook=bool(webhook_secret()), state=st,
-                   unassigned=queue, indexed=_indexed_count(), auto_assign=kb_fathom.AUTO_ASSIGN)
+                   unassigned=queue, indexed=_indexed_count(), auto_assign=kb_fathom.AUTO_ASSIGN,
+                   auto_file=sorted(kb_fathom.AUTO_FILE), queue_titles=kb_fathom.QUEUE_TITLES)
 
 
 @bp.post("/kb/api/fathom/sync")

@@ -52,7 +52,24 @@ log = logging.getLogger("kb_fathom")
 
 API_BASE = "https://api.fathom.ai/external/v1"
 SIGNATURE_TOLERANCE_S = 300
-AUTO_ASSIGN = float(os.environ.get("FATHOM_AUTO_ASSIGN", "1.01"))     # 1.01 == never
+AUTO_ASSIGN = float(os.environ.get("FATHOM_AUTO_ASSIGN", "1.01"))     # 1.01 == never (rung 3, the model)
+# Which SURE rungs may file without a click: any of "internal" (only agency people on the invite),
+# "domain" (a declared client domain on the invite), "memory" (a person seen before on that client's
+# calls). EMPTY = the pilot rule (Jerome, 2026-09-16): nothing files itself - a sure rung becomes a
+# 100% guess in "Ready to confirm", one click via Confirm all, and Ignore keeps a private call out of
+# the library entirely. Charles's Fathom records EVERY meeting he lets it join, not only client ones.
+AUTO_FILE = frozenset(x.strip().lower() for x in (os.environ.get("FATHOM_AUTO_FILE") or "").split(",") if x.strip())
+# Titles that ALWAYS wait for a person, whatever AUTO_FILE says. Word-bounded, case-insensitive.
+QUEUE_TITLES = [x.strip() for x in (os.environ.get("FATHOM_QUEUE_TITLES") or
+                "1:1,1-1,one on one,one-on-one,interview,hr,performance review,personal,salary,payroll,catch-up,catch up").split(",")
+                if x.strip()]
+_QUEUE_TITLE_RE = re.compile(r"(?<![a-z0-9])(" + "|".join(re.escape(t.lower()) for t in QUEUE_TITLES) + r")(?![a-z0-9])")
+
+
+def watched_title(meeting):
+    """The watch-list word the title matched, or ''."""
+    m = _QUEUE_TITLE_RE.search((meeting.get("title") or meeting.get("meeting_title") or "").lower())
+    return m.group(1) if m else ""
 CLASSIFY_MODEL = os.environ.get("FATHOM_CLASSIFY_MODEL", "gemini-2.5-flash")
 GEMINI = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 
@@ -236,7 +253,7 @@ def index_meeting(meeting, client_key, assigned_by, evidence=None, actor="", ski
     except Exception:                        # noqa: BLE001 - the text is the searchable part
         log.exception("fathom: could not keep the raw meeting for %s", rid)
     rep = kb_index.reindex_document(doc)
-    if assigned_by in ("domain", "human", "memory") and ck != AGENCY:
+    if assigned_by in ("domain", "human", "memory", "internal") and ck != AGENCY:
         try:
             kb_memory.learn(ck, meeting, doc["id"],
                             patterns=[e.split("campaign ", 1)[1].split('"')[1] for e in (evidence or [])
@@ -462,27 +479,40 @@ def synthesise(meeting, candidates, evidence_lines, _post=None):
 
 
 def classify(meeting, client_domains, memories, candidates, entities_by_client=None, auto_assign=None,
-             _post=None, vote=corpus_vote):
+             _post=None, vote=corpus_vote, auto_file=None):
     """Run the ladder. -> {"decision": "assign"|"queue", "client_key", "assigned_by", "confidence",
     "evidence": [..], "proposal": {...}}. Deterministic rungs assign; rung 3 assigns only at/above
     `auto_assign` (default FATHOM_AUTO_ASSIGN = never in the pilot); else queued with the proposal."""
     threshold = AUTO_ASSIGN if auto_assign is None else auto_assign
+    auto_file = AUTO_FILE if auto_file is None else frozenset(auto_file)
+    watched = watched_title(meeting)
+
+    def sure(client_key, by, evidence, why):
+        """A rung that is CERTAIN. It files only if that rung is in `auto_file` AND the title is not
+        on the watch-list; otherwise it is a 100% guess for a person (the pilot default)."""
+        if by in auto_file and not watched:
+            return {"decision": "assign", "client_key": client_key, "assigned_by": by, "confidence": 1.0,
+                    "evidence": evidence, "proposal": None}
+        if watched:
+            why += f" - the title matches the watch-list ('{watched}'), so it always waits for a person"
+        return {"decision": "queue", "client_key": None, "assigned_by": None, "confidence": 1.0,
+                "evidence": evidence, "proposal": {"client_key": client_key, "confidence": 1.0, "why": why,
+                                                   "evidence": evidence, "sure_by": by}}
+
     # rung 0: no external invitee at all -> agency-wide, deterministic
     inv = meeting.get("calendar_invitees") or []
     if inv and not any(kb_memory.is_external(i) for i in inv):
-        return {"decision": "assign", "client_key": AGENCY, "assigned_by": "domain", "confidence": 1.0,
-                "evidence": ["no external invitee - internal meeting"], "proposal": None}
+        return sure(AGENCY, "internal", ["no external invitee - internal meeting"],
+                    "Internal meeting - only agency people on the invite, so it belongs to no single client")
     # rung 1: declared domain
     kind, val, ev = rung_domain(meeting, client_domains)
     if kind == "assign":
-        return {"decision": "assign", "client_key": val, "assigned_by": "domain", "confidence": 1.0,
-                "evidence": ev, "proposal": None}
+        return sure(val, "domain", ev, "An invitee is from a declared client email domain: " + "; ".join(ev)[:200])
     hints = list(ev) if kind == "hint" else []
     # rung 2: memory
     mkind, mval, mev = kb_memory.match(meeting, memories or {})
     if mkind == "assign" and kind != "hint":
-        return {"decision": "assign", "client_key": mval, "assigned_by": "memory", "confidence": 1.0,
-                "evidence": mev, "proposal": None}
+        return sure(mval, "memory", mev, "A person or recurring title the system has seen on this client's calls before: " + "; ".join(mev)[:200])
     if mkind:
         hints += mev if mkind == "hint" else [f"{mval}: {e}" for e in mev]
     # rung 3: evidence bundle
@@ -492,7 +522,7 @@ def classify(meeting, client_domains, memories, candidates, entities_by_client=N
     hints += kev
     prop = synthesise(meeting, candidates, hints, _post=_post)
     prop["evidence"] = hints
-    if prop["confidence"] >= threshold and prop["client_key"] in {c["key"] for c in candidates}:
+    if prop["confidence"] >= threshold and prop["client_key"] in {c["key"] for c in candidates} and not watched:
         return {"decision": "assign", "client_key": prop["client_key"], "assigned_by": "model",
                 "confidence": prop["confidence"], "evidence": hints, "proposal": prop}
     return {"decision": "queue", "client_key": None, "assigned_by": None, "confidence": prop["confidence"],

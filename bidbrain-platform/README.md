@@ -1221,6 +1221,12 @@ over `{webhook-id}.{webhook-timestamp}.{body}`, secret `whsec_<base64>`, header 
   `gemini-2.5-flash` synthesis over the CLOSED list of registry keys - and the meeting **waits in
   the queue** with that proposal pre-selected. `FATHOM_AUTO_ASSIGN` (default `1.01` = never) is the
   confidence at which rung 3 would file without a click; the pilot never does.
+- **🔴 PILOT RULE: NOTHING FILES ITSELF** (Jerome, 2026-09-16 - Charles's Fathom records every
+  meeting it joins, not only client calls). The three SURE rungs (internal-only, declared domain,
+  memory) return a 100% guess with `sure_by`, which lands in "Ready to confirm" for one click; a
+  person can Ignore a private call before it is ever indexed. `FATHOM_AUTO_FILE=internal,domain,memory`
+  (any subset) switches each rung's self-filing back on. `FATHOM_QUEUE_TITLES` (default 1:1, one on
+  one, interview, hr, performance review, personal, salary, payroll, catch up) always waits, even then.
 - **Memory is written only by confirmed assignments** (human, domain, memory rung) - never by a
   model proposal, so a wrong guess cannot teach the next one. `<PREFIX>/fathom/memory/<client>.json`:
   people / titles / domains / patterns (learned), `client_domains` (declared, rung 1), `facts`
