@@ -1128,6 +1128,75 @@ document, holding a registry key, empty for agency-wide.
   how this shipped the first time. Flatten across agencies and unassigned, deduped by key, because
   dual visibility puts one client under two agencies.
 
+### The repo's markdown, mirrored (`scripts/kb_repo_sync.py`, 2026-09-17)
+The `bidbrain-analytics` repo's own documentation - AGENTS.md, all 20 client READMEs, every ingest
+unit, the Grid and platform guides - is in the library as a **`Bidbrain analytics` folder** holding
+~880 documents from 164 markdown files, agency-wide (no `client` key), `kind: reference`. It syncs
+itself: every push to `main` that touches a `.md` runs `.github/workflows/kb-sync.yml`, which runs
+that script, which writes through `kb_index.reindex_document` exactly as an upload does.
+
+**Edit the markdown in git. An edit made to one of these documents in the Explorer is replaced on
+the next sync** - and kept, in full, as a revision on the document, so nothing typed is lost.
+
+- **🔴 SECTIONS, NOT FILES, AND THAT IS THE WHOLE POINT.** `client_cloudflare/README.md` is 230,000
+  characters. Loaded as one document, every passage in it would carry the title "README.md" into
+  `kb_embed` (which attaches the title to EVERY chunk's vector) and into `kb_index`'s BM25 tokens
+  (`tokenize(text + " " + title)`). Split at headings, a passage instead carries
+  `clients/client_cloudflare/README.md > The motion layer`. Same text, same chunker, far better
+  ranking, for no run-time cost.
+- **🔴 `MAX_PER_DOC = 2` IS WHY OVERSIZED SECTIONS ARE SPLIT FURTHER.** A document contributes at
+  most two passages to any answer however long it is, so a 40,000-character section is not merely a
+  big document - it is ~180 passages of which two can ever be cited. Nothing is left above ~14,000
+  characters; cuts are taken at blocks, then sentences, and every part is numbered in its title.
+- **🔴 THE CLIENTS TABLE IN AGENTS.md IS ONE DOCUMENT PER ROW, NEVER PACKED.** That table is a row
+  per client with the client's name stated once at the start of a line running to several thousand
+  words. Packing two small rows together is the obvious economy and it destroys the only thing the
+  split exists for: a passage about `proptrack` would carry a title naming four other clients.
+- **SPLIT, NEVER REWRITE.** Nothing is paraphrased, summarised or reflowed - verified across all 164
+  files at word level, zero words lost, and asserted on every run of `scripts/test_kb_repo_sync.py`.
+  A library that improves its own sources answers from text that exists nowhere and sends the reader
+  to a file that says something else.
+- **Deterministic ids** (`repo_<sha1 of path + heading path>`) make it a sync rather than an import:
+  a run updates in place instead of adding a second copy beside the first. **It only ever deletes ids
+  with that prefix**, so a person's document is never at risk, and a markdown file deleted from the
+  repo takes its own documents with it (git is the history; a tombstone here is just a stale answer
+  waiting to be retrieved).
+- **🔴 LINE ENDINGS ARE NORMALISED BEFORE THE CONTENT HASH.** This repo is `core.autocrlf=true`, so
+  a Windows checkout is CRLF and CI is LF. Without that one line, every run from the other platform
+  rewrites and re-embeds all 164 files to change nothing.
+- **Not tagged to a client, deliberately.** `client` is what the retriever isolates on, and browsing
+  a client shows that client ONLY - so tagging these would take them out of the agency-wide folder,
+  while changing nothing about what a client question retrieves (a client scope already reads that
+  client PLUS agency-wide). These are our engineering notes about how we built a dashboard, not the
+  client's own plans and briefs.
+- **Size, and the one-off stall.** 882 documents, 2,798 passages, 104 folders, ~2,650 object writes
+  and ~880 Vertex calls on a first load (10 to 20 minutes; every later run touches only what
+  changed). It roughly quadruples the library, so **the first search after the initial load rebuilds
+  the whole cache - one GET per document, on each instance** and takes tens of seconds. That is the
+  incremental cache filling, once, not a fault.
+- **It shares the library with the business record, so use the SCOPE.** These are engineering notes;
+  a question about a media plan can now retrieve a passage of AGENTS.md. The knowledge base picker's
+  folders are the only HARD filter in `kb_index.search`, so narrowing to (or away from)
+  `Bidbrain analytics` is how an ask is kept to one kind of document.
+- **Two assistants, opposite outcomes, both correct.** The STAFF dashboard assistant
+  (`kb_bridge.retrieve`) searches the client PLUS agency-wide, so from now on it can cite that
+  client's own README and its row of AGENTS.md - which is the context a person on that dashboard
+  actually wants. The CUSTOMER assistant (`kb_bridge.retrieve_for_client`) keeps only documents
+  marked `visibility='client'`, and `kb_store.make_doc` has no such field, so **not one of these
+  engineering documents can reach a customer - by construction, not by configuration**. Keep it that
+  way when the held `visibility` change lands: these default to internal.
+- **CI holds no key.** `scripts\setup_kb_sync_auth.ps1` sets up workload identity federation pinned
+  to this repository, a dedicated `kb-sync` service account, and a storage grant **conditioned to the
+  `kb/` prefix** - because `platform.json`, which holds every dashboard password, is in the same
+  bucket and a CI identity has no business reading it. Listing comes from a custom role holding
+  `storage.objects.list` alone, since that permission is checked against the bucket and cannot carry
+  the condition.
+- The scheduled reconcile is **four times a day, not hourly, and that is a billing decision**: this
+  repo is private, so Actions minutes are metered and an hourly job that almost always finds nothing
+  would spend most of a 2,000-minute free tier. Pushes are the real trigger. The schedule exists
+  mainly to retry any document that was indexed WITHOUT VECTORS during a Vertex blip - those stay
+  searchable by keyword and nothing on screen says the ranking is degraded.
+
 ### The Ask panel: a bubble, not a column
 A launcher bubble bottom-right opens a floating, draggable, resizable panel (`kb_panel.css`,
 `static/kb_ask.js`). Shaped after Sentinel's assistant panel because that shape is already trusted;

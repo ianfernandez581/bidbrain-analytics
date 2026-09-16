@@ -117,7 +117,13 @@ dates, "verified on") lives there too, never here.**
   THE RULE (2026-09-16): 95-100% sure files itself (sure rungs at 100%, the model at
   `FATHOM_AUTO_ASSIGN`=0.95, client or agency-wide), a call the model says is not work waits,
   anything less sure waits for a person, and watch-list titles (1:1, interview, hr...) always wait;
-  memory never learns from a model filing. Decisions come from AI + RAG + memory, not codified rules. Full detail, and its gotchas, in `bidbrain-platform/README.md` -> "The knowledge
+  memory never learns from a model filing. Decisions come from AI + RAG + memory, not codified rules. **THIS REPO'S OWN MARKDOWN IS IN IT AND SYNCS ITSELF**
+  (`scripts/kb_repo_sync.py` + `.github/workflows/kb-sync.yml`): every tracked `.md` becomes
+  SECTION documents - one per heading, one per client row of the table below - in a
+  `Bidbrain analytics` folder, on every push to main. **Edit the markdown in git, never the
+  document in the library: the next sync replaces it** (keeping the old text as a revision).
+  First load or a manual run: `.\.venv\Scripts\python.exe scripts\kb_repo_sync.py --dry-run`.
+  Full detail, and its gotchas, in `bidbrain-platform/README.md` -> "The knowledge
   base".
   Registry = one private JSON in GCS. Service `platform-dash`.
 - **`status_dashboard/`** - pipeline-health data + deploy plumbing (UI is merged into the platform;
