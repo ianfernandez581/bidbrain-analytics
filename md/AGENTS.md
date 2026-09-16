@@ -436,6 +436,88 @@ doughnut converts "a bar chart of zeros" into "a titled blank box" and MAKES an 
 mandatory. A doughnut also cannot represent a 0% slice, so drop zero categories out of the ring and
 NAME them in the caption - stated, not silently missing.
 
+## CLOUD RUN DOES NOT GZIP FOR YOU, AND THE POLL RE-DOWNLOADS EVERYTHING (2026-09-16)
+Every `<c>-dash` service serves its payload from the same `main.py` shape, and by default that
+shape ships the JSON **uncompressed**. Verified, don't assume otherwise: a `curl -H 'Accept-Encoding:
+gzip, deflate, br'` against `cloudflare-dash` returns the login page with **no `content-encoding`
+header at all**. The Flask route sets none and there is no `Flask-Compress` in `requirements.txt`,
+so whatever the platform might do in theory, it is not happening here.
+- **Measured on cloudflare: 11.20 MB raw -> 0.66 MB gzip -6, a 94.1% cut, for 0.13s of CPU.** At a
+  realistic 3 Mbps that is **30 seconds of download before the first figure appears**, against 1.8s.
+  This dwarfs every render and animation cost on the page - do not go tuning motion while a client
+  waits half a minute for the payload.
+- **Compress ONCE per object, not per request**, keyed on the blob's `generation`. `blob.reload()`
+  is a metadata-only call, so the common case (nothing changed) costs one small API round trip and
+  **no GCS download**. Cache only the compressed bytes (~0.7 MB/worker against a 512Mi limit) and
+  `gzip.decompress` for the rare client that refuses gzip. Swap the cache in as ONE new dict -
+  gunicorn runs 2 workers x 8 threads, so a partially-updated entry is observable otherwise.
+- **The 5-minute auto-refresh poll re-downloaded the WHOLE payload to compare one timestamp** -
+  `~134 MB/hour for every tab left open`, for ~50 bytes of answer. Serve a `/data-version.json` that
+  returns `{last_updated}` alone and poll that; have the dashboard fall back to `/data.json` on 404
+  so a dashboard build that lands before the web service does keeps auto-refreshing instead of
+  silently going stale. Reference impl: `clients/client_cloudflare/dash/main.py` (`_payload()`).
+- **Check what is actually IN the payload before optimising anything else.** On cloudflare, 7.37 MB
+  of 11.2 MB was `pacing.rows` - 6,885 lead-grain rows x 45 columns - of which 9 columns are
+  referenced NOWHERE in the dashboard and 6 more (`FIRST_NAME`/`LAST_NAME`/`EMAIL`/`PHONE`/`OPT_IN`/
+  `ANNUAL_REVENUE_`) fed only `renderLeadDetail()`, which is Admin View only. **Every client browser
+  was downloading 6,885 people's names, emails and phone numbers to render a table clients can
+  never see.** Drop unread columns with an explicit DENYLIST in the job, never a narrowed `SELECT` -
+  a denylist lets a new column flow through by default instead of being silently lost.
+- **A UI gate is not a privacy control - move the DATA, not just the rendering.** The PII above is
+  now written to a staff-only sidecar (`<c>_internal.json`, served at `/internal/leads.json` and
+  fetched lazily on first open of the table), joined back on `LEAD_ID_SF`. Verified on a client
+  session: zero PII keys on any payload row, and the sidecar is never requested at all. Client
+  payload 11.20 -> 8.16 MB raw, **0.66 -> 0.41 MB gzipped**. Keep the join key in the client payload
+  (cloudflare's `isDummy()` needs `LEAD_ID_SF` anyway) and check each column really is staff-only
+  first - `JOB_TITLE` looked like PII and feeds a real client-facing breakdown chart.
+  **The route AUTHENTICATES but does not AUTHORIZE by role** (the `bb_sso` cookie carries the
+  allowed-CLIENT list, not the role) - same honest limit as `client_schneidersecpwr`. Still strictly
+  better than sending it to every browser unasked; the real close is the role in `platform_sso.py`.
+- **Render only the tab that is on screen.** cloudflare's `boot()` called `renderAll()`
+  unconditionally, building the entire Content Syndication tab before the tab the user was actually
+  looking at - **25 Chart instances before a single click, now 10**. Every other tab was already
+  lazy; one flag put that one on the same footing.
+- **ONE synchronous render block is what a user feels as "laggy", so SPLIT it, don't shrink it -
+  and split it onto `requestIdleCallback`, NEVER `requestAnimationFrame`.** cloudflare's
+  `renderPaidMediaAll()` ran 16 chart-building steps in one block and froze the main thread for
+  **~645ms** on the default tab. The steps were already decomposed and individually try/caught, so
+  deferring the below-the-fold ones changes WHEN they run and nothing else.
+  **The scheduler choice is the part that is easy to get wrong.** A rAF callback runs BEFORE the
+  frame it belongs to paints, so a 60-80ms chart build inside one delays that frame by 60-80ms - a
+  guaranteed dropped frame per batch. The first cut of this used rAF and turned one 645ms freeze
+  into seven visible stutters, which is better and still not smooth. An idle callback runs AFTER
+  the paint, in time that would otherwise be wasted, and hands you a `deadline` so several cheap
+  steps can share one slice; pass `timeout` so a busy page cannot starve it. Fall back to
+  `setTimeout(...,0)` (still a macrotask, so the browser paints between steps) rather than back to
+  one big block, or Safari < 16.4 keeps the defect. Three more things it needs: run the
+  above-the-fold steps SYNCHRONOUSLY (a tab that paints blank is worse than one that pauses), skip
+  deferral entirely when `document.hidden` (no useful idle time, and a print needs it all now), and
+  carry a GENERATION TOKEN - the function is re-called on a date change and every chip, so a
+  deferred slice from the previous scope would otherwise paint stale figures over fresh ones.
+  **Do NOT extend this to `renderAll()` (the CS tab) without solving its ordering first** - that
+  sequence ends with `renderCsPacingDetail()` -> `applyRegionPanelScope()`, which is what hides the
+  wrong-theatre panels and re-hides the dev-only per-lead table. Deferring it opens a window where
+  EMEA shows APAC panels, which is worse than a 180ms pause.
+- **A leak is not the same as eager loading, so measure before you go hunting one.** 21 `new Chart()`
+  against 1 `.destroy()` looks like a leak and is not: instances stayed flat at 25 across 12 tab
+  cycles with the heap settling at 24 MB. The problem was never how state is held, only how much of
+  it is fetched and built up front.
+
+## ONLY `/data.json` SURVIVES THE PLATFORM PROXY - EVERY OTHER FETCH MUST BE RELATIVE (2026-09-16)
+The proxy serves each dashboard at `/d/<c>/` and rewrites exactly ONE absolute path in the HTML it
+passes through: `b"/data.json"` -> `/d/<c>/data.json` (`bidbrain-platform/dash/main.py`). So **any
+other absolute path in a `fetch()` resolves against the PLATFORM root and never reaches the client
+service** - `fetch('/internal/reports.json')` from inside `/d/<c>/` hits the platform, not the
+dashboard. It works when you test the raw `*.run.app` URL direct and fails for every real user,
+which is the worst possible failure shape.
+**Rule: use a RELATIVE url** (`'internal/leads.json'`, `'data-version.json'`). It resolves to
+`/d/<c>/<x>` behind the proxy and `/<x>` direct, and the proxy forwards arbitrary subpaths
+(`@app.route("/d/<client>/<path:subpath>")`), so both reach the service.
+**`client_schneidersecpwr` still carries this bug** - its Reports tab fetches an ABSOLUTE
+`/internal/reports.json` (`dashboard.html` ~line 1850), so the staff workbook data cannot load
+through the front door. Not fixed here (that dashboard needs its own verification pass); fix it the
+next time that tab is touched.
+
 ## Dashboard edits - the common task
 Each client's UI is ONE big file: `clients/client_<c>/dash/dashboard.html` (~1,300-2,400 lines).
 - **Do NOT read, reformat, or edit the logo blocks** (giant `<svg>`/base64 walls; STT's is

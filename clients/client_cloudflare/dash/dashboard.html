@@ -142,7 +142,11 @@
   .qtr-group{display:inline-flex;gap:3px;background:var(--cf-bg);border:1px solid var(--cf-line);border-radius:var(--r-md);padding:3px}
   .qtr-chip{display:inline-flex;flex-direction:column;align-items:center;line-height:1.05;
       padding:5px 12px;border:none;border-radius:var(--r-sm);background:none;color:var(--cf-mute);
-      font-family:inherit;font-size:var(--t-body);font-weight:700;cursor:pointer;transition:all .15s}
+      font-family:inherit;font-size:var(--t-body);font-weight:700;cursor:pointer;
+      /* MOTION PASS 07: name the properties. `all` animates every animatable
+         property, so the next layout value added here becomes an animation. */
+      transition:background-color .15s var(--bb-ease-soft),color .15s var(--bb-ease-soft),
+                 border-color .15s var(--bb-ease-soft),transform .18s var(--bb-ease)}
   .qtr-chip span{font-size:var(--t-micro);font-weight:600;opacity:.8;letter-spacing:var(--tr-label);margin-top:1px}
   .qtr-chip:not(.on):hover{background:var(--surface);color:var(--ink)}
   .qtr-chip.on{background:var(--cf-orange);color:var(--on-accent)}
@@ -189,7 +193,11 @@
   .filter-row .lbl{font-size:var(--t-sm);color:var(--cf-mute);text-transform:uppercase;letter-spacing:var(--tr-label);font-weight:600}
   .chips{display:flex;gap:6px;flex-wrap:wrap}
   .chip{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--cf-line);border-radius:var(--r-pill);
-    background:var(--surface-2);font-size:var(--t-sm);font-weight:500;cursor:pointer;color:var(--ink);transition:all .15s}
+    background:var(--surface-2);font-size:var(--t-sm);font-weight:500;cursor:pointer;color:var(--ink);
+    /* MOTION PASS 07 */
+    transition:background-color .15s var(--bb-ease-soft),color .15s var(--bb-ease-soft),
+               border-color .15s var(--bb-ease-soft),box-shadow .28s var(--bb-ease),
+               transform .18s var(--bb-ease)}
   .chip.on{background:var(--cf-orange);color:var(--on-accent);border-color:var(--cf-orange)}
   .chip:not(.on):hover{background:var(--surface-2);color:var(--ink);border-color:var(--brand-accent)}
   .chip-action{font-size:var(--t-label);color:var(--brand-accent);background:none;border:none;cursor:pointer;font-weight:600;font-family:inherit}
@@ -218,7 +226,15 @@
   .control-right .dp-pop{left:auto;right:0}
   .dp-pop{position:absolute;z-index:60;margin-top:6px;left:0;display:flex;background:var(--dp-bg);
       border:1px solid var(--dp-line);border-radius:var(--r-lg);box-shadow:var(--shadow-pop);overflow:hidden}
-  .dp-pop.dp-hide{display:none}
+  /* MOTION PASS 02: the picker used to cut in and out on a display toggle - the
+     only control on the page that did not ease. It is right-anchored (see the
+     rule above), so it scales out of its own trigger. Never from scale(0).
+     visibility is discrete, so it is delayed to the end of the fade: the panel
+     leaves the accessibility tree once it is actually gone, not before. */
+  .dp-pop{transform-origin:top right;opacity:1;scale:1;visibility:visible;
+      transition:opacity .16s var(--bb-ease),scale .16s var(--bb-ease),visibility 0s linear 0s}
+  .dp-pop.dp-hide{opacity:0;scale:.97;visibility:hidden;pointer-events:none;
+      transition:opacity .1s var(--bb-ease),scale .1s var(--bb-ease),visibility 0s linear .1s}
   .dp-presets{display:flex;flex-direction:column;min-width:144px;border-right:1px solid var(--dp-line);padding:8px;gap:1px}
   .dp-presets a{padding:8px 12px;border-radius:var(--r-md);cursor:pointer;color:var(--dp-muted);
       font-weight:600;font-size:var(--t-sm);white-space:nowrap}
@@ -784,9 +800,12 @@
   .tab.active{filter:drop-shadow(0 6px 9px var(--glow))}
   .tab::after{content:"";position:absolute;left:14px;right:14px;bottom:-1px;height:2.5px;border-radius:2px;
     background:var(--brand-accent);transform:scaleX(0);transform-origin:center;
-    transition:transform .34s var(--bb-ease),background-color .2s}
+    /* MOTION PASS 06: the underline is the confirmation a click landed, so it
+       must not finish after the pane it confirms (now .18s - see 01). */
+    transition:transform .2s var(--bb-ease),background-color .2s}
   .tab.active::after{transform:scaleX(1)}
-  .tab:not(.active):hover::after{transform:scaleX(.5);background:var(--muted)}
+  .tab:not(.active):hover::after{transform:scaleX(.5);background:var(--muted);
+    transition-duration:.14s}
   #cmpTabs .tab::after{background:var(--cf-orange)}
 
   /* ---------- Surfaces: lift, brighten, glow ---------- */
@@ -795,7 +814,11 @@
   .card:hover,.kpi:hover,.cs-snap .group:hover,.qoq-stats .stat:hover,.compare-panel:hover,
   .qoq-note:hover{
     transform:translateY(-3px);box-shadow:var(--bb-lift);
-    border-color:color-mix(in srgb,var(--brand-accent) 34%,var(--line))}
+    border-color:color-mix(in srgb,var(--brand-accent) 34%,var(--line));
+    /* MOTION PASS 04: a lift is the interface answering, so it is immediate;
+       the drop back is the system finishing up and keeps the longer curve.
+       Order matches the transition list above: transform, box-shadow, border. */
+    transition-duration:.18s,.18s,.38s}
   /* KPI tiles get a slow diagonal sheen on hover - the one piece of pure gloss in the
      skin. .kpi is already overflow:hidden, so the sweep is clipped to the tile. */
   .kpi::after{content:"";position:absolute;inset:-40% -60%;pointer-events:none;z-index:0;
@@ -887,8 +910,25 @@
     box-shadow:0 26px 60px -30px rgba(0,0,0,.95),0 0 34px -18px var(--glow-strong)}
 
   /* Tab panes fade+rise in, so switching tabs is a move rather than a cut. */
-  .panel:not(.hidden){animation:bbPane .46s var(--bb-ease) both}
-  @keyframes bbPane{from{opacity:0;transform:translateY(9px)}to{opacity:1;transform:none}}
+  /* MOTION PASS 01: the pane entrance is KEPT, but it now costs nothing.
+     It was a 460ms keyframe. Two problems with that: a keyframe restarts from
+     frame zero every time it is re-triggered, so switching two tabs quickly
+     replayed the second entrance on top of a half-finished first one; and 460ms
+     is well past the 250ms budget for navigation people use dozens of times a
+     session. An intermediate version drove it from JS by stamping a class and
+     forcing a reflow to commit the starting state - that worked, but the forced
+     reflow measured ~10ms on the 1,026-node Paid Media panel, paid on every
+     single switch, purely for decoration.
+     @starting-style removes the JS and the reflow entirely: the browser knows
+     the entry state declaratively, so there is nothing to commit by hand. It
+     needs transition-behavior:allow-discrete because `display` is what changes
+     (.panel.hidden is display:none) and display is a discrete property - without
+     it the element would flip visible instantly and the fade would never run.
+     Kept to opacity + a 4px rise: both composite, neither triggers layout. */
+  .panel{opacity:1;translate:0 0;
+      transition:opacity .18s var(--bb-ease),translate .18s var(--bb-ease),
+                 display .18s allow-discrete}
+  @starting-style{ .panel:not(.hidden){opacity:0;translate:0 4px} }
 
   /* Warm, thin scrollbars - the default grey ones are the last light-theme artefact. */
   *::-webkit-scrollbar{width:10px;height:10px}
@@ -949,6 +989,7 @@
     #bbAurora{display:none}
     .bb-orb,.kpi .stripe::after,.pace-bar .pfill::after,.topbar .rail,
     .panel:not(.hidden),#loading .msg{animation:none !important}
+    .panel{transition:none !important}   /* MOTION PASS 01 is a transition now */
     html.bb-motion [data-bb-reveal]{opacity:1 !important;transform:none !important;transition:none !important}
     .card,.kpi,.chip,.cchip,.tab,.seg button,.dp-btn,.qoq-cell,.control-bar{transition:none !important}
     .card:hover,.kpi:hover,.cs-snap .group:hover,.qoq-stats .stat:hover,.compare-panel:hover,
@@ -956,6 +997,20 @@
     .pbar .fill,.reg-bar .reg-fill,.pace-bar .pfill,.cmp-asset .bar>span{transition:none !important}
     .dl-sc,.control-tabs .tabs{scroll-behavior:auto}
     .dl-chip,.dl-wrap::before,.dl-wrap::after{transition:none !important}
+  }
+
+  /* MOTION PASS 05: a touch device synthesises hover on tap, so every lift and
+     the 1.05s KPI sheen fired on a tap and then STUCK - there is no pointer to
+     move away. Neutralise the hover-only affordances where there is no real
+     pointer. :active is untouched on purpose: touch needs press feedback most. */
+  @media (hover:none),(pointer:coarse){
+    .card:hover,.kpi:hover,.cs-snap .group:hover,.qoq-stats .stat:hover,
+    .compare-panel:hover,.qoq-note:hover,.qoq-cell:hover,
+    .chip:hover,.cchip:hover,.seg button:hover,.dp-btn:hover,.qtr-chip:hover,
+    .compare-clear:hover,.dash-select:hover,.dp-nav:hover{
+      transform:none !important;filter:none !important}
+    .kpi:hover::after{transition:none !important;transform:translateX(-115%) !important}
+    .tab:not(.active):hover::after{transform:scaleX(0) !important}
   }
 
   /* ---------- PRINT ----------------------------------------------------------
@@ -2317,6 +2372,13 @@
 // CONFIG
 // ==========================================================================
 const JSON_URL = '/data.json';   // single combined payload, served (gated) by the Flask app
+// RELATIVE, and that is load-bearing. The platform proxy serves this page at
+// /d/cloudflare/ and rewrites exactly ONE absolute path in the HTML - "/data.json" - so any
+// OTHER absolute path resolves against the PLATFORM root and never reaches this service.
+// A relative path resolves to /d/cloudflare/<x> behind the proxy and /<x> direct, and the
+// proxy forwards arbitrary subpaths (/d/<client>/<path:subpath>), so both work.
+const VERSION_URL  = 'data-version.json';  // just { last_updated } - the auto-refresh poll
+const LEADPII_URL  = 'internal/leads.json';  // staff-only per-lead PII (Admin View table)
 let COMBINED = null;             // { last_updated, paid_media:{...}, pacing:{...} }
 let CSE = null;                  // cs_enriched: { weekly:[], detail:[] } - Weekly Enriched Leads
 // CS market universe = the COARSE 7 markets (2026-07-07 grain: rolled back UP from the 2026-06-25
@@ -2922,6 +2984,7 @@ function dateOk(d){
 // Paid Media state (read from COMBINED on first tab click)
 let paidMediaLastUpdated = null;
 let paidMediaLoaded = false;
+let csRendered = false;      // Content Syndication renders on first open, not at boot
 let paidMediaActiveMarkets = new Set();
 let paidMediaAllMarkets = [];
 
@@ -3235,7 +3298,17 @@ async function boot() {
     populateRegionSelects();
     initChartToggles();
     initDevMode();
-    renderAll();
+    // Render ONLY the tab that is actually on screen. The default tab is Paid
+    // Media, but boot used to call renderAll() unconditionally first - building
+    // the entire Content Syndication tab (donuts, weekly, daily, assets, region
+    // grid, pacing detail) that nobody was looking at, before then building the
+    // tab they were. Every other tab has always rendered lazily on switch; this
+    // just puts Content Syndication on the same footing.
+    // csRendered is what keeps it lazy WITHOUT changing any behaviour: switchTab
+    // and applyDateRange both call renderAll() already, so the tab still builds
+    // the moment it is opened or the range moves.
+    if (activeTab === 'main') { renderAll(); csRendered = true; }
+    else { setLiveBanner(COMBINED && COMBINED.last_updated, rawRows.length); }
     renderDateScope();   // default range is the current quarter (narrowed) -> show the scope banner on load
     if (activeTab === 'paid' && !paidMediaLoaded) loadPaidMedia();
   } catch (err) {
@@ -3352,6 +3425,11 @@ function switchTab(tab) {
   document.getElementById('panel-qoq').classList.toggle('hidden', tab !== 'qoq');
   document.getElementById('panel-enriched').classList.toggle('hidden', tab !== 'enriched');
   document.getElementById('panel-txdata').classList.toggle('hidden', tab !== 'txdata');
+  // Content Syndication is built lazily now (see boot). Everything that already
+  // re-rendered it - applyDateRange, a lane change, a market chip - still calls
+  // renderAll() on its own; this only covers the first time the tab is opened.
+  if (tab === 'main' && !csRendered) { csRendered = true; renderAll(); }
+
   if (tab === 'qoq') renderQoQ();
   if (tab === 'enriched') renderEnriched();
   if (tab === 'txdata') renderTxData();
@@ -6037,6 +6115,50 @@ const LEAD_COLS = [
 ];
 const LEAD_CAP = 1000;   // cap DOM rows; CSV exports the full filtered set
 
+// ---- Per-lead PII: fetched lazily, never in the client payload --------------
+// These six columns used to ride along in pacing.rows, so EVERY client session downloaded the
+// name, email and phone number of ~6,900 leads to render a table only Admin View draws. They
+// now live in a staff-only sidecar the export job writes, fetched the first time this table is
+// opened and joined on LEAD_ID_SF (which stays in the payload - isDummy() needs it too).
+// Failure is never fatal: the table renders with those cells blank and says why.
+const LEAD_PII_COLS = ['FIRST_NAME','LAST_NAME','EMAIL','PHONE','OPT_IN','ANNUAL_REVENUE_'];
+let LEAD_PII = null;          // Map(LEAD_ID_SF -> {col: value})
+let LEAD_PII_STATE = 'idle';  // idle | loading | ready | missing | error
+
+async function loadLeadPii() {
+  if (LEAD_PII_STATE === 'loading' || LEAD_PII_STATE === 'ready') return;
+  LEAD_PII_STATE = 'loading';
+  try {
+    const res = await fetch(LEADPII_URL, { cache: 'no-store' });
+    if (!res.ok) { LEAD_PII_STATE = (res.status === 404) ? 'missing' : 'error'; }
+    else {
+      const d = await res.json();
+      LEAD_PII = new Map((d.leads || []).map(r => [String(r.LEAD_ID_SF), r]));
+      LEAD_PII_STATE = 'ready';
+    }
+  } catch (_) { LEAD_PII_STATE = 'error'; }
+  // Re-render only if the table is still on screen and still wanted.
+  if (devMode && document.getElementById('leadDetailCard')) renderLeadDetail(aggregate());
+}
+
+// Join the PII back on. ONE place, so the on-screen table and the CSV export can never
+// disagree about which fields a lead has.
+function withLeadPii(rows) {
+  if (LEAD_PII_STATE !== 'ready' || !LEAD_PII) return rows;
+  return rows.map(r => {
+    const p = LEAD_PII.get(String(r.LEAD_ID_SF));
+    return p ? Object.assign({}, r, p) : r;
+  });
+}
+
+function leadPiiNote() {
+  if (LEAD_PII_STATE === 'ready')   return '';
+  if (LEAD_PII_STATE === 'loading') return ' Contact fields are still loading.';
+  if (LEAD_PII_STATE === 'missing') return ' Contact fields are unavailable - the export job has not written them yet.';
+  if (LEAD_PII_STATE === 'error')   return ' Contact fields could not be loaded.';
+  return '';
+}
+
 function leadCell(key, v) {
   if (v === null || v === undefined) return '';
   if (key === 'DAY') return String(v).slice(0, 10);
@@ -6044,7 +6166,8 @@ function leadCell(key, v) {
 }
 // Real leads in the current view (accepted + rejected + new), newest first.
 function currentLeads(agg) {
-  return (agg.leads || []).slice().sort((a, b) => String(b.DAY || '').localeCompare(String(a.DAY || '')));
+  const rows = (agg.leads || []).slice().sort((a, b) => String(b.DAY || '').localeCompare(String(a.DAY || '')));
+  return withLeadPii(rows);
 }
 
 function renderLeadDetail(agg) {
@@ -6052,12 +6175,16 @@ function renderLeadDetail(agg) {
   if (!card) return;
   if (!devMode) { card.style.display = 'none'; return; }   // gated: never shown to clients
   card.style.display = '';
+  // First open in Admin View pulls the contact fields. Fire-and-forget: it re-renders itself
+  // when it lands, so the table draws immediately with everything else already populated.
+  if (LEAD_PII_STATE === 'idle') loadLeadPii();
   const leads = currentLeads(agg);
   const shown = leads.slice(0, LEAD_CAP);
   const note = document.getElementById('leadDetailNote');
-  if (note) note.textContent = leads.length > LEAD_CAP
+  if (note) note.textContent = (leads.length > LEAD_CAP
     ? `Showing the first ${fmtN(LEAD_CAP)} of ${fmtN(leads.length)} leads in the current filter (newest first). Use Download CSV for every field on every lead. Not shown to the client.`
-    : `${fmtN(leads.length)} lead(s) in the current filter (newest first), with every field we receive. Not shown to the client.`;
+    : `${fmtN(leads.length)} lead(s) in the current filter (newest first), with every field we receive. Not shown to the client.`)
+    + leadPiiNote();
   const th = LEAD_COLS.map(c => `<th>${esc(c[1])}</th>`).join('');
   const body = shown.map(r => '<tr>' + LEAD_COLS.map(c => `<td>${esc(leadCell(c[0], r[c[0]]))}</td>`).join('') + '</tr>').join('');
   document.getElementById('leadDetailWrap').innerHTML =
@@ -8199,13 +8326,86 @@ function renderPaidMediaAll() {
     ['Weekly target', renderWeeklyTarget], ['LinkedIn funnel', renderLiFunnel],
     ['LinkedIn creative efficiency', renderLiCreativeEfficiency],
   ];
+  // ---- PROGRESSIVE RENDER -------------------------------------------------------------
+  // All 16 steps used to run in ONE synchronous block. Measured cold on a 16-core machine that
+  // froze the main thread for ~645ms - nothing painted, nothing responded, and on a low-end
+  // laptop that is comfortably 1.5-2s of a dead page on the tab most people open first.
+  //
+  // The steps were already decomposed and individually try/caught, so this changes WHEN they
+  // run, never what they do: the first few (the KPI band and the chart under it - what is
+  // above the fold) still run synchronously so the tab is never blank, and the rest are spread
+  // over animation frames. Each frame the browser gets to paint and handle input, so the page
+  // fills in instead of locking up.
+  //
+  // RE-ENTRANCY is the part that needs care. renderPaidMediaAll() is re-called on a date
+  // change, a channel chip and a market chip, so a deferred batch from the PREVIOUS scope can
+  // still be queued when a new one starts - it would paint stale figures over fresh ones. Each
+  // run takes a token and every deferred batch abandons itself if the token has moved on.
+  const SYNC_STEPS = 3;        // above the fold: KPIs, TTD imp/CTR, channel mix
+  const myToken = ++paidRenderToken;
   let failed = 0;
-  for (const [label, fn] of steps) {
+
+  const runStep = ([label, fn]) => {
     try { fn(); }
     catch (e) { failed++; console.error('[paid] "' + label + '" failed to render:', e); }
+  };
+
+  const finish = () => {
+    try { setPaidFooter(); } catch (e) { /* footer is cosmetic */ }   // range annotation tracks the active filter
+    paidRenderDone(failed, steps.length);
+  };
+
+  steps.slice(0, SYNC_STEPS).forEach(runStep);
+
+  // SCHEDULING: requestIdleCallback, NOT requestAnimationFrame.
+  //
+  // This was rAF first and that was measurably wrong. A rAF callback runs BEFORE the frame it
+  // is part of paints, so a 60-80ms chart build inside one delays that frame by 60-80ms - a
+  // guaranteed dropped frame, every batch. Measured: 10 dropped frames on a tab switch, 5 of
+  // them over 50ms. The 645ms freeze had become seven visible stutters, which is better but
+  // still not smooth.
+  //
+  // An idle callback runs AFTER the browser has painted, in time it would otherwise waste, and
+  // hands us a deadline so we can fit as many cheap steps into one slice as genuinely fit and
+  // stop before we overrun. `timeout` guarantees the work still happens on a busy page rather
+  // than being starved indefinitely.
+  //
+  // A page being printed or a hidden tab gets no idle callbacks worth having, so that falls
+  // back to running the rest synchronously rather than leaving the tab half-built.
+  // A HIDDEN tab gets no useful idle time, and a page being printed needs everything present
+  // now - both run the rest synchronously rather than leaving the tab half-built.
+  if (document.hidden) {
+    steps.slice(SYNC_STEPS).forEach(runStep);
+    finish();
+    return;
   }
-  try { setPaidFooter(); } catch (e) { /* footer is cosmetic */ }   // range annotation tracks the active filter
-  if (failed === steps.length) {   // total failure → the feed is unusable, show the card
+
+  // requestIdleCallback where it exists; a plain macrotask otherwise. The setTimeout arm still
+  // lets the browser paint between steps, so Safari < 16.4 gets progressive rendering too
+  // rather than dropping back to the one big block this change exists to remove. It reports no
+  // spare time, so it runs exactly one step per slice.
+  const scheduleSlice = (typeof requestIdleCallback === 'function')
+    ? (cb) => requestIdleCallback(cb, { timeout: 250 })
+    : (cb) => setTimeout(() => cb({ timeRemaining: () => 0, didTimeout: true }), 0);
+
+  let i = SYNC_STEPS;
+  const pump = (deadline) => {
+    if (myToken !== paidRenderToken) return;   // superseded by a newer render - drop this run
+    // Always make progress (a slice with no time left would otherwise spin), then keep going
+    // only while this idle period has room for another step.
+    do { runStep(steps[i++]); }
+    while (i < steps.length && deadline && deadline.timeRemaining && deadline.timeRemaining() > 12);
+    if (i < steps.length) scheduleSlice(pump);
+    else finish();
+  };
+  scheduleSlice(pump);
+}
+
+// Generation token: see the re-entrancy note in renderPaidMediaAll().
+let paidRenderToken = 0;
+
+function paidRenderDone(failed, total) {
+  if (failed === total) {   // total failure -> the feed is unusable, show the card
     document.getElementById('paid-content').style.display = 'none';
     document.getElementById('paid-error').style.display = 'block';
     document.getElementById('paidErrorDetail').textContent =
@@ -9003,7 +9203,16 @@ function renderCampaignCS(cs){
 // and behind a single timer -- no chart code is touched.
 setInterval(async () => {
   try {
-    const res = await fetch(JSON_URL, { cache: 'no-store' });
+    // Ask for the TIMESTAMP, not the payload. This used to re-fetch and re-parse
+    // the whole ~11MB data.json every 5 minutes purely to compare one string -
+    // about 134 MB/hour for every tab left open, which on a laptop on mobile
+    // tethering is most of a gigabyte over a working day. /data-version.json
+    // returns ~50 bytes and, when nothing has changed, costs the service one
+    // metadata call and no GCS download at all.
+    // Falls back to the old behaviour on 404 so a dashboard build that lands
+    // before the web service does keeps auto-refreshing instead of going stale.
+    let res = await fetch(VERSION_URL, { cache: 'no-store' });
+    if (res.status === 404) res = await fetch(JSON_URL, { cache: 'no-store' });
     if (!res.ok) return;
     const data = await res.json();
     if (COMBINED && data.last_updated && data.last_updated !== COMBINED.last_updated) {
@@ -9258,6 +9467,10 @@ if (new URLSearchParams(location.search).has('bbslides')){
   // character for character. Anything it cannot parse is left completely alone.
   const NUM_RE = /^([^0-9-]*)(-?[0-9][0-9,]*(?:\.[0-9]+)?)([^0-9]*)$/;
   function countUp(el){
+    // MOTION PASS 03: growBars and replayChart both guard; this one did not, so
+    // figures animated for a reader who asked for stillness - and a screenshot
+    // caught mid-count shows every KPI at a fraction of its true value.
+    if (REDUCED) return;
     if (el.dataset.bbCount || el.children.length) return;
     const raw = el.textContent;
     if (!raw || raw.length > 26) return;
