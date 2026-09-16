@@ -8610,7 +8610,8 @@ function renderEnriched(){
       kpi('Accepted leads', fmtNum(totAcc), 'every Core DG lead'
           + (narrowed() ? ' in range' : '') + ', all offers')
     + kpi('Available to enrich', fmtNum(totL), 'pulse survey + qualification questions')
-    + kpi('Enriched', fmtNum(totE), 'of the ' + fmtNum(totL) + ' available', 'accent')
+    + kpi('Enriched', fmtNum(totE),
+          (totL ? 'of the ' + fmtNum(totL) + ' available' : 'nothing here is enriched'), 'accent')
     + kpi('Enrichment rate', (rate == null ? '-' : fmtPct2(rate, 1)),
           (rate == null ? 'no survey leads in scope'
                         : fmtNum(totL - totE) + ' could not be matched'));
@@ -8723,9 +8724,14 @@ function renderEnriched(){
         +  '<td class="num">' + fmtNum(sL) + '</td>'
         +  '<td class="num">' + fmtNum(sE) + '</td>'
         +  '<td class="num">' + (sR == null ? '-' : fmtPct2(sR, 1)) + '</td></tr>';
-      mb.innerHTML = mkts.length
+      mb.innerHTML = (mkts.length && totL)
         ? h
-        : '<tr><td colspan="4" style="color:var(--cf-mute)">No leads in scope.</td></tr>';
+        : '<tr><td colspan="4" style="color:var(--cf-mute)">'
+          + (totAcc && !totL
+              ? 'No pulse survey or qualification questions leads in this selection, so there '
+                + 'is nothing to break down by market.'
+              : 'No leads in scope.')
+          + '</td></tr>';
       // The market total must equal the KPI strip. If it does not, one of them is lying.
       if (sL !== totL){
         console.warn('[cs-enriched] market total', sL, '!= available to enrich', totL);
@@ -8738,9 +8744,13 @@ function renderEnriched(){
   if (tb){
     if (!weeks.length){
       tb.innerHTML = '<tr><td colspan="4" style="color:var(--cf-mute)">'
-        + (narrowed()
-            ? 'No leads in the selected date range for this campaign selection.'
-            : 'No leads for this campaign selection.')
+        + (totAcc
+            ? 'This selection has ' + fmtNum(totAcc) + ' accepted lead'
+              + (totAcc === 1 ? '' : 's') + ', but none on the offers enrichment runs on '
+              + '(pulse survey and qualification questions), so there is no rate to show.'
+            : (narrowed()
+                ? 'No leads in the selected date range for this campaign selection.'
+                : 'No leads for this campaign selection.'))
         + '</td></tr>';
     } else {
       let h = '';
