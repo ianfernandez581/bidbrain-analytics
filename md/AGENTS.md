@@ -112,8 +112,12 @@ dates, "verified on") lives there too, never here.**
   0.6, the other calls it deprecated, and either 400s the whole request. **MEETINGS (2026-09-15):**
   `/kb/meetings` files Fathom recordings (Charles's account; a key is user-scoped) into a client's
   Meetings folder as `kind=meeting` documents - summary first, then a timestamped transcript - via
-  a deterministic ladder (internal-only -> declared invitee domain -> profile memory) and a queue
-  a person confirms for the rest; memory learns ONLY from confirmed assignments. Full detail, and its gotchas, in `bidbrain-platform/README.md` -> "The knowledge
+  a ladder (declared invitee domain -> profile memory -> the model over transcript + corpus vote,
+  with "all-agency invite" as a hint, not a filing) and a queue a person confirms for the rest.
+  THE RULE (2026-09-16): 95-100% sure files itself (sure rungs at 100%, the model at
+  `FATHOM_AUTO_ASSIGN`=0.95, client or agency-wide), a call the model says is not work waits,
+  anything less sure waits for a person, and watch-list titles (1:1, interview, hr...) always wait;
+  memory never learns from a model filing. Decisions come from AI + RAG + memory, not codified rules. Full detail, and its gotchas, in `bidbrain-platform/README.md` -> "The knowledge
   base".
   Registry = one private JSON in GCS. Service `platform-dash`.
 - **`status_dashboard/`** - pipeline-health data + deploy plumbing (UI is merged into the platform;

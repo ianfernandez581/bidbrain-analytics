@@ -99,7 +99,7 @@ def retrieve_for_client(client, messages):
     ck = kb_store.client_key(client)
     try:
         res = kb_index.search(q, limit=LIMIT * 2, client=ck)
-        metas = {m["id"]: m for m in kb_index.all_meta(include_archived=False)}
+        metas = dict(kb_index.all_meta(include_archived=False))        # {doc_id: meta}
     except Exception:                        # noqa: BLE001
         log.exception("kb_bridge: client search failed for %s", client)
         return {"passages": [], "semantic": False, "semantic_error": "library unreachable", "query": q, "searched": 0}

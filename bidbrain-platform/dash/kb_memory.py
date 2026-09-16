@@ -28,6 +28,7 @@ rung (domain, memory) - never on a model proposal, so a wrong guess cannot teach
 Memory is facts ABOUT the client, never transcript text. `client_safe()` is the only slice the
 CUSTOMER assistant may read: facts. People and domains never leave the building.
 """
+import os
 import re
 import datetime as _dt
 
@@ -38,6 +39,27 @@ MAX_KEYS_PER_KIND = 500
 CLIENT_SAFE_KEYS = ("facts",)
 LEARNED_KINDS = ("people", "titles", "domains", "patterns")
 ALL_KINDS = LEARNED_KINDS + ("facts", "client_domains")
+
+# 🔴 Fathom's `is_external` is relative to the RECORDER's email domain, not to the agency. Found on
+# the first real sync (2026-09-16): Christian records from bidbrain.ai, so the one 100.digital
+# colleague on every dev stand-up was flagged external - the internal-only rung missed, and Assign
+# would have taught memory that a colleague belongs to a client. So the agency's own domains are
+# declared here and an invitee on one of them is internal whatever Fathom says.
+INTERNAL_DOMAINS = frozenset(d.strip().lower() for d in
+                             (os.environ.get("FATHOM_INTERNAL_DOMAINS") or "100.digital,bidbrain.ai").split(",")
+                             if d.strip())
+
+
+def invitee_domain(inv):
+    email = (inv.get("email") or "").strip().lower()
+    return ((inv.get("email_domain") or email.rsplit("@", 1)[-1]) if (inv.get("email_domain") or "@" in email) else "").lower()
+
+
+def is_external(inv):
+    """An invitee who is NOT one of us: Fathom's flag AND not on an agency domain."""
+    if not inv.get("is_external", True):
+        return False
+    return invitee_domain(inv) not in INTERNAL_DOMAINS
 
 
 def _path(client_key):
@@ -125,9 +147,9 @@ def teaches(meeting):
     people, domains = [], []
     for inv in meeting.get("calendar_invitees") or []:
         email = (inv.get("email") or "").strip().lower()
-        if not email or not inv.get("is_external", True):
+        if not email or not is_external(inv):
             continue
-        dom = (inv.get("email_domain") or email.rsplit("@", 1)[-1]).lower()
+        dom = invitee_domain(inv)
         if email not in people:
             people.append(email)
         if dom not in domains:
@@ -145,9 +167,9 @@ def learn(client_key, meeting, evidence, patterns=None, skip=None):
     doc = load(client_key)
     for inv in meeting.get("calendar_invitees") or []:
         email = (inv.get("email") or "").strip().lower()
-        if not email or not inv.get("is_external", True):
+        if not email or not is_external(inv):
             continue
-        dom = (inv.get("email_domain") or email.rsplit("@", 1)[-1]).lower()
+        dom = invitee_domain(inv)
         if email not in skip:
             _bump(doc["people"], email, evidence)
         if dom not in skip:
@@ -221,7 +243,7 @@ def match(meeting, memories):
     -> ("assign", client_key, [evidence]) | ("hint", {client_key: [evidence]}, [lines]) | (None, None, [])."""
     title = norm_title(meeting.get("title") or meeting.get("meeting_title"))
     emails = {(i.get("email") or "").strip().lower() for i in (meeting.get("calendar_invitees") or [])
-              if i.get("email") and i.get("is_external", True)}
+              if i.get("email") and is_external(i)}
     hits = {}
     for ck, doc in (memories or {}).items():
         ev = []

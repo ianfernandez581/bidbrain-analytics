@@ -16,17 +16,19 @@ turn headed `[HH:MM:SS]`, so a retrieved passage names its moment the way a PDF 
 page. kb_chunk splits it; kb_index ranks it with at most two passages per document, so a long
 transcript cannot crowd the library. The raw meeting JSON is kept as the document's file.
 
-THE ASSIGNMENT LADDER (decision 2026-09-14) - top rung wins, each deterministic until the last:
-    0. internal   - no external invitee at all -> agency-wide
+THE ASSIGNMENT LADDER (decision 2026-09-14; internal rung reworked 2026-09-16) - top rung wins:
+    0. internal   - no external invitee at all: a HINT, not a filing. The transcript still has to
+                    prove the call is about the agency's or a client's work (rung 3, `work`).
     1. domain     - an external invitee's email domain matches exactly ONE client's declared domains
     2. memory     - kb_memory.match(): a person / recurring title confirmed on exactly one client
     3. evidence   - entity match against every client's live dashboard data + a corpus vote over
                     meetings already filed + ONE gemini-2.5-flash synthesis over the CLOSED list of
-                    registry keys -> {client_key, confidence, why}
+                    registry keys -> {client_key, confidence, why, work}
     4. human      - the Meetings queue: a person clicks Assign / Ignore, with rung 3's proposal
                     pre-selected.
-FATHOM_AUTO_ASSIGN is the confidence at/above which rung 3 files without a click. PILOT = 1.01
-(never). Rungs 0-2 always file. Every rung's signals travel with the decision and are logged.
+FATHOM_AUTO_ASSIGN is the confidence at/above which rung 3 files without a click (default 0.95),
+a client or agency-wide alike; a call the model says is not work at all (`work` false) always waits.
+Rungs 1-2 always file. Every rung's signals travel with the decision and are logged.
 
 Until assigned a meeting waits at <PREFIX>/fathom/unassigned/<recording_id>/{meeting,proposal}.json
 - NOT as a document, so it is never retrievable before a person or a deterministic rung placed it.
@@ -52,7 +54,27 @@ log = logging.getLogger("kb_fathom")
 
 API_BASE = "https://api.fathom.ai/external/v1"
 SIGNATURE_TOLERANCE_S = 300
-AUTO_ASSIGN = float(os.environ.get("FATHOM_AUTO_ASSIGN", "1.01"))     # 1.01 == never
+# THE RULE (Jerome, 2026-09-16): 95-100% sure files itself; anything less waits for a person.
+# AUTO_ASSIGN is the model's threshold (rung 3); 1.01 would mean "never".
+AUTO_ASSIGN = float(os.environ.get("FATHOM_AUTO_ASSIGN", "0.95"))
+# Which SURE rungs (always 100%) may file without a click: "domain" (a declared client domain on the
+# invite), "memory" (a person seen before on that client's calls). Default both. Set FATHOM_AUTO_FILE=""
+# to make every meeting wait for a click (a sure rung then becomes a 100% guess in "Ready to confirm");
+# a title on QUEUE_TITLES waits regardless. "internal" is NOT a sure rung any more (Jerome, 2026-09-16:
+# an all-agency call "will only wait if the transcript also cannot prove it") - it is a hint to rung 3.
+AUTO_FILE = frozenset(x.strip().lower() for x in os.environ.get("FATHOM_AUTO_FILE", "domain,memory").split(",")
+                      if x.strip())
+# Titles that ALWAYS wait for a person, whatever AUTO_FILE says. Word-bounded, case-insensitive.
+QUEUE_TITLES = [x.strip() for x in (os.environ.get("FATHOM_QUEUE_TITLES") or
+                "1:1,1-1,one on one,one-on-one,interview,hr,performance review,personal,salary,payroll,catch-up,catch up").split(",")
+                if x.strip()]
+_QUEUE_TITLE_RE = re.compile(r"(?<![a-z0-9])(" + "|".join(re.escape(t.lower()) for t in QUEUE_TITLES) + r")(?![a-z0-9])")
+
+
+def watched_title(meeting):
+    """The watch-list word the title matched, or ''."""
+    m = _QUEUE_TITLE_RE.search((meeting.get("title") or meeting.get("meeting_title") or "").lower())
+    return m.group(1) if m else ""
 CLASSIFY_MODEL = os.environ.get("FATHOM_CLASSIFY_MODEL", "gemini-2.5-flash")
 GEMINI = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 
@@ -122,14 +144,31 @@ def meeting_title(meeting):
     return t or f"Fathom meeting {recording_id(meeting)}"
 
 
-def meeting_body(meeting, max_transcript_chars=MAX_TRANSCRIPT_CHARS):
-    """Summary first (outcomes), then the transcript as `[HH:MM:SS] Speaker: text` lines. A cut is
-    declared in the text (the kb_extract rule)."""
-    parts = []
-    summary = str(meeting.get("default_summary") or "").strip()
-    if summary:
-        parts.append("## Summary\n" + summary)
-    lines, used, cut = [], 0, False
+def summary_text(meeting):
+    """Fathom's `default_summary` is an OBJECT on the live API - {template_name, markdown_formatted}
+    (found on the first real sync, 2026-09-16; the docs' examples and our fixtures had a string).
+    Accept both, and never str() a dict into the document body."""
+    s = meeting.get("default_summary")
+    if isinstance(s, dict):
+        s = s.get("markdown_formatted") or s.get("markdown_formatted_summary") or s.get("text") or ""
+    return str(s or "").strip()
+
+
+_MD_LINK = re.compile(r"\[([^\]]*)\]\((https?://[^)\s]+)\)")
+
+
+def clean_summary(text):
+    """Fathom wraps EVERY summary line in a link back to the recording at that second. Good in Fathom,
+    noise in a document (and in every chunk the search sees). Keep the words, drop the links; the
+    document carries one 'Open in Fathom' link instead."""
+    return _MD_LINK.sub(r"\1", text or "").strip()
+
+
+def transcript_turns(meeting, max_chars=MAX_TRANSCRIPT_CHARS):
+    """Fathom emits one line per utterance ('Yan.' / 'Yan, yan.' each with its own timestamp).
+    Merge consecutive lines by the same speaker into one turn, stamped with the turn's first time.
+    -> (lines, cut)."""
+    turns, cut = [], False
     for it in meeting.get("transcript") or []:
         text = (it.get("text") or "").strip()
         if not text:
@@ -137,12 +176,31 @@ def meeting_body(meeting, max_transcript_chars=MAX_TRANSCRIPT_CHARS):
         sp = it.get("speaker") or {}
         name = (sp.get("display_name") or "").strip() if isinstance(sp, dict) else str(sp)
         ts = (it.get("timestamp") or "").strip()
-        line = (f"[{ts}] " if ts else "") + (f"{name}: {text}" if name else text)
-        if used + len(line) > max_transcript_chars:
+        if turns and turns[-1][1] == name:
+            turns[-1][2].append(text)
+        else:
+            turns.append([ts, name, [text]])
+    lines, used = [], 0
+    for ts, name, texts in turns:
+        line = (f"[{ts}] " if ts else "") + (f"{name}: " if name else "") + " ".join(texts)
+        if used + len(line) > max_chars:
             cut = True
             break
         lines.append(line)
         used += len(line) + 1
+    return lines, cut
+
+
+def meeting_body(meeting, max_transcript_chars=MAX_TRANSCRIPT_CHARS):
+    """Summary first (outcomes, plain text, one link to the recording), then the transcript as one
+    `[HH:MM:SS] Speaker: ...` line per speaker TURN. A cut is declared in the text (the kb_extract
+    rule)."""
+    parts = []
+    summary = clean_summary(summary_text(meeting))
+    link = meeting.get("share_url") or meeting.get("url") or ""
+    if summary:
+        parts.append("## Summary\n" + (f"Open in Fathom: {link}\n\n" if link else "") + summary)
+    lines, cut = transcript_turns(meeting, max_transcript_chars)
     if lines:
         parts.append("## Transcript\n" + "\n".join(lines))
     if cut:
@@ -154,7 +212,7 @@ def meeting_body(meeting, max_transcript_chars=MAX_TRANSCRIPT_CHARS):
 
 
 def invitees(meeting):
-    return [{"email": i.get("email"), "domain": i.get("email_domain"), "external": i.get("is_external", True),
+    return [{"email": i.get("email"), "domain": i.get("email_domain"), "external": kb_memory.is_external(i),
              "name": i.get("name")} for i in (meeting.get("calendar_invitees") or [])]
 
 
@@ -215,6 +273,26 @@ def index_meeting(meeting, client_key, assigned_by, evidence=None, actor="", ski
     return meta
 
 
+def rebuild_document(rid):
+    """Re-derive a filed meeting's TEXT from the raw meeting.json kept as its file, keeping id,
+    client, folder and every other header. For documents filed before a body-format change (the
+    first real sync filed one with the summary's raw object in it). -> doc meta, or None."""
+    did = doc_id({"recording_id": rid})
+    doc = kb_store.read_doc(did)
+    if not doc:
+        return None
+    data, _ct = kb_store.read_file(did, "meeting.json")        # -> (bytes, content_type) or (None, None)
+    if not data:
+        return None
+    meeting = json.loads(data.decode("utf-8") if isinstance(data, bytes) else data)
+    doc["body"] = meeting_body(meeting)
+    doc["title"] = meeting_title(meeting)
+    rep = kb_index.reindex_document(doc)
+    meta = kb_store.doc_meta(doc)
+    meta.update(chunks=rep.get("chunks", 0), semantic=rep.get("semantic", False), recording_id=str(rid))
+    return meta
+
+
 # --- the queue -----------------------------------------------------------------------------------
 
 def store_unassigned(meeting, proposal=None):
@@ -254,7 +332,7 @@ def list_unassigned():
         return {"recording_id": rid, "title": m.get("title") or m.get("meeting_title") or "(untitled)",
                 "created_at": m.get("created_at") or m.get("recording_start_time"),
                 "duration_min": _duration_min(m), "invitees": invitees(m),
-                "summary": str(m.get("default_summary") or "")[:600], "proposal": prop,
+                "summary": summary_text(m)[:600], "proposal": prop,
                 "will_learn": kb_memory.teaches(m)}
     # Two GETs per queued meeting; sequentially that is ~20 s for a dozen from a laptop, so read them
     # side by side (2026-09-15, found when Jerome asked to see a full queue).
@@ -287,7 +365,7 @@ def save_state(st):
 def external_domains(meeting):
     return sorted({(i.get("email_domain") or (i.get("email") or "").rsplit("@", 1)[-1]).lower()
                    for i in (meeting.get("calendar_invitees") or [])
-                   if i.get("is_external", True) and (i.get("email_domain") or i.get("email"))} - {""})
+                   if kb_memory.is_external(i) and (i.get("email_domain") or i.get("email"))} - {""})
 
 
 def rung_domain(meeting, client_domains):
@@ -312,7 +390,7 @@ def entity_match(meeting, entities_by_client, max_hits=5):
     """`entities_by_client` = {client_key: {"campaign names", ...}} harvested from each client's live
     dashboard data by the caller. -> {client_key: [evidence]} for exact (case-insensitive) hits of a
     client's entity in the meeting text. Entities under 6 chars or shared by 2+ clients are ignored."""
-    text = " ".join([meeting.get("title") or "", meeting.get("default_summary") or ""] +
+    text = " ".join([meeting.get("title") or "", summary_text(meeting)] +
                     [(t.get("text") or "") for t in (meeting.get("transcript") or [])]).lower()
     owners = {}
     for ck, ents in (entities_by_client or {}).items():
@@ -335,13 +413,13 @@ def corpus_vote(meeting, limit=20):
     that come back. Only FILED meetings exist as documents, and every filed meeting was placed by a
     deterministic rung or a person (auto-assign is off), so the vote is over confirmed placements
     by construction. -> ({client: n}, [evidence]); ({}, []) when nothing votes or search fails."""
-    probe = " ".join(filter(None, [meeting.get("title"), meeting.get("default_summary")] +
-                            [(t.get("text") or "") for t in (meeting.get("transcript") or [])[:12]]))[:6000]
+    probe = " ".join(filter(None, [meeting.get("title"), summary_text(meeting)] +
+                            transcript_turns(meeting, max_chars=4000)[0]))[:6000]
     if not probe.strip():
         return {}, []
     try:
         res = kb_index.search(probe, limit=limit)
-        metas = {m["id"]: m for m in kb_index.all_meta(include_archived=False)}
+        metas = dict(kb_index.all_meta(include_archived=False))        # {doc_id: meta}
     except Exception:                        # noqa: BLE001 - the vote is advisory
         log.exception("fathom: corpus vote failed")
         return {}, []
@@ -359,27 +437,38 @@ def corpus_vote(meeting, limit=20):
     return tally, [f"{tally[top]} of {sum(tally.values())} similar passages are from {top} meetings"]
 
 
-def synthesise(meeting, candidates, evidence_lines, _post=None):
+def synthesise(meeting, candidates, evidence_lines, _post=None, internal=False):
     """One gemini-2.5-flash call over the closed candidate list + the evidence -> {client_key,
-    confidence, why}. A key outside the list is rejected (-> agency-wide, confidence 0)."""
+    confidence, why, work}. A key outside the list is rejected (-> agency-wide, confidence 0).
+    `work` is the model's answer to "is this call about the agency's or a client's business at
+    all?" - it is what lets an all-agency call file itself as agency-wide (True) or wait (False)."""
     key = os.environ.get("GEMINI_API_KEY")
     if not key or not candidates:
         # Name the reason: on 2026-09-15 a test rig showed "classifier unavailable" and nobody could
         # tell a missing key from an empty client list without reading the code.
         why = "classifier unavailable: " + ("no GEMINI_API_KEY in this process" if not key else "no candidate clients")
         log.warning("fathom synthesise: %s", why)
-        return {"client_key": AGENCY, "confidence": 0.0, "why": why}
-    excerpt = "\n".join(f"{(t.get('speaker') or {}).get('display_name', '')}: {t.get('text', '')}"
-                        for t in (meeting.get("transcript") or [])[:40])[:8000]
+        return {"client_key": AGENCY, "confidence": 0.0, "why": why, "work": False}
+    # Speaker TURNS (transcript_turns), not raw utterances: the same 12k characters carry roughly
+    # three times the conversation, and the transcript is the strongest evidence there is.
+    excerpt = "\n".join(transcript_turns(meeting, max_chars=12000)[0])
     prompt = (
         "You assign a recorded agency meeting to ONE client. Choose ONLY from the candidate keys "
         "below, or '' (empty string) if the meeting is about the agency itself, several clients at "
-        "once, or no client. Return JSON {\"client_key\": str, \"confidence\": number 0-1, \"why\": str}. "
-        "Confidence 0.9+ only when the transcript names the client or its campaigns unambiguously.\n\n"
-        "CANDIDATES:\n" + "\n".join(f"- {c['key']}: {c['name']}" + (f" - {c['desc']}" if c.get("desc") else "")
-                                    for c in candidates) +
+        "once, or no client. Return JSON {\"client_key\": str, \"confidence\": number 0-1, \"why\": str, "
+        "\"work\": bool}. `work` is true when the conversation is about the agency's business or a "
+        "client's business (campaigns, dashboards, data, briefs, pipeline, staffing FOR that work); "
+        "false when it is personal, social, HR, or otherwise not something the agency would file. "
+        "Confidence 0.9+ for a client key only when the transcript names the client or its campaigns "
+        "unambiguously; confidence 0.9+ for '' only when the discussion is clearly the agency's own "
+        "work and no single client.\n\n"
+        + ("EVERYONE ON THIS CALL IS FROM THE AGENCY (no client invitee). Decide from the transcript "
+           "whether it is agency work ('' with high confidence), one client's work (that key), or not "
+           "work at all (work=false).\n\n" if internal else "")
+        + "CANDIDATES:\n" + "\n".join(f"- {c['key']}: {c['name']}" + (f" - {c['desc']}" if c.get("desc") else "")
+                                      for c in candidates) +
         "\n\nEVIDENCE ALREADY GATHERED:\n" + ("\n".join(f"- {e}" for e in evidence_lines) or "- none") +
-        f"\n\nTITLE: {meeting.get('title') or ''}\nSUMMARY: {(meeting.get('default_summary') or '')[:3000]}\n"
+        f"\n\nTITLE: {meeting.get('title') or ''}\nSUMMARY: {summary_text(meeting)[:3000]}\n"
         f"TRANSCRIPT (start):\n{excerpt}")
     body = {"contents": [{"role": "user", "parts": [{"text": prompt}]}],
             "generationConfig": {"temperature": 0.0, "maxOutputTokens": 400, "responseMimeType": "application/json",
@@ -393,40 +482,57 @@ def synthesise(meeting, candidates, evidence_lines, _post=None):
         txt = "".join(p.get("text", "") for p in parts if isinstance(p, dict))
         out = json.loads(txt)
     except Exception as e:                   # noqa: BLE001
-        return {"client_key": AGENCY, "confidence": 0.0, "why": f"classifier error: {type(e).__name__}"}
+        return {"client_key": AGENCY, "confidence": 0.0, "why": f"classifier error: {type(e).__name__}", "work": False}
     allowed = {c["key"] for c in candidates} | {AGENCY}
     ck = kb_store.client_key(str(out.get("client_key") or ""))
     if str(out.get("client_key") or "") and ck not in allowed:
-        return {"client_key": AGENCY, "confidence": 0.0, "why": f"model returned unknown key {out.get('client_key')!r}"}
+        return {"client_key": AGENCY, "confidence": 0.0, "why": f"model returned unknown key {out.get('client_key')!r}",
+                "work": False}
     try:
         conf = max(0.0, min(1.0, float(out.get("confidence", 0))))
     except (TypeError, ValueError):
         conf = 0.0
-    return {"client_key": ck, "confidence": conf, "why": str(out.get("why") or "")[:300]}
+    # A named client IS work; otherwise take the model's word, defaulting to False when it is silent.
+    work = bool(ck) or out.get("work") is True
+    return {"client_key": ck, "confidence": conf, "why": str(out.get("why") or "")[:300], "work": work}
 
 
 def classify(meeting, client_domains, memories, candidates, entities_by_client=None, auto_assign=None,
-             _post=None, vote=corpus_vote):
+             _post=None, vote=corpus_vote, auto_file=None):
     """Run the ladder. -> {"decision": "assign"|"queue", "client_key", "assigned_by", "confidence",
     "evidence": [..], "proposal": {...}}. Deterministic rungs assign; rung 3 assigns only at/above
     `auto_assign` (default FATHOM_AUTO_ASSIGN = never in the pilot); else queued with the proposal."""
     threshold = AUTO_ASSIGN if auto_assign is None else auto_assign
-    # rung 0: no external invitee at all -> agency-wide, deterministic
+    auto_file = AUTO_FILE if auto_file is None else frozenset(auto_file)
+    watched = watched_title(meeting)
+
+    def sure(client_key, by, evidence, why):
+        """A rung that is CERTAIN. It files only if that rung is in `auto_file` AND the title is not
+        on the watch-list; otherwise it is a 100% guess for a person (the pilot default)."""
+        if by in auto_file and not watched:
+            return {"decision": "assign", "client_key": client_key, "assigned_by": by, "confidence": 1.0,
+                    "evidence": evidence, "proposal": None}
+        if watched:
+            why += f" - the title matches the watch-list ('{watched}'), so it always waits for a person"
+        return {"decision": "queue", "client_key": None, "assigned_by": None, "confidence": 1.0,
+                "evidence": evidence, "proposal": {"client_key": client_key, "confidence": 1.0, "why": why,
+                                                   "evidence": evidence, "sure_by": by}}
+
+    # rung 0: no external invitee at all -> a HINT for rung 3, never a filing on its own. The
+    # invite list says who was there; only the transcript says what it was about (Jerome,
+    # 2026-09-16: an internal call "will only wait if the transcript also cannot prove it").
     inv = meeting.get("calendar_invitees") or []
-    if inv and not any(i.get("is_external", True) for i in inv):
-        return {"decision": "assign", "client_key": AGENCY, "assigned_by": "domain", "confidence": 1.0,
-                "evidence": ["no external invitee - internal meeting"], "proposal": None}
+    internal = bool(inv) and not any(kb_memory.is_external(i) for i in inv)
+    hints = ["no external invitee - internal meeting"] if internal else []
     # rung 1: declared domain
     kind, val, ev = rung_domain(meeting, client_domains)
     if kind == "assign":
-        return {"decision": "assign", "client_key": val, "assigned_by": "domain", "confidence": 1.0,
-                "evidence": ev, "proposal": None}
-    hints = list(ev) if kind == "hint" else []
+        return sure(val, "domain", ev, "An invitee is from a declared client email domain: " + "; ".join(ev)[:200])
+    hints += list(ev) if kind == "hint" else []
     # rung 2: memory
     mkind, mval, mev = kb_memory.match(meeting, memories or {})
     if mkind == "assign" and kind != "hint":
-        return {"decision": "assign", "client_key": mval, "assigned_by": "memory", "confidence": 1.0,
-                "evidence": mev, "proposal": None}
+        return sure(mval, "memory", mev, "A person or recurring title the system has seen on this client's calls before: " + "; ".join(mev)[:200])
     if mkind:
         hints += mev if mkind == "hint" else [f"{mval}: {e}" for e in mev]
     # rung 3: evidence bundle
@@ -434,9 +540,16 @@ def classify(meeting, client_domains, memories, candidates, entities_by_client=N
         hints += lines
     tally, kev = vote(meeting)
     hints += kev
-    prop = synthesise(meeting, candidates, hints, _post=_post)
+    prop = synthesise(meeting, candidates, hints, _post=_post, internal=internal)
     prop["evidence"] = hints
-    if prop["confidence"] >= threshold and prop["client_key"] in {c["key"] for c in candidates}:
+    # THE RULE: 95%+ files itself, a client or agency-wide alike; the model decides from the
+    # transcript, the vote and the hints. The one thing that never files is a call the model says
+    # is not work at all (work=False) - that waits for a person, and the card says why.
+    names_client = prop["client_key"] in {c["key"] for c in candidates}
+    agency_work = prop["client_key"] == AGENCY and prop.get("work") is True
+    if not prop.get("work") and prop["confidence"] > 0:
+        prop["why"] = "The transcript does not read as agency or client work - " + prop["why"]
+    if prop["confidence"] >= threshold and (names_client or agency_work) and not watched:
         return {"decision": "assign", "client_key": prop["client_key"], "assigned_by": "model",
                 "confidence": prop["confidence"], "evidence": hints, "proposal": prop}
     return {"decision": "queue", "client_key": None, "assigned_by": None, "confidence": prop["confidence"],

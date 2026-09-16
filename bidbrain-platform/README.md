@@ -1213,14 +1213,29 @@ over `{webhook-id}.{webhook-timestamp}.{body}`, secret `whsec_<base64>`, header 
   facts (recording id, url, invitees, who assigned it and on what evidence) ride on the doc object
   under `fathom`; `doc_meta` ignores them, so the index does not change shape.
 - **The assignment ladder** (`kb_fathom.classify`), top rung wins, deterministic until the last:
-  no external invitee -> agency-wide; an external invitee's email domain matching exactly ONE
-  client's DECLARED domains -> that client; `kb_memory.match` (a person or recurring title
+  no external invitee -> a HINT to the model, not a filing (since 2026-09-16 - the invite list says
+  who was there, only the transcript says what it was about); an external invitee's email domain
+  matching exactly ONE client's DECLARED domains -> that client; `kb_memory.match` (a person or recurring title
   confirmed on exactly one client) -> that client; else an evidence bundle - entity match against
   every live dashboard's campaign/ad-group names (`main._fathom_entities`, 6h cache), a corpus vote
   over meetings already filed (`kb_index.search` + `all_meta`, meetings only), one
   `gemini-2.5-flash` synthesis over the CLOSED list of registry keys - and the meeting **waits in
-  the queue** with that proposal pre-selected. `FATHOM_AUTO_ASSIGN` (default `1.01` = never) is the
-  confidence at which rung 3 would file without a click; the pilot never does.
+  the queue** with that proposal pre-selected. `FATHOM_AUTO_ASSIGN` (default `0.95`) is the
+  confidence at which rung 3 files without a click; `1.01` would mean never.
+- **🔴 THE RULE (Jerome, 2026-09-16): 95-100% sure files itself; when the system is not sure, a
+  person decides - and the deciding is done by the model over the transcript, the corpus vote and
+  the memory hints, not by codified rules ("make use of AI, RAG and memory mainly for decisions").**
+  The two SURE rungs (declared domain, memory) are 100% and file (`FATHOM_AUTO_FILE`, default
+  `domain,memory`; set it empty and they become 100% guesses in "Ready to confirm" instead). The
+  model files at `FATHOM_AUTO_ASSIGN` (default `0.95`; `1.01` = never), a client OR agency-wide
+  alike; it also answers `work` - whether the call is about agency/client business at all - and a
+  call it says is NOT work always waits, with that reason on the card. So an all-agency stand-up
+  about the dashboards files itself as Agency-wide at 97%; an all-agency chat about the office move
+  waits. Below the line the meeting waits with its guess pre-selected. `FATHOM_QUEUE_TITLES`
+  (default 1:1, one on one, interview, hr, performance review, personal, salary, payroll, catch up)
+  ALWAYS waits - Charles's Fathom records every meeting it joins, not only client calls. A model
+  filing never teaches memory (`index_meeting` learns from domain/memory/human only), so a wrong 95%
+  cannot teach the next one; fix one by moving the document in the Explorer.
 - **Memory is written only by confirmed assignments** (human, domain, memory rung) - never by a
   model proposal, so a wrong guess cannot teach the next one. `<PREFIX>/fathom/memory/<client>.json`:
   people / titles / domains / patterns (learned), `client_domains` (declared, rung 1), `facts`
@@ -1247,6 +1262,13 @@ over `{webhook-id}.{webhook-timestamp}.{body}`, secret `whsec_<base64>`, header 
   can be throttled after the reply; the meeting is already queued, so the worst case is a proposal
   that never arrives and a person picks the client unaided. If that shows up in the pilot, give
   `platform-dash` CPU-always-allocated or move the ladder onto the next request / Sync.
+- **🔴 Two facts about the LIVE Fathom API that the docs' examples do not show** (first real sync,
+  2026-09-16, Christian's key): `default_summary` is an OBJECT `{template_name, markdown_formatted}`
+  - read it through `kb_fathom.summary_text`, never `str()` it; and `is_external` is relative to
+  the RECORDER's domain, so a 100.digital colleague on a bidbrain.ai recording is flagged external.
+  `kb_memory.INTERNAL_DOMAINS` (env `FATHOM_INTERNAL_DOMAINS`, default `100.digital,bidbrain.ai`)
+  makes an agency invitee internal whatever Fathom says - it gates the internal-only rung, the
+  declared-domain rung, memory learning/matching and the card's "Will remember" list together.
 - `kb_fathom.synthesise` says WHY the classifier was unavailable (no key vs no candidates) in the
   proposal's `why`, so the queue card never shows a bare "unavailable" again.
 - A 🔴 for Ian's `CLIENT_FOLDERS` note "Outcomes, not transcripts": these documents DO carry the

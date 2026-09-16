@@ -80,10 +80,61 @@ MEETING = {
 CANDIDATES = [{"key": "cloudflare", "name": "Cloudflare"}, {"key": "mongodb", "name": "MongoDB"}]
 
 
-def gemini_reply(client_key, confidence, why="named the client"):
+REAL_SHAPE = dict(MEETING, recording_id=7782, title="Daily Dev Standup",
+                  recorded_by={"email": "christian@bidbrain.ai", "email_domain": "bidbrain.ai"},
+                  # the LIVE API: summary is an object, and the 100.digital colleague is "external" to a
+                  # bidbrain.ai recorder (2026-09-16, first real sync)
+                  default_summary={"template_name": "general", "markdown_formatted": "## Notes\nShipped the Meetings page."},
+                  calendar_invitees=[{"email": "christian@bidbrain.ai", "email_domain": "bidbrain.ai", "is_external": False},
+                                     {"email": "charles@100.digital", "email_domain": "100.digital", "is_external": True}])
+
+
+class RealFathomShape(unittest.TestCase):
+    def test_summary_links_are_stripped_and_one_link_kept(self):
+        m = dict(REAL_SHAPE, share_url="https://fathom.video/share/abc",
+                 default_summary={"template_name": "Enhanced", "markdown_formatted":
+                                  "## Key Takeaways\n\n  - [**Reports first:** replicate the UI.](https://fathom.video/share/abc?t=394)"})
+        body = kb_fathom.meeting_body(m)
+        self.assertIn("- **Reports first:** replicate the UI.", body)
+        self.assertNotIn("?t=394", body)                       # the per-line link is gone
+        self.assertEqual(body.count("https://fathom.video/share/abc"), 1)   # ... one link stays, at the top
+
+    def test_transcript_merges_consecutive_lines_of_one_speaker(self):
+        m = dict(REAL_SHAPE, transcript=[
+            {"speaker": {"display_name": "Charles"}, "text": "Yan.", "timestamp": "00:00:07"},
+            {"speaker": {"display_name": "Charles"}, "text": "Yan, yan.", "timestamp": "00:00:08"},
+            {"speaker": {"display_name": "Juan"}, "text": "Depende.", "timestamp": "00:00:24"},
+            {"speaker": {"display_name": "Charles"}, "text": "Sige.", "timestamp": "00:00:30"}])
+        lines, cut = kb_fathom.transcript_turns(m)
+        self.assertEqual(lines, ["[00:00:07] Charles: Yan. Yan, yan.", "[00:00:24] Juan: Depende.", "[00:00:30] Charles: Sige."])
+        self.assertFalse(cut)
+
+    def test_object_summary_is_read_not_stringified(self):
+        body = kb_fathom.meeting_body(REAL_SHAPE)
+        self.assertIn("Shipped the Meetings page.", body)
+        self.assertNotIn("markdown_formatted", body)           # no dict repr in the document
+        self.assertNotIn("{", kb_fathom.summary_text(REAL_SHAPE))
+        # the evidence rung and the vote read the same text without raising
+        self.assertEqual(kb_fathom.entity_match(REAL_SHAPE, {"cloudflare": {"Core DG APAC"}}), {})
+
+    def test_agency_domain_is_internal_whatever_fathom_says(self):
+        self.assertFalse(kb_memory.is_external({"email": "charles@100.digital", "email_domain": "100.digital", "is_external": True}))
+        self.assertTrue(kb_memory.is_external({"email": "priya@cloudflare.com", "email_domain": "cloudflare.com", "is_external": True}))
+        # rung 0: a stand-up of bidbrain.ai + 100.digital people is INTERNAL -> a hint; the transcript decides
+        with mock.patch.dict(os.environ, {"GEMINI_API_KEY": "k"}):
+            r = kb_fathom.classify(REAL_SHAPE, {}, {}, CANDIDATES, vote=lambda m: ({}, []),
+                                   _post=lambda b: gemini_reply("", 0.97, "dev stand-up about the dashboards", work=True))
+        self.assertEqual((r["decision"], r["client_key"], r["assigned_by"]), ("assign", "", "model"))
+        self.assertIn("no external invitee - internal meeting", r["evidence"])
+        # and a colleague is never offered as something to remember about a client
+        self.assertEqual(kb_memory.teaches(REAL_SHAPE)["people"], [])
+        self.assertEqual(kb_fathom.external_domains(REAL_SHAPE), [])
+
+
+def gemini_reply(client_key, confidence, why="named the client", work=True):
     r = mock.Mock()
     r.json.return_value = {"candidates": [{"content": {"parts": [{"text": json.dumps(
-        {"client_key": client_key, "confidence": confidence, "why": why})}]}}]}
+        {"client_key": client_key, "confidence": confidence, "why": why, "work": work})}]}}]}
     return r
 
 
@@ -92,7 +143,7 @@ def gemini_reply(client_key, confidence, why="named the client"):
 class Document(unittest.TestCase):
     def test_body_is_summary_first_then_timestamped_turns(self):
         b = kb_fathom.meeting_body(MEETING)
-        self.assertTrue(b.startswith("## Summary\nAgreed to hold LinkedIn"))
+        self.assertTrue(b.startswith("## Summary\nOpen in Fathom: https://fathom.video/calls/7781\n\nAgreed to hold LinkedIn"), b[:120])
         self.assertIn("## Transcript\n[00:00:04] Priya: CTR dropped", b)
         self.assertLess(b.index("## Summary"), b.index("## Transcript"))
 
@@ -156,16 +207,62 @@ class Queue(unittest.TestCase):
 # --- the ladder -------------------------------------------------------------------------------------
 
 class Ladder(unittest.TestCase):
-    def test_rung0_internal_only_is_agency_wide(self):
+    def test_rung0_internal_only_files_agency_wide_only_when_the_transcript_proves_work(self):
+        """Jerome, 2026-09-16: an all-agency call "will only wait if the transcript also cannot prove
+        it". The invite list is a hint; the model reads the transcript and answers `work`."""
         m = dict(MEETING, calendar_invitees=[{"email": "a@100.digital", "is_external": False}])
-        r = kb_fathom.classify(m, {}, {}, CANDIDATES, vote=lambda m: ({}, []))
-        self.assertEqual((r["decision"], r["client_key"], r["assigned_by"]), ("assign", "", "domain"))
+        with mock.patch.dict(os.environ, {"GEMINI_API_KEY": "k"}):
+            # agency work, 95%+ -> files itself as Agency-wide
+            r = kb_fathom.classify(m, {}, {}, CANDIDATES, vote=lambda m: ({}, []),
+                                   _post=lambda b: gemini_reply("", 0.96, "pipeline health and holiday cover", work=True))
+            self.assertEqual((r["decision"], r["client_key"], r["assigned_by"]), ("assign", "", "model"))
+            self.assertIn("no external invitee - internal meeting", r["evidence"])
+            # the transcript names ONE client -> files to that client, even with nobody from it on the call
+            r = kb_fathom.classify(m, {}, {}, CANDIDATES, vote=lambda m: ({}, []),
+                                   _post=lambda b: gemini_reply("cloudflare", 0.97, "Core DG APAC pacing review"))
+            self.assertEqual((r["decision"], r["client_key"]), ("assign", "cloudflare"))
+            # not about work at all -> waits, and the card says why
+            r = kb_fathom.classify(m, {}, {}, CANDIDATES, vote=lambda m: ({}, []),
+                                   _post=lambda b: gemini_reply("", 0.99, "football tips and the office move", work=False))
+            self.assertEqual((r["decision"], r["proposal"]["client_key"]), ("queue", ""))
+            self.assertIn("does not read as agency or client work", r["proposal"]["why"])
+            # agency work but the model is unsure -> waits
+            r = kb_fathom.classify(m, {}, {}, CANDIDATES, vote=lambda m: ({}, []),
+                                   _post=lambda b: gemini_reply("", 0.7, "might be about a client", work=True))
+            self.assertEqual(r["decision"], "queue")
+            # an OUTSIDER on the call is only evidence too: agency work at 95%+ still files (no extra rule)
+            r = kb_fathom.classify(MEETING, {}, {}, CANDIDATES, vote=lambda m: ({}, []),
+                                   _post=lambda b: gemini_reply("", 0.99, "a vendor walking the agency through its tool", work=True))
+            self.assertEqual((r["decision"], r["client_key"], r["assigned_by"]), ("assign", "", "model"))
+        # no model available -> nothing files, the reason is named
+        with mock.patch.dict(os.environ, {"GEMINI_API_KEY": ""}):
+            r = kb_fathom.classify(m, {}, {}, CANDIDATES, vote=lambda m: ({}, []))
+            self.assertEqual(r["decision"], "queue")
+            self.assertIn("classifier unavailable", r["proposal"]["why"])
+
+    def test_watch_list_titles_always_wait_even_when_filing_is_on(self):
+        m = dict(MEETING, title="Interview - senior media buyer", calendar_invitees=[{"email": "a@100.digital", "is_external": False}])
+        with mock.patch.dict(os.environ, {"GEMINI_API_KEY": "k"}):
+            r = kb_fathom.classify(m, {}, {}, CANDIDATES, vote=lambda m: ({}, []),
+                                   _post=lambda b: gemini_reply("", 0.99, "hiring for client work", work=True))
+        self.assertEqual(r["decision"], "queue")                        # 99% agency work, still waits
+        # and a sure rung on a watched title says so on the card
+        m2 = dict(MEETING, title="Charles / Priya 1:1")
+        r = kb_fathom.classify(m2, {"cloudflare": ["cloudflare.com"]}, {}, CANDIDATES, vote=lambda m: ({}, []))
+        self.assertEqual(r["decision"], "queue")
+        self.assertIn("watch-list ('1:1')", r["proposal"]["why"])
+        self.assertEqual(kb_fathom.watched_title({"title": "Cloudflare weekly"}), "")
+        self.assertEqual(kb_fathom.watched_title({"title": "Charles / Priya 1:1"}), "1:1")
+        self.assertEqual(kb_fathom.watched_title({"title": "HR policy walkthrough"}), "hr")
+        self.assertEqual(kb_fathom.watched_title({"title": "Chrome update"}), "")          # 'hr' inside a word is not a hit
 
     def test_rung1_declared_domain_assigns_without_a_model(self):
         post = mock.Mock()
         r = kb_fathom.classify(MEETING, {"cloudflare": ["cloudflare.com"]}, {}, CANDIDATES, _post=post, vote=lambda m: ({}, []))
         self.assertEqual((r["decision"], r["client_key"], r["assigned_by"]), ("assign", "cloudflare", "domain"))
         post.assert_not_called()
+        r = kb_fathom.classify(MEETING, {"cloudflare": ["cloudflare.com"]}, {}, CANDIDATES, _post=post, vote=lambda m: ({}, []), auto_file=frozenset())
+        self.assertEqual((r["decision"], r["proposal"]["client_key"], r["proposal"]["confidence"], r["proposal"]["sure_by"]), ("queue", "cloudflare", 1.0, "domain"))
 
     def test_rung1_two_clients_same_domain_is_a_hint_not_an_assignment(self):
         r = kb_fathom.classify(MEETING, {"cloudflare": ["cloudflare.com"], "mongodb": ["cloudflare.com"]}, {}, CANDIDATES,
@@ -177,6 +274,8 @@ class Ladder(unittest.TestCase):
         mems = {"cloudflare": {"people": {"priya@cloudflare.com": {"n": 3}}, "titles": {}}}
         r = kb_fathom.classify(MEETING, {}, mems, CANDIDATES, vote=lambda m: ({}, []))
         self.assertEqual((r["decision"], r["client_key"], r["assigned_by"]), ("assign", "cloudflare", "memory"))
+        r = kb_fathom.classify(MEETING, {}, mems, CANDIDATES, vote=lambda m: ({}, []), auto_file=frozenset())
+        self.assertEqual((r["decision"], r["proposal"]["client_key"], r["proposal"]["sure_by"]), ("queue", "cloudflare", "memory"))
 
     def test_rung2_person_on_two_clients_demotes_to_hint(self):
         mems = {"cloudflare": {"people": {"priya@cloudflare.com": {"n": 3}}, "titles": {}},
@@ -184,13 +283,21 @@ class Ladder(unittest.TestCase):
         r = kb_fathom.classify(MEETING, {}, mems, CANDIDATES, _post=lambda b: gemini_reply("cloudflare", 0.5), vote=lambda m: ({}, []))
         self.assertEqual(r["decision"], "queue")
 
-    def test_rung3_queues_in_the_pilot_even_at_high_confidence(self):
+    def test_rung3_files_at_95_and_waits_below_it(self):
+        """Jerome, 2026-09-16: 95-100% files itself; when the system is not sure, a person decides."""
         with mock.patch.dict(os.environ, {"GEMINI_API_KEY": "k"}):
             r = kb_fathom.classify(MEETING, {}, {}, CANDIDATES, _post=lambda b: gemini_reply("cloudflare", 0.98),
                                    vote=lambda m: ({"cloudflare": 4}, ["4 of 4 similar passages are from cloudflare meetings"]))
-        self.assertEqual(r["decision"], "queue")
-        self.assertEqual(r["proposal"]["client_key"], "cloudflare")
-        self.assertIn("4 of 4 similar passages are from cloudflare meetings", r["evidence"])
+            self.assertEqual((r["decision"], r["client_key"], r["assigned_by"]), ("assign", "cloudflare", "model"))
+            self.assertIn("4 of 4 similar passages are from cloudflare meetings", r["evidence"])
+            r = kb_fathom.classify(MEETING, {}, {}, CANDIDATES, _post=lambda b: gemini_reply("cloudflare", 0.95), vote=lambda m: ({}, []))
+            self.assertEqual(r["decision"], "assign")                                      # 95 is in
+            r = kb_fathom.classify(MEETING, {}, {}, CANDIDATES, _post=lambda b: gemini_reply("cloudflare", 0.94), vote=lambda m: ({}, []))
+            self.assertEqual((r["decision"], r["proposal"]["client_key"]), ("queue", "cloudflare"))   # 94 waits
+            # a model filing NEVER teaches memory (index_meeting learns only from domain/memory/human)
+            r = kb_fathom.classify(MEETING, {}, {}, CANDIDATES, _post=lambda b: gemini_reply("cloudflare", 0.98),
+                                   vote=lambda m: ({}, []), auto_assign=1.01)
+            self.assertEqual(r["decision"], "queue")                                       # and 1.01 still means never
 
     def test_rung3_assigns_when_the_threshold_is_lowered(self):
         with mock.patch.dict(os.environ, {"GEMINI_API_KEY": "k"}):
@@ -220,7 +327,7 @@ class Ladder(unittest.TestCase):
         metas = [{"id": "fathom-1", "kind": "meeting", "source": "fathom", "client": "cloudflare"},
                  {"id": "fathom-2", "kind": "meeting", "source": "fathom", "client": "cloudflare"},
                  {"id": "d_plan", "kind": "plan", "source": "upload", "client": "mongodb"}]
-        with mock.patch.object(kb_index, "search", return_value=res), mock.patch.object(kb_index, "all_meta", return_value=metas):
+        with mock.patch.object(kb_index, "search", return_value=res), mock.patch.object(kb_index, "all_meta", return_value={m["id"]: m for m in metas}):
             tally, ev = kb_fathom.corpus_vote(MEETING)
         self.assertEqual(tally, {"cloudflare": 2})
         self.assertEqual(ev, ["2 of 2 similar passages are from cloudflare meetings"])
@@ -283,7 +390,7 @@ class Routes(unittest.TestCase):
                                                                           {"key": "mongodb", "name": "MongoDB"}]),
             mock.patch.object(main, "_prod_mutation_blocked", return_value=None),
             mock.patch.object(main, "_fathom_entities", return_value={}),
-            mock.patch.object(kb_index, "all_meta", return_value=[]),
+            mock.patch.object(kb_index, "all_meta", return_value={}),
             mock.patch.object(kb_index, "search", return_value={"excerpts": []}),
             mock.patch.object(kb_index, "reindex_document", return_value={"chunks": 2, "semantic": True}),
             mock.patch.object(kb_store, "write_file", return_value="meeting.json"),
@@ -384,8 +491,30 @@ class Routes(unittest.TestCase):
         self.assertEqual(r.status_code, 200, r.get_data(as_text=True))
         self.assertEqual(r.get_json()["doc"]["client"], "cloudflare")
         self.assertEqual(self.c.get("/kb/api/fathom/unassigned").get_json()["items"], [])
+        # the "N filed" counter reads all_meta's VALUES ({doc_id: meta}); iterating the dict itself gave 0
+        with mock.patch.object(kb_index, "all_meta", return_value={"fathom-7781": {"id": "fathom-7781", "kind": "meeting", "source": "fathom"},
+                                                                    "d2": {"id": "d2", "kind": "reference", "source": "upload"}}):
+            self.assertEqual(self.c.get("/kb/api/fathom/status").get_json()["indexed"], 1)
         mem = self.c.get("/kb/api/fathom/memory/cloudflare").get_json()["memory"]
         self.assertIn("priya@cloudflare.com", mem["people"])
+
+    def test_sync_retries_a_queued_meeting_that_never_got_a_proposal(self):
+        """Seven real meetings sat in the queue with no guess after a classifier crash; the watermark
+        meant no later sync would revisit them (2026-09-16). Sync now re-runs the ladder on them."""
+        import kb_fathom_routes as FR
+        self._as("admin", "charles@100.digital")
+        internal = dict(REAL_SHAPE, recording_id=7790)          # all-agency stand-up: the transcript proves it
+        self.fs.write_json("fathom/unassigned/7790/meeting.json", internal)
+        self.fs.write_json("fathom/unassigned/7790/proposal.json", {"evidence": ["classifier error"]})
+        with mock.patch.dict(os.environ, {"GEMINI_API_KEY": "k"}), \
+             mock.patch.object(kb_fathom, "fetch_meetings", return_value=[]), \
+             mock.patch.object(kb_fathom, "corpus_vote", return_value=({}, [])), \
+             mock.patch.object(kb_fathom.requests, "post", return_value=gemini_reply("", 0.97, "dev stand-up", work=True)):
+            FR._sync_quietly("key", "2026-09-01T00:00:00Z", "tester")
+        # the retried stand-up is agency work at 97% -> it files itself and leaves the queue
+        self.assertEqual(self.c.get("/kb/api/fathom/unassigned").get_json()["items"], [])
+        st = kb_fathom.state()
+        self.assertEqual((st["last_counts"]["retried"], st["last_counts"]["assigned"]), (1, 1))
 
     def test_queue_says_what_assign_will_teach_and_unticked_items_are_not_learned(self):
         """The card shows 'Will remember: ...' with tick boxes (2026-09-15 polish). Unticking sends
