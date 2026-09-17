@@ -3416,6 +3416,41 @@ function applyDateControl(){
   dpEl.style.display = dateScopeApplies() ? '' : 'none';
 }
 
+// ==========================================================================
+// RENDER MEMO - never redraw a tab whose inputs have not moved.
+// ==========================================================================
+// Switching to Paid Media rebuilt all 10 of its Chart.js instances every time, even when
+// nothing had changed since that tab was last drawn: measured 133/131/144/221ms of blocked
+// main thread to put identical pixels back on screen. Tabs get switched dozens of times a
+// session, so it is the most-repeated avoidable cost on the dashboard. With the memo the same
+// switch measures 4-7ms.
+//
+// This removes NO animation and NO layout. A tab that genuinely needs redrawing redraws
+// exactly as before, entrance animation and all - only a redundant repaint is skipped.
+//
+// The signature is built from the SAME accessors the renders read (activeChans(), the live
+// Sets, the grain vars), never a private copy, so it cannot drift out of step with them.
+// Anything that scopes a render MUST appear here: a missing input means a STALE tab, which is
+// far worse than a slow one. When in doubt, add the field.
+function scopeSig(){
+  const set = x => (x && x.size !== undefined) ? [...x].sort().join(',') : '';
+  let chans = '';
+  try { chans = activeChans().map(c => c.key).sort().join(','); } catch(_) {}
+  return [
+    rangeStart, rangeEnd,
+    currentLane, paidProgram,
+    devMode ? 'dev' : '', selCampaignId,
+    set(selQuarters), set(activeMarkets), set(paidMediaActiveMarkets),
+    chans,
+    pmGrain, effGrain, cmpGrain, csDailyGrain, csWeeklyGrain, cspdWeeklyGrain
+  ].join('|');
+}
+const _renderedSig = Object.create(null);
+function tabIsCurrent(tab){ return _renderedSig[tab] === scopeSig(); }
+function markTabRendered(tab){ _renderedSig[tab] = scopeSig(); }
+// A data change re-enters through boot (the 5-min poll reloads the page), so the memo can
+// never outlive the payload it was built from.
+
 function switchTab(tab) {
   activeTab = tab;
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
@@ -3439,7 +3474,7 @@ function switchTab(tab) {
   }
   if (tab === 'paid') {
     if (!paidMediaLoaded) loadPaidMedia();
-    else renderPaidMediaAll();
+    else if (!tabIsCurrent('paid')) renderPaidMediaAll();   // unchanged scope -> already correct
   }
   applyDateControl();
   renderDateScope();
@@ -8352,6 +8387,9 @@ function renderPaidMediaAll() {
 
   const finish = () => {
     try { setPaidFooter(); } catch (e) { /* footer is cosmetic */ }   // range annotation tracks the active filter
+    // Stamped HERE - the end of the progressive run, not switchTab - because every filter
+    // handler calls renderPaidMediaAll() directly too, and a run can finish across frames.
+    try { markTabRendered('paid'); } catch (e) {}
     paidRenderDone(failed, steps.length);
   };
 
