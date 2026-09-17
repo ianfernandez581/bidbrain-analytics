@@ -3635,6 +3635,7 @@ function markTabRendered(tab){ _renderedSig[tab] = scopeSig(); }
 // never outlive the payload it was built from.
 
 function switchTab(tab) {
+  const tabChanged = activeTab !== tab;
   activeTab = tab;
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
   document.getElementById('panel-main').classList.toggle('hidden', tab !== 'main');
@@ -3665,6 +3666,15 @@ function switchTab(tab) {
   // boot and on a range change - so without this it would keep whichever tab's answer was
   // current when the page loaded.
   setLiveBanner(COMBINED && COMBINED.last_updated, rawRows.length);
+  // A tab switch is a change of subject, so start it at the top. Without this you land
+  // halfway down the new tab at whatever scroll offset the previous one left behind -
+  // past its own heading, which reads as a page that failed to load its opening block.
+  // Guarded on an ACTUAL change so the same-tab calls (boot, and switchDashboard's
+  // switchTab(activeTab) on a lane change) cannot yank a reader back to the top.
+  // Instant, not smooth: html{scroll-behavior:smooth} is NOT reset under
+  // prefers-reduced-motion here, and a smooth scroll from the foot of the Content
+  // Syndication tab is a long animated ride to somewhere the user did not ask to travel.
+  if (tabChanged) { try { window.scrollTo({ top: 0, behavior: 'auto' }); } catch(_) { window.scrollTo(0, 0); } }
 }
 
 // Re-render whichever core tab is active after the date range changes (no single
