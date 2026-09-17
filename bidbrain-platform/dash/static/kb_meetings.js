@@ -155,7 +155,36 @@
       items.map(function (m) { return cardHtml(m, opts); }).join('') + '</section>';
   }
 
+  // What a person has OPENED is their work, not the server's. A poll that rebuilds the queue must
+  // not throw it away: reading a card's evidence takes longer than the 5s poll interval, so the
+  // details folded shut while being read and it looked like the expander was broken (2026-09-17).
+  function openState() {
+    var open = {why: {}, row: {}};
+    Array.prototype.forEach.call($('fmQueue').querySelectorAll('.fm-row'), function (row) {
+      var rid = row.getAttribute('data-rid');
+      if (!rid) return;
+      var d = row.querySelector('.fm-detail');
+      if (d && !d.hidden) open.row[rid] = 1;
+      var w = row.querySelector('.fm-why');
+      if (w && !w.hidden) open.why[rid] = 1;
+    });
+    return open;
+  }
+
+  function restoreOpen(open) {
+    Array.prototype.forEach.call($('fmQueue').querySelectorAll('.fm-row'), function (row) {
+      var rid = row.getAttribute('data-rid');
+      if (!rid) return;
+      if (open.row[rid]) toggleRow(row, true);
+      if (open.why[rid]) {
+        var w = row.querySelector('.fm-why'), b = row.querySelector('.fm-why-btn');
+        if (w && b) { w.hidden = false; b.textContent = 'Hide'; b.setAttribute('aria-expanded', 'true'); }
+      }
+    });
+  }
+
   function renderQueue(items) {
+    var open = openState();
     setCount(items.length);
     if (!items.length) { emptyState(); return; }
     var opts = '<option value="">Agency-wide (no single client)</option>' +
@@ -170,6 +199,7 @@
       if (row.hasAttribute('data-hasprop')) row.querySelector('.fm-sel').value = row.getAttribute('data-prop');
       reflectChoice(row);
     });
+    restoreOpen(open);
   }
 
   function refreshGroups() {

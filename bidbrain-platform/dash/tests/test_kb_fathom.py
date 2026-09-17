@@ -809,3 +809,74 @@ class CorpusVote(unittest.TestCase):
         self.assertIn("several clients", t)
         self.assertIn("belongs to no single client", t)
         self.assertIn("choosing between two or more clients", t)
+
+
+# --- a sync that never finished (2026-09-17) --------------------------------------------------
+
+class StaleSync(unittest.TestCase):
+    """`_sync_quietly` is the ONLY thing that clears sync_in_progress, so an instance that goes away
+    mid-run leaves the flag set for ever. The page polls itself every 5s while it is set and rebuilds
+    the queue on each poll, which closes any card being read - found live with a flag 142 minutes
+    stale, and it looked like the expander was broken."""
+
+    def test_a_flag_older_than_the_window_is_not_a_running_sync(self):
+        import time
+        self.assertTrue(kb_fathom.syncing({"sync_in_progress": True, "sync_started_ts": time.time() - 60}))
+        self.assertFalse(kb_fathom.syncing({"sync_in_progress": True,
+                                            "sync_started_ts": time.time() - kb_fathom.SYNC_STALE_S - 1}))
+        self.assertFalse(kb_fathom.syncing({"sync_in_progress": False, "sync_started_ts": time.time()}))
+        self.assertFalse(kb_fathom.syncing({}))
+
+    def test_a_missing_or_broken_timestamp_is_not_a_running_sync(self):
+        """A flag with no start time cannot be aged out, so it would poll for ever. Treat it as done:
+        the cost of a missed 'syncing' label is a stale count; the cost of the opposite is a page
+        that will not stay open."""
+        self.assertFalse(kb_fathom.syncing({"sync_in_progress": True}))
+        self.assertFalse(kb_fathom.syncing({"sync_in_progress": True, "sync_started_ts": "not a number"}))
+
+
+class StaleSyncRoutes(unittest.TestCase):
+    def setUp(self):
+        import main
+        self.main = main
+        main.app.config["TESTING"] = True
+        self.c = main.app.test_client()
+        self.fs = FakeStore()
+        self.patches = patch_store(self.fs) + [
+            mock.patch.object(main, "_kb_clients", return_value=[]),
+            mock.patch.object(main, "_prod_mutation_blocked", return_value=None),
+            mock.patch.object(kb_index, "all_meta", return_value={}),
+        ]
+        for p in self.patches:
+            p.start()
+        import kb_fathom_routes
+        kb_fathom_routes._clients = main._kb_clients
+        kb_fathom_routes._blocked = main._prod_mutation_blocked
+
+    def tearDown(self):
+        for p in self.patches:
+            p.stop()
+
+    def _as(self, kind, email=None):
+        with self.c.session_transaction() as s:
+            s.clear()
+            s["kind"] = kind
+            if email:
+                s["email"] = email
+
+    def test_status_reports_a_stale_flag_as_NOT_syncing(self):
+        """The page reads this field to decide whether to keep polling."""
+        import time
+        self._as("admin", "charles@100.digital")
+        self.fs.write_json("fathom/state.json",
+                           {"sync_in_progress": True, "sync_started_ts": time.time() - 9999})
+        j = self.c.get("/kb/api/fathom/status").get_json()
+        self.assertFalse(j["state"]["sync_in_progress"], "a dead sync must not keep the page polling")
+
+    def test_status_still_reports_a_LIVE_sync_as_running(self):
+        import time
+        self._as("admin", "charles@100.digital")
+        self.fs.write_json("fathom/state.json",
+                           {"sync_in_progress": True, "sync_started_ts": time.time() - 5})
+        j = self.c.get("/kb/api/fathom/status").get_json()
+        self.assertTrue(j["state"]["sync_in_progress"])
