@@ -237,9 +237,12 @@
       M.auto_rate == null ? '' : Math.round(M.auto_rate * 100) + '% of meetings that arrived'));
     host.appendChild(kpi(M.waited, 'waited for a person',
       M.waited ? 'the system was not sure enough' : ''));
-    host.appendChild(kpi(M.confirmed, 'confirmed by a person',
+    host.appendChild(kpi(M.confirmed, 'confirmed from the queue',
       M.overruled ? M.overruled + ' overruled the guess' : (M.confirmed ? 'all agreed with the guess' : '')));
     host.appendChild(kpi(M.ignored, 'kept out of the library'));
+    // A move is a CORRECTION to something already filed, not somebody working the queue. Shown
+    // separately, and only when it has happened, so it can never be read as a confirmation.
+    if (M.moved) host.appendChild(kpi(M.moved, 'moved after filing', 'corrected to another client'));
     if (M.rebuilt) host.appendChild(kpi(M.rebuilt, 'documents rebuilt'));
   }
 

@@ -585,6 +585,11 @@ class MeetingAudit(unittest.TestCase):
             mock.patch.object(kb_store, "read_doc", return_value=None),
             mock.patch.object(kb_activity, "log_event",
                               side_effect=lambda kind, **kw: self.events.append(dict(kind=kind, **kw)) or "id"),
+            # 🔴 `kb_activity.log` is a SEPARATE module attribute bound to log_event at import, and
+            # kb_routes calls THAT one. Patching only log_event leaves every kb_routes write going
+            # to the real function - the test then reports "no event" for a path that works.
+            mock.patch.object(kb_activity, "log",
+                              side_effect=lambda kind, **kw: self.events.append(dict(kind=kind, **kw)) or "id"),
         ]
         for p in self.patches:
             p.start()
@@ -705,13 +710,36 @@ class MeetingAudit(unittest.TestCase):
         self.assertEqual(e["title"], "Weekly (2026-09-17)")     # the caller's title, not the meeting's
 
     def test_every_declared_meeting_kind_is_actually_written_somewhere(self):
-        """A kind in KINDS that no code path writes is a claim the audit trail does not honour."""
+        """A kind in KINDS that no code path writes is a claim the audit trail does not honour.
+
+        Reads EVERY file that can write one. `meeting_moved` is written by kb_routes' move
+        endpoint, not by the fathom routes - a guard that reads one file reports a wired kind as
+        missing, which is its own kind of lie."""
         import re
         import kb_activity
-        src = (pathlib.Path(kb_fathom_routes_file()).read_text(encoding="utf-8"))
-        written = set(re.findall(r'_audit\(\s*"([a-z_]+)"', src))
+        import kb_routes
+        written = set()
+        for mod in (kb_fathom_routes_file(), kb_routes.__file__):
+            src = pathlib.Path(mod).read_text(encoding="utf-8")
+            written |= set(re.findall(r'_(?:audit|log_event)\(\s*"([a-z_]+)"', src))
         declared = set(kb_activity.GROUPS["meetings"])
         self.assertEqual(declared - written, set(), "declared but never written")
+
+    def test_moving_a_meeting_to_another_client_is_a_MOVE_not_a_confirmation(self):
+        """Observability reported "4 confirmed by a person" on a day nobody had touched the queue,
+        because four script-applied corrections were logged as `meeting_assigned` (2026-09-17).
+        A move is a correction to something already filed; a confirmation is queue work."""
+        self._as("admin", "charles@100.digital")
+        doc = {"id": "fathom-9", "kind": "meeting", "title": "Daily Stand Up", "client": "geocon",
+               "folder": "Meetings", "fathom": {"recording_id": "9"}}
+        with mock.patch.object(kb_store, "read_doc", return_value=dict(doc)), \
+             mock.patch.object(kb_store, "read_chunks", return_value={"chunks": [], "model": ""}), \
+             mock.patch.object(kb_store, "write_chunks"), mock.patch.object(kb_store, "write_doc"):
+            r = self.c.post("/kb/docs/fathom-9/move", json={"folder": "Meetings", "client": ""})
+        self.assertTrue(r.get_json()["ok"])
+        self.assertEqual(self._of("meeting_assigned"), [], "a move must never count as a confirmation")
+        [e] = self._of("meeting_moved")
+        self.assertEqual((e["guess"], e["client"], e["by"]), ("geocon", "", "human"))
 
     def test_kind_group_maps_every_declared_kind_and_never_hides_an_unknown(self):
         import kb_activity

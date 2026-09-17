@@ -462,6 +462,7 @@ def move_doc(doc_id):
     if not doc:
         return jsonify(ok=False, error="No such document."), 404
     j = _json()
+    was_client = doc.get("client") or ""
     doc["folder"] = kb_store.normalize_folder(j.get("folder") or "")
     # Moving between clients is a real operation (a document filed against the wrong one),
     # so it goes through the same verb rather than needing a separate edit.
@@ -476,6 +477,14 @@ def move_doc(doc_id):
     kb_store.write_doc(doc)
     kb_index.invalidate()
     _log_event("doc_moved", doc_id=doc_id, folder=doc["folder"])
+    # A MEETING moved to a different client is how a wrong filing actually gets corrected, and it
+    # is a meetings event, not just a document edit - otherwise the Meetings audit shows the bad
+    # filing and never shows it being put right. `meeting_moved`, never `meeting_assigned`: nobody
+    # confirmed anything from the queue (2026-09-17).
+    if doc.get("kind") == "meeting" and (doc.get("client") or "") != was_client:
+        _log_event("meeting_moved", doc_id=doc_id, title=doc.get("title") or "",
+                   recording_id=(doc.get("fathom") or {}).get("recording_id", ""),
+                   client=doc.get("client") or "", guess=was_client, by="human")
     return jsonify(ok=True, folder=doc["folder"])
 
 
@@ -947,13 +956,15 @@ def obs_data():
         for e in events:
             if kb_activity.kind_group(e.get("kind")) == "meetings":
                 c[e["kind"]] = c.get(e["kind"], 0) + 1
+        # Only a QUEUE decision counts as "confirmed". A correction to an already-filed meeting is
+        # a move, and reporting it as a confirmation says a person worked the queue when nobody did.
         decided = [e for e in events if e.get("kind") == "meeting_assigned"]
         overruled = sum(1 for e in decided if e.get("agreed") is False)
         auto = c.get("meeting_filed", 0)
         waited = c.get("meeting_queued", 0)
         return {"filed": auto, "waited": waited, "confirmed": len(decided),
                 "ignored": c.get("meeting_ignored", 0), "rebuilt": c.get("meeting_rebuilt", 0),
-                "overruled": overruled,
+                "moved": c.get("meeting_moved", 0), "overruled": overruled,
                 "auto_rate": (round(auto / (auto + waited), 3) if (auto + waited) else None),
                 "total": sum(c.values())}
 

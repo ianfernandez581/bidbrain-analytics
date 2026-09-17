@@ -381,8 +381,9 @@
   var LOG_LABELS = {
     meeting_filed:    ['Filed itself',  'the system was sure enough to place it'],
     meeting_queued:   ['Waited',        'not sure enough, so it went to the queue'],
-    meeting_assigned: ['Confirmed',     'a person chose the client'],
+    meeting_assigned: ['Confirmed',     'a person chose the client from the queue'],
     meeting_ignored:  ['Ignored',       'a person kept it out of the library'],
+    meeting_moved:    ['Moved',         'already filed, then corrected to another client'],
     meeting_rebuilt:  ['Rebuilt',       'the document was regenerated']
   };
   var logKind = '';
@@ -404,7 +405,10 @@
       else if (e.agreed === true) bits.push('agreed with the guess');
     } else if (e.kind === 'meeting_ignored') {
       if (e.guess || e.guess === '') bits.push('had guessed ' + esc(clientName(e.guess)));
+    } else if (e.kind === 'meeting_moved') {
+      bits.push('from <b>' + esc(clientName(e.guess)) + '</b> to <b>' + esc(clientName(e.client)) + '</b>');
     }
+    if (e.note) bits.push('<span class="fm-over">' + esc(e.note) + '</span>');
     return '<div class="fm-logrow">' +
       '<span class="fm-pill ' + esc(e.kind.replace('meeting_', 'lg-')) + '">' + esc(lab) + '</span>' +
       '<span class="fm-logtitle">' + esc(e.title || e.recording_id || '(untitled)') + '</span>' +
