@@ -48,14 +48,21 @@ KINDS = ("search", "question", "doc_added", "doc_edited", "doc_deleted", "doc_mo
          # meetings (kb_fathom_routes, 2026-09-17): one event per DECISION, not per API call.
          "meeting_filed",     # a rung or the model placed it with no human involved
          "meeting_queued",    # not sure enough - it went to the queue to wait for a person
-         "meeting_assigned",  # a person confirmed or chose the client
+         "meeting_assigned",  # a person confirmed or chose the client, FROM THE QUEUE
          "meeting_ignored",   # a person said this belongs in the library at all
+         "meeting_moved",     # an ALREADY-FILED meeting was re-filed to a different client
          "meeting_rebuilt")   # an already-filed meeting's document was regenerated
+
+# 🔴 `meeting_assigned` AND `meeting_moved` ARE NOT THE SAME EVENT, and collapsing them makes the
+# audit trail lie. Assigned means somebody worked the queue: the meeting was waiting, they chose.
+# Moved means it had already been filed and was corrected afterwards - nobody confirmed anything.
+# Logged as "assigned" on 2026-09-17, four script-applied corrections made Observability report
+# "4 confirmed by a person" on a day nobody had touched the queue. Jerome spotted it on the tile.
 
 GROUPS = {"questions": ("search", "question", "feedback"),
           "documents": ("doc_added", "doc_edited", "doc_deleted", "doc_moved", "folder_renamed"),
           "meetings": ("meeting_filed", "meeting_queued", "meeting_assigned", "meeting_ignored",
-                       "meeting_rebuilt")}
+                       "meeting_moved", "meeting_rebuilt")}
 
 
 def kind_group(kind):
