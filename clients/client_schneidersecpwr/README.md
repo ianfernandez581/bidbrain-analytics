@@ -369,6 +369,35 @@ Enterprise IT's `Unspecified` rows now carry their explanation on BOTH tables, n
 (`ctCamp`) purely to feed it. The note names the verticals (Healthcare, Finance, Retail, Education,
 Manufacturing, Generic, Hero), because "Unspecified" without that reads as missing data.
 
+### Every Reports-tab fetch must be RELATIVE (2026-09-17)
+The platform proxy serves this dashboard at `/d/schneidersecpwr/` and rewrites exactly THREE absolute
+strings in the HTML it passes through (`bidbrain-platform/dash/main.py`): `/data.json`, `'/report'`
+and `/creative-img/`. **Anything else absolute resolves against the PLATFORM root and never reaches
+this service.**
+
+All three Reports-tab routes were absolute, so the ENTIRE tab was dead through the front door:
+
+| was | now |
+|---|---|
+| `fetch('/internal/reports.json')` | `fetch('internal/reports.json')` |
+| `fetch('/reports/tal/parse')` | `fetch('reports/tal/parse')` |
+| `fetch('/reports/xlsx')` | `fetch('reports/xlsx')` |
+
+Not just the targeting data - the TAL upload and **the `.xlsx` download, which is the actual client
+deliverable**, both failed too. It worked when tested on the raw `*.run.app` URL and failed for every
+real user, which is the worst possible failure shape and is exactly why it survived.
+
+Relative is correct in BOTH contexts: the proxy's base route is `/d/<client>/` WITH a trailing slash
+(`@app.route("/d/<client>/", defaults={"subpath": ""})`), so `internal/reports.json` resolves to
+`/d/schneidersecpwr/internal/reports.json` behind the proxy and `/internal/reports.json` direct, and
+the proxy forwards arbitrary subpaths (`@app.route("/d/<client>/<path:subpath>")`).
+
+`fetch('/report')` (the AI deck) stays ABSOLUTE on purpose - the proxy rewrites the literal
+`'/report'` INCLUDING its quotes, so making it relative would break the rewrite.
+
+**The audit is one grep:** `grep "fetch('/" dash/dashboard.html` should return exactly ONE line, the
+`/report` POST. Anything else it lists is broken behind the proxy.
+
 ### The Reports tab says on its face that it is internal (2026-09-11)
 The tab is gated on `window.BB_INTERNAL`, but **a gate stops a client SESSION rendering it and does
 nothing about a staff SCREENSHOT** - which was indistinguishable from a client-facing one. The

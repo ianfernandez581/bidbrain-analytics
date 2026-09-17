@@ -1974,7 +1974,7 @@ async function ensureInternal(){
   if(internalData || internalBusy || internalErr) return;
   internalBusy=true;
   try{
-    const res=await fetch('/internal/reports.json');
+    const res=await fetch('internal/reports.json');
     if(res.status===404) throw new Error('The Reports payload has not been built yet - run the export job.');
     if(!res.ok) throw new Error('HTTP '+res.status);
     internalData=await res.json();
@@ -2198,7 +2198,7 @@ async function uploadTal(file){
   talBusy=true; talError=''; renderReports();
   try{
     const fd=new FormData(); fd.append('file',file);
-    const res=await fetch('/reports/tal/parse',{method:'POST',body:fd});
+    const res=await fetch('reports/tal/parse',{method:'POST',body:fd});
     const j=await res.json().catch(()=>({}));
     if(!res.ok) throw new Error(j.error||`HTTP ${res.status}`);
     talData=j;
@@ -2212,7 +2212,7 @@ async function downloadReport(kind, btn){
   if(btn) btn.disabled=true;
   try{
     const body = kind==='targeting' ? targetingPayload() : talPayload();
-    const res=await fetch('/reports/xlsx',{method:'POST',headers:{'Content-Type':'application/json'},
+    const res=await fetch('reports/xlsx',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({kind, filename:body._filename, payload:body.payload})});
     if(!res.ok){ const j=await res.json().catch(()=>({})); throw new Error(j.error||`HTTP ${res.status}`); }
     const blob=await res.blob();
