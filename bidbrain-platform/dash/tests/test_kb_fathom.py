@@ -324,14 +324,20 @@ class Ladder(unittest.TestCase):
         self.assertIn("cloudflare", hits)
 
     def test_corpus_vote_counts_only_filed_fathom_meetings(self):
+        """A media plan or a brief is not a vote about where a MEETING belongs; only filed meetings
+        count. The third document here is a plan and must be ignored.
+
+        The tally counts 2, and the EVIDENCE is deliberately empty: two passages is below VOTE_MIN
+        (2026-09-17). What is counted and what is worth telling the model are two different
+        questions - see corpus_vote and the CorpusVote tests."""
         res = {"excerpts": [{"document_id": "fathom-1"}, {"document_id": "fathom-2"}, {"document_id": "d_plan"}]}
         metas = [{"id": "fathom-1", "kind": "meeting", "source": "fathom", "client": "cloudflare"},
                  {"id": "fathom-2", "kind": "meeting", "source": "fathom", "client": "cloudflare"},
                  {"id": "d_plan", "kind": "plan", "source": "upload", "client": "mongodb"}]
         with mock.patch.object(kb_index, "search", return_value=res), mock.patch.object(kb_index, "all_meta", return_value={m["id"]: m for m in metas}):
             tally, ev = kb_fathom.corpus_vote(MEETING)
-        self.assertEqual(tally, {"cloudflare": 2})
-        self.assertEqual(ev, ["2 of 2 similar passages are from cloudflare meetings"])
+        self.assertEqual(tally, {"cloudflare": 2})              # the plan did not vote
+        self.assertEqual(ev, [])                                # ...and 2 passages is not a match
 
 
 # --- webhook signature --------------------------------------------------------------------------------
@@ -717,3 +723,61 @@ class MeetingAudit(unittest.TestCase):
 def kb_fathom_routes_file():
     import kb_fathom_routes
     return kb_fathom_routes.__file__
+
+
+# --- the corpus vote (2026-09-17) -------------------------------------------------------------
+
+class CorpusVote(unittest.TestCase):
+    """The first real sync filed two of three daily stand-ups to the WRONG client at 95%+. The tell
+    was in the evidence the model was handed: "1 of 1 similar passages are from cloudflare meetings".
+    One passage is a coincidence, and it reads exactly like a real signal."""
+
+    def _vote(self, docs):
+        """docs = [(doc_id, client)] in the order the search returned them."""
+        meta = {d: {"id": d, "kind": "meeting", "source": "fathom", "client": c} for d, c in docs}
+        with mock.patch.object(kb_index, "search",
+                               return_value={"excerpts": [{"document_id": d} for d, _ in docs]}), \
+             mock.patch.object(kb_index, "all_meta", return_value=meta):
+            return kb_fathom.corpus_vote(dict(MEETING))
+
+    def test_a_single_passage_is_never_offered_as_a_match(self):
+        tally, ev = self._vote([("a", "cloudflare")])
+        self.assertEqual(tally, {"cloudflare": 1})
+        self.assertEqual(ev, [], "one passage must not become 'similar passages are from cloudflare'")
+
+    def test_a_split_vote_says_SEVERAL_clients_and_names_no_winner(self):
+        """The real failure: a stand-up touching five clients. Naming the leader points the model AT
+        a client when the honest reading is that it belongs to none of them."""
+        tally, ev = self._vote([("a", "geocon"), ("b", "sophiie"), ("c", "resetdata"), ("d", "schneider")])
+        self.assertEqual(len(ev), 1)
+        self.assertIn("several clients", ev[0])
+        for c in ("geocon", "sophiie", "resetdata", "schneider"):
+            self.assertIn(c, ev[0])
+        self.assertNotIn("passages are from", ev[0])          # no winner is named
+
+    def test_a_real_majority_still_counts(self):
+        docs = [("a", "resetdata")] * 5 + [("b", "geocon")]
+        tally, ev = self._vote(docs)
+        self.assertEqual(ev, ["5 of 6 similar passages are from resetdata meetings"])
+
+    def test_a_bare_majority_below_the_share_is_not_a_match(self):
+        """3 of 6 is not a signal, however many passages there are."""
+        docs = [("a", "resetdata")] * 3 + [("b", "geocon")] * 3
+        _, ev = self._vote(docs)
+        self.assertIn("several clients", ev[0])
+
+    def test_the_prompt_tells_the_model_a_multi_client_meeting_is_agency_wide(self):
+        """The vote fix removes the misleading EVIDENCE; this is what stops the model reaching the
+        same conclusion from the transcript alone."""
+        seen = {}
+
+        def capture(body):
+            seen["text"] = body["contents"][0]["parts"][0]["text"]
+            return gemini_reply("", 0.96, "several clients", work=True)
+
+        with mock.patch.dict(os.environ, {"GEMINI_API_KEY": "k"}):
+            kb_fathom.synthesise(dict(MEETING), CANDIDATES, [], _post=capture)
+        t = seen["text"].lower()
+        self.assertIn("several clients", t)
+        self.assertIn("belongs to no single client", t)
+        self.assertIn("choosing between two or more clients", t)
