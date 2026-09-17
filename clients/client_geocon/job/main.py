@@ -273,24 +273,18 @@ def build_env(bq, observed):
     # status. Tolerated absent exactly like GA4, so a job deploy landing ahead of the view (or a
     # lapsed Windsor Salesforce grant) degrades to the withheld state instead of failing the run.
     try:
-        crm = rows(bq, f"SELECT * FROM {t('stg_salesforce')} ORDER BY date, property, lead_source")
+        crm = rows(bq, f"SELECT * FROM {t('stg_salesforce')} ORDER BY date, project, lead_source")
     except Exception as e:
-        print(f"  stg_salesforce unavailable ({e}) — CRM enquiries will stay withheld")
+        # NOTE: this tolerant catch is load-bearing but it HIDES A RENAME. When sql/13's `property`
+        # column became `project` (2026-09-17) the ORDER BY here still named the old one, so the
+        # query threw, this arm swallowed it, and the export published `0 CRM leads` while the view
+        # itself held 9,779 - green run, empty tile. If the count goes to zero, suspect this query
+        # before you suspect the data.
+        print(f"  stg_salesforce unavailable ({e}) — CRM leads will stay withheld")
         crm = []
-    # Is the stated 2026-08-20 cutover actually load-bearing? It is only an inference (one
-    # Salesforce 'Gateway' project covers both developments), so assert how much rests on it:
-    # the last Braddon-era enquiry landed 17 Aug and the first Northbourne-era one 26 Aug, an
-    # empty 8-day gap straddling the cutover, which means any date inside it gives identical
-    # counts. Computed, not asserted from memory — if enquiries ever appear in that gap this
-    # flips to False and the dashboard stops claiming the split is clean.
-    crm_split_safe = None
-    if crm:
-        _brad = [r["date"] for r in crm if r.get("property") == "Gateway Braddon" and r.get("date")]
-        _nrth = [r["date"] for r in crm if r.get("property") == "Northbourne Gateway" and r.get("date")]
-        if _brad and _nrth:
-            crm_split_safe = (max(_brad) < datetime.date(2026, 8, 20) <= min(_nrth))
-            print(f"  crm split: last Braddon-era {max(_brad)}, first Northbourne-era {min(_nrth)} "
-                  f"-> cutover {'sits in an empty gap' if crm_split_safe else 'SPLITS LIVE DAYS'}")
+    # No development split any more (client, 2026-09-17: the lead figure is the whole Geocon
+    # book), so the 2026-08-20 cutover and its safety assertion are gone with it - there is no
+    # longer a guess to qualify.
     if ga4:
         # Per-site audit line (the cheap check that the pull is alive and the campaign->development
         # attribution still matches — an all-NULL `property` under paid channels means the
@@ -486,22 +480,18 @@ def build_env(bq, observed):
         #     can never fill a per-creative or per-channel lead column. The dashboard must not
         #     grow one off this block.
         #
-        # `split_date` is the stated Braddon/Northbourne cutover (see sql/13_stg_salesforce.sql —
-        # Salesforce has ONE 'Gateway' project covering both). It is shipped so the dashboard can
-        # SAY on screen that the split is inferred, rather than implying a clean CRM attribution.
-        # `split_safe` records that no Gateway lead exists between the last Braddon-era one
-        # (17 Aug) and the first Northbourne-era one (26 Aug), so the cutover falls in an empty
-        # 8-day gap and any date in it yields identical counts.
+        # SCOPE IS EVERY GEOCON DEVELOPMENT (client, 2026-09-17) - not this page's development.
+        # `scope` is shipped so the dashboard can SAY that on screen: the spend beside these leads
+        # is ONE development's media while the leads are the whole book, which is exactly why there
+        # is no cost-per-lead anywhere that reads this block. Do not add one.
         "crm": {
             "source": "Salesforce",
             "via": "Windsor",
-            "project": "Gateway",
-            "split_date": "2026-08-20",
-            "split_safe": crm_split_safe,
-            "grain": "date x property x lead_source x lead_status",
+            "scope": "all_developments",
+            "grain": "date x project x lead_source x lead_status",
             "rows": [{
                 "date": iso(r["date"]),
-                "property": r.get("property"),
+                "project": r.get("project"),
                 "lead_source": r.get("lead_source"),
                 "lead_status": r.get("lead_status"),
                 "leads": num(r.get("leads")),
@@ -520,18 +510,19 @@ def build_env(bq, observed):
     # disagree — seeing them side by side every run is the cheap guard against one being mistaken
     # for the other.
     if crm:
-        by_dev = {}
+        by_proj = {}
         for r in crm:
-            k = r.get("property") or "(unmapped)"
-            by_dev[k] = by_dev.get(k, 0) + int(num(r.get("leads")) or 0)
-        crm_total = sum(by_dev.values())
-        print("  crm enquiries: " + "; ".join(f"{k}: {v}" for k, v in sorted(by_dev.items()))
-              + f" (total {crm_total}) vs {leads_total} platform-reported")
+            k = r.get("project") or "(not set)"
+            by_proj[k] = by_proj.get(k, 0) + int(num(r.get("leads")) or 0)
+        crm_total = sum(by_proj.values())
+        top = sorted(by_proj.items(), key=lambda kv: -kv[1])[:6]
+        print("  crm leads (ALL developments): " + "; ".join(f"{k}: {v}" for k, v in top)
+              + f" (total {crm_total} across {len(by_proj)} projects) vs {leads_total} platform-reported")
     else:
-        print("  crm enquiries: NONE — the dashboard will withhold the enquiry tiles")
+        print("  crm leads: NONE — the dashboard will withhold the enquiry tiles")
 
     summary = (f"{len(fact)} fact rows, {leads_total} platform-reported leads, "
-               f"{sum(int(num(r.get('leads')) or 0) for r in crm)} CRM enquiries, "
+               f"{sum(int(num(r.get('leads')) or 0) for r in crm)} CRM leads, "
                f"${round(spend_total,2)} spend ({env['meta']['date_min']}..{env['meta']['date_max']}) | {per}")
     return env, summary
 

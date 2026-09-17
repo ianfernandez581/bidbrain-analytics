@@ -43,7 +43,7 @@ and the views cannot drift apart:
 | `sql/07_stg_linkedin.sql` | LinkedIn delivery | **`'Unmapped'`** - the job ALARMS |
 | `sql/08_stg_ttd.sql` | Trade Desk delivery | **`'Unmapped'`** - the job ALARMS |
 | `sql/09_stg_google_ads.sql` | Google Ads delivery | **`'Unmapped'`** - the job ALARMS |
-| `sql/13_stg_salesforce.sql` | CRM enquiries (the `crm` block) | **nothing** - it does not use this map at all. It scopes to the one `Gateway` Salesforce project and splits the two developments on a DATE, because the CRM records both under a single project id (see "CRM enquiries are LIVE") |
+| `sql/13_stg_salesforce.sql` | CRM leads (the `crm` block) | **nothing** - it does not use this map at all, and since 2026-09-17 it does not scope by development either: leads are Geocon-wide (see "CRM leads are LIVE") |
 
 **Only Meta may fall back to a development.** Its scope is an exact ad account plus a campaign
 prefix, so a catch-all is safe. The other three read tables shared with six-to-eleven other
@@ -107,7 +107,7 @@ it used to be (a development switched itself on the moment its first row landed)
 to publish a one-line view of a nine-line plan should be a person's, which is exactly what happened
 here.
 
-### CRM leads are LIVE (2026-09-17) - and they are not the platform figure
+### CRM leads are LIVE (2026-09-17) - Geocon-wide, and not the platform figure
 
 **Salesforce is connected, so lead reporting has resumed - from the CRM, not from the ad
 platforms.** The 2026-09-03 instruction below was "no enquiry reporting *until Salesforce is
@@ -115,90 +115,73 @@ connected*"; this is that condition being met. `LEADS_REPORTABLE` stays `false` 
 platform-reported lead surface stays off, because the platform count is a different measure and
 publishing both invites them being read as one.
 
-**They are called LEADS, and they live in the main KPI band - there is no separate section**
-(client, 2026-09-17). A standalone "Enquiries from the CRM" section with a trend chart, a source
-table and a status breakdown was built and **removed the same day**: the client wanted the figure
-where the other headline numbers are, not in a panel of its own. What ships is exactly two tiles -
-**Leads** and **Cost per lead** (blended), first in the goal row - plus the total on the intro line
-under *"<development> - reach & delivery"*, beside impressions and spend. `lead_source` and
-`lead_status` still flow all the way to `crm.rows[]`, so those breakdowns are one renderer away if
-they are ever wanted again.
+**SCOPE IS EVERY GEOCON DEVELOPMENT** (client, 2026-09-17). It shipped scoped to the one `Gateway`
+Salesforce project and was widened the same day: the lead figure is the whole book - The Grande,
+WOVA, Vue Greenway, Lead Distribution, all of it. **9,779 leads all-time across 30 projects; 183
+over 20 Aug - 16 Sep**, of which Gateway is 136 and The Grande 39.
 
-*"Leads" rather than "enquiries" is also the more accurate word*: Salesforce's own object is
-`Lead`, so the label moved toward the source rather than away from it.
+**They are called LEADS and they live in the main KPI band - there is no separate section.** A
+standalone "Enquiries from the CRM" section (trend + source table + status bars) was built and
+removed the same day: the client wanted the figure where the other headline numbers are. What ships
+is **one tile** (`Leads`), the total on the intro line beside impressions and spend, and a **Leads
+line on the Delivery-over-time chart**. `lead_source` / `lead_status` still flow to `crm.rows[]`, so
+the breakdowns are one renderer away. *"Leads" is also the source's own word - Salesforce's object
+is `Lead`.*
 
-**Three numbers, one word.** Over 20 Aug - 15 Sep 2026, for Northbourne Gateway:
+#### There is no cost per lead, and there must not be
 
-| source | count | what it actually counts |
-|---|---|---|
-| Ad platforms (`rows[].leads`) | **156** | Meta 152 (126 website + 26 on-Facebook) + Google Ads 4, attribution-modelled, at ad grain |
-| Geocon's own web exports | **124** distinct (125 rows) | WordPress form submissions + Meta instant forms |
-| **Salesforce (what we now publish)** | **115** | CRM lead records |
+Widening the scope killed it. The spend on this page is **one development's media**; the leads are
+**every development's**. A blended cost per lead read **A$253.68** where the matched pair (Gateway
+leads against Northbourne spend) was **A$341.35** - it was crediting this campaign's budget with The
+Grande's enquiries. The tile was removed in the same change.
 
-They reconcile as you would expect once you look: Meta's on-Facebook 26 against Geocon's instant-form
-export of 24 is the same event counted a day apart, while Meta's *website* 126 against 101 actual
-form submissions from **all** sources is attribution modelling, not a counting error. The CRM sits
-below both because ~7% of submissions never become a Gateway lead record.
+**Reinstating it needs the NUMERATOR narrowed back to the paying development, not a relabel.** The
+rule is written into `sql/13`'s header, the `crm` payload block and the KPI-band comment, because
+it is the kind of tile someone adds back in good faith.
 
-**The pipeline.** `ingest/windsor_data_pull/salesforce/` (scheduled job `windsor-salesforce-ingest`,
-**21:05 UTC** daily, 90-day trailing re-pull MERGEd on `lead_id` because a lead's Status keeps moving for
-months) -> `raw_windsor.geocon_salesforce_leads` -> `sql/13_stg_salesforce.sql` -> `job/main.py`
-`crm` block -> `renderCrm()` on the Overview. The raw table is in geocon's `GATING_TABLES`, so a day
-whose only movement is new enquiries still rebuilds the JSON.
+#### Two things the wider scope removed, both good riddance
 
-**NO PII is ingested, and that is deliberate.** The Salesforce lead object exposes 227 fields
-including name, email, phone and date of birth. We take seven: id, created date, project,
-development name, source, status. `geocon.json` is served to the client's browser, so anything
-landing in that table is one view away from being published. Do not widen it.
+1. **The development split, and the inference under it.** Salesforce records Gateway Braddon and
+   Northbourne Gateway under ONE `Gateway` project (`a0pRF000004XU6fYAG`) with nothing but the date
+   to separate them - `Development_Name__c` reads `Gateway` in both eras, the id is identical, and
+   Website / `Enquiry_Source__c` / `UTMSource__c` are blank throughout. The old view split on a
+   stated date (2026-08-20). A whole-book figure needs no such guess, so `property`, `split_date`
+   and `split_safe` are all gone.
+2. **A per-development lead number that overstated Northbourne.** Gateway Braddon still has a live
+   landing page, so its ongoing enquiries were being counted as Northbourne's.
 
-**`grain` is the constraint, and it is why this is only ever two tiles.** A CRM lead has a date, a
-development, a source family and a status - and no campaign, ad set, ad or platform, because
-Salesforce never receives one. So it supports a **total** and a **blended cost**, and it must never
-feed the funnel, the CPL trend, the efficiency map or a per-creative lead column, all of which are
-ad-grain and would attribute a CRM lead to an ad that may not have produced it. Cost per lead
-divides all spend by all leads (including leads advertising did not produce - walk-ins, referrals,
-portals), is labelled `blended` on the tile, and "How to read this" says so in prose.
+#### What the reader is told, and where
 
-**The tiles do not move with the platform or funnel-stage chips**, because a CRM lead has no
-delivering platform. That is stated in the how-to-read note rather than left for a reader to
-discover - the `client_schneider` rule about a figure that ignores a visible control.
-
-#### The development split is an inference, not a CRM fact
-
-**Salesforce has ONE `Gateway` project record** (`Project__c a0pRF000004XU6fYAG`), used since
-2024-01-07, covering **both** Gateway Braddon and Northbourne Gateway. Verified against every field
-that could separate them - `Development_Name__c` reads `Gateway` in both eras, the project id is
-identical, and `Website` / `Enquiry_Source__c` / `UTMSource__c` are blank throughout. Only the date
-differs, so `sql/13` splits on one named constant: from **2026-08-20** (Northbourne's launch) an
-enquiry is Northbourne's, before it Gateway Braddon's.
-
-**What makes that tolerable rather than reckless:** the last Braddon-era Gateway enquiry landed
-**17 Aug** and the first Northbourne-era one **26 Aug**, so the cutover sits inside an empty 8-day
-gap and *any* date within it yields identical counts. The export **computes** that each run
-(`crm_split_safe` -> `crm.split_safe`) rather than trusting this paragraph, and `crmSplitNote()` -
-the ONE copy of that wording, printed in "How to read this" since the section was removed - changes
-sentence if it ever goes false.
-
-**Its error direction, stated:** Gateway Braddon is a real building with a live landing page (117 of
-its 128 flight-era enquiries came from `Project Landing Page`), so any enquiry it still attracts is
-counted as Northbourne's. This **overstates Northbourne**. The durable fix is Geocon splitting the
-project record or adding a development field to the web forms; then drop `SPLIT_DATE` and resolve
-`property` off the real field.
+Three visible controls do **not** move the lead figure - the development selector, the platform
+chips and the funnel-stage filter - because a CRM lead carries no development-vs-development
+attribution and no delivering platform. That is the `client_schneider` trap if the page keeps quiet
+about it, so it is stated in three places: `crmScopeNote()` (the ONE copy of the wording, printed in
+*How to read this*), the intro line (`183 leads across all Geocon developments`), and the
+Delivery-over-time caption.
 
 #### What this feed cannot see
 
-Across three years and 7,918 leads, **zero** come back with `IsConverted`, `IsDeleted` or
-`MasterRecordId` set. For a live CRM that is implausible, so Windsor is almost certainly excluding
-converted, deleted and merged leads. It is a level shift, not a trend break - the same exclusion
-applied in 2024 - but a count here is *"open leads Windsor can see"*, not *"every lead Salesforce
-holds"*. Reconcile against a Salesforce report before quoting it as the latter.
+Across three years and 7,918 Gateway-era leads, **zero** come back with `IsConverted`, `IsDeleted`
+or `MasterRecordId` set. For a live CRM that is implausible, so Windsor is almost certainly
+excluding converted, deleted and merged leads. It is a level shift, not a trend break - the same
+exclusion applied in 2024 - but a count here is *"open leads Windsor can see"*, not *"every lead
+Salesforce holds"*.
 
-Also worth knowing when someone quotes a number at you: **Gateway's all-time total is 396**, which
-is where an expectation of "around 400" comes from. And Geocon's three lead CSVs sum to exactly 400
-only because they cover **five months** (teaser site Apr 16 - Aug 16 = 272, main site Aug 22 -
-Sep 16 = 103, Meta Sep 5 - Sep 16 = 25) - 272 of those fall entirely outside the campaign window,
-the teaser file is not de-duplicated (272 rows, 241 distinct emails) and two of its three stated
-date ranges are wrong.
+Also worth knowing when someone quotes a number at you: **Gateway alone is 396 all-time**, which is
+where an expectation of "around 400" came from. And Geocon's three lead CSVs sum to exactly 400 only
+because they cover **five months** (teaser site Apr 16 - Aug 16 = 272, main site Aug 22 - Sep 16 =
+103, Meta Sep 5 - Sep 16 = 25) - 272 of those fall outside the campaign window, the teaser file is
+not de-duplicated (272 rows, 241 distinct emails) and two of its three stated date ranges are wrong.
+
+#### The trap this change walked into, and the general lesson
+
+Renaming `property` -> `project` in `sql/13` broke `job/main.py`, whose query still read
+`ORDER BY date, property, lead_source`. That query sits inside a **tolerant `try/except`** (so a
+missing view degrades rather than failing the export), so it threw, was swallowed, and the job
+published **`0 CRM leads`** while the view itself held 9,779 - a green run and an empty tile. The
+three-stage contract is matched BY NAME; a tolerant catch around one stage turns a rename into
+silence. **If a CRM count goes to zero, suspect that query before the data.** A note to that effect
+now sits on the `except`.
 
 ### Platform-reported enquiries stay withheld (2026-09-03, client instruction)
 
@@ -702,10 +685,11 @@ The 2026-09-17 CRM lane (`raw_windsor.geocon_salesforce_leads` -> `sql/13_stg_sa
 | sql | job | dashboard |
 |---|---|---|
 | `stg_salesforce.date` / `.property` | `crm.rows[].date` / `.property` | `crmRows()` - date range + development ONLY |
-| `stg_salesforce.lead_source` | `crm.rows[].lead_source` | **carried, not rendered** - the source breakdown was removed with the section (2026-09-17) |
+| `stg_salesforce.project` | `crm.rows[].project` | **carried, not rendered** - keeps the mix auditable; the job prints it every run |
+| `stg_salesforce.lead_source` | `crm.rows[].lead_source` | **carried, not rendered** - the source breakdown went with the section (2026-09-17) |
 | `stg_salesforce.lead_status` | `crm.rows[].lead_status` | **carried, not rendered** - same |
-| `stg_salesforce.leads` | `crm.rows[].leads` | the `Leads` + `Cost per lead` tiles and the intro line's total |
-| (the `sql/13` cutover constant) | `crm.split_date` / `.split_safe` | `crmSplitNote()` -> "How to read this"; re-words itself if `split_safe` goes false |
+| `stg_salesforce.leads` | `crm.rows[].leads` | the `Leads` tile, the intro line's total, and the Leads line on the delivery chart |
+| (scope, stated) | `crm.scope` = `all_developments` | `crmScopeNote()` -> *How to read this*, the intro line and the chart caption |
 
 ## Architecture — one fact table, rolled up in the browser (rebuilt 2026-06)
 
