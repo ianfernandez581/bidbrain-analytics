@@ -370,6 +370,113 @@ way, but the working-tree diff becomes unreviewable).
 
 ---
 
+## Payload size + the motion pass (2026-09-16)
+
+Two changes that ship together but are independent. **Neither touches a figure on screen.**
+
+### Payload (`main.py`, `job/main.py`, the poll in `dashboard.html`)
+`/data.json` was served **uncompressed** - 11.20 MB, about 30 seconds on a 3 Mbps connection before
+the first figure renders. It is now gzipped (**0.66 MB, a 94.1% cut**), compressed once per object
+and cached on the blob's `generation`, so an unchanged payload costs one metadata call and no GCS
+download. See `_payload()` in `main.py`.
+
+- **`/data-version.json` is new** and returns `{last_updated}` alone (~40 bytes). The 5-minute
+  auto-refresh poll used to re-fetch and re-parse all 11.2 MB just to compare that one string -
+  **~134 MB/hour per open tab**. The dashboard falls back to `/data.json` on a 404, so deploying the
+  dashboard before the web service degrades to the old behaviour rather than freezing the refresh.
+- **The job drops 9 unread columns** from `pacing.rows` (`PACING_DROP` in `job/main.py`) - an
+  explicit denylist, so a new pacing_model column still flows through by default.
+- **`boot()` renders only the active tab.** It used to call `renderAll()` unconditionally, building
+  the whole Content Syndication tab before the Paid Media tab the user actually lands on: **25 chart
+  instances at boot, now 10.** `csRendered` keeps it lazy; `switchTab` builds it on first open, and
+  everything that already re-rendered it (`applyDateRange`, a lane change, a market chip) still does.
+
+### The PII is out of the client payload (CLOSED)
+`pacing.rows` used to carry `FIRST_NAME`, `LAST_NAME`, `EMAIL`, `PHONE`, `OPT_IN` and
+`ANNUAL_REVENUE_` for ~6,900 leads, feeding ONLY `renderLeadDetail()` (Admin View). Those six
+columns now move to a **staff-only sidecar**:
+
+    job/main.py  PACING_PII -> cloudflare_internal.json
+    dash/main.py /internal/leads.json   (auth-gated, 404s cleanly if the job has not run)
+    dashboard.html  loadLeadPii() -> withLeadPii() -> currentLeads()
+
+`withLeadPii()` is the ONE join point, so the on-screen table and the CSV export can never disagree
+about which fields a lead has. Verified on a client session: **zero PII keys on any payload row, and
+`/internal/leads.json` is never requested at all** (network log shows only `/data.json` and
+`/bb_deck.js`). On a staff session the table populates from the sidecar (6,817 leads carry PII).
+Client payload 11.20 -> 8.16 MB raw, **0.66 -> 0.41 MB gzipped**; sidecar 1.15 MB (0.20 gzipped).
+
+- **`LEAD_ID_SF` stays in the client payload** - it is the join key AND `isDummy()` reads it.
+- **`JOB_TITLE` and `COMPANY_NAME` stay too.** `JOB_TITLE` looks like PII but feeds a real
+  client-facing breakdown chart (`groupCount(... r.JOB_TITLE)`); moving it would blank a panel.
+- **The route authenticates but does not AUTHORIZE by role** - the `bb_sso` cookie carries the
+  allowed-client list, not the role, so any authenticated session that knows the URL can fetch it.
+  Same honest limit as `client_schneidersecpwr`; the real close is the role in `platform_sso.py`.
+- Failure is never fatal: `LEAD_PII_STATE` drives a sentence appended to the table's own note
+  ("Contact fields are still loading" / "unavailable" / "could not be loaded") and the table renders
+  with those cells blank.
+
+### Paid Media renders progressively
+`renderPaidMediaAll()` ran its 16 chart-building steps in ONE synchronous block and froze the main
+thread for **~645ms** on the tab the dashboard opens on. The first 3 steps (the KPI band and the
+chart under it - above the fold) still run synchronously; the rest are deferred onto
+`requestIdleCallback` (`setTimeout` fallback where that is missing, so Safari < 16.4 still gets
+progressive rendering rather than the one big block).
+**Deferring onto `requestAnimationFrame` was the first cut and was measurably wrong** - a rAF
+callback runs before its frame paints, so each 60-80ms slice cost a dropped frame and the freeze
+became seven stutters. An idle callback runs after the paint and carries a `deadline`, so cheap
+steps share a slice; `timeout: 250` stops a busy page starving it.
+- The steps were already decomposed and individually `try`/`catch`ed, so this changes WHEN they run,
+  never what they do. The "every step failed" error card moved to `paidRenderDone()`.
+- **`paidRenderToken` is not optional.** The function is re-called on a date change, a channel chip
+  and a market chip, so a deferred batch from the PREVIOUS scope can still be queued when a new run
+  starts - it would paint stale figures over fresh ones. Each run takes a token; a batch whose token
+  has moved on abandons itself.
+- `document.hidden` or a missing `requestAnimationFrame` falls back to running the rest
+  synchronously, so a print or a background tab is never left half-built.
+
+**Redeploy order matters, and for the PII split it is not optional:**
+1. **Job first** (`job/deploy_job_cloudflare.ps1`, or a forced run - the gate does not watch payload
+   shape) so `cloudflare_internal.json` exists and the client payload is stripped.
+2. **Then the web service** (`dash/deploy_dash_cloudflare.ps1`) so `/internal/leads.json` and
+   `/data-version.json` are served.
+3. **Then the dashboard** (same script - one service).
+
+Deploying the DASHBOARD first is the only ordering that shows a visible fault: the staff lead table
+would say "Contact fields are unavailable" until the job runs. Deploying the JOB first is safe -
+the old dashboard simply renders blank PII cells, because the columns are absent rather than wrong.
+
+**Every fetch this dashboard makes must be a RELATIVE url** (`data-version.json`,
+`internal/leads.json`). The platform proxy rewrites only the literal `/data.json`; any other
+absolute path resolves against the platform root and never reaches this service. See the repo-wide
+rule in `md/AGENTS.md`.
+
+### Motion (`dashboard.html`, CSS + one JS guard)
+Emil Kowalski's framework applied to the existing client-approved layer. **Additive - the skin, the
+easing vocabulary (`--bb-ease`) and every existing animation are unchanged.**
+
+- Tab pane entrance moved off a 460ms keyframe to a **180ms `@starting-style` transition** with
+  `transition-behavior: allow-discrete`. A keyframe restarts from frame zero when re-triggered, so
+  switching two tabs quickly replayed the second entrance over a half-finished first. `@starting-style`
+  also needs no JS and no forced reflow - an intermediate version stamped a class and forced layout
+  to commit the start state, which measured **~10ms on the 1,026-node Paid Media panel, every switch**.
+- Date picker was a `display:none` cut - the only control on the page that did not ease. Now scales
+  from `top right` (its own anchor, set at `:218`), 160ms in / 100ms out, with `visibility` delayed to
+  the end of the fade so it leaves the a11y tree only once gone.
+- Tab underline 340ms -> 200ms so it lands with the pane, not after it. Card/KPI lift is asymmetric
+  (180ms in, 380ms out): a lift is the interface answering, the drop back is it finishing up.
+- **`@media (hover:none),(pointer:coarse)` neutralises hover lifts and the KPI sheen.** A touch device
+  synthesises hover on tap and it then STICKS - there is no pointer to move away. `:active` is
+  deliberately outside that gate; touch needs press feedback most.
+- `transition:all .15s` replaced with named properties in 2 places.
+- **`countUp` now opens with `if (REDUCED) return;`** - `growBars` and `replayChart` both guarded and
+  this one did not, so figures animated for a reader who asked for stillness, and a screenshot caught
+  mid-count showed every KPI at a fraction of its true value.
+
+**NOT applied, deliberately:** capping the 1.05s KPI sheen to first-hover-per-tile. It is defensible
+by the frequency rule, but the sheen is part of a client-approved skin - that is Cloudflare's call,
+not ours.
+
 ## Deploy
 
 Build the image, then deploy as yourself. **Don't** `gcloud builds submit --config

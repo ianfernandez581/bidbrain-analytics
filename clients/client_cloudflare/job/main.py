@@ -49,6 +49,11 @@ CLIENT = "cloudflare"
 DATASET     = f"client_{CLIENT}"                    # client_cloudflare
 BUCKET      = f"bidbrain-analytics-{CLIENT}-dash"   # bidbrain-analytics-cloudflare-dash
 DATA_OBJECT = f"{CLIENT}.json"                      # cloudflare.json
+# Staff-only sidecar. Holds the per-lead PII the Admin View lead table needs and NOTHING else,
+# so the client payload can stop carrying contact details for ~6,900 people that no client
+# session ever renders. Served by the dash at /internal/leads.json and fetched only when a
+# staff session opens that table. Same pattern as client_schneidersecpwr.
+INTERNAL_OBJECT = f"{CLIENT}_internal.json"          # cloudflare_internal.json
 
 # --- Freshness gate -----------------------------------------------------------
 # BigQuery-reading client now (see CLAUDE.md "Freshness contract"): rebuild only when
@@ -342,10 +347,61 @@ def main():
         } for r in lw],
     }
 
-    # Pacing: pass every pacing_model column straight through (dates -> ISO).
+    # Pacing: pass every pacing_model column through EXCEPT the ones nothing reads.
+    #
+    # This is the largest block in the payload by a wide margin - ~6,900 lead-grain
+    # rows, about two thirds of the whole JSON - so a column that reaches no surface
+    # is pure download weight on every page load. Each name below was checked against
+    # the dashboard with a word-boundary search and appears NOWHERE in it, so removing
+    # them is a strict no-op on screen; they are listed explicitly (a denylist, not a
+    # narrowed SELECT) so that a NEW column added to pacing_model still flows through
+    # by default and cannot be silently lost.
+    #
+    PACING_DROP = {
+        "ASSET_2", "WEBSITE", "REGION", "STATUS", "PUBLISHER_OFFER",
+        "L2", "LEAD_VALUE", "CUMULATIVE_ACTUAL", "CUMULATIVE_TARGET",
+    }
+
+    # The PII columns leave the client payload entirely and move to the staff-only
+    # sidecar (INTERNAL_OBJECT). They are read by exactly one surface - the Admin View
+    # lead table - so a client session was downloading the name, email and phone number
+    # of every lead in order to render nothing. A UI gate does not stop that; removing
+    # the data does.
+    #
+    # LEAD_ID_SF is the join key and STAYS in the client payload: the dashboard also
+    # needs it for isDummy(). JOB_TITLE / COMPANY_NAME stay too - JOB_TITLE feeds a real
+    # breakdown chart, so moving it would blank a client-facing panel.
+    PACING_PII = {
+        "FIRST_NAME", "LAST_NAME", "EMAIL", "PHONE", "OPT_IN", "ANNUAL_REVENUE_",
+    }
+    have = set(pac[0].keys()) if pac else set()
+    dropped = sorted(PACING_DROP & have)
+    moved = sorted(PACING_PII & have)
+    if dropped:
+        print(f"pacing: dropping {len(dropped)} unused column(s) from the payload: "
+              f"{', '.join(dropped)}")
+    if moved:
+        print(f"pacing: moving {len(moved)} PII column(s) to the staff-only sidecar: "
+              f"{', '.join(moved)}")
+
+    # Built BEFORE the drop, keyed on LEAD_ID_SF. Rows carrying no PII at all are skipped
+    # so the sidecar stays small - a lead the dashboard cannot find simply renders blanks
+    # in those cells, which is exactly what an empty value did before.
+    internal_leads = []
+    for r in pac:
+        key = r.get("LEAD_ID_SF")
+        if not key:
+            continue
+        vals = {c: jval(r.get(c)) for c in moved}
+        if not any(v not in (None, "") for v in vals.values()):
+            continue
+        vals["LEAD_ID_SF"] = jval(key)
+        internal_leads.append(vals)
+
+    _strip = PACING_DROP | PACING_PII
     pacing_payload = {
         "row_count": len(pac),
-        "rows": [{k: jval(v) for k, v in r.items()} for r in pac],
+        "rows": [{k: jval(v) for k, v in r.items() if k not in _strip} for r in pac],
     }
 
     # --- "Pacing detail" (Content Syndication tab): week x market x vendor, APAC + EMEA.
@@ -902,9 +958,23 @@ def main():
         "transmission": tx,   # "Internal Notes" tab: committed Source IDs + the pacing plan
     }
 
-    storage.Client(project=PROJECT).bucket(BUCKET).blob(DATA_OBJECT).upload_from_string(
+    _bucket = storage.Client(project=PROJECT).bucket(BUCKET)
+    _bucket.blob(DATA_OBJECT).upload_from_string(
         json.dumps(env, default=_json_default), content_type="application/json")
     print(f"wrote gs://{BUCKET}/{DATA_OBJECT} | paid {len(pm)} rows, pacing {len(pac)} rows, creatives {len(cre)} rows")
+
+    # Staff-only sidecar, written EVERY run (including when it is empty) so the object can
+    # never go stale against the payload beside it - a half-updated pair would show one
+    # run's leads with another run's contact details.
+    _internal = {
+        "last_updated": env.get("last_updated"),
+        "columns": moved,
+        "leads": internal_leads,
+    }
+    _bucket.blob(INTERNAL_OBJECT).upload_from_string(
+        json.dumps(_internal, default=_json_default), content_type="application/json")
+    print(f"wrote gs://{BUCKET}/{INTERNAL_OBJECT} (staff-only) | {len(internal_leads)} lead(s) "
+          f"with PII, {len(moved)} column(s)")
 
     # Lane audit (2026-08-14): print the CORE_DG / SURROUND_ABM split every run. The two
     # lanes are name-parsed, so this is the cheap reconciliation that makes a parsing

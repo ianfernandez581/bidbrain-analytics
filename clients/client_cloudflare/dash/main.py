@@ -14,14 +14,17 @@ is handled the same way too -- the build flips --no-invoker-iam-check so this
 app's own password gate is the only door (see cloudbuild.yaml).
 """
 import os
+import gzip
 import hmac
 import json
 import hashlib
+import threading
 from pathlib import Path
 from flask import (
     Flask, request, redirect, session, Response, render_template_string, abort
 )
 from google.cloud import storage
+from google.api_core.exceptions import NotFound
 
 from report import generate_report
 import feedback_widget
@@ -43,8 +46,47 @@ app.config.update(
 DASH_PASSWORD = os.environ["DASH_PASSWORD"].rstrip("\r\n")     # from Secret Manager
 GCS_BUCKET = os.environ["GCS_BUCKET"]                          # private data bucket
 DATA_OBJECT = os.environ.get("DATA_OBJECT", "cloudflare.json")  # object inside it
+# Staff-only sidecar written by the export job: the per-lead PII behind the Admin View lead
+# table, and nothing else. It is deliberately NOT part of /data.json - see /internal/leads.json.
+INTERNAL_OBJECT = os.environ.get("INTERNAL_OBJECT", "cloudflare_internal.json")
 
 _storage = storage.Client()
+
+# --- payload cache ------------------------------------------------------------
+# The dashboard payload is ~11 MB of JSON and it is served UNCOMPRESSED by default:
+# Cloud Run does not gzip for you (verified - the login page comes back with no
+# Content-Encoding even when the client sends Accept-Encoding: gzip). Over a slow
+# connection that is a ~30s download before the first pixel of data appears.
+# gzip -6 takes it to ~0.66 MB, a 94% cut, for 0.13s of CPU.
+#
+# We compress ONCE per new object rather than per request, keyed on the blob's
+# generation. `blob.reload()` is a metadata-only call, so the common case (the
+# object has not changed) costs one small API round trip and no download at all.
+# Only the compressed bytes are held - ~0.66 MB per gunicorn worker, against a
+# 512Mi limit - and the rare client that refuses gzip gets them decompressed on
+# the way out. The whole cache is swapped in as ONE new dict so a reader thread
+# can never observe a half-updated entry (2 workers x 8 threads).
+_cache = {"generation": None, "gz": None, "last_updated": None}
+_cache_lock = threading.Lock()
+
+
+def _payload():
+    """Return the cache entry for the current data object, refreshing if stale."""
+    blob = _storage.bucket(GCS_BUCKET).blob(DATA_OBJECT)
+    blob.reload()                       # metadata only - no download
+    if _cache["generation"] == blob.generation:
+        return _cache
+    raw = blob.download_as_bytes()
+    try:
+        last_updated = json.loads(raw).get("last_updated")
+    except Exception:
+        last_updated = None             # malformed payload: still serve it
+    entry = {"generation": blob.generation,
+             "gz": gzip.compress(raw, 6),
+             "last_updated": last_updated}
+    with _cache_lock:
+        globals()["_cache"] = entry
+    return entry
 
 # Dashboard HTML is baked into the container at build time, next to this file.
 # Anchor to __file__ so it loads regardless of the process working directory.
@@ -282,7 +324,65 @@ def data():
     # everyone else gets 401. The bucket itself stays private.
     if not authed():
         abort(401)
-    blob = _storage.bucket(GCS_BUCKET).blob(DATA_OBJECT)
+    try:
+        entry = _payload()
+    except NotFound:
+        abort(404)
+    wants_gzip = "gzip" in request.headers.get("Accept-Encoding", "").lower()
+    headers = {"Cache-Control": "no-store", "Vary": "Accept-Encoding"}
+    if wants_gzip:
+        headers["Content-Encoding"] = "gzip"
+        body = entry["gz"]
+    else:
+        body = gzip.decompress(entry["gz"])
+    return Response(body, mimetype="application/json", headers=headers)
+
+
+@app.get("/data-version.json")
+def data_version():
+    """Freshness probe for the dashboard's auto-refresh poll.
+
+    The open tab used to poll by re-downloading the WHOLE payload every 5 minutes
+    just to compare one timestamp - ~134 MB/hour per open tab, for ~50 bytes of
+    answer. This returns the timestamp on its own. When the object has not changed
+    it costs one metadata call and no GCS download at all.
+    """
+    if not authed():
+        abort(401)
+    try:
+        entry = _payload()
+    except NotFound:
+        abort(404)
+    return Response(
+        json.dumps({"last_updated": entry["last_updated"]}),
+        mimetype="application/json",
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+@app.get("/internal/leads.json")
+def internal_leads():
+    """Per-lead PII for the Admin View lead table. Staff-only, fetched lazily.
+
+    Why this route exists: `pacing.rows` used to carry FIRST_NAME / LAST_NAME / EMAIL / PHONE /
+    OPT_IN / ANNUAL_REVENUE_ for every lead, so a CLIENT session downloaded ~6,900 people's
+    contact details in order to render a table only Admin View draws. Hiding the table stopped
+    it being displayed; it did not stop it being sent. The data now leaves the client payload
+    entirely and lives here instead.
+
+    HONEST LIMIT, same as client_schneidersecpwr's /internal/reports.json: this authenticates
+    but does not AUTHORIZE by role. The service cannot yet tell a staff session from a client
+    one on its own - the bb_sso cookie carries the allowed-CLIENT list, not the role - so any
+    authenticated session that knows this URL can fetch it. That is still strictly better than
+    shipping the same fields to every browser unasked, but the real close is putting the role
+    into the SSO token in platform_sso.py, which is vendored into every dashboard.
+
+    404s cleanly when the job has not written the object yet (an older payload, or a first
+    deploy), so the table degrades to blank PII cells rather than erroring.
+    """
+    if not authed():
+        abort(401)
+    blob = _storage.bucket(GCS_BUCKET).blob(INTERNAL_OBJECT)
     if not blob.exists():
         abort(404)
     return Response(
