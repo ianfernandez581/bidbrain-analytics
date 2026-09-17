@@ -38,8 +38,33 @@ MAX_FIELD_CHARS = 2_000
 # How many months back the panel will look when it wants "recent". Two covers a month boundary.
 LOOKBACK_MONTHS = 2
 
+# `log_event` does NOT validate against this list - it is the roster of what actually gets written,
+# so a reader knows what it may encounter. Grouped, because the Meetings page and the Observability
+# page each want one group and neither wants the other's (Jerome, 2026-09-17: "it might get confusing
+# because it can get mixed to the audit of other process"). `kind_group()` is the single place that
+# mapping lives; a new kind is added here and nowhere else.
 KINDS = ("search", "question", "doc_added", "doc_edited", "doc_deleted", "doc_moved",
-         "folder_renamed", "feedback")
+         "folder_renamed", "feedback",
+         # meetings (kb_fathom_routes, 2026-09-17): one event per DECISION, not per API call.
+         "meeting_filed",     # a rung or the model placed it with no human involved
+         "meeting_queued",    # not sure enough - it went to the queue to wait for a person
+         "meeting_assigned",  # a person confirmed or chose the client
+         "meeting_ignored",   # a person said this belongs in the library at all
+         "meeting_rebuilt")   # an already-filed meeting's document was regenerated
+
+GROUPS = {"questions": ("search", "question", "feedback"),
+          "documents": ("doc_added", "doc_edited", "doc_deleted", "doc_moved", "folder_renamed"),
+          "meetings": ("meeting_filed", "meeting_queued", "meeting_assigned", "meeting_ignored",
+                       "meeting_rebuilt")}
+
+
+def kind_group(kind):
+    """'meeting_filed' -> 'meetings'. Unknown kinds fall to 'other' rather than being hidden: a kind
+    nobody mapped is exactly the thing an audit view must not silently drop."""
+    for g, kinds in GROUPS.items():
+        if kind in kinds:
+            return g
+    return "other"
 
 
 def _month(ts=None):

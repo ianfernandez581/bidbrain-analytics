@@ -346,6 +346,13 @@ def load_unassigned(rid):
     return kb_store._read_json(f"{_UNASSIGNED}/{rid}/meeting.json", default=None)
 
 
+def load_proposal(rid):
+    """The guess a queued meeting is waiting on, or {}. Read by the audit record so a person's
+    decision can be logged NEXT TO what the system had proposed - which is what makes "did the
+    human agree?" answerable later."""
+    return kb_store._read_json(f"{_UNASSIGNED}/{rid}/proposal.json", default={}) or {}
+
+
 def drop_unassigned(rid):
     prefix = f"{kb_store.PREFIX}/{_UNASSIGNED}/{rid}/"
     for blob in kb_store._storage().list_blobs(kb_store.bucket_name(), prefix=prefix):

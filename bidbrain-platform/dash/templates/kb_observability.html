@@ -81,6 +81,17 @@
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:18px" id="obsDocs"></div>
     </div>
 
+    <!-- Meetings gets its OWN panel rather than extra tiles in Activity above. Those tiles count
+         questions and document edits; a meeting count sitting among them reads as the same measure
+         and is not (Jerome, 2026-09-17). The per-meeting detail lives on the Meetings page. -->
+    <div class="kb-panel" id="obsMeetingsPanel" hidden>
+      <h3>Meetings</h3>
+      <p class="note">How recordings were placed. A queue that is mostly overruled is a ladder that
+        needs work. Every decision, with its reason, is on the
+        <a href="/kb/meetings">Meetings page</a>.</p>
+      <div class="kb-kpis" id="obsMeetings"></div>
+    </div>
+
     <div class="kb-panel">
       <h3>Settings in force</h3>
       <p class="note">The numbers the retriever is actually running with, read from the code rather
@@ -96,7 +107,7 @@
 </div>
 
 <script>window.KB_STAFF = {{ is_staff | tojson }};</script>
-<script src="/static/kb_obs.js?v=1"></script>
+<script src="/static/kb_obs.js?v=2"></script>
 {% include "_premium.html" %}
 </body>
 </html>

@@ -4,6 +4,7 @@ stub, Gemini is a fake `_post`. Nothing here reaches GCS, Vertex, Gemini or Fath
 Runs under pytest (Ian's runner) and under `python -m unittest` alike.
 """
 import os
+import pathlib
 import sys
 import json
 import hmac
@@ -549,3 +550,170 @@ class Routes(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+# --- the audit record (2026-09-17) ------------------------------------------------------------
+
+class MeetingAudit(unittest.TestCase):
+    """Jerome, 2026-09-17: "I want to check what landed and how it landed." Every meeting DECISION
+    writes one event into the knowledge base's existing activity record - not a second log - and the
+    Meetings view filters to meeting kinds so it never mixes with searches or document edits."""
+
+    def setUp(self):
+        import main
+        self.main = main
+        main.app.config["TESTING"] = True
+        self.c = main.app.test_client()
+        self.fs = FakeStore()
+        self.events = []
+        import kb_activity
+        self.patches = patch_store(self.fs) + [
+            mock.patch.object(main, "_kb_clients", return_value=[{"key": "cloudflare", "name": "Cloudflare"}]),
+            mock.patch.object(main, "_kb_registry_clients", return_value=[{"key": "cloudflare", "name": "Cloudflare"}]),
+            mock.patch.object(main, "_prod_mutation_blocked", return_value=None),
+            mock.patch.object(main, "_fathom_entities", return_value={}),
+            mock.patch.object(kb_index, "all_meta", return_value={}),
+            mock.patch.object(kb_index, "search", return_value={"excerpts": []}),
+            mock.patch.object(kb_index, "reindex_document", return_value={"chunks": 2, "semantic": True}),
+            mock.patch.object(kb_store, "write_file", return_value="meeting.json"),
+            mock.patch.object(kb_store, "read_doc", return_value=None),
+            mock.patch.object(kb_activity, "log_event",
+                              side_effect=lambda kind, **kw: self.events.append(dict(kind=kind, **kw)) or "id"),
+        ]
+        for p in self.patches:
+            p.start()
+        import kb_fathom_routes
+        kb_fathom_routes._clients = main._kb_clients
+        kb_fathom_routes._registry_clients = main._kb_registry_clients
+        kb_fathom_routes._blocked = main._prod_mutation_blocked
+        kb_fathom_routes._entities = main._fathom_entities
+
+    def tearDown(self):
+        for p in self.patches:
+            p.stop()
+
+    def _as(self, kind, email=None):
+        with self.c.session_transaction() as s:
+            s.clear()
+            s["kind"] = kind
+            if email:
+                s["email"] = email
+
+    def _of(self, kind):
+        return [e for e in self.events if e["kind"] == kind]
+
+    def test_an_automatic_filing_records_how_sure_it_was_and_why(self):
+        """The DOCUMENT keeps the rung and the evidence but never the confidence or the model's
+        sentence, so "why did this land on Cloudflare" was unanswerable after the fact."""
+        import kb_fathom_routes as FR
+        m = dict(MEETING, calendar_invitees=[{"email": "a@100.digital", "is_external": False}])
+        with mock.patch.dict(os.environ, {"GEMINI_API_KEY": "k"}), \
+             mock.patch.object(kb_fathom, "corpus_vote", return_value=({}, [])), \
+             mock.patch.object(kb_fathom.requests, "post",
+                               return_value=gemini_reply("", 0.97, "internal planning call", work=True)):
+            FR.process(m)
+        [e] = self._of("meeting_filed")
+        self.assertEqual((e["by"], e["client"]), ("model", ""))
+        self.assertEqual(e["confidence"], 0.97)
+        self.assertIn("internal planning call", e["why"])
+        self.assertTrue(e["recording_id"])
+
+    def test_a_queued_meeting_records_the_guess_it_is_waiting_on(self):
+        import kb_fathom_routes as FR
+        with mock.patch.dict(os.environ, {"GEMINI_API_KEY": "k"}), \
+             mock.patch.object(kb_fathom, "corpus_vote", return_value=({}, [])), \
+             mock.patch.object(kb_fathom.requests, "post",
+                               return_value=gemini_reply("cloudflare", 0.62, "might be Cloudflare")):
+            FR.process(dict(MEETING))
+        [e] = self._of("meeting_queued")
+        self.assertEqual((e["guess"], e["confidence"]), ("cloudflare", 0.62))
+        self.assertEqual(self._of("meeting_filed"), [])
+
+    def test_ignore_is_recorded_and_says_what_was_thrown_away(self):
+        """drop_unassigned DELETES the meeting, so the record has to be written FIRST or there is
+        nothing left to read a title from. "What did we decide not to keep" had no answer at all."""
+        self._as("admin", "charles@100.digital")
+        self.fs.write_json("fathom/unassigned/7781/meeting.json", MEETING)
+        self.fs.write_json("fathom/unassigned/7781/proposal.json",
+                           {"client_key": "cloudflare", "confidence": 0.8, "why": "guessed Cloudflare"})
+        r = self.c.post("/kb/api/fathom/assign", json={"recording_id": "7781", "client_key": "ignore"})
+        self.assertEqual(r.get_json()["ignored"], True)
+        [e] = self._of("meeting_ignored")
+        self.assertEqual(e["recording_id"], "7781")
+        self.assertTrue(e["title"])                         # the title survived the delete
+        self.assertEqual(e["guess"], "cloudflare")
+        self.assertIn("guessed Cloudflare", e["why"])
+
+    def test_a_human_assignment_records_whether_they_agreed_with_the_guess(self):
+        """A queue where people mostly OVERRULE the guess is a ladder that needs work, and nothing
+        else in the system records that."""
+        self._as("admin", "charles@100.digital")
+        self.fs.write_json("fathom/unassigned/7781/meeting.json", MEETING)
+        self.fs.write_json("fathom/unassigned/7781/proposal.json",
+                           {"client_key": "mongodb", "confidence": 0.7, "why": "guessed MongoDB"})
+        with mock.patch.dict(os.environ, {"GEMINI_API_KEY": ""}):
+            self.c.post("/kb/api/fathom/assign", json={"recording_id": "7781", "client_key": "cloudflare"})
+        [e] = self._of("meeting_assigned")
+        self.assertEqual((e["client"], e["guess"], e["agreed"]), ("cloudflare", "mongodb", False))
+
+    def test_the_log_view_shows_meetings_only_and_filters_by_kind(self):
+        """The activity store also holds searches and document edits. Mixing them into this view is
+        the confusion the endpoint exists to prevent, so the filter is server-side."""
+        import kb_activity
+        rows = [{"at": 1, "kind": "question", "actor": "x"},
+                {"at": 2, "kind": "doc_added", "actor": "x"},
+                {"at": 3, "kind": "meeting_filed", "actor": "fathom", "recording_id": "1"},
+                {"at": 4, "kind": "meeting_ignored", "actor": "charles", "recording_id": "2"}]
+        self._as("admin", "charles@100.digital")
+        with mock.patch.object(kb_activity, "recent", return_value=rows):
+            j = self.c.get("/kb/api/fathom/log").get_json()
+            self.assertEqual({e["kind"] for e in j["events"]}, {"meeting_filed", "meeting_ignored"})
+            self.assertEqual(j["counts"], {"meeting_filed": 1, "meeting_ignored": 1})
+            one = self.c.get("/kb/api/fathom/log?kind=meeting_ignored").get_json()
+            self.assertEqual([e["recording_id"] for e in one["events"]], ["2"])
+
+    def test_a_broken_activity_store_never_stops_a_meeting_filing(self):
+        """A meeting that files but is not logged is a gap in an audit trail. A meeting that fails to
+        file because the audit trail broke is lost work."""
+        import kb_activity, kb_fathom_routes as FR
+        m = dict(MEETING, calendar_invitees=[{"email": "a@100.digital", "is_external": False}])
+        with mock.patch.object(kb_activity, "log_event", side_effect=RuntimeError("bucket down")), \
+             mock.patch.dict(os.environ, {"GEMINI_API_KEY": "k"}), \
+             mock.patch.object(kb_fathom, "corpus_vote", return_value=({}, [])), \
+             mock.patch.object(kb_fathom.requests, "post",
+                               return_value=gemini_reply("", 0.97, "internal", work=True)):
+            res = FR.process(m)
+        self.assertEqual(res["decision"], "assign")         # filed anyway
+
+
+    def test_rebuilding_a_document_is_recorded(self):
+        """A rebuild REPLACES the text of a document already in the library, so a passage can change
+        under an existing citation. Unlogged, nothing says when or who."""
+        self._as("admin", "charles@100.digital")
+        with mock.patch.object(kb_fathom, "rebuild_document",
+                               return_value={"id": "fathom-1", "title": "Weekly (2026-09-17)", "client": "cloudflare"}):
+            r = self.c.post("/kb/api/fathom/rebuild", json={"recording_id": "1"})
+        self.assertTrue(r.get_json()["ok"])
+        [e] = self._of("meeting_rebuilt")
+        self.assertEqual((e["recording_id"], e["doc_id"], e["client"]), ("1", "fathom-1", "cloudflare"))
+        self.assertEqual(e["title"], "Weekly (2026-09-17)")     # the caller's title, not the meeting's
+
+    def test_every_declared_meeting_kind_is_actually_written_somewhere(self):
+        """A kind in KINDS that no code path writes is a claim the audit trail does not honour."""
+        import re
+        import kb_activity
+        src = (pathlib.Path(kb_fathom_routes_file()).read_text(encoding="utf-8"))
+        written = set(re.findall(r'_audit\(\s*"([a-z_]+)"', src))
+        declared = set(kb_activity.GROUPS["meetings"])
+        self.assertEqual(declared - written, set(), "declared but never written")
+
+    def test_kind_group_maps_every_declared_kind_and_never_hides_an_unknown(self):
+        import kb_activity
+        for kind in kb_activity.KINDS:
+            self.assertNotEqual(kb_activity.kind_group(kind), "other", kind)
+        self.assertEqual(kb_activity.kind_group("something_new"), "other")
+
+
+def kb_fathom_routes_file():
+    import kb_fathom_routes
+    return kb_fathom_routes.__file__
