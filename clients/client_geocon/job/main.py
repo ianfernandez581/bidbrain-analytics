@@ -42,7 +42,12 @@ WINDSOR_TABLES = ["raw_windsor.perf_meta", "raw_windsor.perf_linkedin",
                   # GA4 (Website tab, 2026-08-31): the two Geocon properties land here via the
                   # scheduled windsor-ga4-ingest job (GA4_ACCOUNTS-pinned). Gated like everything
                   # else the job reads.
-                  "raw_windsor.perf_ga4", "raw_windsor.perf_ga4_events"]
+                  "raw_windsor.perf_ga4", "raw_windsor.perf_ga4_events",
+                  # CRM enquiries (2026-09-17): Geocon's Salesforce leads via the scheduled
+                  # windsor-salesforce-ingest job. Gated because the job READS it — without this
+                  # a day whose only movement is new enquiries would not rebuild the JSON, and
+                  # the enquiry tiles would sit a day behind the delivery beside them.
+                  "raw_windsor.geocon_salesforce_leads"]
 # Repointed 2026-08-31 from the MCC set to Geocon's OWN account set: Google stopped serving
 # metrics at manager level on 08-18, so `*_3451896252` is frozen forever and a gate watching it
 # would never fire again. See md/AGENTS.md.
@@ -264,6 +269,28 @@ def build_env(bq, observed):
     except Exception as e:
         print(f"  ga4 views unavailable ({e}) — Website tab will hide itself")
         ga4, ga4_ev = [], []
+    # CRM enquiries (2026-09-17): Salesforce leads via Windsor, daily x development x source x
+    # status. Tolerated absent exactly like GA4, so a job deploy landing ahead of the view (or a
+    # lapsed Windsor Salesforce grant) degrades to the withheld state instead of failing the run.
+    try:
+        crm = rows(bq, f"SELECT * FROM {t('stg_salesforce')} ORDER BY date, property, lead_source")
+    except Exception as e:
+        print(f"  stg_salesforce unavailable ({e}) — CRM enquiries will stay withheld")
+        crm = []
+    # Is the stated 2026-08-20 cutover actually load-bearing? It is only an inference (one
+    # Salesforce 'Gateway' project covers both developments), so assert how much rests on it:
+    # the last Braddon-era enquiry landed 17 Aug and the first Northbourne-era one 26 Aug, an
+    # empty 8-day gap straddling the cutover, which means any date inside it gives identical
+    # counts. Computed, not asserted from memory — if enquiries ever appear in that gap this
+    # flips to False and the dashboard stops claiming the split is clean.
+    crm_split_safe = None
+    if crm:
+        _brad = [r["date"] for r in crm if r.get("property") == "Gateway Braddon" and r.get("date")]
+        _nrth = [r["date"] for r in crm if r.get("property") == "Northbourne Gateway" and r.get("date")]
+        if _brad and _nrth:
+            crm_split_safe = (max(_brad) < datetime.date(2026, 8, 20) <= min(_nrth))
+            print(f"  crm split: last Braddon-era {max(_brad)}, first Northbourne-era {min(_nrth)} "
+                  f"-> cutover {'sits in an empty gap' if crm_split_safe else 'SPLITS LIVE DAYS'}")
     if ga4:
         # Per-site audit line (the cheap check that the pull is alive and the campaign->development
         # attribution still matches — an all-NULL `property` under paid channels means the
@@ -448,6 +475,38 @@ def build_env(bq, observed):
             "clicks": num(r["clicks"]), "link_clicks": num(r["link_clicks"]),
             "spend": num(r["spend"]), "leads": num(r["leads"]),
         } for r in bd],
+        # CRM ENQUIRIES (2026-09-17) — Geocon's Salesforce leads, the number THEY count.
+        #
+        # Kept as its own block rather than folded into rows[].leads, because the two are
+        # different measures and must never be summed or silently swapped:
+        #   * rows[].leads is PLATFORM-REPORTED and attribution-modelled, at ad grain.
+        #   * this is the CRM record count, and it has NO channel, campaign or ad dimension —
+        #     Salesforce LeadSource names a channel family at best. So it can headline an
+        #     enquiry KPI and a daily trend, and it can carry a BLENDED cost per enquiry, but it
+        #     can never fill a per-creative or per-channel lead column. The dashboard must not
+        #     grow one off this block.
+        #
+        # `split_date` is the stated Braddon/Northbourne cutover (see sql/13_stg_salesforce.sql —
+        # Salesforce has ONE 'Gateway' project covering both). It is shipped so the dashboard can
+        # SAY on screen that the split is inferred, rather than implying a clean CRM attribution.
+        # `split_safe` records that no Gateway lead exists between the last Braddon-era one
+        # (17 Aug) and the first Northbourne-era one (26 Aug), so the cutover falls in an empty
+        # 8-day gap and any date in it yields identical counts.
+        "crm": {
+            "source": "Salesforce",
+            "via": "Windsor",
+            "project": "Gateway",
+            "split_date": "2026-08-20",
+            "split_safe": crm_split_safe,
+            "grain": "date x property x lead_source x lead_status",
+            "rows": [{
+                "date": iso(r["date"]),
+                "property": r.get("property"),
+                "lead_source": r.get("lead_source"),
+                "lead_status": r.get("lead_status"),
+                "leads": num(r.get("leads")),
+            } for r in crm],
+        },
     }
     by_prop = {}
     for r in fact:
@@ -456,7 +515,23 @@ def build_env(bq, observed):
         o[0] += 1
         o[1] += num(r["spend"]) or 0
     per = "; ".join(f"{p}/{c}: {v[0]} rows ${round(v[1], 2)}" for (p, c), v in sorted(by_prop.items(), key=lambda x: str(x[0])))
+    # CRM audit: per development, so a development losing its enquiry feed is loud rather than
+    # quietly reading zero. Printed beside the platform-reported figure precisely BECAUSE the two
+    # disagree — seeing them side by side every run is the cheap guard against one being mistaken
+    # for the other.
+    if crm:
+        by_dev = {}
+        for r in crm:
+            k = r.get("property") or "(unmapped)"
+            by_dev[k] = by_dev.get(k, 0) + int(num(r.get("leads")) or 0)
+        crm_total = sum(by_dev.values())
+        print("  crm enquiries: " + "; ".join(f"{k}: {v}" for k, v in sorted(by_dev.items()))
+              + f" (total {crm_total}) vs {leads_total} platform-reported")
+    else:
+        print("  crm enquiries: NONE — the dashboard will withhold the enquiry tiles")
+
     summary = (f"{len(fact)} fact rows, {leads_total} platform-reported leads, "
+               f"{sum(int(num(r.get('leads')) or 0) for r in crm)} CRM enquiries, "
                f"${round(spend_total,2)} spend ({env['meta']['date_min']}..{env['meta']['date_max']}) | {per}")
     return env, summary
 
