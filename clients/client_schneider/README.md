@@ -834,8 +834,11 @@ Other rules it encodes:
    four places on its Creative tab** and should be fixed the next time that tab is touched.
 2. **The Lead-form-leads KPI divided BLENDED spend by LinkedIn-only leads** — Trade Desk money charged
    to a metric only LinkedIn can produce: A$2,085 per lead against a true A$1,129 under the all-up
-   scope, and the error grew with every non-LinkedIn dollar in the filter. It now re-sums LinkedIn's
-   rows and says `(LinkedIn spend)` on the tile.
+   scope, and the error grew with every non-LinkedIn dollar in the filter. It was fixed to re-sum
+   LinkedIn's rows and say `(LinkedIn spend)` on the tile, and **the figure was then REMOVED from
+   that tile entirely on 2026-09-17 at the client's request** - see "No cost per lead on the
+   Lead-form-leads tile" below. The rule survives in the code comment because it binds anything
+   that ever puts a per-lead cost back there.
 3. **The topbar was the whole page's 832px min-width floor.** `.topbar .inner` is a non-wrapping flex
    row (agency + logo + region tag + Campaign dropdown | Live pill + period). Below 832px it simply
    overflowed and the DOCUMENT gained a horizontal scrollbar **on every tab** — 32px at 800, 132px at
@@ -910,6 +913,37 @@ either one makes a whole sweep worthless while looking green:**
 **Order matters:** the dashboard degrades gracefully if it is deployed first (the `titlesLoaded` guard
 above), but the job must run before the titles appear. `/ship` resolves all three from the changed
 paths.
+
+## No cost per lead on the Lead-form-leads tile (2026-09-17, client request)
+
+Lauren Harvey, via the feedback widget: *"Please remove the cost per lead under the lead-form leads"*.
+The **Lead-form leads** KPI card on the Paid Media tab printed `A$1,129.00 per lead (LinkedIn spend) -
+42 form opens` as its sub-line; it now prints `42 form opens` alone. The no-submissions branch is
+unchanged (`N form opens, no submissions yet`).
+
+**It is a CLIENT INSTRUCTION, not a measurement judgement.** The figure was correct at the time it was
+removed (it had been fixed onto LinkedIn-only spend on 2026-09-01). Do not re-add it because the maths
+checks out.
+
+**What was deliberately NOT touched, and why.** Cost per lead is still reported - once - in the
+**LinkedIn lead-gen-form funnel** directly below, on the *Submitted leads* step (`A$X per lead`) and in
+the *Funnel by program* table's **Cost / lead** column. The client named one surface, and that surface
+was the DUPLICATE: both figures answered the same question, and the funnel's is the better-scoped one
+(`liFunnelAgg()` drops every non-LinkedIn row before it sums spend, and it excludes the awareness
+programs that carried no form at all). If the client later means the funnel too, it is two edits -
+the `step('Submitted leads', ...)` sub-line in `renderLiFunnel()` and the table's last column - plus
+the `tfoot` total that ties to it.
+
+`paid.totals.cost_per_lead_form_lead` in the **AI deck payload** was also left in place. Removing it
+would not have withheld the metric: `report.py`'s Stage-A brief tells the model to judge paid media
+"on DELIVERY and reach and its cost per lead", so with the key gone the model would simply derive it
+from the spend and lead counts it still has - and derive it **blended**, which is the 2026-09-01
+defect all over again in a client-facing deck. **That key does carry the blended-spend bug today**
+(`pt.spend / pt.leads`, where `pt` is `pmTotals()` = all platforms) and is worth fixing on its own
+ticket; it is not part of this request.
+
+FRONTEND-ONLY. No view, job, payload or CSV change - `renderPaid()` in `dash/dashboard.html`. Redeploy
+with `dash/deploy_dash_schneider.ps1`.
 
 ## Platform (channel) chips — only engines this program actually ran
 **2026-08-15 (client):** the Platform chip group used to render engines that delivered for OTHER

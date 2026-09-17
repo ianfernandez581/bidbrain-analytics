@@ -2172,14 +2172,21 @@ function renderPaid(){
   el('pm_leads_card').style.display=hasLf?'':'none';
   if(hasLf){
     el('pm_leads').textContent=fmtN(t.leads);
-    // COST PER LEAD MUST USE LINKEDIN SPEND (fixed 2026-09-01). This divided the BLENDED all-platform
-    // spend by LinkedIn's own lead-form leads, so Trade Desk money was being charged to a metric only
-    // LinkedIn can produce - A$2,085 per lead against a true A$1,129 under the all-up scope, and the
-    // error grew with every non-LinkedIn dollar in the filter. `t` is all platforms by design (it
-    // feeds Spend / Impressions / Clicks / blended CPC), so this one figure re-sums LinkedIn's rows.
-    const liSpend=rows.reduce((a,r)=>a+(r.platform==='linkedin'?(r.spend_aud||0):0),0);
+    // NO COST PER LEAD ON THIS TILE (client request 2026-09-17, Lauren Harvey via the feedback widget:
+    // "Please remove the cost per lead under the lead-form leads"). It is a CLIENT INSTRUCTION, not a
+    // measurement judgement - the figure was correct - so do not re-add it because the maths looks
+    // right. Cost per lead is still reported, once, in the LinkedIn lead-gen-form funnel below (the
+    // "Submitted leads" step and the funnel-by-program "Cost / lead" column), which is what this
+    // sub-line duplicated; the client did not ask for those and they stay.
+    //
+    // THE RULE THAT OUTLIVES THE FIGURE, if a per-lead cost is ever put back on this tile: it must
+    // divide LINKEDIN'S OWN spend, never `t.spend`. `t` is all platforms by design (it feeds Spend /
+    // Impressions / Clicks / blended CPC), and dividing it by lead-form leads charges Trade Desk money
+    // to a metric only LinkedIn can produce - A$2,085 per lead against a true A$1,129 under the all-up
+    // scope, growing with every non-LinkedIn dollar in the filter (the defect fixed here 2026-09-01).
+    // The funnel below is safe because `liFunnelAgg` drops every non-LinkedIn row before it sums spend.
     el('pm_leads_sub').textContent=t.leads
-      ? `${money(liSpend/t.leads,2)} per lead (LinkedIn spend) · ${fmtN(t.opens)} form opens`
+      ? `${fmtN(t.opens)} form opens`
       : `${fmtN(t.opens)} form opens, no submissions yet`;
   }
   el('pmKpiHint').innerHTML='Tap Spend, Impressions or Clicks to show or hide it on the chart below. Blended CPC is a read-only efficiency figure.'
