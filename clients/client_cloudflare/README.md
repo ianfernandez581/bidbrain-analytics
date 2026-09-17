@@ -318,12 +318,9 @@ per-lead enriched-phone table, the benchmark). The per-lead table - the one that
 phone numbers - carried **no visible marker at all** until 2026-09-10; a gate stops the card rendering
 on a client session but does nothing about a staff screenshot. All three now say so on their face, and
 the benchmark pill says `internal` to match the existing `internal - not shown to client` convention
-rather than inventing a second phrase. **`client_schneidersecpwr` has the same gap** on its
-`BB_INTERNAL` Reports tab (labelled just "Reports"); not fixed there, it needs its own pass.
-
-### The trap: the column has TWO empty sentinels, and neither is NULL
-
-`ENRICHED_PHONE_NUMBER` writes **`'-'`** AND the literal string **`'NA'`** for "not enriched".
+rather than inventing a second phrase. **`client_schneidersecpwr` had the same gap and it was CLOSED 2026-09-11** - its staff Reports
+tab now carries the identical `internal - not shown to client` wording on the section heading plus a
+banner saying the end client does not see the tab.
 At 2026-09-07, of 1,923 in-scope leads: 1,427 are `'-'`, 132 are `'NA'`, 363 are real numbers,
 and **zero are NULL or blank**.
 
