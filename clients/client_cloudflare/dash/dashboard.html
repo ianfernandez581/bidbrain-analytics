@@ -184,34 +184,59 @@
      A spinner says "something is happening somewhere". A skeleton says "your dashboard is
      arriving, and this is its shape" - the same wait reads as roughly half as long, and the
      layout cannot jump when the real content lands because the shapes already match it.
-     Contrast matters more than it looks: on this near-black shell a 7% white fill is
-     invisible, which reads as a broken page rather than a loading one. These sit at 12-16%,
-     which is legible without competing with the real content that replaces them. */
+     Shaped against the REAL Paid Media tab: control bar, scope note, two chip rows, the
+     five-tile KPI band with its accent stripes, a section heading and the benchmarks table.
+     Close proportions are the whole point - a generic grey box is just a spinner with extra
+     steps. Contrast matters too: on this near-black shell a 7% white fill is invisible and
+     reads as a broken page, so these sit at 13% with a 16% shimmer. */
   #loading .sk{max-width:1280px;margin:0 auto;padding:0 20px;text-align:left}
-  #loading .sk-row{display:flex;gap:10px;align-items:center;margin:0 0 20px}
-  #loading .sk-band{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:18px}
-  #loading .sk-cards{display:grid;grid-template-columns:1fr;gap:14px}
-  @media (min-width:900px){ #loading .sk-cards{grid-template-columns:1.6fr 1fr} }
-  #loading .sk-b{position:relative;overflow:hidden;border-radius:8px;flex:none;
+  #loading .sk-b{position:relative;overflow:hidden;border-radius:7px;flex:none;
         background:rgba(251,241,231,.13)}
   #loading .sk-b::after{content:"";position:absolute;inset:0;
         background:linear-gradient(90deg,transparent,rgba(251,241,231,.16),transparent);
-        transform:translateX(-100%);animation:skShimmer 1.5s var(--bb-ease-soft,ease) infinite}
+        transform:translateX(-100%);animation:skShimmer 1.6s var(--bb-ease-soft,ease) infinite}
   @keyframes skShimmer{to{transform:translateX(100%)}}
-  #loading .sk-tab{height:32px;width:130px}
-  #loading .sk-pill{height:32px;width:100px;margin-left:auto}
-  #loading .sk-kpi{height:98px;border:1px solid rgba(255,255,255,.09);border-radius:10px;
-        background:#27150B;box-sizing:border-box}
-  #loading .sk-kpi-in{padding:16px;display:flex;flex-direction:column;gap:12px;height:100%;box-sizing:border-box}
-  #loading .sk-card{height:300px;border:1px solid rgba(255,255,255,.09);border-radius:14px;
-        background:#27150B;padding:18px;display:flex;flex-direction:column;gap:14px;box-sizing:border-box}
-  #loading .sk-card .sk-b:last-child{flex:1 1 auto}
+  /* control bar: tab rail + date pill, in the real bar's own shell */
+  #loading .sk-bar{display:flex;gap:22px;align-items:center;padding:14px 18px;margin-bottom:16px;
+        border:1px solid rgba(255,255,255,.09);border-radius:14px;background:#27150B;box-sizing:border-box}
+  #loading .sk-tab{height:13px}
+  #loading .sk-pill{height:30px;width:150px;border-radius:9px;margin-left:auto}
+  /* the scope note, with its accent rule down the left */
+  #loading .sk-scope{border:1px solid rgba(255,255,255,.09);border-left:3px solid rgba(243,128,32,.55);
+        border-radius:10px;background:#27150B;padding:16px 18px;margin-bottom:14px;
+        display:flex;flex-direction:column;gap:9px;box-sizing:border-box}
+  /* chip rows */
+  #loading .sk-chips{display:flex;gap:9px;align-items:center;padding:12px 18px;margin-bottom:10px;
+        border:1px solid rgba(255,255,255,.09);border-radius:12px;background:#27150B;
+        flex-wrap:wrap;box-sizing:border-box}
+  #loading .sk-chip{height:24px;border-radius:999px}
+  #loading .sk-lbl{height:10px}
+  /* KPI band - FIVE tiles, each with the accent stripe along the bottom */
+  #loading .sk-band{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;
+        margin:16px 0 26px}
+  #loading .sk-kpi{position:relative;overflow:hidden;height:126px;box-sizing:border-box;
+        border:1px solid rgba(255,255,255,.09);border-radius:12px;background:#27150B;
+        padding:17px 18px;display:flex;flex-direction:column;gap:13px}
+  #loading .sk-kpi::after{content:"";position:absolute;left:0;right:0;bottom:0;height:3px;
+        background:rgba(243,128,32,.45)}
+  #loading .sk-kpi.alt::after{background:rgba(236,72,132,.45)}
+  /* section heading + dek, then the table */
+  #loading .sk-h{height:15px;width:340px;margin-bottom:13px}
+  #loading .sk-dek{display:flex;flex-direction:column;gap:8px;margin-bottom:20px}
+  #loading .sk-table{border:1px solid rgba(255,255,255,.09);border-radius:12px;background:#27150B;
+        padding:0;overflow:hidden;box-sizing:border-box}
+  #loading .sk-tr{display:grid;grid-template-columns:120px repeat(6,1fr);gap:16px;align-items:center;
+        padding:15px 18px;border-top:1px solid rgba(255,255,255,.06)}
+  #loading .sk-tr:first-child{border-top:0}
+  #loading .sk-tr .sk-b{height:11px}
+  #loading .sk-tr.head .sk-b{height:8px;background:rgba(251,241,231,.09)}
   #loading .sk-note{text-align:center;font-size:var(--t-sm);color:var(--muted-2);
-        letter-spacing:var(--tr-label);margin-top:26px}
+        letter-spacing:var(--tr-label);margin-top:28px}
   /* Scaffolding must never outlive the data it stands in for. */
   #loading.bb-out{opacity:0;transition:opacity .28s var(--bb-ease,ease);pointer-events:none}
   #dashboardRoot.bb-in{animation:skIn .34s var(--bb-ease,ease) both}
   @keyframes skIn{from{opacity:0}to{opacity:1}}
+  @media (max-width:760px){ #loading .sk-tr{grid-template-columns:90px repeat(3,1fr)} }
   @media (prefers-reduced-motion: reduce){
     #loading .sk-b::after{animation:none}
     #loading.bb-out{transition:none}
@@ -1349,22 +1374,80 @@
 <div class="container">
 
   <div id="loading">
-    <!-- Mirrors the real layout: control bar, KPI band, then the two-up card row. Keeping the
-         proportions close is the whole point - the page must not jump when the data lands. -->
+    <!-- Shaped against the real Paid Media tab so the page does not jump when data lands:
+         control bar, scope note, channel + market chip rows, the five-tile KPI band with its
+         accent stripes, section heading and the benchmarks table. -->
     <div class="sk" aria-hidden="true">
-      <div class="sk-row">
-        <div class="sk-b sk-tab"></div><div class="sk-b sk-tab"></div>
-        <div class="sk-b sk-tab"></div><div class="sk-b sk-pill"></div>
+      <div class="sk-bar">
+        <div class="sk-b sk-tab" style="width:86px"></div>
+        <div class="sk-b sk-tab" style="width:148px"></div>
+        <div class="sk-b sk-tab" style="width:116px"></div>
+        <div class="sk-b sk-tab" style="width:142px"></div>
+        <div class="sk-b sk-tab" style="width:158px"></div>
+        <div class="sk-b sk-pill"></div>
       </div>
+
+      <div class="sk-scope">
+        <div class="sk-b" style="height:9px;width:94%"></div>
+        <div class="sk-b" style="height:9px;width:71%"></div>
+      </div>
+
+      <div class="sk-chips">
+        <div class="sk-b sk-lbl" style="width:78px"></div>
+        <div class="sk-b sk-chip" style="width:58px"></div>
+        <div class="sk-b sk-chip" style="width:84px"></div>
+        <div class="sk-b sk-chip" style="width:96px"></div>
+      </div>
+      <div class="sk-chips">
+        <div class="sk-b sk-lbl" style="width:72px"></div>
+        <div class="sk-b sk-chip" style="width:56px"></div>
+        <div class="sk-b sk-chip" style="width:74px"></div>
+        <div class="sk-b sk-chip" style="width:72px"></div>
+        <div class="sk-b sk-chip" style="width:46px"></div>
+        <div class="sk-b sk-chip" style="width:44px"></div>
+        <div class="sk-b sk-chip" style="width:58px"></div>
+      </div>
+
       <div class="sk-band">
-        <div class="sk-kpi"><div class="sk-kpi-in"><div class="sk-b" style="height:10px;width:52%"></div><div class="sk-b" style="height:26px;width:74%"></div></div></div>
-        <div class="sk-kpi"><div class="sk-kpi-in"><div class="sk-b" style="height:10px;width:46%"></div><div class="sk-b" style="height:26px;width:66%"></div></div></div>
-        <div class="sk-kpi"><div class="sk-kpi-in"><div class="sk-b" style="height:10px;width:58%"></div><div class="sk-b" style="height:26px;width:70%"></div></div></div>
-        <div class="sk-kpi"><div class="sk-kpi-in"><div class="sk-b" style="height:10px;width:44%"></div><div class="sk-b" style="height:26px;width:60%"></div></div></div>
+        <div class="sk-kpi">
+          <div class="sk-b" style="height:9px;width:58%"></div>
+          <div class="sk-b" style="height:27px;width:76%"></div>
+          <div class="sk-b" style="height:8px;width:66%"></div>
+        </div>
+        <div class="sk-kpi">
+          <div class="sk-b" style="height:9px;width:58%"></div>
+          <div class="sk-b" style="height:27px;width:76%"></div>
+          <div class="sk-b" style="height:8px;width:66%"></div>
+        </div>
+        <div class="sk-kpi">
+          <div class="sk-b" style="height:9px;width:58%"></div>
+          <div class="sk-b" style="height:27px;width:76%"></div>
+          <div class="sk-b" style="height:8px;width:66%"></div>
+        </div>
+        <div class="sk-kpi alt">
+          <div class="sk-b" style="height:9px;width:58%"></div>
+          <div class="sk-b" style="height:27px;width:76%"></div>
+          <div class="sk-b" style="height:8px;width:66%"></div>
+        </div>
+        <div class="sk-kpi">
+          <div class="sk-b" style="height:9px;width:58%"></div>
+          <div class="sk-b" style="height:27px;width:76%"></div>
+          <div class="sk-b" style="height:8px;width:66%"></div>
+        </div>
       </div>
-      <div class="sk-cards">
-        <div class="sk-card"><div class="sk-b" style="height:12px;width:34%"></div><div class="sk-b" style="flex:1"></div></div>
-        <div class="sk-card"><div class="sk-b" style="height:12px;width:48%"></div><div class="sk-b" style="flex:1"></div></div>
+
+      <div class="sk-b sk-h"></div>
+      <div class="sk-dek">
+        <div class="sk-b" style="height:9px;width:90%"></div>
+        <div class="sk-b" style="height:9px;width:64%"></div>
+      </div>
+
+      <div class="sk-table">
+        <div class="sk-tr head"><div class="sk-b"></div><div class="sk-b"></div><div class="sk-b"></div><div class="sk-b"></div><div class="sk-b"></div><div class="sk-b"></div><div class="sk-b"></div></div>
+        <div class="sk-tr"><div class="sk-b"></div><div class="sk-b"></div><div class="sk-b"></div><div class="sk-b"></div><div class="sk-b"></div><div class="sk-b"></div><div class="sk-b"></div></div>
+        <div class="sk-tr"><div class="sk-b"></div><div class="sk-b"></div><div class="sk-b"></div><div class="sk-b"></div><div class="sk-b"></div><div class="sk-b"></div><div class="sk-b"></div></div>
+        <div class="sk-tr"><div class="sk-b"></div><div class="sk-b"></div><div class="sk-b"></div><div class="sk-b"></div><div class="sk-b"></div><div class="sk-b"></div><div class="sk-b"></div></div>
+        <div class="sk-tr"><div class="sk-b"></div><div class="sk-b"></div><div class="sk-b"></div><div class="sk-b"></div><div class="sk-b"></div><div class="sk-b"></div><div class="sk-b"></div></div>
       </div>
     </div>
     <div class="msg sk-note" role="status">Fetching live data from Snowflake…</div>
