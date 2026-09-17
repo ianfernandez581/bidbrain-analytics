@@ -224,6 +224,25 @@
     host.appendChild(wrap);
   }
 
+  // --- meetings -------------------------------------------------------------------------------
+  // Its own panel, hidden until a meeting has actually been decided: a row of zeros reads as a
+  // feature that is failing rather than one nobody has used yet.
+  function renderMeetings() {
+    var M = D.meetings, panel = $('#obsMeetingsPanel'), host = $('#obsMeetings');
+    if (!panel || !host) return;
+    if (!M || !M.total) { panel.hidden = true; return; }
+    panel.hidden = false;
+    host.innerHTML = '';
+    host.appendChild(kpi(M.filed, 'filed themselves',
+      M.auto_rate == null ? '' : Math.round(M.auto_rate * 100) + '% of meetings that arrived'));
+    host.appendChild(kpi(M.waited, 'waited for a person',
+      M.waited ? 'the system was not sure enough' : ''));
+    host.appendChild(kpi(M.confirmed, 'confirmed by a person',
+      M.overruled ? M.overruled + ' overruled the guess' : (M.confirmed ? 'all agreed with the guess' : '')));
+    host.appendChild(kpi(M.ignored, 'kept out of the library'));
+    if (M.rebuilt) host.appendChild(kpi(M.rebuilt, 'documents rebuilt'));
+  }
+
   // --- activity -----------------------------------------------------------------------------------
   function renderActivity() {
     var A = D.activity, F = D.feedback;
@@ -241,6 +260,8 @@
       F.superseding + ' of them push a passage down' + (F.withdrawn ? ' · ' + F.withdrawn + ' withdrawn' : '')));
     host.appendChild(kpi(A.documents_added, 'documents added',
       A.documents_edited + ' edited'));
+
+    renderMeetings();
 
     var weeks = $('#obsWeeks');
     weeks.innerHTML = '';

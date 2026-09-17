@@ -938,6 +938,25 @@ def obs_data():
     import kb_activity
     import kb_embed
     import kb_trace
+
+    def _meeting_summary(events):
+        """Meeting decisions, counted from the same record. `overruled` is the one worth watching:
+        a queue people mostly disagree with means the ladder is guessing badly, and nothing else in
+        the system measures that."""
+        c = {}
+        for e in events:
+            if kb_activity.kind_group(e.get("kind")) == "meetings":
+                c[e["kind"]] = c.get(e["kind"], 0) + 1
+        decided = [e for e in events if e.get("kind") == "meeting_assigned"]
+        overruled = sum(1 for e in decided if e.get("agreed") is False)
+        auto = c.get("meeting_filed", 0)
+        waited = c.get("meeting_queued", 0)
+        return {"filed": auto, "waited": waited, "confirmed": len(decided),
+                "ignored": c.get("meeting_ignored", 0), "rebuilt": c.get("meeting_rebuilt", 0),
+                "overruled": overruled,
+                "auto_rate": (round(auto / (auto + waited), 3) if (auto + waited) else None),
+                "total": sum(c.values())}
+
     meta = kb_index.all_meta(include_archived=False)
     events = kb_activity.recent()
     summary = kb_activity.summarise(events, known_doc_ids=list(meta))
@@ -970,6 +989,9 @@ def obs_data():
                    "trust_nudge": kb_index.TRUST_NUDGE,
                    "superseded_penalty": kb_index.SUPERSEDED_PENALTY},
         activity=summary,
+        # Meetings are counted SEPARATELY from `activity` above, and rendered in their own panel.
+        # Folding them into the question tiles would present two different measures as one.
+        meetings=_meeting_summary(events),
         questions=[e for e in reversed(events) if e.get("kind") in ("question", "search")][:50],
         feedback=kb_feedback.summary(),
         titles=titles,

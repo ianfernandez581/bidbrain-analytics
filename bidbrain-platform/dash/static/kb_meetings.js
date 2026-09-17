@@ -375,6 +375,85 @@
   $('fmMemory').addEventListener('click', forget);
   $('fmFacts').addEventListener('click', forget);
 
+  // ---- what landed (the audit record, meetings only) --------------------------------------------
+  // The store behind this also holds searches and document edits. The FILTER IS SERVER-SIDE - see
+  // /kb/api/fathom/log - so this page cannot accidentally render another process's audit trail.
+  var LOG_LABELS = {
+    meeting_filed:    ['Filed itself',  'the system was sure enough to place it'],
+    meeting_queued:   ['Waited',        'not sure enough, so it went to the queue'],
+    meeting_assigned: ['Confirmed',     'a person chose the client'],
+    meeting_ignored:  ['Ignored',       'a person kept it out of the library'],
+    meeting_rebuilt:  ['Rebuilt',       'the document was regenerated']
+  };
+  var logKind = '';
+
+  function logRow(e) {
+    var lab = (LOG_LABELS[e.kind] || [e.kind, ''])[0];
+    var who = e.actor === 'fathom' ? 'automatic' : esc(e.actor || 'someone');
+    var bits = [];
+    if (e.kind === 'meeting_filed') {
+      bits.push('to <b>' + esc(clientName(e.client)) + '</b>');
+      bits.push('by ' + esc(e.by || '?'));
+      if (e.confidence) bits.push(pct(e.confidence) + '% sure');
+    } else if (e.kind === 'meeting_queued') {
+      bits.push(e.guess || e.guess === '' ? 'best guess <b>' + esc(clientName(e.guess)) + '</b>' : 'no guess');
+      if (e.confidence) bits.push(pct(e.confidence) + '% sure');
+    } else if (e.kind === 'meeting_assigned') {
+      bits.push('to <b>' + esc(clientName(e.client)) + '</b>');
+      if (e.agreed === false) bits.push('<span class="fm-over">overruled the guess of ' + esc(clientName(e.guess)) + '</span>');
+      else if (e.agreed === true) bits.push('agreed with the guess');
+    } else if (e.kind === 'meeting_ignored') {
+      if (e.guess || e.guess === '') bits.push('had guessed ' + esc(clientName(e.guess)));
+    }
+    return '<div class="fm-logrow">' +
+      '<span class="fm-pill ' + esc(e.kind.replace('meeting_', 'lg-')) + '">' + esc(lab) + '</span>' +
+      '<span class="fm-logtitle">' + esc(e.title || e.recording_id || '(untitled)') + '</span>' +
+      '<span class="fm-logbits">' + bits.join(' · ') + '</span>' +
+      '<span class="fm-logwho">' + who + '</span>' +
+      '<span class="fm-logwhen" title="' + esc(e.at ? new Date(e.at * 1000).toISOString() : '') + '">' +
+        esc(e.at ? ago(new Date(e.at * 1000).toISOString()) : '') + '</span>' +
+      (e.why ? '<div class="fm-logwhy">' + esc(e.why) + '</div>' : '') +
+      '</div>';
+  }
+
+  function renderFilters(counts, kinds) {
+    var total = 0;
+    kinds.forEach(function (k) { total += counts[k] || 0; });
+    var html = ['<button class="fm-lchip' + (logKind ? '' : ' on') + '" data-kind="">All ' +
+                '<span class="fm-lchipn">' + total + '</span></button>'];
+    kinds.forEach(function (k) {
+      if (!counts[k]) return;                       // a type nothing has produced is not a filter
+      html.push('<button class="fm-lchip' + (logKind === k ? ' on' : '') + '" data-kind="' + esc(k) + '" ' +
+                'title="' + esc((LOG_LABELS[k] || ['', ''])[1]) + '">' +
+                esc((LOG_LABELS[k] || [k])[0]) + ' <span class="fm-lchipn">' + counts[k] + '</span></button>');
+    });
+    $('fmLogFilters').innerHTML = html.join('');
+  }
+
+  function loadLog() {
+    api('/kb/api/fathom/log' + (logKind ? '?kind=' + encodeURIComponent(logKind) : ''))
+      .then(function (j) {
+        if (!j || !j.ok) {
+          $('fmLog').innerHTML = '<div class="fm-empty">' + esc((j && j.error) || 'Could not read the record.') + '</div>';
+          return;
+        }
+        renderFilters(j.counts || {}, j.kinds || []);
+        var n = j.total || 0;
+        var c = $('fmLogCount'); c.textContent = n; c.className = 'fm-pill count' + (n ? '' : ' zero');
+        $('fmLog').innerHTML = j.events.length
+          ? j.events.map(logRow).join('')
+          : '<div class="fm-empty">Nothing yet. Decisions appear here as meetings arrive.</div>';
+      })
+      .catch(function () { $('fmLog').innerHTML = '<div class="fm-empty">Could not reach the platform.</div>'; });
+  }
+
+  $('fmLogFilters').addEventListener('click', function (e) {
+    var b = e.target.closest('button[data-kind]'); if (!b) return;
+    logKind = b.getAttribute('data-kind');
+    loadLog();
+  });
+
   loadStatus();
+  loadLog();
   if (C.clients.length) loadClient();
 })();

@@ -100,6 +100,33 @@ def _candidates():
 
 # --- the ladder, wired ---------------------------------------------------------------------------
 
+def _audit(kind, meeting, *, actor="", **fields):
+    """One line in the knowledge base's activity record, for a meeting DECISION.
+
+    🔴 IT MAY NEVER BREAK THE PIPELINE. `kb_activity.log_event` already swallows its own storage
+    failures, but the fields are assembled HERE, so a bad title or a missing key would raise in this
+    function and take the filing down with it. A meeting that files but is not logged is a gap in
+    an audit trail; a meeting that fails to file because the audit trail broke is lost work.
+
+    WHY THE EVENT CARRIES `confidence` AND `why` WHEN THE DOCUMENT DOES NOT: the document records
+    which rung placed it and the evidence lines, but not how sure the model was or the sentence it
+    gave - so "why did this land on Cloudflare" was unanswerable after the fact (found 2026-09-16).
+    """
+    try:
+        import kb_activity
+        rid = kb_fathom.recording_id(meeting) if isinstance(meeting, dict) else str(meeting or "")
+        title = ""
+        if isinstance(meeting, dict):
+            title = (meeting.get("title") or meeting.get("meeting_title") or "")[:200]
+        # `meeting` may be a bare recording id (the rebuild route has the document, not the meeting),
+        # so a caller may pass its own title. Popping it keeps `log_event` from being handed the
+        # keyword twice, which would raise in here and silently record nothing.
+        title = str(fields.pop("title", "") or title)[:200]
+        kb_activity.log_event(kind, actor=actor or _actor(), recording_id=rid, title=title, **fields)
+    except Exception:                        # noqa: BLE001 - see the header
+        log.debug("fathom: activity record for %s was NOT written", kind, exc_info=True)
+
+
 def process(meeting):
     """Run the ladder on one meeting and act on the outcome. -> {"decision", "client_key", ...}.
     A classifier hiccup queues the meeting; it never raises past here for that."""
@@ -117,10 +144,23 @@ def process(meeting):
     rid = kb_fathom.recording_id(meeting)
     log.info("fathom %s: %s %r by=%s conf=%.2f evidence=%s", rid, res["decision"], res.get("client_key"),
              res.get("assigned_by"), res.get("confidence") or 0, "; ".join(res.get("evidence") or [])[:400])
+    prop = res.get("proposal") or {}
     if res["decision"] == "assign":
-        kb_fathom.index_meeting(meeting, res["client_key"], res["assigned_by"], evidence=res.get("evidence"))
+        meta = kb_fathom.index_meeting(meeting, res["client_key"], res["assigned_by"],
+                                       evidence=res.get("evidence"))
+        _audit("meeting_filed", meeting, actor="fathom",
+               client=res["client_key"], by=res.get("assigned_by"),
+               confidence=round(float(res.get("confidence") or 0), 3),
+               why=(prop.get("why") or "")[:400],
+               evidence="; ".join(res.get("evidence") or [])[:600],
+               doc_id=(meta or {}).get("id", ""))
     else:
-        kb_fathom.store_unassigned(meeting, proposal=res.get("proposal") or {"evidence": res.get("evidence")})
+        kb_fathom.store_unassigned(meeting, proposal=prop or {"evidence": res.get("evidence")})
+        _audit("meeting_queued", meeting, actor="fathom",
+               guess=prop.get("client_key", ""), by=prop.get("sure_by") or "model",
+               confidence=round(float(res.get("confidence") or 0), 3),
+               why=(prop.get("why") or "")[:400],
+               evidence="; ".join(res.get("evidence") or [])[:600])
     return res
 
 
@@ -308,7 +348,14 @@ def assign():
     meeting = kb_fathom.load_unassigned(rid)
     if meeting is None:
         return jsonify(ok=False, error="No such meeting in the queue."), 404
+    prop = kb_fathom.load_proposal(rid)
     if raw == "ignore":
+        # Record it BEFORE the queue entry is deleted: `drop_unassigned` removes the meeting JSON,
+        # so afterwards there is nothing left to read a title off. "What did we decide NOT to keep"
+        # is the one question the old code could not answer at all.
+        _audit("meeting_ignored", meeting,
+               guess=prop.get("client_key", ""), confidence=round(float(prop.get("confidence") or 0), 3),
+               why=(prop.get("why") or "")[:400])
         kb_fathom.drop_unassigned(rid)
         log.info("fathom %s ignored by %s", rid, _actor())
         return jsonify(ok=True, ignored=True)
@@ -318,7 +365,48 @@ def assign():
     except Exception:                        # noqa: BLE001
         log.exception("fathom assign failed")
         return jsonify(ok=False, error="Could not file the meeting - please try again."), 502
+    # `agreed` is the audit question worth asking later: did the person accept the guess or overrule
+    # it? A queue where humans mostly overrule is a ladder that needs work, and nothing else records it.
+    _audit("meeting_assigned", meeting, client=ck, by="human",
+           guess=prop.get("client_key", ""),
+           agreed=(prop.get("client_key", "") == ck) if prop else None,
+           confidence=round(float(prop.get("confidence") or 0), 3),
+           skipped="; ".join(skip)[:300], doc_id=(meta or {}).get("id", ""))
     return jsonify(ok=True, doc=meta)
+
+
+@bp.get("/kb/api/fathom/log")
+def meeting_log():
+    """What landed, how, and who decided it. Newest first.
+
+    `?kind=` filters to one event type; the default is EVERY meeting kind and nothing else. The
+    activity store holds searches, questions and document edits too, and mixing those into this
+    view is exactly the confusion this endpoint exists to avoid (Jerome, 2026-09-17) - so the
+    filter is applied HERE, not left to the page.
+    """
+    d = _deny()                              # same gate as the queue listing: a read, not a write
+    if d:
+        return d
+    import kb_activity
+    want = (request.args.get("kind") or "").strip()
+    try:
+        limit = max(1, min(500, int(request.args.get("limit") or 200)))
+    except ValueError:
+        limit = 200
+    try:
+        events = kb_activity.recent()
+    except Exception:                        # noqa: BLE001 - an unreadable log is not a 500 here
+        log.exception("fathom: could not read the activity record")
+        return jsonify(ok=False, error="The record could not be read.", events=[], counts={}), 200
+
+    mine = [e for e in events if kb_activity.kind_group(e.get("kind")) == "meetings"]
+    counts = {}
+    for e in mine:
+        counts[e.get("kind")] = counts.get(e.get("kind"), 0) + 1
+    if want:
+        mine = [e for e in mine if e.get("kind") == want]
+    return jsonify(ok=True, events=list(reversed(mine))[:limit], counts=counts,
+                   kinds=list(kb_activity.GROUPS["meetings"]), total=len(mine))
 
 
 @bp.post("/kb/api/fathom/rebuild")
@@ -338,6 +426,10 @@ def rebuild():
         return jsonify(ok=False, error="Could not rebuild."), 502
     if meta is None:
         return jsonify(ok=False, error="No filed meeting with that id."), 404
+    # A rebuild REPLACES the text of a document already in the library. Unlogged, a passage could
+    # change under a citation with nothing saying when or who did it.
+    _audit("meeting_rebuilt", rid, title=(meta or {}).get("title", ""),
+           doc_id=(meta or {}).get("id", ""), client=(meta or {}).get("client", ""))
     return jsonify(ok=True, doc=meta)
 
 
