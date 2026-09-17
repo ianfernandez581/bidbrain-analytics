@@ -1,0 +1,39 @@
+{
+ "_comment": "STAFF-ONLY content for the Internal Notes tab. Served from /internal/notes.json, NOT from data.json, so hiding the tab is not the only thing between a client and it. The honest limit is in README.md -> 'Internal Notes': this service can authenticate a visitor but cannot yet tell a staff session from a client one, so nothing genuinely sensitive belongs in this file. Feed status and questions to ask are the right ceiling for it.",
+ "updated": "2026-09-16",
+ "feeds": [
+  {"name": "Meta Ads", "state": "not_connected",
+   "detail": "Partner access to the ad account, or a system user token. Gives spend, impressions, clicks and platform-claimed conversions. Reaches us through the shared Windsor Meta connector, so it needs the account granting to the agency seat rather than a new integration."},
+  {"name": "Google Ads", "state": "not_connected",
+   "detail": "Manager account link and the customer ID. Confirm separately whether Burnet holds a Google Ad Grant account: a grant account is a different customer ID with its own $10k/month in-kind budget, and blending it into paid spend would overstate cost per donation badly. It should report as its own channel."},
+  {"name": "The Trade Desk", "state": "not_connected",
+   "detail": "Advertiser ID, plus conversion tags on the donation events. Without event tags the programmatic line reports impressions and clicks only - which is a real awareness result, not a failure, and the dashboard should say so rather than print a zero."},
+  {"name": "LinkedIn Campaign Manager", "state": "not_connected",
+   "detail": "Ad account access and Insight Tag confirmation. If a lead-gen form is used for anything, note that a form open is not a donation and must never be summed into the gift count."},
+  {"name": "GA4", "state": "not_connected",
+   "detail": "Property ID and read access for ian@100.digital. Needed for site sessions (the donation-rate denominator on this page is currently invented), and for the single reconciled cross-channel total."},
+  {"name": "Donation platform", "state": "question",
+   "detail": "We do not know what Burnet uses to take donations - Raisely, Funraisin, Blackbaud, Shopify, something bespoke. The entire Fundraising tab, the gift-size bands and every revenue figure depend on this one answer, and the export shape differs enough between them that it is the first thing to settle."},
+  {"name": "Media plan", "state": "question",
+   "detail": "The plan benchmarks and channel budgets driving the vs-plan deltas and the pacing bars are ours, not Burnet's. They are labelled (derived) everywhere they appear. Replace them with the signed plan before anyone reads a red delta as a miss."},
+  {"name": "Dashboard structure", "state": "ready",
+   "detail": "Layout, metric definitions, channel split and the login are built and follow the house pattern. The page renders entirely from /data.json, so swapping the sample for real BigQuery views is a data change, not a template rewrite."}
+ ],
+ "questions": [
+  {"q": "What is the campaign actually for?",
+   "a": "This build assumes fundraising is the primary goal with awareness supporting it. If the brief is really research profile, careers and study, or commercialisation, the metric set changes substantially - donations and cost per donation stop being the spine of the page."},
+  {"q": "What counts as a donation?",
+   "a": "One-off gifts only, or regular giving too? If regular giving counts, do we report the first gift or the annualised value? Return per dollar moves a long way on this. The sample reports first gift value only and says so."},
+  {"q": "Are major gifts and bequests in scope?",
+   "a": "One large gift can distort a month. Recommend reporting them separately rather than blending them into the average, and stating the largest single gift beside it so a reader can see the skew."},
+  {"q": "Attribution window and model.",
+   "a": "Each platform will claim the same donation. Proposal: platform-claimed figures per channel, GA4 last-click as the single reconciled total, and the gap between them stated openly rather than reconciled away. Display is upper-funnel and last-click understates it."},
+  {"q": "Who gets a login?",
+   "a": "Names and email addresses. Access is per person. Do not hand out the 100% Digital agency password - it opens every other 100% Digital client."},
+  {"q": "Typefaces.",
+   "a": "Burnet uses Degular and Adelle Mono through Adobe Fonts, domain-locked to burnet.edu.au, so we cannot serve them. Ask whether dashboards.bidbrain.ai can be added to that Adobe web project. Until then the page uses Inter, which is the estate's own face."},
+  {"q": "Does a Google Ad Grant account exist?",
+   "a": "If it does it must report as its own channel. Grant spend is in-kind and capped, so folding it into paid spend flatters cost per donation and hides the fact that the grant budget is the constraint, not the money."}
+ ],
+ "method": "Every figure on the dashboard is invented, but internally consistent, so nobody reviewing the layout is distracted by arithmetic that does not add up. Revenue divided by spend equals the stated return. Donations divided by sessions equals the stated donation rate. Each split - by channel, by appeal, by gift size, by day - sums to the same total. gen_placeholder.py asserts all of that on every run and refuses to write a payload that fails, which is also the set of reconciliations the real export job will have to hold."
+}

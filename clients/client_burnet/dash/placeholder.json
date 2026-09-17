@@ -1,0 +1,302 @@
+{
+ "meta": {
+  "placeholder": true,
+  "client": "Burnet Institute",
+  "agency": "100% Digital",
+  "currency_symbol": "$",
+  "period_label": "September 2026 (1–16)",
+  "date_min": "2026-09-01",
+  "date_max": "2026-09-16",
+  "data_through": "2026-09-16",
+  "scopes": [
+   {
+    "key": "fundraising_au",
+    "label": "Fundraising AU",
+    "status": "active"
+   },
+   {
+    "key": "research_profile",
+    "label": "Research profile",
+    "status": "coming_soon"
+   }
+  ],
+  "scope_default": "fundraising_au",
+  "feeds_connected": [],
+  "feeds_expected": [
+   "Meta Ads",
+   "Google Ads",
+   "The Trade Desk",
+   "LinkedIn",
+   "GA4",
+   "the donation platform"
+  ],
+  "sessions": 78400
+ },
+ "targets": {
+  "derived": true,
+  "note": "Plan benchmarks and channel budgets are our own working assumptions. No media plan has been signed, so every comparison against them is marked (derived)."
+ },
+ "flight": {
+  "start": "2026-09-01",
+  "end": "2026-09-30",
+  "days_total": 30,
+  "days_elapsed": 16,
+  "days_covered": 16,
+  "pace_through": "2026-09-16",
+  "budget": 108000
+ },
+ "daily": [
+  {
+   "date": "2026-09-01",
+   "spend": 3477.22,
+   "impressions": 390948,
+   "clicks": 4199,
+   "donations": 54,
+   "revenue": 5965.31
+  },
+  {
+   "date": "2026-09-02",
+   "spend": 3338.13,
+   "impressions": 375152,
+   "clicks": 3863,
+   "donations": 58,
+   "revenue": 5368.78
+  },
+  {
+   "date": "2026-09-03",
+   "spend": 3720.62,
+   "impressions": 410692,
+   "clicks": 4409,
+   "donations": 54,
+   "revenue": 5368.78
+  },
+  {
+   "date": "2026-09-04",
+   "spend": 3303.36,
+   "impressions": 367254,
+   "clicks": 3695,
+   "donations": 52,
+   "revenue": 5547.74
+  },
+  {
+   "date": "2026-09-05",
+   "spend": 3059.95,
+   "impressions": 343560,
+   "clicks": 3318,
+   "donations": 49,
+   "revenue": 5130.17
+  },
+  {
+   "date": "2026-09-06",
+   "spend": 2955.64,
+   "impressions": 347509,
+   "clicks": 3528,
+   "donations": 40,
+   "revenue": 4891.56
+  },
+  {
+   "date": "2026-09-07",
+   "spend": 3268.58,
+   "impressions": 367254,
+   "clicks": 3737,
+   "donations": 57,
+   "revenue": 5667.05
+  },
+  {
+   "date": "2026-09-08",
+   "spend": 4868.11,
+   "impressions": 525213,
+   "clicks": 5627,
+   "donations": 78,
+   "revenue": 9604.15
+  },
+  {
+   "date": "2026-09-09",
+   "spend": 4416.07,
+   "impressions": 489672,
+   "clicks": 5081,
+   "donations": 76,
+   "revenue": 9365.54
+  },
+  {
+   "date": "2026-09-10",
+   "spend": 4798.56,
+   "impressions": 529161,
+   "clicks": 5795,
+   "donations": 76,
+   "revenue": 9067.27
+  },
+  {
+   "date": "2026-09-11",
+   "spend": 4450.84,
+   "impressions": 513366,
+   "clicks": 5921,
+   "donations": 79,
+   "revenue": 10021.72
+  },
+  {
+   "date": "2026-09-12",
+   "spend": 2781.77,
+   "impressions": 327764,
+   "clicks": 3402,
+   "donations": 47,
+   "revenue": 5189.82
+  },
+  {
+   "date": "2026-09-13",
+   "spend": 2990.41,
+   "impressions": 347509,
+   "clicks": 3612,
+   "donations": 42,
+   "revenue": 4712.6
+  },
+  {
+   "date": "2026-09-14",
+   "spend": 3824.94,
+   "impressions": 402795,
+   "clicks": 3863,
+   "donations": 54,
+   "revenue": 6024.97
+  },
+  {
+   "date": "2026-09-15",
+   "spend": 3338.13,
+   "impressions": 379101,
+   "clicks": 4157,
+   "donations": 54,
+   "revenue": 5965.31
+  },
+  {
+   "date": "2026-09-16",
+   "spend": 3407.67,
+   "impressions": 383050,
+   "clicks": 4073,
+   "donations": 50,
+   "revenue": 6323.23
+  }
+ ],
+ "channels": [
+  {
+   "channel": "Meta",
+   "colour": "#9BBAE5",
+   "spend": 18400,
+   "impressions": 2120000,
+   "clicks": 31800,
+   "donations": 412,
+   "revenue": 39758,
+   "budget": 34000,
+   "plan_ctr": 1.2,
+   "plan_cpm": 9.5,
+   "plan_cpc": 0.72,
+   "plan_cost_per_donation": 55.0
+  },
+  {
+   "channel": "Google Ads",
+   "colour": "#F99D46",
+   "spend": 12600,
+   "impressions": 480000,
+   "clicks": 24000,
+   "donations": 388,
+   "revenue": 45784,
+   "budget": 24000,
+   "plan_ctr": 4.0,
+   "plan_cpm": 28.0,
+   "plan_cpc": 0.7,
+   "plan_cost_per_donation": 40.0
+  },
+  {
+   "channel": "The Trade Desk",
+   "colour": "#CC9EDE",
+   "spend": 21000,
+   "impressions": 3640000,
+   "clicks": 10920,
+   "donations": 96,
+   "revenue": 13632,
+   "budget": 39000,
+   "plan_ctr": 0.25,
+   "plan_cpm": 6.5,
+   "plan_cpc": 2.6,
+   "plan_cost_per_donation": 180.0
+  },
+  {
+   "channel": "LinkedIn",
+   "colour": "#A1D487",
+   "spend": 6000,
+   "impressions": 260000,
+   "clicks": 1560,
+   "donations": 24,
+   "revenue": 5040,
+   "budget": 11000,
+   "plan_ctr": 0.55,
+   "plan_cpm": 26.0,
+   "plan_cpc": 4.7,
+   "plan_cost_per_donation": 200.0
+  }
+ ],
+ "appeals": [
+  {
+   "appeal": "Women’s and children’s health",
+   "short": "Women & children",
+   "donations": 331,
+   "revenue": 36800
+  },
+  {
+   "appeal": "Malaria and other mosquito-borne diseases",
+   "short": "Malaria",
+   "donations": 212,
+   "revenue": 23900
+  },
+  {
+   "appeal": "Health emergencies and pandemic response",
+   "short": "Health emergencies",
+   "donations": 158,
+   "revenue": 18200
+  },
+  {
+   "appeal": "Hepatitis B and C",
+   "short": "Hepatitis",
+   "donations": 122,
+   "revenue": 14100
+  },
+  {
+   "appeal": "Young people’s health",
+   "short": "Young people",
+   "donations": 97,
+   "revenue": 11214
+  }
+ ],
+ "gift_bands": [
+  {
+   "band": "Under $50",
+   "gifts": 402,
+   "revenue": 13266
+  },
+  {
+   "band": "$50 to $99",
+   "gifts": 268,
+   "revenue": 19028
+  },
+  {
+   "band": "$100 to $249",
+   "gifts": 178,
+   "revenue": 27056
+  },
+  {
+   "band": "$250 to $999",
+   "gifts": 61,
+   "revenue": 26230
+  },
+  {
+   "band": "$1,000 and over",
+   "gifts": 11,
+   "revenue": 18634
+  }
+ ],
+ "fundraising": {
+  "one_off": 782,
+  "regular_giving": 138,
+  "largest_gift": 5000,
+  "email_signups": 1640,
+  "revenue_basis": "First gift value only"
+ }
+}

@@ -82,7 +82,7 @@
     --ink:#EDEDEB; --muted:#B9B7B1; --muted2:#807E78;                /* the brand off-white + warm greys */
     --accent:#EDEDEB;  --accent2:#FFFFFF;                            /* monochrome - primary / active */
     --forest:#8C9C91;  --forest2:#3C4440;                            /* muted sage (data only, de-branded) */
-    /* standard metric colours (green = goal/good ONLY → qualified leads) - desaturated to sit on mono */
+    /* standard metric colours (green = goal/good) - desaturated to sit on mono */
     --qualified:#4FC48D; --leads:#D9A05B; --spend:#A9A6A0; --cost:#D96A55;
     --ctr:#CBB25F; --reach:#8FA79A; --lpv:#7FA3C4;
     --good:#4FC48D; --warn:#CBB25F; --bad:#D96A55;
@@ -720,12 +720,12 @@ body.ga-view #searchDiv,body.ga-view #searchGrp{display:none!important}
     <!-- ============ OVERVIEW ============ -->
     <section id="tab-overview" class="tabpane">
       <div class="section first">
-        <h2 id="ovTitle">Demand &amp; qualified leads</h2>
+        <h2 id="ovTitle">Demand &amp; enquiries</h2>
         <span class="sub" id="introCopy"></span>
       </div>
 
       <div id="ovNorth">
-        <div class="nsband" id="nsBand">Campaign goal &middot; qualified enquiries at an efficient cost</div>
+        <div class="nsband" id="nsBand">Campaign goal &middot; enquiries at an efficient cost</div>
         <div class="kpis nsrow" id="kpiGridN"></div>
         <div class="kpis" id="kpiGrid"></div>
       </div>
@@ -754,7 +754,7 @@ body.ga-view #searchDiv,body.ga-view #searchGrp{display:none!important}
       <div class="card" id="goalCard" style="margin-top:16px"><h3>On track to goal?</h3><div class="hint">Cumulative enquiries across the flight vs the straight-line pace needed to reach the target by the end date - <b>above the dashed line = ahead of pace</b>. Full-flight (independent of the date filter).</div><div class="chartbox tall"><canvas id="paceGoal"></canvas></div></div>
 
       <div class="grid cols-2">
-        <div class="card" id="funnelCard"><h3 id="funnelTitle">Enquiry funnel</h3><div class="hint" id="funnelHint">Each bar = the <b>step conversion</b> (share carried from the previous stage), so drop-off is visible instead of impressions flattening everything; the number is the count. Impressions → link clicks → LP views → Meta enquiries → qualified (modelled).</div><div id="funnelList" style="margin-top:6px"></div></div>
+        <div class="card" id="funnelCard"><h3 id="funnelTitle">Enquiry funnel</h3><div class="hint" id="funnelHint">Each bar = the <b>step conversion</b> (share carried from the previous stage), so drop-off is visible instead of impressions flattening everything; the number is the count. Impressions, link clicks, LP views, enquiries.</div><div id="funnelList" style="margin-top:6px"></div></div>
         <div class="card"><h3>Spend by funnel stage</h3><div class="hint">Where the budget is going. Click a legend item to hide or show a stage.</div><div class="chartbox" style="height:280px"><canvas id="stageDonut"></canvas></div></div>
       </div>
 
@@ -1017,9 +1017,18 @@ function targetItem(k){return ((propDef().targets||DATA.targets||{})[k])||{};}
 function planChannels(){return propDef().plan_channels||[];}
 function targetVal(k){return numOrNull(targetItem(k).value);}   // see numOrNull - '' is NOT zero
 function targetPending(k){return targetItem(k).status==='PENDING';}
-// qualified-lead model: Meta only measures RAW enquiries, so qualified is MODELED = leads × assumed rate.
-function qualRate(){return targetVal('qualification_rate_target')||0.20;}
-function qualified(leads){return Math.round(n(leads)*qualRate());}
+// NO MODELLED QUALIFIED-LEAD FIGURE (2026-09-17, client: no invented numbers).
+// There was a `qualified(leads) = leads x 0.20` model here, and a `Qualified leads (modelled)`
+// KPI tile, hero line, funnel step, goal bar, insight card, CSV column and AI-deck key built on
+// it. The 20% was an assumption with nothing behind it - `qualification_rate_target` is seeded
+// PENDING on both developments - so it is DELETED, not hidden: the functions are gone so no
+// later edit can quietly call them again, and there is no flag that brings a made-up number
+// back. This page now prints only figures a platform actually counted.
+//
+// `qualified_lead_target` / `qualification_rate_target` still ride in targets.csv and the job
+// payload (untouched, so this stays a one-file change) but are read by NOTHING. Leave it that
+// way: a target with no measured actual beside it can only be paced against an estimate, which
+// is the exact thing being removed. Report a REAL qualified count the day a CRM feed lands.
 
 // ===================== shared date-range picker (Looker-style) =====================
 window.DateRange = (function(){
@@ -1156,22 +1165,39 @@ const hasAny =f=>ROWS().some(r=>n(r[f])>0);
 // enough: a lead campaign on day one has a target and no leads yet, and a development can report
 // leads the signed plan never set a target against.
 const leadsMeasured=()=>reports('leads')||bench('lead_target')!=null;
-// ===================== enquiries are WITHHELD until the CRM feed lands =====================
+// ========== enquiries: WITHHELD 2026-09-03, RESTORED 2026-09-17 (Salesforce still NOT wired) =====
 // CLIENT INSTRUCTION 2026-09-03: report no enquiry count and no cost per enquiry until Salesforce
 // is connected. What the platforms hand us is a Meta lead-FORM submit count with nothing behind it
-// - and the tile stacked on top of it, `Qualified leads (modelled)`, was enquiries x an assumed 20%
-// rate. Two figures a reader can reasonably take for pipeline when neither has been near a CRM.
+// - and the tile stacked on top of it, `Qualified leads (modelled)`, was enquiries x an assumed
+// 20% rate. Two figures a reader can reasonably take for pipeline when neither has been near a
+// CRM. That second tile has since been DELETED outright - see the note above `leadsMeasured`.
+//
+// RESTORED 2026-09-17 on the AGENCY's instruction, and the precondition above has NOT been met -
+// recorded here rather than left for the flag to imply otherwise. SALESFORCE IS NOT CONNECTED,
+// verified 2026-09-17 three ways: this client's sql/ reads Meta / LinkedIn / TTD / Google Ads / GA4
+// and no CRM source at all; the estate's ONLY Salesforce mirror (raw_snowflake.salesforce_cs_apac_all,
+// which is Transmission's Snowflake) returns ZERO Geocon rows; and Windsor has no Salesforce
+// connector configured for any client. So `leads` is STILL a Meta lead-FORM submit count that has
+// never been near a CRM - so the `renderNote()` explainer saying exactly that is load-bearing and
+// must not be quietly dropped. The modelled qualified-lead tile that used to sit beside it is
+// GONE (2026-09-17, client: no invented numbers), so what is left on screen is measured.
 //
 // ONE FLAG, NOT A HUNDRED DELETIONS. The page already knows how to render a development that does
 // not measure leads - see `renderMeasureScope` below, built in August for Northbourne's Trade Desk
-// lane, which has no lead form. Forcing that same shape means the enquiry funnel steps, the goal
-// chart, the efficiency map, the CPL trend, the day-of-week card, budget burn, the enquiry-type
-// split and every `.c-lead` column drop out TOGETHER, and the KPI band swaps to impressions / CPM /
-// clicks / spend. It is one code path, already in production, rather than a second half-stripped one.
+// lane, which has no lead form. That same shape takes the enquiry funnel steps, the goal chart, the
+// efficiency map, the CPL trend, the day-of-week card, budget burn, the enquiry-type split and every
+// `.c-lead` column out TOGETHER, and swaps the KPI band to impressions / CPM / clicks / spend. It is
+// one code path, already in production, rather than a second half-stripped one - which is also why
+// turning it back on is one word and not a hundred re-insertions.
 //
-// Flip it back to `true` the day Salesforce is wired and every lead surface returns exactly as it
-// was. NOTHING UPSTREAM CHANGED: sql/*, job/main.py and the payload still carry `leads` in full, so
-// this is a dashboard deploy and no re-seed or forced export.
+// Set it back to `false` to pause enquiry reporting again: every lead surface leaves together and
+// the AI deck stops being SENT the keys (see buildDeckPayload - an absent key, not a prompt).
+// NOTHING UPSTREAM EVER CHANGED: sql/*, job/main.py and the payload carry `leads` in full either
+// way, so this is a dashboard deploy - no re-seed, no forced export.
+// HIDDEN AGAIN 2026-09-17 (agency, pre-meeting) while a possible DOUBLE COUNT is settled: 126 of
+// Meta's 152 are website-pixel form submissions and Google Ads reports 4 SUBMIT_LEAD_FORM
+// conversions, so the same submission may be counted by both platforms. Pending the Google Ads
+// conversion-action source check. Flip to true once that is answered - see the client README.
 const LEADS_REPORTABLE = false;
 // Measured but not reported - the distinction the COPY has to make. An awareness development says
 // "no lead form, so there is no enquiry to report", which is true of Trade Desk and FALSE here:
@@ -1379,6 +1405,24 @@ function agg(rows){const s=k=>rows.reduce((a,r)=>a+n(r[k]),0);
   const convSpend=rows.reduce((a,r)=>(r.conversions==null?a:(r.spend===null?null:nAdd(a,n(r.spend)))),0);
   // every cost-per-X stays unknown when spend is - without the guard `null/imp` is 0 in JS and the
   // card would report a confident A$0 CPM/CPC/CPL.
+  // CPL BASIS - the same rule as convSpend above, applied to leads (it was never exercised while
+  // enquiry reporting was paused, so it shipped blended). Trade Desk and Google Ads report `leads`
+  // as NULL - they run no lead form - so dividing TOTAL spend by Meta's leads charges three
+  // awareness platforms to one platform's enquiries: on Northbourne at 2026-09-17 that read
+  // A$305 against a true A$137.
+  //
+  // THE UNIT IS THE CHANNEL, NOT THE ROW, and that is the part to keep. convSpend can test each row
+  // because Google returns `conversions: 0`; Windsor OMITS `actions_lead` on a Meta ad-day with no
+  // leads, so that day arrives as NULL. Testing per row would drop the spend of every Meta day that
+  // produced nothing - understating CPL, in the flattering direction. A channel is in the basis if
+  // it reports leads ANYWHERE, and then ALL of its spend counts.
+  //
+  // `!= null` deliberately, not `hasAny`: LinkedIn reports a real 0 (119 rows, never NULL), which
+  // means it ran and produced none - that spend belongs in the cost of an enquiry. A channel that
+  // starts reporting leads joins the basis on its own, with no edit here.
+  const leadChans=new Set();
+  rows.forEach(r=>{if(r.leads!=null&&r.channel)leadChans.add(r.channel);});
+  const leadSpend=rows.reduce((a,r)=>(!leadChans.has(r.channel)?a:(r.spend===null?null:nAdd(a,n(r.spend)))),0);
   const per=(d)=>(spend==null||!d)?null:spend/d;
   return {spend,impressions:imp,reach,clicks,link_clicks:lc,lpv,leads,video_3s_views:v3,video_completes:vc,thruplays:tp,leads_website:lw,leads_onfacebook:lof,
     conversions:conv,view_through_conversions:vtc,
@@ -1391,7 +1435,10 @@ function agg(rows){const s=k=>rows.reduce((a,r)=>a+n(r[k]),0);
                           return vi?vviews/vi:null;})(),
     cost_per_view:(()=>{const vs=rows.reduce((a,r)=>(r.video_views==null?a:(r.spend===null?null:nAdd(a,n(r.spend)))),0);
                         return (vs==null||!vviews)?null:vs/vviews;})(),
-    ctr:imp?lc/imp:null,cpm:nMul(per(imp),1000),cpc:per(lc),cpl:per(leads),cost_per_lpv:per(lpv),frequency:reach?imp/reach:null,count:rows.length};}
+    lead_channels:[...leadChans],lead_spend:leadSpend,
+    ctr:imp?lc/imp:null,cpm:nMul(per(imp),1000),cpc:per(lc),
+    cpl:(leadSpend==null||!leads)?null:leadSpend/leads,
+    cost_per_lpv:per(lpv),frequency:reach?imp/reach:null,count:rows.length};}
 function groupRollup(rows,keyFn,metaFn){const m=new Map();rows.forEach(r=>{const k=keyFn(r);if(!m.has(k))m.set(k,[]);m.get(k).push(r);});const out=[];m.forEach(rs=>out.push(Object.assign({},metaFn(rs[0],rs),agg(rs))));return out;}
 function byStage(rows){const g=groupRollup(rows,r=>r.stage||'Other',r0=>({stage:r0.stage||'Other'}));const ts=g.reduce((a,x)=>a+n(x.spend),0)||1,tl=g.reduce((a,x)=>a+n(x.leads),0)||1;
   // a withheld spend has no share of total - null renders '-', not "0% of spend"
@@ -1628,14 +1675,14 @@ function renderHeader(){
   if(ts)ts.textContent=comingSoon()?'Coming soon':(awaitingDelivery()?'Planned':'Live');
   if(td)td.style.background=(comingSoon()||awaitingDelivery())?'var(--ctr)':'';
   const lead=leadShaped();
-  const notes={overview:lead?'Demand & qualified leads':'Reach & delivery',paid:'Paid-media performance',plan:'Signed media plan vs delivery',creative:'Creative library',website:'Website analytics (GA4)'};
+  const notes={overview:lead?'Demand & enquiries':'Reach & delivery',paid:'Paid-media performance',plan:'Signed media plan vs delivery',creative:'Creative library',website:'Website analytics (GA4)'};
   $('ctrlNote').textContent=notes[STATE.view]||'';
   const a=agg(scoped());
   const prop=labelOfProp(STATE.property)||'Geocon';
   // An awareness buy is not measured on demand. Naming the page after a goal this development
   // does not carry is the first thing a client would read as wrong.
-  const ot=$('ovTitle');if(ot)ot.textContent=`${prop} - ${lead?'demand & qualified leads':'reach & delivery'}`;
-  const nb=$('nsBand');if(nb)nb.textContent=lead?'Campaign goal · qualified enquiries at an efficient cost'
+  const ot=$('ovTitle');if(ot)ot.textContent=`${prop} - ${lead?'demand & enquiries':'reach & delivery'}`;
+  const nb=$('nsBand');if(nb)nb.textContent=lead?'Campaign goal · enquiries at an efficient cost'
     :'Campaign goal · reach at an efficient cost';
   // The audience/placement charts are fed by the Meta-only breakdown pull, so name the source
   // rather than implying they cover every channel a multi-channel development buys.
@@ -1685,7 +1732,7 @@ function renderHeader(){
     // is a lead-gen buy, so the withheld state says what is actually true.
     const delivery=`Showing <b>${rangeLabel()}</b> across <b>${chans.length?chans.map(safeName).join(', '):'no channels'}</b> - ${compact(a.impressions)} impressions · ${money(a.spend)} spend.`;
     $('introCopy').innerHTML=lead
-      ? `${chans.length>1?'Platform-reported':src+'-reported'} enquiries and modelled <b>qualified leads</b> for the ${safeName(prop)} launch, plus spend pacing and creative efficiency. Showing <b>${rangeLabel()}</b> across <b>${chans.map(safeName).join(', ')}</b> - ${int(a.leads)} enquiries · ${money(a.spend)} spend.`
+      ? `${chans.length>1?'Platform-reported':src+'-reported'} enquiries for the ${safeName(prop)} launch, plus spend pacing and creative efficiency. Showing <b>${rangeLabel()}</b> across <b>${chans.map(safeName).join(', ')}</b> - ${int(a.leads)} enquiries · ${money(a.spend)} spend.`
       : leadsWithheld()
       ? `Reach, delivery and cost efficiency for the ${safeName(prop)} launch, plus spend pacing against the signed media plan. ${delivery} <b>Enquiry reporting is paused</b> until the CRM feed is connected.`
       : `Reach, delivery and cost efficiency for the ${safeName(prop)} launch, plus spend pacing against the signed media plan. ${delivery} ${escProp(src)} buys awareness inventory with no lead form, so this development reports no enquiries.`;
@@ -1697,7 +1744,7 @@ function renderDateScope(){
   note.innerHTML=`📅 Filtered to <b>${a}</b> – <b>${b}</b>. Every KPI, chart and table on all tabs reflects this range; <b>pacing</b> is always full-flight (independent of the filter).`;
 }
 
-// ---- KPIs (house dot pattern; clickable spend/leads/qualified toggle the hero series) ----
+// ---- KPIs (house dot pattern; clickable spend/leads toggle the hero series) ----
 function kpiCard(o){
   const clk=o.series?' clk':'';const attr=o.series?` data-series="${o.series}" tabindex="0" role="button"`:'';const north=o.north?' north':'';
   const badge=o.badge?`<div class="badge">${o.badge}</div>`:'';
@@ -1715,8 +1762,7 @@ function renderKpis(){
     // below, so it was the one place still printing an enquiry and a CPL label while enquiry
     // reporting is paused (see LEADS_REPORTABLE).
     $('kpiGridN').innerHTML=(leadShaped()
-      ? [dash('Enquiries',MC.leads),dash('Cost / enquiry (CPL)',MC.cost),
-         dash('Qualified leads (modelled)',MC.qualified),dash('Ad spend',MC.spend)]
+      ? [dash('Enquiries',MC.leads),dash('Cost / enquiry (CPL)',MC.cost),dash('Ad spend',MC.spend)]
       : [dash('Impressions',MC.reach),dash('Cost per 1,000 (CPM)',MC.cost),
          dash('Clicks',MC.ctr),dash('Ad spend',MC.spend)])
       .map(o=>kpiCard(Object.assign(o,{north:true}))).join('');
@@ -1730,12 +1776,11 @@ function renderKpis(){
   // An awareness development has no enquiry to be the north star. Reporting one anyway prints
   // "0 enquiries / target -" beside a live campaign - see renderKpisAwareness.
   if(!leadShaped()){renderKpisAwareness(a);return;}
-  const cplT=bench('cpl'),ctrT=bench('ctr'),leadT=bench('lead_target'),qT=bench('qualified_lead_target');
-  const q=qualified(a.leads);const cpqlT=(cplT!=null)?cplT/qualRate():null;const cpql=(a.spend==null||!q)?null:a.spend/q;
+  const cplT=bench('cpl'),ctrT=bench('ctr'),leadT=bench('lead_target');
   const budget=flight().budget==null?null:n(flight().budget);
   const spendPct=(a.spend==null||!budget)?null:Math.round(a.spend/budget*100);
-  // North-star (resetdata pattern): the campaign goal - enquiries at an efficient cost, plus the
-  // qualified downstream. These are the big tiles; the ones that map to a hero line are clickable.
+  // North-star (resetdata pattern): the campaign goal - enquiries at an efficient cost, against
+  // the spend that bought them. These are the big tiles; the ones mapping to a hero line click.
   const north=[
     // Label follows the channels actually delivering: "Meta enquiries" is exact for Gateway
     // Braddon and would be a false attribution the moment LinkedIn lead forms start reporting too.
@@ -1744,10 +1789,12 @@ function renderKpis(){
       // only the last platform reported; on a multi-platform development say it once.
       sub:leadT!=null?`${targetPending('monthly_lead_target')?'pending ':''}target ${int(leadT)}`
         :(deliveredChans().length>1?'platform-reported':'Meta-reported')},
+    // The basis is NAMED whenever it is narrower than the platforms delivering, or the reader
+    // compares this figure to the Ad spend tile beside it and gets a different CPL.
     {color:MC.cost,north:true,series:'cost',label:'Cost / enquiry (CPL)',value:a.cpl!=null?money(a.cpl):'-',
-      sub:cplT!=null?`target ${money(cplT)}`:'no CPL target'},
-    {color:MC.qualified,north:true,series:'qualified',label:'Qualified leads (modelled)',value:int(q),
-      sub:`${qT!=null?`${targetPending('qualified_lead_target')?'pending ':''}target ${int(qT)}`:'goal not set'} · ${pctWhole(qualRate())} of enquiries`,badge:'modelled · no CRM feed'},
+      sub:[(cplT!=null?`target ${money(cplT)}`:'no CPL target'),
+           ((a.lead_channels||[]).length&&a.lead_channels.length<deliveredChans().length
+             ? `${a.lead_channels.map(safeName).join(' + ')} spend only`:null)].filter(Boolean).join(' \u00b7 ')},
     {color:MC.spend,north:true,series:'spend',label:'Ad spend',value:money(a.spend),
       sub:budgetSub(spendPct,budget)}
   ];
@@ -1873,11 +1920,11 @@ function wireKpiToggles(){
   });
 }
 
-// ---- hero trend (spend bars + enquiries + modelled qualified; grain + axis toggles) ----
+// ---- hero trend (spend bars + enquiries + cost per enquiry; grain + axis toggles) ----
 function renderTrend(){
   const rows=trendRows();const labels=rows.map(r=>r.label);const rel=STATE.axis==='rel';
   const gw=STATE.grain==='month'?'Monthly':STATE.grain==='week'?'Weekly':'Daily';
-  const spend=rows.map(r=>r.spend),leads=rows.map(r=>r.leads),qual=rows.map(r=>qualified(r.leads));
+  const spend=rows.map(r=>r.spend),leads=rows.map(r=>r.leads);
   const cpl=rows.map(r=>(r.spend==null||!n(r.leads))?null:r.spend/r.leads);   // cost-per-enquiry per period - the media-buyer efficiency line (withheld spend => gap, not 0)
   const lead=leadShaped();
   const spendBar={label:'Spend',_group:'spend',type:'bar',_raw:spend,_kind:'money',data:spend,backgroundColor:'rgba(237,237,235,.55)',borderColor:MC.accent,borderRadius:4,maxBarThickness:34,yAxisID:'y1',order:4};
@@ -1889,9 +1936,8 @@ function renderTrend(){
     const chans=deliveredChans();
     ds=[spendBar,
       {label:(chans.length>1?'Enquiries':chans[0]==='Meta'?'Meta enquiries':'Enquiries'),_group:'leads',type:'line',_raw:leads,_kind:'int',data:rel?indexToPeak(leads):leads,borderColor:MC.leads,backgroundColor:MC.leads,borderWidth:2.6,tension:.35,pointRadius:2,fill:false,yAxisID:rel?'y':'y2',order:2},
-      {label:'Cost / enquiry',_group:'cost',type:'line',_raw:cpl,_kind:'money',data:rel?indexToPeak(cpl):cpl,borderColor:MC.cost,backgroundColor:MC.cost,borderWidth:2.2,tension:.35,pointRadius:2,fill:false,spanGaps:true,yAxisID:rel?'y':'y3',order:1},
-      {label:'Qualified (modelled)',_group:'qualified',type:'line',_raw:qual,_kind:'int',data:rel?indexToPeak(qual):qual,borderColor:MC.qualified,backgroundColor:MC.qualified,borderWidth:2.6,borderDash:[5,3],tension:.35,pointRadius:2,fill:false,yAxisID:rel?'y':'y2',order:0}];
-    hint=`${gw} spend (bars) vs enquiries, cost-per-enquiry & modelled qualified leads - the spend-to-outcome view.`;
+      {label:'Cost / enquiry',_group:'cost',type:'line',_raw:cpl,_kind:'money',data:rel?indexToPeak(cpl):cpl,borderColor:MC.cost,backgroundColor:MC.cost,borderWidth:2.2,tension:.35,pointRadius:2,fill:false,spanGaps:true,yAxisID:rel?'y':'y3',order:1}];
+    hint=`${gw} spend (bars) vs enquiries and cost-per-enquiry - the spend-to-outcome view.`;
   }else{
     const imps=rows.map(r=>r.impressions),clicks=rows.map(r=>r.clicks);
     const cpm=rows.map(r=>(r.spend==null||!n(r.impressions))?null:r.spend/r.impressions*1000);
@@ -1907,7 +1953,7 @@ function renderTrend(){
     ? {x:axis({grid:{display:false}}),y:{position:'left',min:0,suggestedMax:110,grid:{color:GRID},border:{display:false},ticks:{color:MC.muted,font:{size:11}},title:{display:true,text:'Index (peak=100)',color:MC.muted2,font:{size:11}}},y1:{position:'right',beginAtZero:true,grid:{display:false},border:{display:false},ticks:{color:MC.muted,font:{size:11},callback:v=>'A$'+compact(v)},title:{display:true,text:'Spend',color:MC.muted2,font:{size:11}}}}
     : {x:axis({grid:{display:false}}),
        y1:{position:'left',beginAtZero:true,grid:{color:GRID},border:{display:false},ticks:{color:MC.muted,font:{size:11},callback:v=>'A$'+compact(v)},title:{display:true,text:'Spend',color:MC.muted2,font:{size:11}}},
-       y2:{position:'right',beginAtZero:true,grid:{display:false},border:{display:false},ticks:{color:MC.muted,font:{size:11},callback:v=>compact(v)},title:{display:true,text:lead?'Enquiries / qualified':'Impressions / clicks',color:MC.muted2,font:{size:11}}},
+       y2:{position:'right',beginAtZero:true,grid:{display:false},border:{display:false},ticks:{color:MC.muted,font:{size:11},callback:v=>compact(v)},title:{display:true,text:lead?'Enquiries':'Impressions / clicks',color:MC.muted2,font:{size:11}}},
        y3:{position:'right',beginAtZero:true,offset:true,grid:{display:false},border:{display:false},ticks:{color:MC.muted,font:{size:11},callback:v=>'A$'+compact(v)},title:{display:true,text:lead?'Cost / enquiry':'CPM',color:MC.muted2,font:{size:11}}}};
   makeChart('trendChart',{data:{labels,datasets:ds},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
     plugins:{legend:legendTop(),tooltip:{callbacks:{label:c=>{const d=c.dataset;const v=d._raw?d._raw[c.dataIndex]:c.parsed.y;const f=fmtKind[d._kind]||(x=>String(x));return `${d.label}: ${v==null?'-':f(v)}`;}}}},
@@ -1978,14 +2024,13 @@ function renderStageDonut(){
 function renderFunnel(){
   const a=agg(scoped());
   // Only the steps this development MEASURES. An unreported step is not a 0% conversion - carrying
-  // LP views / enquiries / qualified through for a Trade Desk awareness buy would draw three empty
+  // LP views and enquiries through for a Trade Desk awareness buy would draw two empty
   // bars and end the funnel on "0.0% of link clicks", which reads as total conversion failure.
   const chans=deliveredChans(),lead=leadShaped();
   const rows=[{name:'Impressions',value:n(a.impressions),color:MC.reach},
               {name:'Link clicks',value:n(a.link_clicks),color:MC.ctr}]
     .concat(reports('lpv')?[{name:'LP views',value:n(a.lpv),color:MC.lpv}]:[])
-    .concat(lead?[{name:(chans.length>1?'Enquiries':chans[0]==='Meta'?'Meta enquiries':'Enquiries'),value:n(a.leads),color:MC.leads},
-                  {name:'Qualified (modelled)',value:qualified(a.leads),color:MC.qualified}]:[]);
+    .concat(lead?[{name:(chans.length>1?'Enquiries':chans[0]==='Meta'?'Meta enquiries':'Enquiries'),value:n(a.leads),color:MC.leads}]:[]);
   const ft=$('funnelTitle');if(ft)ft.textContent=lead?'Enquiry funnel':'Delivery funnel';
   const fh=$('funnelHint');if(fh)fh.innerHTML=`Each bar = the <b>step conversion</b> (share carried from the previous stage), so drop-off is visible instead of impressions flattening everything; the number is the count. ${rows.map(r=>r.name).join(' → ')}.`;
   // Bar width = STEP CONVERSION (share carried from the previous stage), not absolute volume - so the
@@ -2006,10 +2051,10 @@ function renderStageTable(){
   const foot=`<tr class="total"><td>Total</td><td class="num">${money(t.spend)}</td><td class="num">${t.spend==null?'-':'100%'}</td><td class="num c-lead">${int(t.leads)}</td><td class="num c-lead">${t.cpl!=null?money(t.cpl):'-'}</td><td class="num">${pctr(t.ctr)}</td></tr>`;
   $('stageTable').querySelector('tbody').innerHTML=(body||`<tr><td colspan="6" style="text-align:center;color:var(--muted2);padding:20px">No stage spend yet.</td></tr>`)+(body?foot:'');
 }
-// Goal progress is FULL-FLIGHT (independent of the date/stage filter, like pacing) - flight enquiries
-// + modelled qualified vs their targets.
+// Goal progress is FULL-FLIGHT (independent of the date/stage filter, like pacing) - flight
+// enquiries against the plan's committed lead target.
 function renderGoalProgress(){
-  const a=agg(ROWS());const leadT=bench('lead_target'),qT=bench('qualified_lead_target');const q=qualified(a.leads);
+  const a=agg(ROWS());const leadT=bench('lead_target');
   // Impressions run to eight figures; int() would print 9,122,334 against 737,352 and squeeze the
   // row. compact() above 100k keeps both numbers legible without losing the comparison.
   const fig=v=>n(v)>=100000?compact(v):int(v);
@@ -2030,8 +2075,7 @@ function renderGoalProgress(){
     return;
   }
   $('goalProgress').innerHTML=head
-    +bar('Enquiries',a.leads,leadT,MC.leads,'')
-    +bar('Qualified (modelled)',q,qT,MC.qualified,`×${pctWhole(qualRate())} of enquiries`);
+    +bar('Enquiries',a.leads,leadT,MC.leads,'');
 }
 // Cumulative enquiries across the flight vs the straight-line pace needed to hit the lead target by
 // the end date (full-flight; the client's "are we on track?" read). Above the dashed line = ahead.
@@ -2147,15 +2191,14 @@ function renderPlacement(){
 }
 function renderInsights(){
   const a=agg(scoped());const st=byStage(scoped());const ads=byAd(scoped()).filter(x=>n(x.spend)>0);
-  // Every card here reads an enquiry, a CPL or a modelled qualified lead. On an awareness
-  // development all four would answer "-", so the section answers the questions that buy DOES
+  // Every card here reads a measured enquiry or CPL figure. On an awareness
+  // development all three would answer "-", so the section answers the questions that buy DOES
   // pose: did we deliver the reach, at what cost, and how much of the plan is running.
   if(!leadShaped()){renderInsightsAwareness(a,ads);return;}
   const bestLead=ads.filter(x=>n(x.leads)>0&&x.cpl!=null).sort((x,y)=>x.cpl-y.cpl)[0];
   const topSpend=st[0];const leadStage=st.filter(s=>n(s.leads)>0).sort((x,y)=>(x.cpl||1e9)-(y.cpl||1e9))[0];
   const pool=Math.max(0,n(a.lpv)-n(a.leads));
   const items=[
-    {label:'Modelled qualified leads',value:int(qualified(a.leads)),copy:`${int(a.leads)} enquiries × ${pctWhole(qualRate())} assumed qualification. Wire a CRM feed to measure this for real.`},
     {label:'Best enquiry path',value:leadStage?safeName(leadStage.stage):'-',copy:leadStage?`${int(leadStage.leads)} enquiries at ${money(leadStage.cpl)} CPL.`:'No stage has produced enquiries yet.'},
     {label:'Creative to protect',value:bestLead?safeName(bestLead.ad):'-',copy:bestLead?`${int(bestLead.leads)} enquiries at ${money(bestLead.cpl)} CPL.`:'Waiting for a creative signal.'},
     {label:'Retargeting pool',value:int(pool),copy:'Landing-page visitors who have not yet enquired - the warmest near-term audience.'}
@@ -2198,7 +2241,7 @@ function renderNote(){
       +`cost efficiency against the signed media plan. ${tail}`;
     return;
   }
-  // The qualified-lead model only means anything where a platform reports enquiries at all.
+  // The awareness wording only applies where NO platform reports an enquiry at all.
   if(!leadShaped()){
     const chans=deliveredChans().map(safeName).join(' and ')||'this platform';
     $('ovNote').innerHTML=`<b>How to read this.</b> This is an <b>awareness</b> buy: ${chans} sells reach, `
@@ -2207,7 +2250,7 @@ function renderNote(){
       +`here are impressions, clicks, CTR and cost efficiency against the signed media plan. ${tail}`;
     return;
   }
-  $('ovNote').innerHTML=`<b>How to read this.</b> Meta reports <b>raw enquiries</b> only - a "qualified lead" is not measured by the ad platform, so <b>Qualified leads (modelled)</b> = Meta enquiries × a <b>${pctWhole(qualRate())} assumed qualification rate</b> (target ${bench('qualified_lead_target')!=null?int(bench('qualified_lead_target')):'-'}). It is a planning estimate, not an actual - wire a CRM feed to report true qualified leads. All figures are ${meta().currency||'AUD'}; pacing is full-flight and independent of the date filter.`;
+  $('ovNote').innerHTML=`<b>How to read this.</b> <b>Enquiries</b> are <b>platform-reported</b> - a lead-form submission counted by the ad platform, not a record in a CRM - so read them as demand, not as pipeline, and note the platform counts every submission, including a repeat from the same person. <b>No qualified-lead figure is shown:</b> qualification is not measured by any feed connected to this dashboard, and an assumed rate would be a number nobody counted. All figures are ${meta().currency||'AUD'}; pacing is full-flight and independent of the date filter.`;
 }
 
 // ---- Paid Media ----
@@ -2338,7 +2381,10 @@ function renderChanChips(){
   grp.style.display='';if(div)div.style.display='';
   const on=activeChans();
   $('chanChips').innerHTML=roster.map(c=>
-    `<button class="chip${on.includes(c)?' on':''}" data-chan="${safeName(c)}"><span class="dot" style="background:${chanColor(c)}"></span>${safeName(c)}</button>`).join('');
+    `<button class="chip${on.includes(c)?' on':''}" data-chan="${safeName(c)}" title="${
+      !on.includes(c) ? 'Show ' + safeName(c) + ' as well'
+      : on.length===1 ? 'Only ' + safeName(c) + ' is shown - click to show all platforms again'
+      : 'Hide ' + safeName(c)}"><span class="dot" style="background:${chanColor(c)}"></span>${safeName(c)}</button>`).join('');
   document.querySelectorAll('#chanChips .chip').forEach(b=>b.addEventListener('click',()=>toggleChan(b.dataset.chan)));
 }
 // One colour per platform, used by the chip dot AND every chart series, so a platform reads the
@@ -2348,9 +2394,13 @@ function toggleChan(c){
   const roster=deliveredChans();
   const cur=new Set(STATE.channels?[...STATE.channels].filter(x=>roster.includes(x)):roster);
   if(cur.has(c))cur.delete(c);else cur.add(c);
-  // The last platform cannot be unticked - an empty selection is an empty dashboard, which is never
-  // what the click meant (the resetdata / cloudflare rule).
-  if(!cur.size)return;
+  // An empty selection is an empty dashboard, which is never what the click meant (the resetdata /
+  // cloudflare rule). But RETURNING SILENTLY made the last remaining chip INERT - click it and
+  // nothing happened, no movement, no message - which reads as a broken control, not as a guard.
+  // It is also the state you land in while isolating one platform, so it is hit constantly.
+  // Unticking the last one now CLEARS the filter instead: the chips visibly go back to all-on, so
+  // the click always does something and the dead end is gone.
+  if(!cur.size){STATE.channels=null;renderChanChips();render();return;}
   STATE.channels=cur.size===roster.length?null:cur;
   renderChanChips();render();
 }
@@ -2670,7 +2720,7 @@ function exportAllData(){const cols=['date','channel','plan_line','campaign','ad
 function exportThisTab(){
   const[a,b]=rangeBounds();const stamp=(a&&b?a+'_'+b:'all');
   if(STATE.view==='overview'){const cols=[{label:'date',key:'date'},{label:'spend',key:'spend'}]
-    .concat(leadShaped()?[{label:'leads',key:'leads'},{label:'qualified_modelled',get:r=>qualified(r.leads)},{label:'cum_leads',key:'cum_leads'}]
+    .concat(leadShaped()?[{label:'leads',key:'leads'},{label:'cum_leads',key:'cum_leads'}]
                         :[{label:'impressions',key:'impressions'},{label:'clicks',key:'clicks'}]);
     downloadCSV(`geocon_daily_${stamp}.csv`,toCSV(dailyOf(scoped()),cols));}
   else if(STATE.view==='website'){const cols=['date','site','channel','source','campaign','property','sessions','engaged_sessions','users','new_users','pageviews'].map(k=>({label:k,key:k}));downloadCSV(`geocon_website_${stamp}.csv`,toCSV(gaAll().filter(r=>inRange(r.date)),cols));}
@@ -2697,7 +2747,7 @@ function buildReportPayload(){
   // fields are dropped outright and the model is told what it is looking at instead.
   const lead=leadShaped();
   const leadFields=(o)=>{if(lead)return o;const c=Object.assign({},o);
-    ['leads','cpl','qualified_modelled','qualification_rate','lead_share','lead_target','cpl_target','qualified_lead_target'].forEach(k=>delete c[k]);return c;};
+    ['leads','cpl','lead_share','lead_target','cpl_target'].forEach(k=>delete c[k]);return c;};
   const leadNote=lead?'':' Enquiry reporting is PAUSED pending a CRM connection, so no lead, enquiry, '
     +'cost-per-enquiry, CPL or conversion-volume figure is supplied. Do NOT mention, estimate, infer '
     +'or ask about enquiries or lead cost anywhere in the deck - this is a REACH AND DELIVERY report: '
@@ -2712,8 +2762,8 @@ function buildReportPayload(){
       scope_note:((awaitingDelivery()||!chans.length)
         ?`${prop} has NOT delivered. There is no performance data. Do not narrate any metric, trend or result - report only that the campaign is planned and not yet live.`
         :`Figures cover ${prop} only, across ${chans.join(' + ')}. Other Geocon developments are excluded.`)+leadNote},
-    overview:leadFields({spend:r2(a.spend),budget:r2(n(f.budget)),pace_expected:r2(n(f.pace_expected)),projected_spend:r2(n(f.projected_spend)),pace_ratio:r2(paceRatio),leads:a.leads,qualified_modelled:qualified(a.leads),qualification_rate:qualRate(),cpl:r2(a.cpl),reach:a.reach,impressions:a.impressions,link_clicks:a.link_clicks,ctr:r6(a.ctr),cpm:r2(a.cpm),cpc:r2(a.cpc),landing_page_views:a.lpv,cost_per_lpv:r2(a.cost_per_lpv),frequency:r2(a.frequency)}),
-    targets:leadFields({cpl_target:bench('cpl'),ctr_target:bench('ctr'),lead_target:bench('lead_target'),qualified_lead_target:bench('qualified_lead_target'),cost_per_lpv_target:bench('cost_per_lpv'),daily_pace:bench('daily_pace'),imp_target:bench('imp_target'),click_target:bench('click_target'),cpm_target:bench('cpm'),cpc_target:bench('cpc')}),
+    overview:leadFields({spend:r2(a.spend),budget:r2(n(f.budget)),pace_expected:r2(n(f.pace_expected)),projected_spend:r2(n(f.projected_spend)),pace_ratio:r2(paceRatio),leads:a.leads,cpl:r2(a.cpl),reach:a.reach,impressions:a.impressions,link_clicks:a.link_clicks,ctr:r6(a.ctr),cpm:r2(a.cpm),cpc:r2(a.cpc),landing_page_views:a.lpv,cost_per_lpv:r2(a.cost_per_lpv),frequency:r2(a.frequency)}),
+    targets:leadFields({cpl_target:bench('cpl'),ctr_target:bench('ctr'),lead_target:bench('lead_target'),cost_per_lpv_target:bench('cost_per_lpv'),daily_pace:bench('daily_pace'),imp_target:bench('imp_target'),click_target:bench('click_target'),cpm_target:bench('cpm'),cpc_target:bench('cpc')}),
     by_stage:byS.map(r=>leadFields({stage:r.stage,spend:r2(r.spend),leads:r.leads,cpl:r2(r.cpl),ctr:r6(r.ctr),cpm:r2(r.cpm),lpv:r.lpv,cost_per_lpv:r2(r.cost_per_lpv),frequency:r2(r.frequency),spend_share:r6(r.spend_share),lead_share:r6(r.lead_share)})),
     by_campaign:byC.map(r=>leadFields({campaign:r.campaign,stage:r.stage,spend:r2(r.spend),leads:r.leads,cpl:r2(r.cpl),ctr:r6(r.ctr),cpm:r2(r.cpm),impressions:r.impressions,lpv:r.lpv,frequency:r2(r.frequency)})),
     top_ads:ads.map(r=>leadFields({ad:r.ad,adset:r.adset,stage:r.stage,spend:r2(r.spend),leads:r.leads,cpl:r2(r.cpl),ctr:r6(r.ctr),cpm:r2(r.cpm),impressions:r.impressions,lpv:r.lpv,cost_per_lpv:r2(r.cost_per_lpv),frequency:r2(r.frequency)})),

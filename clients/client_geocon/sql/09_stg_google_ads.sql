@@ -100,6 +100,41 @@ stats AS (
   )
   GROUP BY 1, 2
 ),
+-- LEAD-FORM conversions per campaign x day, both accounts (2026-09-17).
+--
+-- Google Ads is the SECOND platform here that reports a real enquiry, and it has to be split out by
+-- CONVERSION ACTION rather than taken from `metrics_conversions`, which is the sum of every action
+-- the advertiser has marked Primary. Today this account carries exactly ONE action -
+-- `Submit lead form0201_Geocon_NGW558_LeadFormSubmit`, category SUBMIT_LEAD_FORM, 4 conversions -
+-- so the two happen to be equal (verified: BasicStats 4.0 == lead-form 4.0). That equality is a
+-- COINCIDENCE OF TODAY'S SETUP, not a rule: the moment a page-view or phone-click action is added
+-- as Primary, `metrics_conversions` inflates and would silently inflate the enquiry count with it.
+-- That is the defect `client_schneider` and `client_schneiderlqai` both carry (page-view tags read
+-- as conversions, ~1,517 against 660 clicks), and it is why neither may display the figure at all.
+--
+-- The gate is the CATEGORY, never the action NAME: a rename keeps counting, a new action of a
+-- different kind can never enter `leads`. Anything NOT a lead form stays in `conversions`, where it
+-- is labelled as a Google conversion and never summed into an enquiry.
+--
+-- The source is the conversion-action-segmented table, NOT CampaignBasicStats, because BasicStats
+-- has no action dimension to filter on. It is HOURLY-grained upstream, so it is summed to the day.
+-- Values are FRACTIONAL (Google splits credit across campaigns under data-driven attribution: the
+-- 4 land as 2.5 on Brand + 1.5 on NonBrand), which is why the fact carries FLOAT64 here and the
+-- rounding happens once, at the roll-up, never per campaign.
+leadform AS (
+  SELECT campaign_id, segments_date AS date, SUM(metrics_conversions) AS leadform_conversions
+  FROM (
+    SELECT campaign_id, segments_date, metrics_conversions, segments_conversion_action_category
+    FROM `bidbrain-analytics.raw_google_ads.p_ads_HourlyCampaignConversionStats_5457742070`
+    WHERE customer_id = 5457742070
+    UNION ALL
+    SELECT campaign_id, segments_date, metrics_conversions, segments_conversion_action_category
+    FROM `bidbrain-analytics.raw_google_ads.p_ads_HourlyCampaignConversionStats_2020134915`
+    WHERE customer_id = 2020134915
+  )
+  WHERE segments_conversion_action_category = 'SUBMIT_LEAD_FORM'
+  GROUP BY 1, 2
+),
 -- TrueView views per campaign x day, both accounts. LEFT JOINed below so a non-video campaign keeps
 -- a NULL (not measured) rather than a 0 (measured, none) - the nullness rule the dashboard reads.
 vid AS (
@@ -136,7 +171,12 @@ SELECT
   s.clicks,
   s.clicks                                     AS link_clicks,
   CAST(NULL AS INT64)                          AS landing_page_views,
-  CAST(NULL AS INT64)                          AS leads,   -- see header: conversions are NOT leads
+  -- ENQUIRIES from Google Ads = the SUBMIT_LEAD_FORM action only (see the `leadform` CTE).
+  -- NULL, never 0, on a campaign that reports no lead form: the dashboard's `reports()` test is
+  -- NULLNESS, and a 0 here would put an awareness campaign into the lead-gen shape and drag its
+  -- spend into the cost-per-enquiry basis. COALESCE only where the campaign HAS a lead form, so a
+  -- day it earned none reads 0 rather than "not measured".
+  IF(lf.campaign_id IS NULL, CAST(NULL AS FLOAT64), COALESCE(lf.leadform_conversions, 0)) AS leads,
   CAST(NULL AS STRING)                         AS creative_id,
   CAST(NULL AS STRING)                         AS creative_title,
   CAST(NULL AS STRING)                         AS creative_body,
@@ -146,9 +186,15 @@ SELECT
   CAST(NULL AS INT64)                          AS video_completes,    -- not in the feed; see header
   CAST(NULL AS INT64)                          AS thruplays,
   v.video_views,
-  s.conversions,
+  -- Conversions = every OTHER Primary action, so a lead form is never counted twice (once as an
+  -- enquiry and again in the Conversions tile under a different name). Today that leaves 0, and the
+  -- dashboard's `hasConversions()` uses hasAny(), so the tile hides itself until a genuinely
+  -- different action starts reporting - at which point it appears, labelled, and still outside
+  -- `leads`. GREATEST(...,0) guards the hourly/daily tables disagreeing by a rounding hair.
+  GREATEST(s.conversions - COALESCE(lf.leadform_conversions, 0), 0) AS conversions,
   s.view_through_conversions
 FROM stats s
+LEFT JOIN leadform lf USING (campaign_id, date)
 JOIN camp c USING (campaign_id)
 LEFT JOIN vid v USING (campaign_id, date)
 LEFT JOIN nm_map nm ON c.campaign_name = nm.nm
