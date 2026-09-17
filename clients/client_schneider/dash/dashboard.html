@@ -2938,13 +2938,24 @@ const ARTICLE_DELIVERY = {
         { name:'Mining Magazine', page_views:1188, sessions:1036, engaged:824, clicks:64, ctr:0.0502 },
         { name:'TechPapersWorld', page_views:764,  sessions:668,  engaged:524, clicks:44, ctr:0.0558 },
       ]},
-      // July so far = weeks w/c 7/1 + 7/8 only (7/15+ not yet reported), so this flight is IN PROGRESS.
-      // ctr = outbound clicks / page views (verified per-week against the publisher report).
-      { month:'Jul 2026', live:true, partial:true, publications:[
-        { name:'Mining Magazine', page_views:220, sessions:197, engaged:87, clicks:11, ctr:0.0500 },
-        { name:'TechPapersWorld', page_views:164, sessions:145, engaged:66, clicks:8,  ctr:0.0488 },
+      // July is COMPLETE as of the 2026-09-17 publisher report: all four of its weeks are in
+      // (w/c 7/1, 7/8, 7/15, 7/24). It was previously published at 7/1 + 7/8 ONLY and so understated
+      // by 12 outbound clicks - which is not cosmetic, because articleAgg() feeds the pace cell on
+      // the Other Channels plan table as well as this section. partial:true is therefore removed.
+      // ctr = outbound clicks / page views, verified per-week against the publisher report: every
+      // July and September week ties exactly. NOTE the May flight above does NOT tie on that basis
+      // (16/297 = 5.39% against a stated 5.02%) and its four weeks are identical, i.e. a monthly
+      // total split by four - left as the publisher stated it, pending an answer from the client.
+      // Clicks are unaffected either way, so pacing does not move.
+      { month:'Jul 2026', live:true, publications:[
+        { name:'Mining Magazine', page_views:376, sessions:340, engaged:150, clicks:18, ctr:0.0479 },
+        { name:'TechPapersWorld', page_views:268, sessions:240, engaged:107, clicks:13, ctr:0.0485 },
       ]},
-      { month:'Sep 2026', live:false, publications:[] },
+      // September is IN PROGRESS: 2 of its 4 weeks reported (w/c 9/1, 9/8; 9/16 and 9/23 still blank).
+      { month:'Sep 2026', live:true, partial:true, publications:[
+        { name:'Mining Magazine', page_views:132, sessions:99, engaged:42, clicks:5, ctr:0.0379 },
+        { name:'TechPapersWorld', page_views:106, sessions:97, engaged:42, clicks:5, ctr:0.0472 },
+      ]},
     ],
   },
 };

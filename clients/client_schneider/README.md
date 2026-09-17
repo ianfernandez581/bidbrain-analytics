@@ -1083,6 +1083,19 @@ Channels** tab for plan-only lines — Search, publisher sponsorships, trade pre
 removed from the UI 2026-07-06 at the client's request, then **restored 2026-07-20** when the client
 wanted the Heavy Industries trade-publication article-delivery table back; `campaignTabs()` no longer
 filters `other` out, so the `tab-other` pane + `renderOther`/`ARTICLE_DELIVERY` code is live again.)
+**`ARTICLE_DELIVERY` is a HAND-KEYED FRONTEND CONSTANT** - the only delivered figures in this dashboard
+that are not in `data.json`. Keyed from the client's `Article Reporting.xlsx` (Mining Magazine +
+TechPapersWorld weekly tabs; the copy in `raw_files/` is a stale snapshot, the live one is their
+SharePoint). Three things to know. **(1) A flight still being reported needs `partial:true`**, or a
+half-reported month reads as a finished one - July sat at 2 of its 4 weeks for two months and was
+understating by 12 outbound clicks. **(2) That is not cosmetic: `articleAgg()` feeds the PACE CELL on
+the Other Channels plan table**, so a stale flight publishes a wrong pace % against the 180-click
+target (it read 71% when the truth was 83%). **(3) The May flight does not tie to its own page views** -
+16/297 = 5.39% against a stated 5.02%, and its four weeks are identical, i.e. a monthly total split by
+four; every July and September week ties exactly. May is left as the publisher stated it pending an
+answer from the client. Clicks are unaffected, so pacing does not move either way.
+**Known gap, not fixed:** this table reaches NO CSV export (`exportThisTab()` carries the plan lines
+and `publisher_delivery`, not this), so it is on screen and nowhere else.
 **Theme gotcha (fixed 2026-08-18):** `table td` is `var(--se-ink)` (near-black) but the page canvas
 is dark green, so **every table MUST sit inside a `.card`** (the white surface it was styled for).
 `#otherTable` was the one table in the file without that wrapper, so the whole Other Channels table read
