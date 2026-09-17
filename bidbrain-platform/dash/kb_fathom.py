@@ -362,8 +362,32 @@ def drop_unassigned(rid):
         blob.delete()
 
 
+# A sync that never finished must not look like one that is still running. Cloud Run can stop an
+# instance mid-sync (a deploy, a scale-down, CPU throttled after the response), and `_sync_quietly`
+# is the only thing that clears the flag - so the flag survives the work that was meant to clear it.
+SYNC_STALE_S = 1800
+
+
 def state():
     return kb_store._read_json(_STATE, default={}) or {}
+
+
+def syncing(st=None):
+    """True only while a sync is plausibly still running.
+
+    🔴 THE FLAG ALONE IS NOT THE ANSWER, and reading it as if it were has a visible cost: the
+    Meetings page re-polls every 5 seconds while a sync is "in progress" and REBUILDS the queue on
+    each poll, which closes any card a person has opened. Found live 2026-09-17 with a flag 142
+    minutes stale - the page was unusable for reading a card's evidence, and it looked like a bug in
+    the expander. The 30-minute rule already existed in the sync route; it just was not shared."""
+    st = state() if st is None else st
+    if not st.get("sync_in_progress"):
+        return False
+    try:
+        started = float(st.get("sync_started_ts") or 0)
+    except (TypeError, ValueError):
+        return False
+    return (time.time() - started) < SYNC_STALE_S
 
 
 def save_state(st):

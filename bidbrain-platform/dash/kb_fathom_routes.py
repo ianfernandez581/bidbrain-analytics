@@ -233,7 +233,10 @@ def status():
         return d
     st, queue = {}, []
     try:
-        st = kb_fathom.state()
+        st = dict(kb_fathom.state())
+        # The page polls itself while this is true. A flag left behind by an interrupted sync would
+        # make it poll for ever - and every poll rebuilds the queue, closing any card being read.
+        st["sync_in_progress"] = kb_fathom.syncing(st)
         queue = kb_fathom.list_unassigned()
     except Exception:                        # noqa: BLE001
         log.exception("fathom status")
@@ -252,7 +255,7 @@ def sync():
         return jsonify(ok=False, error="Fathom is not connected (FATHOM_API_KEY unset)."), 503
     d = request.get_json(silent=True) or {}
     st = kb_fathom.state()
-    if st.get("sync_in_progress") and time.time() - float(st.get("sync_started_ts") or 0) < 1800:
+    if kb_fathom.syncing(st):                # same rule as the status payload, defined once
         return jsonify(ok=False, error="A sync is already running.", state=st), 409
     since = (d.get("since") or st.get("last_created_after") or
              time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() - 30 * 86400)))
