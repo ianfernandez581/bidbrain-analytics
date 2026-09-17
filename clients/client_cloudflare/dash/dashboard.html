@@ -180,6 +180,44 @@
   #cmpTabs .tab:not(.active):hover{color:var(--on-canvas)}
   .panel.hidden{display:none}
 
+  /* ---------- LOADING SKELETON ----------------------------------------------------------
+     A spinner says "something is happening somewhere". A skeleton says "your dashboard is
+     arriving, and this is its shape" - the same wait reads as roughly half as long, and the
+     layout cannot jump when the real content lands because the shapes already match it.
+     Contrast matters more than it looks: on this near-black shell a 7% white fill is
+     invisible, which reads as a broken page rather than a loading one. These sit at 12-16%,
+     which is legible without competing with the real content that replaces them. */
+  #loading .sk{max-width:1280px;margin:0 auto;padding:0 20px;text-align:left}
+  #loading .sk-row{display:flex;gap:10px;align-items:center;margin:0 0 20px}
+  #loading .sk-band{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:18px}
+  #loading .sk-cards{display:grid;grid-template-columns:1fr;gap:14px}
+  @media (min-width:900px){ #loading .sk-cards{grid-template-columns:1.6fr 1fr} }
+  #loading .sk-b{position:relative;overflow:hidden;border-radius:8px;flex:none;
+        background:rgba(251,241,231,.13)}
+  #loading .sk-b::after{content:"";position:absolute;inset:0;
+        background:linear-gradient(90deg,transparent,rgba(251,241,231,.16),transparent);
+        transform:translateX(-100%);animation:skShimmer 1.5s var(--bb-ease-soft,ease) infinite}
+  @keyframes skShimmer{to{transform:translateX(100%)}}
+  #loading .sk-tab{height:32px;width:130px}
+  #loading .sk-pill{height:32px;width:100px;margin-left:auto}
+  #loading .sk-kpi{height:98px;border:1px solid rgba(255,255,255,.09);border-radius:10px;
+        background:#27150B;box-sizing:border-box}
+  #loading .sk-kpi-in{padding:16px;display:flex;flex-direction:column;gap:12px;height:100%;box-sizing:border-box}
+  #loading .sk-card{height:300px;border:1px solid rgba(255,255,255,.09);border-radius:14px;
+        background:#27150B;padding:18px;display:flex;flex-direction:column;gap:14px;box-sizing:border-box}
+  #loading .sk-card .sk-b:last-child{flex:1 1 auto}
+  #loading .sk-note{text-align:center;font-size:var(--t-sm);color:var(--muted-2);
+        letter-spacing:var(--tr-label);margin-top:26px}
+  /* Scaffolding must never outlive the data it stands in for. */
+  #loading.bb-out{opacity:0;transition:opacity .28s var(--bb-ease,ease);pointer-events:none}
+  #dashboardRoot.bb-in{animation:skIn .34s var(--bb-ease,ease) both}
+  @keyframes skIn{from{opacity:0}to{opacity:1}}
+  @media (prefers-reduced-motion: reduce){
+    #loading .sk-b::after{animation:none}
+    #loading.bb-out{transition:none}
+    #dashboardRoot.bb-in{animation:none}
+  }
+
   #loading, #error{padding:60px 20px;text-align:center;color:var(--ink)}
   #loading .spinner{display:inline-block;width:40px;height:40px;border:3px solid color-mix(in srgb,var(--brand-accent) 24%,transparent);border-top-color:var(--brand-accent);border-radius:50%;animation:spin .8s linear infinite;margin-bottom:var(--gap)}
   @keyframes spin{to{transform:rotate(360deg)}}
