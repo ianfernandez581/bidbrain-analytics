@@ -79,7 +79,17 @@ from concurrent.futures import ThreadPoolExecutor
 DEFAULT_BUCKET = "bidbrain-analytics-platform-dash"
 
 # The one folder the whole mirror lives under, inside the agency-wide (no client) scope.
-TOP_FOLDER = "Bidbrain analytics"
+#
+# 🔴 THIS IS THE ONLY PLACE THE FOLDER CAN BE RENAMED. `folder` is a FIELD on each document and the
+# sync writes the repo's answer for it, so renaming the folder in the Explorer moves the documents
+# for exactly as long as it takes the next run to move them all back - which looks, from the UI,
+# like a rename that half worked and left a duplicate behind. Change it here and re-run.
+#
+# It is NOT called "Bidbrain analytics" (the repo's own name) on purpose: the assistant answers for
+# an agency called Bidbrain, out of a library that already holds a "Bidbrain-backend" folder for a
+# different repo, so a third Bidbrain was a name collision in the one place names are used to tell
+# things apart.
+TOP_FOLDER = "GCP Backend"
 
 # 🔴 EVERY DOCUMENT THIS SCRIPT OWNS STARTS WITH THIS, and nothing else in the library does
 # (`kb_store.new_id` produces `d_<epoch>_<hex>`). It is the entire basis on which a document may be

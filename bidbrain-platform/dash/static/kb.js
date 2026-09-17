@@ -255,7 +255,7 @@
     wrap.appendChild(el('h4', null, 'Knowledge base'));
 
     // The agency-wide root, and its shelves.
-    wrap.appendChild(node({ path: '', name: 'All documents', count: S.total }, 0, true));
+    wrap.appendChild(node({ path: '', name: 'All documents', count: S.total }, 0, true, true));
     if (S.level !== 'client') {
       // There is no "No folder" node any more: since the root lists what sits directly in it,
       // that node showed the same documents under a second name, and two places saying one
@@ -333,8 +333,12 @@
     }
 
     function node(f, depth, hasKids, isRoot) {
-      var n = el('div', 'kb-node' + (!S.archived && S.cwd === f.path ? ' on' : '')
-        + (f.ghost ? ' ghost' : ''));
+      // 🔴 THE ROOT NODE IS "on" ONLY AT THE ROOT, not merely when the folder is empty. Inside a
+      // client the folder is also '', so without the level test All documents lit up while you
+      // were somewhere else entirely - the rail claiming you were out while the list showed one
+      // client's files.
+      var here = !S.archived && S.cwd === f.path && (!isRoot || S.level === 'root');
+      var n = el('div', 'kb-node' + (here ? ' on' : '') + (f.ghost ? ' ghost' : ''));
       n.style.paddingLeft = (6 + depth * 13) + 'px';
       n.dataset.folder = f.path;
       var tw = el('span', 'tw' + (hasKids ? (S.open[f.path] ? ' open' : '') : ' leaf'), '▶');
@@ -352,7 +356,14 @@
       if (f.ghost) { nm.style.opacity = '.55'; nm.title = 'Created here, but empty. It exists once a document is in it.'; }
       n.appendChild(nm);
       n.appendChild(el('span', 'ct', f.count ? String(f.count) : ''));
-      navOn(n, function () { go(f.path); });
+      /* 🔴 ALL DOCUMENTS LEAVES THE CLIENT; `go()` CANNOT, AND MUST NOT LEARN TO. `go()` sets the
+       * folder and deliberately says nothing about scope, because inside a client it is also what
+       * moves between that client's own shelves. So the root node was setting cwd='' while leaving
+       * level='client' - the list stayed scoped to the client, the rail drew no agency folders
+       * (see the `S.level !== 'client'` guard above), and the one control that means "take me back
+       * out" did nothing at all, however many times you clicked it. The breadcrumb's All documents
+       * was the only way out, which is not where anybody looks. */
+      navOn(n, isRoot ? goRoot : function () { go(f.path); });
       if (f.path !== '/' ) {
         n.oncontextmenu = function (e) { e.preventDefault(); folderMenu(e, f); };
         wireFolderDrop(n, f.path);
