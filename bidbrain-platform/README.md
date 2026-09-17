@@ -1130,13 +1130,23 @@ document, holding a registry key, empty for agency-wide.
 
 ### The repo's markdown, mirrored (`scripts/kb_repo_sync.py`, 2026-09-17)
 The `bidbrain-analytics` repo's own documentation - AGENTS.md, all 20 client READMEs, every ingest
-unit, the Grid and platform guides - is in the library as a **`Bidbrain analytics` folder** holding
+unit, the Grid and platform guides - is in the library as a **`GCP Backend` folder** holding
 ~880 documents from 164 markdown files, agency-wide (no `client` key), `kind: reference`. It syncs
 itself: every push to `main` that touches a `.md` runs `.github/workflows/kb-sync.yml`, which runs
 that script, which writes through `kb_index.reindex_document` exactly as an upload does.
 
 **Edit the markdown in git. An edit made to one of these documents in the Explorer is replaced on
 the next sync** - and kept, in full, as a revision on the document, so nothing typed is lost.
+
+**🔴 THAT GOES FOR THE FOLDER TOO, AND IT DOES NOT LOOK LIKE A SYNC WHEN IT BITES.** `folder` is a
+field on each document and the sync writes the repo's answer for it, so renaming this folder in the
+Explorer moves the documents for exactly as long as it takes the next run to move them all back.
+Do it mid-run and it is worse: the rename moves what exists while the run keeps writing into the
+old name, and you are left looking at TWO half-filled folders and a rename that appears to have
+duplicated the shelf and lost half of it. Nothing is lost and nothing is duplicated - there is one
+set of documents and two writers disagreeing about where they live. Rename `TOP_FOLDER` in
+`scripts/kb_repo_sync.py` and re-run; that constant is the only place this folder has a name.
+(Lived through on 2026-09-17, which is why the folder is `GCP Backend` and not the repo's own name.)
 
 - **🔴 SECTIONS, NOT FILES, AND THAT IS THE WHOLE POINT.** `client_cloudflare/README.md` is 230,000
   characters. Loaded as one document, every passage in it would carry the title "README.md" into
@@ -1177,7 +1187,7 @@ the next sync** - and kept, in full, as a revision on the document, so nothing t
 - **It shares the library with the business record, so use the SCOPE.** These are engineering notes;
   a question about a media plan can now retrieve a passage of AGENTS.md. The knowledge base picker's
   folders are the only HARD filter in `kb_index.search`, so narrowing to (or away from)
-  `Bidbrain analytics` is how an ask is kept to one kind of document.
+  `GCP Backend` is how an ask is kept to one kind of document.
 - **Two assistants, opposite outcomes, both correct.** The STAFF dashboard assistant
   (`kb_bridge.retrieve`) searches the client PLUS agency-wide, so from now on it can cite that
   client's own README and its row of AGENTS.md - which is the context a person on that dashboard

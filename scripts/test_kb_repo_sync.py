@@ -113,10 +113,10 @@ def test_folders_mirror_the_repo_and_sit_under_one_top_folder(docs):
         assert d["folder"] == S.TOP_FOLDER or d["folder"].startswith(S.TOP_FOLDER + "/")
         assert d["folder"] == kb_store.normalize_folder(d["folder"])
     by_rel = {d["rel"]: d["folder"] for d in docs}
-    assert by_rel["md/AGENTS.md"] == "Bidbrain analytics/md"
-    assert by_rel["README.md"] == "Bidbrain analytics"
+    assert by_rel["md/AGENTS.md"] == "GCP Backend/md"
+    assert by_rel["README.md"] == "GCP Backend"
     assert by_rel["clients/client_geocon/dash/README.md"] == \
-        "Bidbrain analytics/clients/client_geocon/dash"
+        "GCP Backend/clients/client_geocon/dash"
 
 
 def test_a_heading_inside_a_code_fence_is_not_a_heading():

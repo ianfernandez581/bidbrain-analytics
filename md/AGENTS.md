@@ -120,7 +120,7 @@ dates, "verified on") lives there too, never here.**
   memory never learns from a model filing. Decisions come from AI + RAG + memory, not codified rules. **THIS REPO'S OWN MARKDOWN IS IN IT AND SYNCS ITSELF**
   (`scripts/kb_repo_sync.py` + `.github/workflows/kb-sync.yml`): every tracked `.md` becomes
   SECTION documents - one per heading, one per client row of the table below - in a
-  `Bidbrain analytics` folder, on every push to main. **Edit the markdown in git, never the
+  `GCP Backend` folder, on every push to main. **Edit the markdown in git, never the
   document in the library: the next sync replaces it** (keeping the old text as a revision).
   First load or a manual run: `.\.venv\Scripts\python.exe scripts\kb_repo_sync.py --dry-run`.
   Full detail, and its gotchas, in `bidbrain-platform/README.md` -> "The knowledge
