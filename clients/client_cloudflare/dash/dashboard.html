@@ -1311,8 +1311,25 @@
 <div class="container">
 
   <div id="loading">
-    <div class="spinner"></div>
-    <div class="msg">Fetching live data from Snowflake…</div>
+    <!-- Mirrors the real layout: control bar, KPI band, then the two-up card row. Keeping the
+         proportions close is the whole point - the page must not jump when the data lands. -->
+    <div class="sk" aria-hidden="true">
+      <div class="sk-row">
+        <div class="sk-b sk-tab"></div><div class="sk-b sk-tab"></div>
+        <div class="sk-b sk-tab"></div><div class="sk-b sk-pill"></div>
+      </div>
+      <div class="sk-band">
+        <div class="sk-kpi"><div class="sk-kpi-in"><div class="sk-b" style="height:10px;width:52%"></div><div class="sk-b" style="height:26px;width:74%"></div></div></div>
+        <div class="sk-kpi"><div class="sk-kpi-in"><div class="sk-b" style="height:10px;width:46%"></div><div class="sk-b" style="height:26px;width:66%"></div></div></div>
+        <div class="sk-kpi"><div class="sk-kpi-in"><div class="sk-b" style="height:10px;width:58%"></div><div class="sk-b" style="height:26px;width:70%"></div></div></div>
+        <div class="sk-kpi"><div class="sk-kpi-in"><div class="sk-b" style="height:10px;width:44%"></div><div class="sk-b" style="height:26px;width:60%"></div></div></div>
+      </div>
+      <div class="sk-cards">
+        <div class="sk-card"><div class="sk-b" style="height:12px;width:34%"></div><div class="sk-b" style="flex:1"></div></div>
+        <div class="sk-card"><div class="sk-b" style="height:12px;width:48%"></div><div class="sk-b" style="flex:1"></div></div>
+      </div>
+    </div>
+    <div class="msg sk-note" role="status">Fetching live data from Snowflake…</div>
   </div>
 
   <div id="error" style="display:none">
@@ -3022,6 +3039,40 @@ if (window.Chart) {
   // would slide their bars in from the wrong edge.
   Chart.defaults.animation.duration = 950;
   Chart.defaults.animation.easing = 'easeOutQuart';
+
+  // ---- CHARTS DEAL THEMSELVES OUT, THEY DO NOT ALL FIRE AT ONCE -------------------------
+  // The cards and the CSS bars already stagger (45ms and 40ms apart respectively); the charts
+  // did not, so up to 21 of them started their 950ms entrance on the same frame. That reads as
+  // a dump rather than a sequence, AND it piles every chart's animation work onto one moment -
+  // the rare change that is both the better-looking option and the cheaper one.
+  //
+  // The delay is per BURST, not per chart for the life of the page: a render pass builds its
+  // charts back to back, so anything constructed within 150ms of the last one continues the
+  // cascade, and the next pass starts from zero. That means a single chart rebuilt on its own
+  // never sits waiting behind a stale counter.
+  //
+  // Capped at 300ms: past that the last chart reads as slow to arrive rather than choreographed.
+  // Duration and easing are untouched - every chart still draws in over the same 950ms.
+  window._bbBurstN = 0;
+  window._bbBurstAt = 0;
+  Chart.register({
+    id: 'bbStagger',
+    beforeInit(chart) {
+      if (!chart.options || !chart.options.animation) return;
+      // Reduced motion: no cascade. The entrance itself is left alone - that is the existing
+      // behaviour and not this change's call to make.
+      try {
+        if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+      } catch (_) {}
+      const now = (window.performance && performance.now) ? performance.now() : Date.now();
+      if (now - window._bbBurstAt > 150) window._bbBurstN = 0;   // a new render pass
+      window._bbBurstAt = now;
+      const delay = Math.min(window._bbBurstN++ * 45, 300);
+      // Copy before writing: this object can be shared with Chart.defaults, and mutating that
+      // would leak one chart's delay onto every chart built afterwards.
+      chart.options.animation = Object.assign({}, chart.options.animation, { delay: delay });
+    }
+  });
   Chart.defaults.transitions.active.animation.duration = 180;
   Chart.defaults.font.family = '"Inter","Inter Variable",-apple-system,"Segoe UI",Roboto,sans-serif';
   Chart.defaults.elements.bar.borderRadius = 3;   // 3, not 4: matches all 18 explicit datasets       // rounded bar caps - cosmetic only
@@ -3292,8 +3343,19 @@ async function boot() {
     syncQuarterFromRange();
 
     setLiveBanner(COMBINED.last_updated, rawRows.length);
-    document.getElementById('loading').style.display = 'none';
-    document.getElementById('dashboardRoot').style.display = 'block';
+    // Crossfade the skeleton out rather than cutting it: the shapes already sit where the real
+    // content will, so fading between them reads as the dashboard resolving, not a page swap.
+    // It is removed from the flow once faded, never just made transparent - a transparent
+    // overlay would still swallow clicks.
+    (function revealDashboard(){
+      const ld = document.getElementById('loading');
+      const root = document.getElementById('dashboardRoot');
+      root.style.display = 'block';
+      root.classList.add('bb-in');
+      if (!ld) return;
+      ld.classList.add('bb-out');
+      setTimeout(() => { ld.style.display = 'none'; }, 300);   // matches the .28s fade, plus slack
+    })();
     renderChips();
     populateRegionSelects();
     initChartToggles();
