@@ -107,13 +107,25 @@ it used to be (a development switched itself on the moment its first row landed)
 to publish a one-line view of a nine-line plan should be a person's, which is exactly what happened
 here.
 
-### CRM enquiries are LIVE (2026-09-17) - and they are not the platform figure
+### CRM leads are LIVE (2026-09-17) - and they are not the platform figure
 
-**Salesforce is connected, so enquiry reporting has resumed - from the CRM, not from the ad
+**Salesforce is connected, so lead reporting has resumed - from the CRM, not from the ad
 platforms.** The 2026-09-03 instruction below was "no enquiry reporting *until Salesforce is
 connected*"; this is that condition being met. `LEADS_REPORTABLE` stays `false` and every
 platform-reported lead surface stays off, because the platform count is a different measure and
 publishing both invites them being read as one.
+
+**They are called LEADS, and they live in the main KPI band - there is no separate section**
+(client, 2026-09-17). A standalone "Enquiries from the CRM" section with a trend chart, a source
+table and a status breakdown was built and **removed the same day**: the client wanted the figure
+where the other headline numbers are, not in a panel of its own. What ships is exactly two tiles -
+**Leads** and **Cost per lead** (blended), first in the goal row - plus the total on the intro line
+under *"<development> - reach & delivery"*, beside impressions and spend. `lead_source` and
+`lead_status` still flow all the way to `crm.rows[]`, so those breakdowns are one renderer away if
+they are ever wanted again.
+
+*"Leads" rather than "enquiries" is also the more accurate word*: Salesforce's own object is
+`Lead`, so the label moved toward the source rather than away from it.
 
 **Three numbers, one word.** Over 20 Aug - 15 Sep 2026, for Northbourne Gateway:
 
@@ -139,13 +151,17 @@ including name, email, phone and date of birth. We take seven: id, created date,
 development name, source, status. `geocon.json` is served to the client's browser, so anything
 landing in that table is one view away from being published. Do not widen it.
 
-**`grain` is the constraint on what may ever be built from this.** A CRM lead has a date, a
+**`grain` is the constraint, and it is why this is only ever two tiles.** A CRM lead has a date, a
 development, a source family and a status - and no campaign, ad set, ad or platform, because
-Salesforce never receives one. So this block may headline a count, a trend, a source split and a
-*blended* cost per enquiry, and it must never grow a per-creative or per-channel enquiry column.
-The section therefore ignores the platform and funnel-stage filters **and says so on screen**;
-cost per enquiry divides all spend by all enquiries (including enquiries no advertising produced)
-and is labelled `blended`, not CPA.
+Salesforce never receives one. So it supports a **total** and a **blended cost**, and it must never
+feed the funnel, the CPL trend, the efficiency map or a per-creative lead column, all of which are
+ad-grain and would attribute a CRM lead to an ad that may not have produced it. Cost per lead
+divides all spend by all leads (including leads advertising did not produce - walk-ins, referrals,
+portals), is labelled `blended` on the tile, and "How to read this" says so in prose.
+
+**The tiles do not move with the platform or funnel-stage chips**, because a CRM lead has no
+delivering platform. That is stated in the how-to-read note rather than left for a reader to
+discover - the `client_schneider` rule about a figure that ignores a visible control.
 
 #### The development split is an inference, not a CRM fact
 
@@ -159,8 +175,9 @@ enquiry is Northbourne's, before it Gateway Braddon's.
 **What makes that tolerable rather than reckless:** the last Braddon-era Gateway enquiry landed
 **17 Aug** and the first Northbourne-era one **26 Aug**, so the cutover sits inside an empty 8-day
 gap and *any* date within it yields identical counts. The export **computes** that each run
-(`crm_split_safe` -> `crm.split_safe`) rather than trusting this paragraph, and the dashboard's note
-changes wording if it ever goes false.
+(`crm_split_safe` -> `crm.split_safe`) rather than trusting this paragraph, and `crmSplitNote()` -
+the ONE copy of that wording, printed in "How to read this" since the section was removed - changes
+sentence if it ever goes false.
 
 **Its error direction, stated:** Gateway Braddon is a real building with a live landing page (117 of
 its 128 flight-era enquiries came from `Project Landing Page`), so any enquiry it still attracts is
@@ -685,10 +702,10 @@ The 2026-09-17 CRM lane (`raw_windsor.geocon_salesforce_leads` -> `sql/13_stg_sa
 | sql | job | dashboard |
 |---|---|---|
 | `stg_salesforce.date` / `.property` | `crm.rows[].date` / `.property` | `crmRows()` - date range + development ONLY |
-| `stg_salesforce.lead_source` | `crm.rows[].lead_source` | the *Where enquiries came from* table |
-| `stg_salesforce.lead_status` | `crm.rows[].lead_status` | the *Enquiry status* bars |
-| `stg_salesforce.leads` | `crm.rows[].leads` | every CRM figure - KPI band, trend, both breakdowns |
-| (the `sql/13` cutover constant) | `crm.split_date` / `.split_safe` | `crmNote()` - states the split on screen, and re-words it if `split_safe` goes false |
+| `stg_salesforce.lead_source` | `crm.rows[].lead_source` | **carried, not rendered** - the source breakdown was removed with the section (2026-09-17) |
+| `stg_salesforce.lead_status` | `crm.rows[].lead_status` | **carried, not rendered** - same |
+| `stg_salesforce.leads` | `crm.rows[].leads` | the `Leads` + `Cost per lead` tiles and the intro line's total |
+| (the `sql/13` cutover constant) | `crm.split_date` / `.split_safe` | `crmSplitNote()` -> "How to read this"; re-words itself if `split_safe` goes false |
 
 ## Architecture — one fact table, rolled up in the browser (rebuilt 2026-06)
 
