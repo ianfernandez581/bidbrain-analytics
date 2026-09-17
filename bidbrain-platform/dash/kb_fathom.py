@@ -75,6 +75,9 @@ def watched_title(meeting):
     """The watch-list word the title matched, or ''."""
     m = _QUEUE_TITLE_RE.search((meeting.get("title") or meeting.get("meeting_title") or "").lower())
     return m.group(1) if m else ""
+# How much of a corpus vote counts as a signal rather than a coincidence. See corpus_vote.
+VOTE_MIN = int(os.environ.get("FATHOM_VOTE_MIN", "3"))        # fewer passages than this proves nothing
+VOTE_SHARE = float(os.environ.get("FATHOM_VOTE_SHARE", "0.6"))  # and one client must clearly lead
 CLASSIFY_MODEL = os.environ.get("FATHOM_CLASSIFY_MODEL", "gemini-2.5-flash")
 GEMINI = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 
@@ -440,8 +443,21 @@ def corpus_vote(meeting, limit=20):
             tally[ck] = tally.get(ck, 0) + 1
     if not tally:
         return {}, []
+    total = sum(tally.values())
     top = max(tally, key=tally.get)
-    return tally, [f"{tally[top]} of {sum(tally.values())} similar passages are from {top} meetings"]
+
+    # 🔴 A THIN OR SPLIT VOTE IS NOISE, AND REPORTING IT AS EVIDENCE IS WORSE THAN SAYING NOTHING.
+    # Measured on the first real sync (2026-09-17): a daily stand-up produced "1 of 1 similar
+    # passages are from cloudflare meetings" and the model filed it to a client at 95%+. Two of
+    # three stand-ups landed on the wrong client that way. The model cannot tell a one-passage
+    # coincidence from a real signal - the EVIDENCE LINE reads identically either way - so the
+    # filtering has to happen here, where the counts are.
+    if total < VOTE_MIN or tally[top] / total < VOTE_SHARE:
+        spread = ", ".join(sorted(tally)) if len(tally) > 1 else top
+        # Say what was seen WITHOUT naming a winner: a meeting touching several clients is a real
+        # signal that it belongs to NONE of them, which is the opposite conclusion.
+        return tally, [f"similar passages come from several clients ({spread}) - no clear match"] if len(tally) > 1 else []
+    return tally, [f"{tally[top]} of {total} similar passages are from {top} meetings"]
 
 
 def synthesise(meeting, candidates, evidence_lines, _post=None, internal=False):
@@ -469,6 +485,14 @@ def synthesise(meeting, candidates, evidence_lines, _post=None, internal=False):
         "Confidence 0.9+ for a client key only when the transcript names the client or its campaigns "
         "unambiguously; confidence 0.9+ for '' only when the discussion is clearly the agency's own "
         "work and no single client.\n\n"
+        # 🔴 The rule these two lines encode, learned from the first real sync (2026-09-17): a stand-up
+        # that walks through five clients in ten minutes was filed to ONE of them at 95%+, three times.
+        # A call ABOUT several clients belongs to none of them, and that has to be said, because
+        # "mentions Cloudflare" and "is about Cloudflare" look identical to a classifier.
+        "A meeting that moves between SEVERAL clients - a stand-up, a weekly kick-off, a pipeline "
+        "review - belongs to NO single client. Return '' for it, with high confidence. Choose a "
+        "client ONLY when that client is what the meeting is FOR, not merely one of several "
+        "mentioned in passing. If you are choosing between two or more clients, the answer is ''.\n\n"
         + ("EVERYONE ON THIS CALL IS FROM THE AGENCY (no client invitee). Decide from the transcript "
            "whether it is agency work ('' with high confidence), one client's work (that key), or not "
            "work at all (work=false).\n\n" if internal else "")
