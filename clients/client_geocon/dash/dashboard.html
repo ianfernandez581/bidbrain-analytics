@@ -244,6 +244,11 @@ body.ga-view #searchDiv,body.ga-view #searchGrp{display:none!important}
      lead / LPV / frequency columns are dropped outright rather than dashed out. Set by
      renderMeasureScope() as classes on <body>, so every table follows one decision. */
   body.no-leads .c-lead,body.no-lpv .c-lpv,body.no-reach .c-reach,body.no-conv .c-conv{display:none}
+  /* Empty state for a chart. The canvas is HIDDEN, never removed - the repo-wide rule: replacing a
+     canvas's parent innerHTML deletes the canvas, and every later render then finds nothing and
+     silently short-circuits the whole card for the rest of the session. */
+  .chart-empty{display:flex;align-items:center;justify-content:center;min-height:180px;
+    color:var(--muted);font-size:13px;text-align:center;padding:20px}
   .card{background:linear-gradient(180deg,var(--card-1),var(--card-2));border:1px solid var(--hair);border-radius:16px;padding:18px;
         box-shadow:var(--card-glow);display:flex;flex-direction:column;min-width:0}
   .card h3{margin:0;font-size:12.5px;font-weight:800;letter-spacing:1.1px;text-transform:uppercase;color:var(--ink)}
@@ -728,6 +733,44 @@ body.ga-view #searchDiv,body.ga-view #searchGrp{display:none!important}
         <div class="nsband" id="nsBand">Campaign goal &middot; qualified enquiries at an efficient cost</div>
         <div class="kpis nsrow" id="kpiGridN"></div>
         <div class="kpis" id="kpiGrid"></div>
+      </div>
+
+      <!-- CRM ENQUIRIES (2026-09-17). Salesforce, via Windsor - the enquiry number GEOCON count,
+           which is not the platform-reported one and is never mixed with it (see renderCrm).
+           Hidden wholesale until the payload carries a crm block, so an older geocon.json renders
+           exactly as it did. Deliberately ignores the channel and funnel-stage filters: a CRM lead
+           has no delivering platform, so those controls cannot move these figures and the note
+           says so rather than letting a reader assume a filter applied. -->
+      <div id="crmWrap" style="display:none">
+        <div class="section" style="margin-top:26px">
+          <h2>Enquiries from the CRM</h2>
+          <span class="sub" id="crmIntro"></span>
+        </div>
+        <div class="kpis" id="crmKpis"></div>
+        <div class="grid cols-2-1" style="margin-top:14px">
+          <div class="card">
+            <h3>Enquiries over time</h3>
+            <div class="hint" id="crmTrendHint"></div>
+            <div class="chartbox tall"><canvas id="crmTrend"></canvas></div>
+            <div class="chart-empty" id="crmTrendEmpty" style="display:none">No enquiries in the selected range.</div>
+          </div>
+          <div class="card">
+            <h3>Where enquiries came from</h3>
+            <div class="hint">The CRM's own source label. It names a channel <b>family</b>, never a
+              campaign or an ad, so it groups enquiries but cannot cost one against the media that
+              produced it.</div>
+            <div class="tablewrap" style="margin-top:6px">
+              <table id="crmSourceTable"><thead><tr><th>Source</th><th class="num">Enquiries</th><th class="num">Share</th></tr></thead><tbody></tbody></table>
+            </div>
+          </div>
+        </div>
+        <div class="card" style="margin-top:16px">
+          <h3>Enquiry status</h3>
+          <div class="hint">Where each enquiry sits in Geocon's own sales funnel. These are CRM
+            statuses set by the sales team, not advertising outcomes.</div>
+          <div id="crmStatusList" style="margin-top:6px"></div>
+          <div class="hint" id="crmNote" style="margin-top:12px"></div>
+        </div>
       </div>
 
       <div class="grid cols-2-1">
@@ -1601,6 +1644,128 @@ if (window.Chart) Chart.register({
 })();
 
 // ================================= RENDER =================================
+// ---------- CRM enquiries (Salesforce via Windsor, 2026-09-17) ----------
+// THE ENQUIRY NUMBER GEOCON COUNT. Kept rigorously separate from `rows[].leads`, which is what the
+// ad platforms CLAIM: over 20 Aug - 15 Sep 2026 the platforms reported 156 while the CRM held 115
+// and Geocon's own website export recorded 124 distinct people. Three definitions of one word.
+// They are never summed, never averaged and never silently swapped - this block reads DATA.crm and
+// nothing else, and the platform lead surfaces stay off (LEADS_REPORTABLE).
+//
+// GRAIN IS THE CONSTRAINT. A CRM lead has a date, a development, a source family and a status. It
+// has NO campaign, ad set, ad or delivering platform, because Salesforce never receives one. So
+// this block may headline a count, a trend, a source split and a BLENDED cost per enquiry - and it
+// must never grow a per-creative or per-channel enquiry column off the back of them. If you find
+// yourself wanting one, the fix is upstream (UTMs into the web forms), not here.
+const CRM=()=>(DATA.crm&&Array.isArray(DATA.crm.rows))?DATA.crm.rows:[];
+const crmReportable=()=>CRM().length>0;
+// Property + date ONLY. The channel chips and the funnel-stage filter are deliberately NOT applied:
+// a CRM lead has no delivering platform, so narrowing to (say) LinkedIn cannot honestly change an
+// enquiry count. Silently leaving them unapplied would be the `client_schneider` trap in reverse -
+// a figure that ignores a visible control - so `crmNote` states it on screen.
+const crmRows=()=>CRM().filter(r=>(!STATE.property||r.property===STATE.property)&&inRange(r.date));
+function crmAgg(rows){
+  const total=rows.reduce((a,r)=>a+n(r.leads),0);
+  const by=k=>{const m=new Map();rows.forEach(r=>{const v=r[k]||'(not set)';m.set(v,(m.get(v)||0)+n(r.leads));});
+    return [...m.entries()].sort((a,b)=>b[1]-a[1]);};
+  return {total,bySource:by('lead_source'),byStatus:by('lead_status')};
+}
+// Spend for the cost-per-enquiry tile. Taken across ALL channels for the property, because the
+// enquiries in the numerator cannot be attributed to one - dividing whole-CRM enquiries by a
+// single channel's spend would invent a cost per enquiry for a channel that may not have produced
+// any of them. Already grossed by bbApplySpendMult at boot, so it is on the same billed basis as
+// every other money figure on the page.
+function crmSpendAllChannels(){
+  return (DATA.rows||[]).filter(r=>propOk(r)&&inRange(r.date))
+    .reduce((a,r)=>(r.spend===null?a:nAdd(a,n(r.spend))),0);
+}
+function renderCrm(){
+  const wrap=$('crmWrap');if(!wrap)return;
+  if(!crmReportable()){wrap.style.display='none';return;}
+  wrap.style.display='';
+  const rows=crmRows(),a=crmAgg(rows),meta=DATA.crm||{};
+  const prop=STATE.property||'';
+  const spend=crmSpendAllChannels();
+  const cpe=(spend==null||!a.total)?null:spend/a.total;
+  const engaged=(a.byStatus.find(s=>s[0]==='Engaged')||[,0])[1];
+  const qualified=(a.byStatus.find(s=>s[0]==='Qualified')||[,0])[1];
+
+  $('crmIntro').innerHTML=`Enquiries recorded in Geocon's Salesforce CRM for `
+    +`<b>${prop?safeName(prop):'all developments'}</b> in the selected range. This is the CRM's own `
+    +`count, not the advertising platforms' - the two measure different things and will not match.`;
+
+  // Cost per enquiry is BLENDED and says so in the label, not only in a footnote: it divides every
+  // channel's spend by every enquiry, including the enquiries no advertising produced (walk-ins,
+  // referrals, portals). It is a campaign-period efficiency figure, NOT a media CPA.
+  $('crmKpis').innerHTML=[
+    kpiCard({color:'var(--leads)',label:'Enquiries (CRM)',value:int(a.total),
+             sub:rows.length?`${a.bySource.length} source${a.bySource.length===1?'':'s'}`:'none in range'}),
+    kpiCard({color:'var(--cost)',label:'Cost per enquiry (blended)',value:cpe==null?'-':money(cpe),
+             sub:cpe==null?'no enquiries in range':'all channels ÷ all enquiries'}),
+    kpiCard({color:'var(--qualified)',label:'Qualified',value:int(qualified),
+             sub:a.total?`${Math.round(qualified/a.total*100)}% of enquiries`:'&nbsp;'}),
+    kpiCard({color:'var(--accent)',label:'Engaged',value:int(engaged),
+             sub:a.total?`${Math.round(engaged/a.total*100)}% of enquiries`:'&nbsp;'}),
+  ].join('');
+
+  // --- trend: same grain toggle as the delivery chart above, so the two read together ---
+  const m=new Map();
+  rows.forEach(r=>{const bk=trendBucketLabel(String(r.date).slice(0,10),STATE.grain);
+    const o=m.get(bk.key)||{label:bk.label,leads:0};o.leads+=n(r.leads);m.set(bk.key,o);});
+  const series=[...m.entries()].sort((x,y)=>x[0].localeCompare(y[0])).map(e=>e[1]);
+  const cv=$('crmTrend'),ce=$('crmTrendEmpty');
+  if(!series.length){ if(cv)cv.style.display='none'; if(ce)ce.style.display=''; destroyChart('crmTrend'); }
+  else{
+    if(cv)cv.style.display=''; if(ce)ce.style.display='none';
+    makeChart('crmTrend',{data:{labels:series.map(o=>o.label),datasets:[
+      {type:'bar',label:'Enquiries',data:series.map(o=>o.leads),backgroundColor:MC.leads+'99',
+       borderColor:MC.leads,borderRadius:4,maxBarThickness:46}]},
+      options:{responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`${int(c.parsed.y)} enquiries`}}},
+        scales:{x:axis({grid:{display:false}}),
+          y:{beginAtZero:true,grid:{color:GRID},border:{display:false},
+             ticks:{color:MC.muted,font:{size:11},precision:0}}}}});
+  }
+  const gw=STATE.grain==='month'?'Monthly':STATE.grain==='week'?'Weekly':'Daily';
+  $('crmTrendHint').innerHTML=`${gw} count of enquiries created in the CRM. Follows the date range `
+    +`and the development, and uses the same grain toggle as the delivery chart above.`;
+
+  // --- source table ---
+  const tb=document.querySelector('#crmSourceTable tbody');
+  tb.innerHTML=a.bySource.length
+    ? a.bySource.map(([s,v])=>`<tr><td>${escProp(s)}</td><td class="num">${int(v)}</td>`
+        +`<td class="num">${a.total?Math.round(v/a.total*100):0}%</td></tr>`).join('')
+    : `<tr><td colspan="3" class="muted-text">No enquiries in the selected range.</td></tr>`;
+
+  // --- status bars (the existing flow-row idiom, so this card matches Budget burn) ---
+  const top=a.byStatus[0]?a.byStatus[0][1]:0;
+  $('crmStatusList').innerHTML=a.byStatus.length
+    ? a.byStatus.map(([s,v])=>`<div class="flow-row"><div class="flow-name"><span class="fn">${escProp(s)}</span></div>`
+        +`<div class="flow-bar"><div class="flow-fill" style="width:${Math.max(2,top?v/top*100:0)}%;background:var(--leads)"></div></div>`
+        +`<div class="flow-meta">${int(v)} · ${a.total?Math.round(v/a.total*100):0}%</div></div>`).join('')
+    : `<div class="muted-text">No enquiries in the selected range.</div>`;
+
+  // --- the honesty note. Every caveat that a reader needs to not over-read these figures. ---
+  const bits=[];
+  bits.push(`<b>Source.</b> Geocon's Salesforce CRM, read through Windsor and refreshed with the `
+    +`rest of this dashboard.`);
+  // The development split is an INFERENCE (one 'Gateway' project covers both), so it is stated
+  // rather than implied. split_safe is computed by the export each run - see job/main.py.
+  if(meta.split_date){
+    bits.push(`<b>Which development.</b> Salesforce records both Gateway developments under one `
+      +`'Gateway' project, so enquiries are assigned by date: those from `
+      +`${fmtDate(meta.split_date)} are counted as Northbourne Gateway, earlier ones as Gateway `
+      +`Braddon.`+(meta.split_safe===true
+        ? ` No enquiry falls near that boundary, so the split does not depend on where exactly it sits.`
+        : ` Enquiries fall either side of that boundary, so treat the split as approximate.`));
+  }
+  bits.push(`<b>Not the platform figure.</b> The advertising platforms count enquiries their own `
+    +`way, using modelled attribution. Those numbers are not shown here, and they will not match `
+    +`this one.`);
+  bits.push(`<b>Filters.</b> These figures follow the date range and the development only. The `
+    +`platform and funnel-stage filters do not apply - a CRM enquiry carries no delivering platform.`);
+  $('crmNote').innerHTML=bits.join('<br>');
+}
+
 function render(){
   // Each step is isolated: a single renderer throwing must NOT blank every chart after it (Chart.js
   // draws share one animation loop, so one uncaught throw in a draw callback can take down the whole
@@ -1610,6 +1775,7 @@ function render(){
    renderFunnel,renderStageTable,renderInsights,renderNote,renderBenchTable,renderEffScatter,renderCplTrend,
    renderReachFreq,renderVideo,renderDow,renderLeadType,renderAudience,renderPlacement,
    renderSegment,renderTables,renderFatigue,renderBurn,renderCreative,renderPlatformTable,
+   renderCrm,
    renderWebsite,renderFooter,renderDateScope]
     .forEach(fn=>{try{fn();}catch(e){console.error('render step failed:',fn.name,e);}});
   // LAST, deliberately: the renderers above unhide panes and repopulate tables, so the placeholder
@@ -1687,7 +1853,9 @@ function renderHeader(){
     $('introCopy').innerHTML=lead
       ? `${chans.length>1?'Platform-reported':src+'-reported'} enquiries and modelled <b>qualified leads</b> for the ${safeName(prop)} launch, plus spend pacing and creative efficiency. Showing <b>${rangeLabel()}</b> across <b>${chans.map(safeName).join(', ')}</b> - ${int(a.leads)} enquiries · ${money(a.spend)} spend.`
       : leadsWithheld()
-      ? `Reach, delivery and cost efficiency for the ${safeName(prop)} launch, plus spend pacing against the signed media plan. ${delivery} <b>Enquiry reporting is paused</b> until the CRM feed is connected.`
+      ? `Reach, delivery and cost efficiency for the ${safeName(prop)} launch, plus spend pacing against the signed media plan. ${delivery} `+(crmReportable()
+          ? `<b>Enquiries are reported from the CRM</b> below - the platforms' own enquiry counts are not shown.`
+          : `<b>Enquiry reporting is paused</b> until the CRM feed is connected.`)
       : `Reach, delivery and cost efficiency for the ${safeName(prop)} launch, plus spend pacing against the signed media plan. ${delivery} ${escProp(src)} buys awareness inventory with no lead form, so this development reports no enquiries.`;
   }
 }
@@ -2190,12 +2358,21 @@ function renderNote(){
   // Printing the awareness sentence anyway would be the one line on this page a client could catch
   // us out on, so the withheld state gets its own words.
   if(leadsWithheld()){
-    $('ovNote').innerHTML=`<b>How to read this.</b> <b>Enquiry reporting is paused</b> while the CRM `
-      +`connection is being built. The ad platforms report a form submission, which is not the same `
-      +`thing as a qualified enquiry, so enquiry volume and cost per enquiry are held back rather `
-      +`than published as an outcome they cannot yet stand behind - they return here once the CRM `
-      +`feed is live. What this page reports meanwhile is delivery: impressions, clicks, CTR and `
-      +`cost efficiency against the signed media plan. ${tail}`;
+    $('ovNote').innerHTML=(crmReportable()
+      ? `<b>How to read this.</b> Enquiries on this page come from <b>Geocon's Salesforce CRM</b> `
+        +`- see the enquiries section above. The ad platforms also report a form-submission count `
+        +`of their own, using modelled attribution; it is a different measure and is deliberately `
+        +`not shown, because publishing both invites the two being read as one. Everything else `
+        +`here is delivery: impressions, clicks, CTR and cost efficiency against the signed media `
+        +`plan. Cost per enquiry divides all media spend by all CRM enquiries, including any that `
+        +`advertising did not produce, so read it as campaign-period efficiency and not as a media `
+        +`cost per acquisition. ${tail}`
+      : `<b>How to read this.</b> <b>Enquiry reporting is paused</b> while the CRM `
+        +`connection is being built. The ad platforms report a form submission, which is not the same `
+        +`thing as a qualified enquiry, so enquiry volume and cost per enquiry are held back rather `
+        +`than published as an outcome they cannot yet stand behind - they return here once the CRM `
+        +`feed is live. What this page reports meanwhile is delivery: impressions, clicks, CTR and `
+        +`cost efficiency against the signed media plan. ${tail}`);
     return;
   }
   // The qualified-lead model only means anything where a platform reports enquiries at all.
@@ -2584,6 +2761,7 @@ function renderGaEvents(){
     +`<b>Web enquiry tracking is thin today</b>: the sites record <b>form starts</b> but no form-submit key `
     +`event is configured yet, so nothing here is an enquiry count`
     +(LEADS_REPORTABLE?` - platform-reported enquiries remain the source of truth.`
+       :crmReportable()?` - the CRM enquiry count on the Overview is the source of truth.`
                       :`, and enquiry reporting is paused until the CRM feed is connected.`)
     +` Worth asking for a GA4 key event on the enquiry form.`;
 }
@@ -2591,7 +2769,7 @@ function renderGaEvents(){
 // ---------- controls ----------
 function bindControls(){
   document.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>{STATE.view=b.dataset.view;renderViewState();}));
-  document.querySelectorAll('#grainSeg button').forEach(b=>b.addEventListener('click',()=>{STATE.grain=b.dataset.grain;document.querySelectorAll('#grainSeg button').forEach(x=>x.classList.toggle('on',x.dataset.grain===STATE.grain));renderTrend();wireKpiToggles();}));
+  document.querySelectorAll('#grainSeg button').forEach(b=>b.addEventListener('click',()=>{STATE.grain=b.dataset.grain;document.querySelectorAll('#grainSeg button').forEach(x=>x.classList.toggle('on',x.dataset.grain===STATE.grain));renderTrend();renderCrm();wireKpiToggles();}));
   document.querySelectorAll('#axisSeg button').forEach(b=>b.addEventListener('click',()=>{STATE.axis=b.dataset.axis;document.querySelectorAll('#axisSeg button').forEach(x=>x.classList.toggle('on',x.dataset.axis===STATE.axis));renderTrend();wireKpiToggles();}));
   $('searchBox').addEventListener('input',()=>{STATE.search=$('searchBox').value.trim();renderBenchTable();renderSegment();renderTables();renderBurn();renderCreative();renderPlatformTable();});
 }

@@ -17,6 +17,8 @@
 #   raw_windsor.perf_linkedin        <- windsor-linkedin-ingest   (LinkedIn Ads, all granted accounts; per-account
 #                                                                  2-pass, skips accounts that hard-error e.g. 500 'start')
 #   raw_windsor.hubspot_*            <- windsor-hubspot-ingest     (Reset Data CRM snapshot: contacts/deals/owners)
+#   raw_windsor.geocon_salesforce_leads <- windsor-salesforce-ingest (Geocon CRM leads - the only Salesforce
+#                                                                  grant Windsor holds. NO PII by design.)
 #   raw_snowflake.*                  <- snowflake-ingest          (Salesforce/TTD/GA/etc, all clients)
 #
 # (Google Ads + GA4 are NOT here - they auto-refresh daily via BigQuery Data Transfer Service.)
@@ -25,7 +27,7 @@
 # from a laptop). Mirrors the per-client deploy_job_*.ps1 pattern.
 #
 #   .\scripts\deploy_ingest_jobs.ps1                 # build + deploy + (re)schedule all jobs
-#   .\scripts\deploy_ingest_jobs.ps1 -Only neto      # just one: neto|meta|tradedesk|fields|reddit|linkedin|hubspot|snowflake
+#   .\scripts\deploy_ingest_jobs.ps1 -Only neto      # just one: neto|meta|tradedesk|fields|reddit|linkedin|hubspot|salesforce|snowflake
 #   .\scripts\deploy_ingest_jobs.ps1 -SkipBuild      # redeploy + reschedule without rebuilding
 #   .\scripts\deploy_ingest_jobs.ps1 -Run            # also execute each job once after deploy
 #
@@ -59,6 +61,7 @@ $JOBS = @(
   @{ key="reddit";    dir="ingest/windsor_data_pull/reddit";    job="windsor-reddit-ingest";    mem="1Gi"; cpu="1"; cron="50 21 * * *" },
   @{ key="linkedin";  dir="ingest/windsor_data_pull/linkedin";  job="windsor-linkedin-ingest";  mem="1Gi"; cpu="1"; cron="40 21 * * *" },
   @{ key="hubspot";   dir="ingest/windsor_data_pull/hubspot";   job="windsor-hubspot-ingest";   mem="1Gi"; cpu="1"; cron="55 21 * * *" },
+  @{ key="salesforce"; dir="ingest/windsor_data_pull/salesforce"; job="windsor-salesforce-ingest"; mem="1Gi"; cpu="1"; cron="05 21 * * *" },  # Geocon CRM leads (the ONLY Salesforce grant Windsor holds). Records, not daily metrics: it re-pulls a 90-day trailing window every run and MERGEs on lead_id, because a lead's Status keeps moving for months after it was created. Runs FIRST in the nightly block so geocon-export's next self-gated tick sees it.
   # GA4 (2026-08-31): PINNED to an EXPLICIT property list via GA4_ACCOUNTS - the loaders' full
   # laptop lists include ~20 properties whose GA4 comes via DTS (or is dormant), and a scheduled
   # unpinned run would attempt full backfills for all of them. `env` uses gcloud's custom
