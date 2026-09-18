@@ -189,3 +189,9 @@ details.fm-more[open] summary{color:var(--text)}
   .fm-inline label select{min-width:0;flex:1}
   .fm-inline label{flex:1}
 }
+
+/* The PUBLIC privacy notice, linked from the Channels header. Staff are the ones people ask, so
+   the link has to be findable without opening the help expander. */
+.fm-notice-link{font-size:12.5px;color:var(--muted);text-decoration:none;border-bottom:1px dotted var(--muted-2);
+                padding-bottom:1px}
+.fm-notice-link:hover{color:var(--text);border-bottom-color:var(--text)}

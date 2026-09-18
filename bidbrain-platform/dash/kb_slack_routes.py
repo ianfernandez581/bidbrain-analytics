@@ -253,6 +253,19 @@ def _sync_quietly(tok, since_ts, actor, only_channel=None):
 
 # --- page + api ----------------------------------------------------------------------------------
 
+@bp.get("/kb/slack-notice")
+def slack_notice():
+    """The PUBLIC privacy notice. No login, deliberately - Slack's Developer Policy requires a
+    "publicly available and easily accessible" policy for an app that stores workspace data, and
+    the announcement in Slack points at this page.
+
+    🔴 KEEP IT STATIC. It is the only ungated route on this service, so it must render fixed text
+    and read nothing: no session, no registry, no query parameter, no knowledge-base content. If
+    this page ever needs a live value, gate it or put the value somewhere else.
+    """
+    return render_template("kb_slack_notice.html")
+
+
 @bp.get("/kb/channels")
 def channels_page():
     d = _deny_page()
