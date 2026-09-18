@@ -50,6 +50,32 @@ INTERNAL_DOMAINS = frozenset(d.strip().lower() for d in
                              if d.strip())
 
 
+# 🔴 NEVER LEARNED AS A CLIENT'S DOMAIN. A consumer mailbox says nothing about which company a
+# person belongs to, so learning one would route every later conversation carrying any address at
+# that provider to whichever client happened to be assigned first. The PERSON is still learned;
+# only the domain rung is skipped (see teaches/learn). Env-overridable so a new provider does not
+# need a deploy. Deliberately short: a well-known-consumer list, not an exhaustive one - anything
+# missed is still caught by the untick boxes on the queue card.
+FREE_MAIL_DOMAINS = frozenset(d.strip().lower() for d in
+                              (os.environ.get("KB_FREE_MAIL_DOMAINS") or
+                               "gmail.com,googlemail.com,yahoo.com,yahoo.co.uk,hotmail.com,hotmail.co.uk,"
+                               "outlook.com,live.com,msn.com,icloud.com,me.com,mac.com,aol.com,"
+                               "proton.me,protonmail.com,gmx.com,mail.com,yandex.com,zoho.com,"
+                               "qq.com,163.com,126.com").split(",")
+                              if d.strip())
+
+
+def is_free_mail(domain):
+    """A consumer mailbox provider - identifies a person, never an organisation."""
+    return (domain or "").strip().lower() in FREE_MAIL_DOMAINS
+
+
+def learnable_domain(inv):
+    """The domain to LEARN for this invitee, or "" when it teaches nothing."""
+    dom = invitee_domain(inv)
+    return "" if is_free_mail(dom) else dom
+
+
 def invitee_domain(inv):
     email = (inv.get("email") or "").strip().lower()
     return ((inv.get("email_domain") or email.rsplit("@", 1)[-1]) if (inv.get("email_domain") or "@" in email) else "").lower()
@@ -149,10 +175,10 @@ def teaches(meeting):
         email = (inv.get("email") or "").strip().lower()
         if not email or not is_external(inv):
             continue
-        dom = invitee_domain(inv)
+        dom = learnable_domain(inv)              # "" for a consumer mailbox - the person still counts
         if email not in people:
             people.append(email)
-        if dom not in domains:
+        if dom and dom not in domains:
             domains.append(dom)
     return {"people": people, "domains": domains,
             "title": norm_title(meeting.get("title") or meeting.get("meeting_title"))}
@@ -169,10 +195,10 @@ def learn(client_key, meeting, evidence, patterns=None, skip=None):
         email = (inv.get("email") or "").strip().lower()
         if not email or not is_external(inv):
             continue
-        dom = invitee_domain(inv)
+        dom = learnable_domain(inv)              # "" for a consumer mailbox - see FREE_MAIL_DOMAINS
         if email not in skip:
             _bump(doc["people"], email, evidence)
-        if dom not in skip:
+        if dom and dom not in skip:
             _bump(doc["domains"], dom, evidence)
     title = norm_title(meeting.get("title") or meeting.get("meeting_title"))
     if title and title not in skip:

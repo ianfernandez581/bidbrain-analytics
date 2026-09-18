@@ -301,18 +301,28 @@ def _claude(prefix, messages):
 _IMPL = {KIMI: _kimi, GEMINI: _gemini, CLAUDE: _claude}
 
 
-def stream(prefix, messages, prefer=None):
+def stream(prefix, messages, prefer=None, exclude=()):
     """Stream one answer. Yields ("model", name) first, then ("token", text)..., ("usage", {...}).
+
+    `exclude` = providers that may NOT see this particular prompt, whatever the person chose - the
+    caller decides from what the prompt CONTAINS (kb_slack.withhold_from: Slack-derived passages
+    never go to a provider whose terms allow training on inputs). An excluded provider is skipped,
+    not failed over from; the "model" payload names it so the answer can say so.
 
     Raises ProviderError only when EVERY available provider failed before its first token.
     """
-    order = [p for p in ([prefer] if prefer else []) + available() if configured(p)]
+    exclude = frozenset(exclude or ())
+    order = [p for p in ([prefer] if prefer else []) + available() if configured(p) and p not in exclude]
     seen, ordered = set(), []
     for p in order:
         if p not in seen:
             seen.add(p)
             ordered.append(p)
     if not ordered:
+        if exclude:
+            raise ProviderError("none", "The only configured model (%s) may not be shown this content. The "
+                                        "passages above are still the real search result."
+                                        % ", ".join(LABELS.get(p, p) for p in sorted(exclude)))
         raise ProviderError("none", "No model is configured for this deployment. The knowledge "
                                     "base can still be searched; it cannot answer in prose.")
     last = None
@@ -330,6 +340,7 @@ def stream(prefix, messages, prefer=None):
                     yield ("model", {"provider": provider, "label": LABELS[provider],
                                      "model": model_of(provider),
                                      "fallback": i > 0,
+                                     "withheld_from": sorted(exclude),
                                      "first_token_ms": int((time.monotonic() - started) * 1000)})
                 yield (kind, payload)
             if sent:

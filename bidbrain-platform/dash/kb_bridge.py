@@ -106,7 +106,10 @@ def retrieve_for_client(client, messages):
     passages = []
     for ex in res.get("excerpts") or []:
         m = metas.get(ex.get("document_id")) or {}
-        if m.get(VISIBILITY_FIELD) != VISIBILITY_CLIENT or m.get("kind") == "meeting":
+        # Meetings and Slack conversations never reach a customer, whatever their visibility says:
+        # both are the agency talking, not something written FOR the client (kb_slack, 2026-09-17).
+        if (m.get(VISIBILITY_FIELD) != VISIBILITY_CLIENT or m.get("kind") in ("meeting", "conversation")
+                or m.get("source") == "slack"):
             continue
         passages.append({
             "n": len(passages) + 1, "doc_id": ex.get("document_id"), "title": ex.get("title") or "",

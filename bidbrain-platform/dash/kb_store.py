@@ -43,9 +43,11 @@ MAX_REVISIONS = 40              # per document; the oldest fall off
 # corner of the real bucket (KB_PREFIX=kb-dev) instead of writing into the live library.
 PREFIX = os.environ.get("KB_PREFIX", "kb").strip("/") or "kb"
 
-KINDS = ("note", "plan", "brief", "meeting", "reference", "feedback")
+KINDS = ("note", "plan", "brief", "meeting", "reference", "feedback",
+         "conversation")   # conversation: kb_slack.py - a Slack thread or channel-day (2026-09-17)
 DEFAULT_KIND = "note"
-SOURCES = ("upload", "paste", "assistant", "feedback", "fathom")   # fathom: kb_fathom.py (2026-09-15)
+SOURCES = ("upload", "paste", "assistant", "feedback", "fathom",    # fathom: kb_fathom.py (2026-09-15)
+           "slack")                                                # slack: kb_slack.py (2026-09-17)
 DEFAULT_SOURCE = "paste"
 TRUST_VERIFIED = "verified"
 TRUST_STANDARD = "standard"

@@ -20,3 +20,7 @@ opentelemetry-exporter-otlp-proto-common==1.44.0
 python-docx==1.2.0
 python-pptx==1.0.2
 openpyxl==3.1.5
+# kb_slack.py buckets messages into calendar days in Australia/Sydney via zoneinfo, which reads the
+# system tz database. A slim image may not ship one; this is the pure-Python fallback, so a
+# missing database degrades to UTC days silently instead of loudly - and this makes it not missing.
+tzdata==2026.4   # as of 2026-09-17 (pip index versions tzdata)
