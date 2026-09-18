@@ -11,6 +11,11 @@ WITH u AS (
   SELECT platform, metric_date, country, phase, tactic, imps, clicks, spend_aud FROM `bidbrain-analytics.client_schneiderlqai.stg_linkedin`
   UNION ALL
   SELECT platform, metric_date, country, phase, tactic, imps, clicks, spend_aud FROM `bidbrain-analytics.client_schneiderlqai.stg_tradedesk`
+  UNION ALL
+  -- Reddit joined 2026-09-18 (live 09-15). AUD like the two above, so it needs no conversion -
+  -- see sql/07's header for the three checks that settled that. Google Search stays OUT of this
+  -- union on purpose: it is USD-native and is blended only after both sides are EUR.
+  SELECT platform, metric_date, country, phase, tactic, imps, clicks, spend_aud FROM `bidbrain-analytics.client_schneiderlqai.stg_reddit`
 )
 SELECT
   platform,

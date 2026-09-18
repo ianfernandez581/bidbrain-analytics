@@ -804,6 +804,15 @@ const PLATFORMS = [
   // has no creatives (campaign-grain feed).
   // `ink` because white text is unreadable on Google's yellow (cloudflare's Google Ads colour).
   {key:'google_search', label:'Google Search', color:'#F5C542', ink:'#1A1A1A'},
+  // Reddit (2026-09-18, live 09-15). Unlike Google Search this needs NO special handling at all:
+  // its rows come through `delivery` in AUD like LinkedIn and Trade Desk, so the existing shims,
+  // pmRows(), the KPI band, the hero trend, the channel table, the donut, the country table and
+  // the CSV pick it up from this one entry. Verified AUD from our own warehouse - see
+  // sql/07_stg_reddit's header before anyone "fixes" it with a conversion.
+  // It DOES carry a real tactic split (Subreddit whitelist vs Interest targeting, one ad group
+  // each per country), so the Channel phases table gains six rows rather than one flat Reddit row.
+  // Reddit orange - dark ink, the Google Search reasoning (white is unreadable on it).
+  {key:'reddit', label:'Reddit', color:'#FF4500', ink:'#1A1A1A'},
 ];
 const PLAT_LABEL = Object.fromEntries(PLATFORMS.map(p=>[p.key,p.label]));
 const PROG_PALETTE = ['#007E2A','#2867B2','#F2A900','#8E44AD','#0E7C86','#B97400','#5A6B78','#12B5C9','#9AD4B5'];

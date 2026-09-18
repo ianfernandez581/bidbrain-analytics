@@ -34,6 +34,11 @@ GATING_TABLES = [
     # The content-syndication lane (2026-09-14). Without this a CS-only advance would never
     # trigger a rebuild and the lead figures would sit frozen behind a green freshness stamp.
     "raw_snowflake.salesforce_cs_apac_all",
+    # Reddit (2026-09-18, live 09-15) is the one lane on WINDSOR, not Snowflake - the buy includes
+    # BRAZIL, which their APAC export cannot carry. It needs its own gate entry for the same reason
+    # the CS lane above does: a Reddit-only advance would otherwise never trigger a rebuild and the
+    # figures would sit frozen behind a green freshness stamp.
+    "raw_windsor.perf_reddit",
 ]
 WATERMARK_OBJECT = "_freshness.json"
 
@@ -45,7 +50,7 @@ BUCKET = f"bidbrain-analytics-{CLIENT}-dash"
 DATA_OBJECT = f"{CLIENT}.json"
 
 # Channel key -> display label. Only channels with delivery rows are emitted.
-CHAN_LABEL = {"linkedin": "LinkedIn", "tradedesk": "The Trade Desk"}
+CHAN_LABEL = {"linkedin": "LinkedIn", "tradedesk": "The Trade Desk", "reddit": "Reddit"}
 # Country display order (India dominates; then the media-plan regions).
 COUNTRY_ORDER = {"India": 0, "Australia": 1, "Brazil": 2, "Chile": 3, "Saudi Arabia": 4, "UAE": 5, "Other": 9}
 REGION_ORDER = {"India": 0, "Pacific": 1, "South America": 2, "MEA": 3, "Other": 9}
