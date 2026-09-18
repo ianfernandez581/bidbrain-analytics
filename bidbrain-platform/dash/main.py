@@ -1917,12 +1917,31 @@ _SYNC_EXPORT_JOBS = ["mongodb-export", "cloudflare-export", "stt-export",
                      # sophiie-export joined on the 2026-09-05 go-live. A job name that does NOT
                      # exist 404s on the Run Admin API and puts this button in a permanent red
                      # failure, so only ever add a client here AFTER its export job is deployed.
-                     "sophiie-export"]
+                     "sophiie-export",
+                     # EVERY REMAINING CLIENT WITH A LIVE EXPORT JOB, added 2026-09-18 after an
+                     # audit against `gcloud run jobs list` + `gcloud run services list`. The
+                     # button says "Sync all dashboards now" and was covering 7 of 14 - it skipped
+                     # both other Schneider dashboards and every Windsor-sourced client. A MISSING
+                     # name fails the OPPOSITE way to a wrong one: a wrong name 404s and turns this
+                     # button permanently red, a missing one is invisible - no error, the button
+                     # goes green, and that dashboard just keeps serving whatever its last `*/10`
+                     # tick built. So audit the WHOLE list, never only append your own client.
+                     # A forced rebuild is worth running even for a client whose upstream mirror
+                     # only loads nightly: the `*/10` gate does NOT watch views or seed tables, so
+                     # FORCE_REBUILD is the only thing that picks up a view or seed change (see
+                     # AGENTS.md "Any view-only or seed/static change requires a forced job run").
+                     "schneiderlqai-export", "schneidersecpwr-export",
+                     "caltex-export", "geocon-export", "resetdata-export",
+                     "tlm-export", "vmch-export"]
+# DELIBERATELY EXCLUDED: `cityperfume-export`. The job still exists, but the client was offboarded
+# 2026-09-01 and BOTH its web services were DELETED, so a rebuild would publish a JSON that nothing
+# serves. Do not add it back to make the list "complete" - completeness here means every client a
+# person can actually open.
 
 
 @app.post("/sync-all")
 def sync_all():
-    """'Sync all dashboards now' (Overview) — force-rebuild every Snowflake client's export + the
+    """'Sync all dashboards now' (Overview) — force-rebuild every client's export + the
     status checks. Triggers each <c>-export + status-export (FORCE_REBUILD) via the Run Admin API
     (platform SA needs run.invoker on them). Returns immediately; the dashboards rebuild over the
     next few minutes and the Overview timestamps reset as each finishes."""
