@@ -169,6 +169,49 @@ def recent(back=LOOKBACK_MONTHS, limit=5000):
     return out[-limit:]
 
 
+# --- the "What landed" page, for Meetings and Channels alike ------------------------------------
+
+PAGE_DEFAULT = 25
+PAGE_MAX = 200
+
+
+def page(events, group, kind="", limit=PAGE_DEFAULT, offset=0):
+    """One page of the audit record for `group` ("meetings" | "slack"), NEWEST FIRST.
+
+    The Meetings and Channels pages were each slicing the whole record client-side, so a workspace
+    with a few hundred events shipped every one of them to draw twenty-five. Both endpoints call
+    this instead, so the two can never drift apart.
+
+    🔴 `counts` IS COUNTED BEFORE `kind` IS APPLIED and `total` AFTER, deliberately: the filter
+    tiles must keep showing every kind's real size while you are looking at one of them, and the
+    pager must count only what it is paging through. Getting this backwards makes a tile read 0
+    the moment you select a different one.
+
+    -> {"events": [...], "counts": {kind: n}, "total": n, "offset": n, "limit": n, "has_more": bool}
+    """
+    try:
+        limit = max(1, min(PAGE_MAX, int(limit)))
+    except (TypeError, ValueError):
+        limit = PAGE_DEFAULT
+    try:
+        offset = max(0, int(offset))
+    except (TypeError, ValueError):
+        offset = 0
+    mine = [e for e in (events or []) if kind_group(e.get("kind")) == group]
+    counts = {}
+    for e in mine:
+        counts[e.get("kind")] = counts.get(e.get("kind"), 0) + 1
+    if kind:
+        mine = [e for e in mine if e.get("kind") == kind]
+    mine = list(reversed(mine))                          # newest first, then page
+    total = len(mine)
+    if offset >= total:                                  # a stale "next" after a filter change
+        offset = 0
+    window = mine[offset:offset + limit]
+    return {"events": window, "counts": counts, "total": total,
+            "offset": offset, "limit": limit, "has_more": offset + len(window) < total}
+
+
 # --- what the Observability page shows ----------------------------------------------------------
 
 def summarise(events, known_doc_ids=None):

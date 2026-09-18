@@ -391,25 +391,19 @@ def meeting_log():
     if d:
         return d
     import kb_activity
-    want = (request.args.get("kind") or "").strip()
-    try:
-        limit = max(1, min(500, int(request.args.get("limit") or 200)))
-    except ValueError:
-        limit = 200
     try:
         events = kb_activity.recent()
     except Exception:                        # noqa: BLE001 - an unreadable log is not a 500 here
         log.exception("fathom: could not read the activity record")
         return jsonify(ok=False, error="The record could not be read.", events=[], counts={}), 200
 
-    mine = [e for e in events if kb_activity.kind_group(e.get("kind")) == "meetings"]
-    counts = {}
-    for e in mine:
-        counts[e.get("kind")] = counts.get(e.get("kind"), 0) + 1
-    if want:
-        mine = [e for e in mine if e.get("kind") == want]
-    return jsonify(ok=True, events=list(reversed(mine))[:limit], counts=counts,
-                   kinds=list(kb_activity.GROUPS["meetings"]), total=len(mine))
+    # Paged HERE, not on the page. kb_activity.page is shared with the Channels record so the two
+    # cannot drift; it also explains why `counts` is taken before the kind filter and `total` after.
+    pg = kb_activity.page(events, "meetings",
+                          kind=(request.args.get("kind") or "").strip(),
+                          limit=request.args.get("limit") or kb_activity.PAGE_DEFAULT,
+                          offset=request.args.get("offset") or 0)
+    return jsonify(ok=True, kinds=list(kb_activity.GROUPS["meetings"]), **pg)
 
 
 @bp.post("/kb/api/fathom/rebuild")

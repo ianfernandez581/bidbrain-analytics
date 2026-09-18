@@ -93,8 +93,14 @@ details.fm-more[open] summary{color:var(--text)}
 .fm-logbits b{color:var(--text);font-weight:600}
 .fm-logwho,.fm-logwhen{color:var(--muted);font-size:11.5px;white-space:nowrap;font-variant-numeric:tabular-nums}
 .fm-over{color:var(--warn)}
+/* The model's reasoning is the least-read thing on a row and the longest. Clamped to two lines by
+   default; .open (set by a click on the Channels page) shows all of it. CLAMPED, NEVER HIDDEN -
+   it is the audit trail for a filing nobody chose. */
 .fm-logwhy{grid-column:2/-1;color:var(--muted);font-size:11.5px;line-height:1.5;margin-top:2px;
   overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.fm-logwhy[role="button"]{cursor:pointer}
+.fm-logwhy[role="button"]:hover{color:var(--text)}
+.fm-logwhy.open{-webkit-line-clamp:unset;display:block}
 .fm-pill.lg-filed{color:var(--active);border-color:rgba(34,197,94,.3)}
 .fm-pill.lg-queued{color:var(--warn);border-color:rgba(240,163,94,.35)}
 .fm-pill.lg-assigned{color:var(--gold);border-color:rgba(243,201,105,.32)}
@@ -195,3 +201,12 @@ details.fm-more[open] summary{color:var(--text)}
 .fm-notice-link{font-size:12.5px;color:var(--muted);text-decoration:none;border-bottom:1px dotted var(--muted-2);
                 padding-bottom:1px}
 .fm-notice-link:hover{color:var(--text);border-bottom-color:var(--text)}
+
+/* The pager under "What landed" on BOTH Meetings and Channels. The server pages the record
+   (kb_activity.page), so this states where you are in it rather than implying the page holds
+   everything. Hidden entirely when one page covers the lot. */
+.lg-pager{display:flex;align-items:center;gap:10px;margin:10px 0 2px;font-size:12px;color:var(--muted)}
+.lg-pager .lg-range{font-variant-numeric:tabular-nums}
+.lg-pager .spacer{flex:1}
+.lg-pager .btn.sm{padding:5px 12px;font-size:12px}
+.lg-pager .btn.sm[disabled]{opacity:.45;cursor:default}

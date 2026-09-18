@@ -508,24 +508,18 @@ def slack_log():
     if d:
         return d
     import kb_activity
-    want = (request.args.get("kind") or "").strip()
-    try:
-        limit = max(1, min(500, int(request.args.get("limit") or 200)))
-    except ValueError:
-        limit = 200
     try:
         events = kb_activity.recent()
     except Exception:                        # noqa: BLE001
         log.exception("slack: could not read the activity record")
         return jsonify(ok=False, error="The record could not be read.", events=[], counts={}), 200
-    mine = [e for e in events if kb_activity.kind_group(e.get("kind")) == "slack"]
-    counts = {}
-    for e in mine:
-        counts[e.get("kind")] = counts.get(e.get("kind"), 0) + 1
-    if want:
-        mine = [e for e in mine if e.get("kind") == want]
-    return jsonify(ok=True, events=list(reversed(mine))[:limit], counts=counts,
-                   kinds=list(kb_activity.GROUPS["slack"]), total=len(mine))
+    # Paged HERE, not on the page: a workspace with a few hundred events was shipping every one of
+    # them to draw a screenful. kb_activity.page is shared with Meetings so the two cannot drift.
+    pg = kb_activity.page(events, "slack",
+                          kind=(request.args.get("kind") or "").strip(),
+                          limit=request.args.get("limit") or kb_activity.PAGE_DEFAULT,
+                          offset=request.args.get("offset") or 0)
+    return jsonify(ok=True, kinds=list(kb_activity.GROUPS["slack"]), **pg)
 
 
 # --- Slack -> us -----------------------------------------------------------------------------------
