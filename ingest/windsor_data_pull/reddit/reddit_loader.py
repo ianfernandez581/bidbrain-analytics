@@ -111,6 +111,24 @@ SELECT_ACCOUNTS = [
                          # re-grant ACTUALLY connected (mis-mapped to resetdata until 2026-08-05).
                          # Kept ingesting under its true tags; no dashboard reads it (Cloudflare's
                          # Reddit lane comes from raw_snowflake).
+    "a2_jl767nztzctc",   # Schneider APAC AUD -- the LQAIDC Reddit lane, live 2026-09-15 (3
+                         # campaigns: 2306_SE_LQAIDC_RDT_AWR_{AU,IN,BR}_Sep26, all ACTIVE).
+                         # Transmission said "Reddit activated" on 09-15 and were right to the
+                         # day; the three-day silence was OURS -- the account was granted and
+                         # readable in Windsor the whole time and simply was not in this list.
+                         # THE LESSON: our Windsor connection can SEE more Reddit accounts than
+                         # we ingest (8 at 2026-09-18), so "no rows in the mirror" never proves
+                         # "not granted" -- list the accounts before concluding anything, and
+                         # note one of them (t2_1upmecjq) does not carry the a2_ prefix, so do
+                         # not pattern-match ids.
+                         # BRAZIL rides in this account, which is why WINDSOR is the right source
+                         # here and Transmission's APAC Snowflake export never could have been.
+                         # CURRENCY IS UNRESOLVED: account_currency says AUD, Windsor's own field
+                         # description for `spend` says USD. Do NOT build a client-facing figure
+                         # on it until an invoice or Reddit Ads Manager settles it -- this feeds
+                         # the one EUR dashboard in the estate, so a wrong source currency is a
+                         # silent ~1.5x error. We store account_currency, so the raw row keeps
+                         # whatever Windsor claims and the decision stays in client SQL.
     # Add more bare Reddit account ids here AND map them in REDDIT_ACCOUNT_TO_CLIENT below.
     # Find ids at https://onboard.windsor.ai?datasource=reddit.
 ]
@@ -171,6 +189,10 @@ REDDIT_ACCOUNT_TO_CLIENT = {
     # Fixed 2026-08-05: Cloudflare rows retagged + ResetData history re-backfilled via a
     # fixed-range --force re-pull (the MERGE re-stamps client_slug on matched keys). Before
     # mapping ANY new opaque a2_... id, verify its account_name against the Windsor API first.
+    "a2_jl767nztzctc": ("schneiderlqai", "transmission"),  # Schneider APAC AUD (LQAIDC Reddit).
+                                                           # Verified against the Windsor account
+                                                           # list 2026-09-18 before mapping, per
+                                                           # the rule above.
 }
 
 # Fallback keyword match on account name / campaign (same dict as the other loaders -- keep in

@@ -11,9 +11,12 @@
 #   raw_windsor.perf_meta            <- windsor-meta-ingest       (Meta, all granted accounts)
 #   raw_windsor.perf_the_trade_desk  <- windsor-tradedesk-ingest  (TTD, per-account + self-heal)
 #   raw_windsor.windsor_fields       <- windsor-fields-ingest     (Windsor field catalogue, new-field watch)
-#   raw_windsor.perf_reddit          <- windsor-reddit-ingest     (Reddit Ads: resetdata + a cloudflare-tagged
-#                                                                  Transmission seat; skips cleanly if the
-#                                                                  Windsor reddit connector grant has lapsed)
+#   raw_windsor.perf_reddit          <- windsor-reddit-ingest     (Reddit Ads: resetdata, a cloudflare-tagged
+#                                                                  Transmission seat, and Schneider APAC AUD
+#                                                                  (LQAIDC, added 2026-09-18); skips cleanly if
+#                                                                  the Windsor reddit connector grant has lapsed.
+#                                                                  Windsor exposes MORE accounts than this job
+#                                                                  pulls - see SELECT_ACCOUNTS in the loader)
 #   raw_windsor.perf_linkedin        <- windsor-linkedin-ingest   (LinkedIn Ads, all granted accounts; per-account
 #                                                                  2-pass, skips accounts that hard-error e.g. 500 'start')
 #   raw_windsor.hubspot_*            <- windsor-hubspot-ingest     (Reset Data CRM snapshot: contacts/deals/owners)
