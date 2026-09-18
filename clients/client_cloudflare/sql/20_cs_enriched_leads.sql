@@ -176,7 +176,7 @@ SELECT
   DAY,
   CAMPAIGN,
   CAMPAIGN_ID,
-  -- Join key to sql/21_integrate_bridge, added 2026-09-18. Integrate carries NO Salesforce id
+  -- Join key to sql/19b_integrate_bridge, added 2026-09-18. Integrate carries NO Salesforce id
   -- (its LEAD_ID is its own GUID), so email + campaign is the only way across - and the email
   -- is HASHED here so a join key can exist without this view carrying an address. The pair is
   -- not unique on its own, which is why every consumer joins on LEAD_KEY *and* CAMPAIGN and

@@ -25,7 +25,7 @@
 -- offer and `OFFER_TYPE` from sql/20 is authoritative. VRSM (701RG00001W1FQRYA3) is the single
 -- campaign that mixes enrichable survey leads with Lead Magnet leads, which is why it has been
 -- excluded from the enrichment rate entirely - nothing in the Salesforce feed separates them.
--- Integrate's URL does (see sql/21_integrate_bridge), so the override applies THERE AND NOWHERE
+-- Integrate's URL does (see sql/19b_integrate_bridge), so the override applies THERE AND NOWHERE
 -- ELSE. Applying it everywhere would re-derive offers that are already correct and silently
 -- move figures the client has signed off.
 --

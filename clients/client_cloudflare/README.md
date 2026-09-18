@@ -2782,7 +2782,7 @@ opening the form is a targeting problem, opening and abandoning is a form proble
 
 ### The Integrate lane - offer split + rejection reasons (2026-09-18)
 
-Three views, one source. **`sql/21_integrate_bridge` is the ONLY reader of
+Three views, one source. **`sql/19b_integrate_bridge` is the ONLY reader of
 `raw_snowflake.integrate_leads`** - it emits a hashed key, the campaign, the source id, the
 vendor, the disposition, a PII-scrubbed reason and the URL-derived offer, and nothing else.
 `sql/22` (rejection reasons) and `sql/23` (enrichment by publisher) both read the bridge, so
@@ -2873,9 +2873,23 @@ reason" can legitimately read `POSTOUT_SUCCESS`.
 **Reasons can be treated as final.** Across two loads 18h apart, 85 rows changed code - every
 one an accepted-lane progression, zero rejection codes, zero `STATUS` changes.
 
-**NOT YET LIVE:** the `TABLES` line in `ingest/snowflake_data_pull/loader.py` is committed but
-the mirror has not been run. Deploy order is **ingest -> views -> job -> dash**; apply views
-and force the job after the first mirror run. Until then the job
+**LIVE since 2026-09-18** (job `fd7f567`, dash revision `00204-wwr`). Deploy order is
+**ingest -> views -> job -> dash**. NOTE the views alone are enough to move a client-facing
+figure: the `*/10` export gate picked up the blank-fill and republished the headline
+80.9% -> 83.5% before the dashboard shipped, so treat `create_views.py` on this client as a
+PUBLISHING action, not a staging one.
+
+**The blank-fill (2026-09-18).** `sql/20` falls back to Integrate wherever Salesforce carries
+no enrichment. It rescues 50 accepted survey leads (46 VSRM + 4 Final Funnel) that Integrate
+enriched between 3 and 24 Aug and never re-sent - a single 73-second retroactive batch on
+27 Aug that, being already delivered, triggered no re-send. **`'-'` therefore means TWO
+things and only the date separates them**: in July it genuinely means never submitted (0 of
+11 such leads are enriched in Integrate), from 3 Aug it means enriched-and-not-delivered (46
+of 52 are). Excluding those leads from the denominator - the obvious remedy - would have
+HIDDEN 46 successes. Verified over the whole flight before writing it: B-only 0, both-hold
+402 with 402 exact digit matches and zero conflicts, A-only 50. It is a COALESCE and must
+stay one - 903 accepted survey leads from Mar-Jun have no row in Integrate at all.
+Live figures: VSRM 130/106 = 81.5% (was 46%), panel total 543/451 = 83.1%. Until then the job
 prints a WARNING naming the view and the panel stays hidden - deliberately tolerant, because
 this panel is additive and must not take the whole export down, but LOUD, because a silent
 catch here is the geocon trap that published `0 CRM leads` against a full view.
