@@ -1261,6 +1261,31 @@ thing it was evidence for. The list now collapses behind a one-line summary -
 - The stagger is scoped to `.is-open`. A CSS animation starts when its rule begins to match, so
   the cascade plays **when you open the list**, not unseen behind a closed one at render.
 
+### The answer is set as prose, not as a chat bubble (2026-09-18)
+- **🔴 `mdToHtml` EMITTED NO BLOCK ELEMENTS AT ALL.** It substituted bold, code, a bullet
+  character and the citation links inline and handed the result to `innerHTML` - so every blank
+  line the model wrote was collapsed by HTML whitespace rules and a six-paragraph answer arrived
+  as one unbroken slab. The stylesheet had `.kbp-bubble p` and `ul` rules that nothing could ever
+  match. Paragraphs, bullet and numbered lists and short headings are now real elements, which is
+  most of the readability win. It is deliberately not a markdown library: it renders the four
+  things the model is asked to produce and leaves anything else as the text it literally is.
+- **The answer has no bubble.** Boxing it put a border and a second background behind the longest
+  text on screen. The QUESTION keeps its bubble - it is short, and it is what separates one turn
+  from the next. 14px/1.72 with 13px paragraph spacing.
+- **An inline citation is a footnote** (`.kbp-ref`): raised, 10px, quiet, so a sentence carrying
+  four of them is still a sentence. It was 700-weight body-size text, louder than the claim it
+  supported. Margin on the **left only** - a right margin prints `support [1] .`
+- **`color` is stated, not inherited.** Every class here is `kbp-`-prefixed so the panel cannot
+  restyle the page, but the page can still restyle the PANEL through a bare `p` or `li` rule, and
+  the answer is the one thing that must never come out dim.
+- While the answer streams it is plain text, so `.ans` carries `white-space: pre-wrap` until the
+  real HTML replaces it - otherwise it reflows into a slab for the whole stream and snaps into
+  paragraphs at the end, the one moment the reader is watching.
+- **🔴 `citesHost.children[i]` NO LONGER ADDRESSES A CITATION** now the list is a disclosure - the
+  host's children are the summary button, the collapse wrapper and possibly a warning note. The
+  inline `[n]` links query `.kbp-cite` and **open the list first**, because scrolling to a row
+  inside a shut disclosure moves the view to a control showing nothing.
+
 ### Motion: the panel, not the kit (2026-09-18)
 `/kb` includes the platform's premium layer, but the panel does its own motion - it is a floating
 window with states the kit knows nothing about. Written against Emil Kowalski's rules, and the

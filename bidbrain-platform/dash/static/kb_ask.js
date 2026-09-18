@@ -554,7 +554,7 @@
     bubble.appendChild(meta);
     var cites = el('div', 'kbp-cites');
     bubble.appendChild(cites);
-    var ans = el('div', 'ans');
+    var ans = el('div', 'ans is-streaming');
     bubble.appendChild(ans);
     turn.appendChild(bubble);
     log().appendChild(turn);
@@ -612,6 +612,7 @@
       // and why, and sometimes it just emits the block. Gating the card on prose meant that answer
       // rendered as an EMPTY BUBBLE: no text, no card, no feedback buttons, and the proposal lost.
       // Whichever half arrives is shown, and if neither does that is said rather than left blank.
+      ans.classList.remove('is-streaming');   // paragraphs are real elements from here on
       if (split.prose.trim()) ans.innerHTML = mdToHtml(split.prose, state.retrieval, cites);
       if (prop) {
         if (!split.prose.trim()) {
@@ -824,24 +825,88 @@
     return b;
   }
 
+  /* 🔴 THIS USED TO EMIT NO BLOCK ELEMENTS AT ALL. Bold, code, a bullet character and the citation
+   * links were substituted inline and the result handed to innerHTML - so every blank line the
+   * model wrote was collapsed by HTML whitespace rules and a six-paragraph answer arrived as one
+   * unbroken slab. The CSS had `.kbp-bubble p` and `.kbp-bubble ul` rules that nothing could ever
+   * match. Paragraphs and lists are now real elements, which is most of the readability win.
+   *
+   * Deliberately NOT a markdown library: this renders exactly the four things the model is asked
+   * to produce - paragraphs, bullet and numbered lists, short headings, and inline `code` - and
+   * anything else arrives as the text it literally is. */
+  function mdEsc(s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+
   function mdToHtml(text, retrieval, citesHost) {
-    var html = text
-      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-      .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-      .replace(/`([^`]+)`/g, '<code>$1</code>')
-      .replace(/^\s*[-*]\s+(.*)$/gm, '• $1')
-      .replace(/\[(\d{1,2})\]/g, function (m, n) {
-        var i = +n - 1;
-        if (!retrieval || !retrieval.excerpts[i]) return m;
-        return '<a href="#" data-cite="' + i + '" style="color:var(--kbp-accent);text-decoration:none;font-weight:700">[' + n + ']</a>';
-      });
+    function inline(s) {
+      return mdEsc(s)
+        .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+        .replace(/`([^`]+)`/g, '<code>$1</code>')
+        .replace(/\[(\d{1,2})\]/g, function (m, n) {
+          var i = +n - 1;
+          if (!retrieval || !retrieval.excerpts[i]) return m;
+          return '<a href="#" class="kbp-ref" data-cite="' + i + '">' + n + '</a>';
+        });
+    }
+
+    var out = [], para = [], list = null, listTag = '';
+    function flushPara() {
+      if (!para.length) return;
+      // A single newline inside a paragraph is a line the model chose to break; blank lines are
+      // what separate paragraphs. Joining with a space instead would silently run two lines of a
+      // table or an address together.
+      out.push('<p>' + para.map(inline).join('<br>') + '</p>');
+      para = [];
+    }
+    function flushList() {
+      if (!list) return;
+      out.push('<' + listTag + '>' + list.map(function (li) { return '<li>' + inline(li) + '</li>'; }).join('') + '</' + listTag + '>');
+      list = null; listTag = '';
+    }
+    function flush() { flushPara(); flushList(); }
+
+    String(text).split(/\r?\n/).forEach(function (line) {
+      var t = line.trim();
+      if (!t) { flush(); return; }
+
+      var h = /^(#{1,6})\s+(.*)$/.exec(t);
+      if (h) { flush(); out.push('<h4>' + inline(h[2]) + '</h4>'); return; }
+
+      var ul = /^[-*•]\s+(.*)$/.exec(t);
+      var ol = /^(\d{1,2})[.)]\s+(.*)$/.exec(t);
+      if (ul || ol) {
+        var tag = ul ? 'ul' : 'ol';
+        // A list interrupting a paragraph closes it; a list of the other kind starts its own.
+        flushPara();
+        if (list && listTag !== tag) flushList();
+        if (!list) { list = []; listTag = tag; }
+        list.push(ul ? ul[1] : ol[2]);
+        return;
+      }
+
+      flushList();
+      para.push(t);
+    });
+    flush();
+
     var wrap = document.createElement('div');
-    wrap.innerHTML = html;
+    wrap.innerHTML = out.join('');
     wrap.querySelectorAll('[data-cite]').forEach(function (a) {
       a.onclick = function (e) {
         e.preventDefault();
-        var node = citesHost.children[+a.dataset.cite];
-        if (node) { node.scrollIntoView({ block: 'nearest' }); node.click(); }
+        // 🔴 `citesHost.children[i]` NO LONGER ADDRESSES A CITATION. The passage list became a
+        // disclosure, so the host's children are the summary button, the collapse wrapper and
+        // possibly a warning note - index 5 was landing on nothing. Query the rows themselves,
+        // and OPEN the list first, because scrolling to a row inside a shut disclosure moves the
+        // view to a control the reader cannot see anything in.
+        var rows = citesHost.querySelectorAll('.kbp-cite');
+        var node = rows[+a.dataset.cite];
+        if (!node) return;
+        var toggle = citesHost.querySelector('.kbp-cites-toggle');
+        if (toggle && !citesHost.classList.contains('is-open')) toggle.click();
+        requestAnimationFrame(function () {
+          node.scrollIntoView({ block: 'nearest' });
+          node.click();
+        });
       };
     });
     return wrap.innerHTML;
