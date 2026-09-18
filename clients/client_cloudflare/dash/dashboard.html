@@ -434,6 +434,27 @@
   .cspd-reason{background:var(--surface-2);border:1px solid var(--cf-line);border-radius:var(--r-md);padding:11px 12px}
   .cspd-reason .rk{font-size:var(--t-micro);color:var(--cf-mute);text-transform:uppercase;letter-spacing:var(--tr-label);font-weight:600;margin-bottom:5px}
   .cspd-reason .rv{font-size:var(--t-sm);color:var(--cf-ink);word-break:break-word}
+  /* Rejection-reason tile (2026-09-18). `.rv` stays the reason itself; these sit under it.
+     A SUPPRESSED tile is deliberately still rendered - it states that the reason is unknown
+     for that vendor-week rather than vanishing, because a disappearing tile reads as "no
+     rejections" when it means "we cannot explain these". */
+  .cspd-reason .rshare{font-size:var(--t-label);color:var(--cf-mute);margin-top:6px;
+                       font-variant-numeric:tabular-nums}
+  .cspd-reason .rcov{font-size:var(--t-micro);color:var(--cf-mute);margin-top:5px;
+                     padding-top:5px;border-top:1px solid var(--cf-line)}
+  .cspd-reason .rcov.warn{color:var(--warn-amber)}
+  .cspd-reason.thin{border-style:dashed}
+  .cspd-reason.thin .rv{color:var(--cf-mute);font-style:italic}
+  /* Legend. The disposition vocabulary is closed (13 codes) but only a handful ever carry
+     volume, so the legend lists what is ON SCREEN plus its plain-English gloss - a legend of
+     codes nobody is looking at is noise. */
+  .cspd-leg-h{font-size:var(--t-micro);color:var(--cf-mute);text-transform:uppercase;
+              letter-spacing:var(--tr-label);font-weight:600;margin-top:12px}
+  .cspd-legend{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));
+               gap:6px 18px;margin-top:10px}
+  .cspd-legend .lg{font-size:var(--t-label);color:var(--cf-mute);display:flex;gap:8px}
+  .cspd-legend .lg code{font-family:inherit;color:var(--cf-ink);font-weight:600;
+                        white-space:nowrap}
   /* Publisher table (2026-08-27). Geometry is .qoq-table's, not re-invented - that is the
      established table look on THIS tab, and the two now sit a screen apart. Numeric columns
      carry .num (right-aligned + tabular figures) so the digits line up down the column;
@@ -1627,6 +1648,25 @@
         </div>
       </div>
 
+      <!-- Weekly enrichment BY PUBLISHER (2026-09-17, client request via Fahad). Re-cuts the
+           SAME population as the Weekly summary above it - the counts are Salesforce's, and
+           Integrate supplies only the offer split that lets VRSM appear at all - so the two
+           tables must always agree. Hides itself when the payload predates the lane. -->
+      <div class="card" id="enrPubCard" style="margin-top:var(--gap-lg);display:none">
+        <div><h3>Weekly enrichment by publisher</h3>
+        <div class="hint" id="enrPubHint"></div></div>
+        <div style="overflow:auto">
+          <table class="qoq-table bb-sortable" id="enrPubTbl">
+            <thead><tr>
+              <th>Week</th><th>Publisher</th><th class="num">Available to enrich</th>
+              <th class="num">Enriched</th><th class="num">Enrichment rate</th>
+            </tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div class="cspd-note" id="enrPubNote"></div>
+      </div>
+
       <!-- STAFF ONLY (2026-09-08). This card lists PER-LEAD PHONE NUMBERS - the raw number and
            the enriched one, 363 real E.164 numbers today. Nothing else client-facing on this
            dashboard carries lead PII: sql/16 deliberately drops phone/email, and the older
@@ -1920,13 +1960,18 @@
           <div class="cspd-note" id="cspdVendorNote"></div>
         </div>
 
-        <!-- 3.6 rejection reasons - NO live source yet. Renders only when the payload
-             carries reasons; hides cleanly otherwise. Never fabricate values here. -->
+        <!-- 3.6 rejection reasons. LIVE from Integrate via sql/21_integrate_dispositions
+             (2026-09-18). Renders only when the payload carries reasons and hides cleanly
+             otherwise - the panel must never fabricate a reason, and must never imply the
+             reasons it shows are the whole story. Coverage is printed per tile, and a
+             vendor-week Integrate cannot explain is stated, not dropped. -->
         <div class="card" id="cspdReasonsCard" style="display:none">
-          <h3>Rejection reasons</h3>
+          <h3>Top rejection reason by vendor</h3>
           <div class="hint" id="cspdReasonsLbl">-</div>
           <div class="cspd-reasons" id="cspdReasons"></div>
-          <div class="cspd-note">Manually maintained pending the Integrate export - not yet a live Snowflake feed.</div>
+          <div class="cspd-leg-h" id="cspdReasonsLegendH">Integrate source IDs</div>
+          <div class="cspd-legend" id="cspdReasonsLegend"></div>
+          <div class="cspd-note" id="cspdReasonsNote"></div>
         </div>
 
       </div>
@@ -6108,21 +6153,128 @@ function cspdPickVendor(book, vendor){
 }
 
 // ---- rejection reasons: renders ONLY with real data ----------------------
+// Plain-English gloss for Integrate's disposition codes. The vocabulary is CLOSED (13 codes
+// observed across the whole feed) but an unseen code must still render, so an unmapped code
+// falls back to its own prettified name - never to a blank or to another code's label.
+const DISPO_LABELS = {
+  REJECT_LEAD_INVALID_EMAIL:        'Invalid email address',
+  RETURN_LEAD_INVALID_CONTACT_INFO: 'Already in the system in the last 90 days',
+  REJECT_CAMPAIGN_DOMAIN_CAP:       'Company already at its lead cap',
+  REJECT_LEAD_DISALLOWED_LIST_VALUE:'Campaign not on the allowed list',
+  REJECT_LEAD_INVALID_PHONE:        'Invalid phone number',
+  REJECT_LEAD_DUPLICATE:            'Duplicate lead',
+  REJECTED_MULTIPLE_REASONS:        'Rejected for more than one reason',
+  HIDDEN_BY_USER:                   'Withdrawn by Integrate',
+  POSTOUT_MARKETO_ERROR:            'Marketo rejected the record',
+  POSTOUT_SUCCESS:                  'Accepted by Integrate',
+  MQL_MARKET_QUALIFIED_LEAD:        'Accepted by Integrate (MQL)',
+  SQL_MARKET_QUALIFIED_LEAD:        'Reached SQL in Marketo',
+  SQL_SALES_QUALIFIED_LEAD:         'Reached SQL in Marketo'
+};
+function dispoLabel(code){
+  if (!code) return 'Unknown';
+  return DISPO_LABELS[code] ||
+    code.toLowerCase().replace(/_/g, ' ').replace(/^./, c => c.toUpperCase());
+}
+
+// TOP rejection reason per vendor, for the selected week (or the quarter to date).
+//
+// Three rules this panel exists to honour, all of them learned from the data:
+//   1. COVERAGE IS PART OF THE FIGURE. Integrate explains ~100% of rejections from w/c
+//      17 Aug but as little as 0% before it, and Roverpath w/c 7 Sep sits at 47% - which
+//      renders as "invalid email, 100% of rejections" if drawn unguarded, on its biggest
+//      rejection week of the quarter. Below the floor the tile says so instead.
+//   2. A VENDOR WITH NO REASON DATA IS STATED, NOT DROPPED. DemandAI and Interlink are the
+//      Regional book, which Integrate does not carry at all; silently omitting them reads as
+//      "no rejections this week", which is the opposite of the truth.
+//   3. AN INTEGRATE *ACCEPT* CODE ON A REJECTED LEAD IS REAL and is labelled. Without that,
+//      a "top rejection reason" cell can legitimately read "Accepted by Integrate".
 function cspdRenderReasons(cfg, wkName){
   const card = document.getElementById('cspdReasonsCard');
   if (!card) return;
-  const all = CSPD_META.reasons || [];
-  const th = cspdTheatre();
-  const mine = all.filter(r => r.theatre === th
+  const all   = CSPD_META.reasons || [];
+  const meta  = CSPD_META.reasons_meta || {};
+  const floor = (typeof meta.coverage_floor === 'number') ? meta.coverage_floor : 0.9;
+  const th    = cspdTheatre();
+  const mine  = all.filter(r => r.theatre === th
     && (!r.book || r.book === CSPD.book)
     && (CSPD.week === 'qtd' || r.week_start === CSPD.week)
     && (CSPD.vendor === 'all' || r.vendor === CSPD.vendor));
   if (!mine.length){ card.style.display = 'none'; return; }   // hide cleanly, never fabricate
   card.style.display = '';
   document.getElementById('cspdReasonsLbl').textContent = wkName;
-  document.getElementById('cspdReasons').innerHTML = mine.map(r =>
-    '<div class="cspd-reason"><div class="rk">' + (r.vendor || '-') + '</div>' +
-    '<div class="rv">' + (r.reason || '-') + '</div></div>').join('');
+
+  // Fold to one entry per vendor. Over a multi-week scope ("quarter to date") the same code
+  // recurs weekly, so the counts are SUMMED per code and the winner taken from the sum -
+  // picking the largest single WEEK would let a quiet code with one bad week beat the code
+  // that actually dominates the period.
+  const byVendor = new Map();
+  mine.forEach(r => {
+    if (!byVendor.has(r.vendor)) byVendor.set(r.vendor, { codes: new Map(), wk: new Map(), exp: 0 });
+    const v = byVendor.get(r.vendor);
+    if (r.code) v.codes.set(r.code, (v.codes.get(r.code) || 0) + (r.leads || 0));
+    if (r.accepted_upstream && r.code) v.acceptedCode = true;
+    // `rejected` is the vendor-WEEK total and the view repeats it on every row of that group,
+    // so it is taken ONCE PER WEEK and then summed across weeks. Accumulating it per row
+    // multiplies the denominator by the number of distinct codes (Final Funnel read "26 of
+    // 78, 33%" against a true 26 of 26); taking a flat max across weeks would under-count the
+    // quarter-to-date scope instead. `leads` IS per code, so that one sums directly.
+    v.wk.set(r.week_start, Math.max(v.wk.get(r.week_start) || 0, r.rejected || 0));
+    v.exp += (r.leads || 0);
+  });
+  byVendor.forEach(v => { v.rej = [...v.wk.values()].reduce((a, b) => a + b, 0); });
+
+  const tiles = [...byVendor.entries()].sort((a, b) => b[1].rej - a[1].rej).map(([vendor, v]) => {
+    const cov  = v.rej ? v.exp / v.rej : 0;
+    const top  = [...v.codes.entries()].sort((a, b) => b[1] - a[1] ||
+                                                      (a[0] < b[0] ? -1 : 1))[0];
+    const covTxt = 'Reason known for <b>' + fmtN(v.exp) + '</b> of <b>' + fmtN(v.rej)
+                 + '</b> rejection' + (v.rej === 1 ? '' : 's') + ' (' + Math.round(cov * 100) + '%)';
+    // No reason data at all, or too thin to name a winner: say which, and never guess.
+    if (!top || cov < floor){
+      const why = !top
+        ? 'No reason data for this vendor'
+        : 'Too few rejections explained to name a top reason';
+      return '<div class="cspd-reason thin"><div class="rk">' + esc(vendor) + '</div>'
+           + '<div class="rv">' + why + '</div>'
+           + '<div class="rcov warn">' + covTxt + '</div></div>';
+    }
+    const share = v.exp ? Math.round(top[1] / v.exp * 100) : 0;
+    return '<div class="cspd-reason"><div class="rk">' + esc(vendor) + '</div>'
+         + '<div class="rv">' + esc(dispoLabel(top[0])) + '</div>'
+         + '<div class="rshare"><b>' + fmtN(top[1]) + '</b> of ' + fmtN(v.exp)
+         + ' explained (' + share + '%)</div>'
+         + '<div class="rcov' + (cov < 1 ? ' warn' : '') + '">' + covTxt + '</div></div>';
+  });
+  document.getElementById('cspdReasons').innerHTML = tiles.join('');
+
+  // LEGEND = the Integrate SOURCE IDs (client request: the dictionary Transmission supplied
+  // on 2026-09-18). It is here rather than in a tooltip because the source id is the key
+  // Integrate and the client both quote in email, and nothing else on this dashboard decodes
+  // it. Built from the rows ON SCREEN, so it can never list a vendor the panel is not showing.
+  //
+  // THE THEATRE IS PART OF THE ENTRY, NOT DECORATION: Final Funnel and Roverpath each own two
+  // source ids because they run in both theatres (61A007 / 9E8948 and B75F75 / 41710C), so a
+  // legend keyed on the publisher name alone would silently print one id for two vendors.
+  const seen = new Map();
+  mine.forEach(r => { if (r.source_id) seen.set(r.source_id, r); });
+  // The heading is hidden with its own list: a lone "Integrate source IDs" label over nothing
+  // reads as a panel that failed to load.
+  document.getElementById('cspdReasonsLegendH').style.display = seen.size ? '' : 'none';
+  document.getElementById('cspdReasonsLegend').innerHTML = [...seen.entries()]
+    .sort((a, b) => (a[1].vendor || '').localeCompare(b[1].vendor || ''))
+    .map(([id, r]) => '<div class="lg"><code>' + esc(id) + '</code><span>'
+      + esc(r.vendor || '-') + ' &middot; ' + esc(r.theatre || '-') + '</span></div>').join('');
+
+  const note = document.getElementById('cspdReasonsNote');
+  const acc  = [...byVendor.values()].some(v => v.acceptedCode);
+  note.innerHTML =
+    'Reasons come from Integrate and are matched to our leads on email and campaign, so a '
+    + 'rejection Integrate has not recorded carries no reason. Each tile states its own '
+    + 'coverage; a vendor below ' + Math.round(floor * 100) + '% is shown without a top reason '
+    + 'rather than with a misleading one.'
+    + (acc ? ' Some leads were accepted by Integrate and rejected later downstream, so an '
+           + 'acceptance can appear among these codes.' : '');
 }
 
 // ---- targets freshness: the one non-live input, so say so out loud -------
@@ -8979,6 +9131,77 @@ function enrFillCampaignSelect(){
   enrCampaignSel = sel.value || '';
 }
 
+// Weekly enrichment BY PUBLISHER (2026-09-17, client request via Fahad).
+//
+// It re-cuts the SAME population as the Weekly summary above it: Salesforce supplies every
+// count, and Integrate supplies only the offer split that lets VRSM appear. If this table ever
+// disagrees with the one above, this table is wrong.
+//
+// TWO HONEST LIMITS, both stated on screen rather than left for the reader to discover:
+//   1. The payload is week x theatre x publisher. It carries NO market or campaign dimension,
+//      so the market chips and the campaign picker on this tab DO NOT move it. A figure that
+//      ignores a visible control is as bad as a control that moves an invisible figure, so the
+//      hint says so outright (the geocon `crmScopeNote` rule).
+//   2. Weeks are whole. A date range cutting mid-week includes that whole week, because the
+//      lane is week-grained; the range narrows WHICH weeks appear, never part of one.
+function renderEnrichedByPublisher(){
+  const card = document.getElementById('enrPubCard');
+  if (!card) return;
+  const rowsAll = (CSE && CSE.by_publisher) || [];
+  const th = laneTheatre();
+  // A week OVERLAPS the range if any of its seven days does. Comparing the Monday alone would
+  // drop the week the range starts in.
+  const wkEnd = wk => { const d = new Date(wk + 'T00:00:00Z');
+                        d.setUTCDate(d.getUTCDate() + 6); return d.toISOString().slice(0, 10); };
+  const mine = rowsAll.filter(r => r.theatre === th
+    && (!narrowed() || (r.week_start <= rangeEnd && wkEnd(r.week_start) >= rangeStart)));
+  if (!mine.length){ card.style.display = 'none'; return; }
+  card.style.display = '';
+
+  const pubs = [...new Set(mine.map(r => r.publisher))].sort();
+  document.getElementById('enrPubHint').innerHTML =
+    'Available to enrich, enriched, and the rate, per publisher per week. Same leads and same '
+    + 'definitions as the weekly summary above - this table only cuts them by publisher, so the '
+    + 'two always agree. <b>The market chips and campaign picker above do not apply here</b>: '
+    + 'this lane is weekly by publisher only.';
+
+  let h = '', tA = 0, tE = 0, pending = 0;
+  // Newest week first - the client reads this for "what happened last week", not for history.
+  mine.sort((a, b) => (b.week_start || '').localeCompare(a.week_start || '')
+                      || (a.publisher || '').localeCompare(b.publisher || ''));
+  for (const r of mine){
+    const avail = r.available || 0, enr = r.enriched || 0;
+    const rate  = avail ? enr / avail : null;
+    // A week still queued at Integrate is NOT a low rate - it is an unfinished one. Enrichment
+    // lands days after the lead, so the newest week routinely reads near zero and would
+    // otherwise draw as a collapse. Marked, and left out of the total.
+    const wait  = (r.pending || 0) >= 0.5;
+    if (wait) pending++; else { tA += avail; tE += enr; }
+    h += '<tr' + (wait ? ' style="color:var(--cf-mute)"' : '') + '>'
+      +  '<td>w/c ' + esc(r.week_start) + '</td>'
+      +  '<td>' + esc(r.publisher || '-') + '</td>'
+      +  '<td class="num">' + fmtNum(avail) + '</td>'
+      +  '<td class="num">' + fmtNum(enr) + '</td>'
+      +  '<td class="num">' + (wait
+            ? '<span title="' + fmtNum(r.na || 0) + ' of these are still awaiting enrichment">'
+              + 'still enriching</span>'
+            : (rate == null ? '-' : fmtPct2(rate, 1))) + '</td></tr>';
+  }
+  const tR = tA ? tE / tA : null;
+  h += '<tr class="total" style="font-weight:700"><td>Total</td><td>' + fmtNum(pubs.length)
+    +  ' publisher' + (pubs.length === 1 ? '' : 's') + '</td>'
+    +  '<td class="num">' + fmtNum(tA) + '</td><td class="num">' + fmtNum(tE) + '</td>'
+    +  '<td class="num">' + (tR == null ? '-' : fmtPct2(tR, 1)) + '</td></tr>';
+  document.querySelector('#enrPubTbl tbody').innerHTML = h;
+
+  document.getElementById('enrPubNote').innerHTML = pending
+    ? '<b>' + fmtNum(pending) + '</b> week' + (pending === 1 ? ' is' : 's are')
+      + ' marked <i>still enriching</i> and left out of the total: enrichment arrives days '
+      + 'after the lead, so a fresh week reads near zero before it has finished. It is a queue, '
+      + 'not a result.'
+    : 'Every week shown has finished enriching.';
+}
+
 function renderEnriched(){
   if (!document.getElementById('panel-enriched')) return;
   // PII gate, re-asserted on every render (see the card's comment): the per-lead table prints
@@ -9171,6 +9394,8 @@ function renderEnriched(){
       tb.innerHTML = h;
     }
   }
+
+  renderEnrichedByPublisher();
 
   // ---- detail table (enriched leads only) ---------------------------------
   const db = document.querySelector('#enrDetailTbl tbody');

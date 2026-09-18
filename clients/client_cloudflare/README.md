@@ -2780,6 +2780,106 @@ opening the form is a targeting problem, opening and abandoning is a form proble
 **Redeploy order:** `sql/deploy_views_cloudflare.ps1` -> `job/deploy_job_cloudflare.ps1` ->
 `dash/deploy_dash_cloudflare.ps1` (the view feeds the job, the job feeds the JSON the dash reads).
 
+### The Integrate lane - offer split + rejection reasons (2026-09-18)
+
+Three views, one source. **`sql/21_integrate_bridge` is the ONLY reader of
+`raw_snowflake.integrate_leads`** - it emits a hashed key, the campaign, the source id, the
+vendor, the disposition, a PII-scrubbed reason and the URL-derived offer, and nothing else.
+`sql/22` (rejection reasons) and `sql/23` (enrichment by publisher) both read the bridge, so
+the dedupe tie-break and the PII scrub are defined once.
+
+#### Weekly enrichment by publisher (`sql/23_cs_enriched_by_publisher`)
+
+The client's actual ask: *"a weekly breakdown by publisher showing how many of the leads are
+enriched."* -> job `cs_enriched.by_publisher` -> `renderEnrichedByPublisher()`.
+
+**THE COUNTS ARE SALESFORCE'S. INTEGRATE SUPPLIES ONLY THE OFFER SPLIT.** This is the whole
+design decision. The two sources disagree about enrichment in BOTH directions - Integrate
+holds 56 for VRSM that Salesforce does not (3-23 Aug), Salesforce holds 36 that Integrate
+does not (the 2026-07-21 Precision MQL batch) - so counting from Integrate would put a second
+enrichment figure on the same screen as the Weekly summary above it and let the two
+contradict. That is the defect the client raised on the pacing card on 2026-09-16.
+
+**The override is confined to VRSM** (`701RG00001W1FQRYA3`), the only campaign that mixes
+enrichable survey leads with Lead Magnet. Every other campaign sells one offer, so its id
+already names it; overriding everywhere would move figures the client has signed off. A VRSM
+lead the bridge cannot place keeps `OFFER_TYPE` and stays OUT of the available population -
+understating rather than flattering.
+
+**THE TRAILING WEEK IS A QUEUE, NOT A COLLAPSE.** Enrichment lands days after the lead.
+Roverpath survey leads at 2026-09-18: w/c 17 Aug 62/50, w/c 31 Aug 17/16, **w/c 07 Sep 10/1
+with 9 of the 10 still NA**. Drawn raw that reads as a fall from 94% to 10%. `PENDING_SHARE`
+carries it; a cell at >=50% pending renders as *still enriching* and is left out of the
+total, and the job WARNs it by name.
+
+**Two limits stated ON SCREEN, not left to be discovered:** the payload is week x theatre x
+publisher and carries no market or campaign dimension, so the market chips and campaign
+picker DO NOT move this table (the geocon `crmScopeNote` rule); and weeks are whole, so a
+range cutting mid-week includes that whole week.
+
+`LEAD_KEY` (a SHA256 of the lower-cased email) was added to `sql/20_cs_enriched_leads` as the
+join key - hashed so a key can exist without that view carrying an address.
+
+#### Rejection reasons (`sql/22_integrate_dispositions`)
+
+`sql/22` -> job `cs_pacing.reasons` + `cs_pacing.reasons_meta` ->
+`cspdRenderReasons()` -> the `#cspdReasonsCard` panel on the CS tab, which had shipped
+`display:none` since it was built because it had no source.
+
+**Source.** Salesforce says a lead was Rejected but never why. The reason is Integrate's,
+captured by CaptureIQ, and lands in Snowflake as `INTEGRATE_LEADS` (Nabeel, 2026-09-18).
+Columns J and K of the Integrate report are `DISPOSITION_CODE` and `CUSTOM_REASON`.
+
+**The view emits AGGREGATES ONLY, and that is the point.** `INTEGRATE_LEADS` carries
+first/last name, email, phone, street and postcode on every row and is mirrored whole by the
+`SELECT *` loader. `sql/21` is the membrane: nothing downstream may read the raw table.
+`CUSTOM_REASON` itself carries PII - 7 rows embed a lead's own email in the duplicate message
+- so it is scrubbed in the view, once, with a general regex rather than a fix aimed at those 7.
+
+**The join is email + campaign, and it is NOT 1:1.** Integrate has no Salesforce id; its
+`LEAD_ID` is its own GUID. `LEAD_CAMPAIGN_NAME` holds our `CAMPAIGN` verbatim, and email alone
+is not unique. Measured: 5,559 of 5,682 dispositioned leads match exactly one row (97.8%), 99
+match none, 24 fan out. Fan-out tie-break is latest `UPDATED_TIMESTAMP` then code alphabetical;
+all 6 disagreeing groups are ACCEPTED leads moving `POSTOUT_SUCCESS` -> `MQL_...`, so no
+rejected lead is affected today.
+
+**Bucketed on the SALESFORCE date, never Integrate's.** `UPDATED_TIMESTAMP` is a mutation time
+and `FIRST_ACCEPTED_TIMESTAMP` is blank on 487 of 768 rejected leads. Either would file a
+reason in a different week from the lead it explains.
+
+**COVERAGE IS A FIRST-CLASS OUTPUT - this is the trap.** Integrate holds only leads it has
+dispositioned, and its history does not reach back: July runs 0-86% per vendor-week, everything
+from w/c 2026-08-17 is 100%, and there is ONE exception - **Roverpath w/c 2026-09-07 at 46.9%**,
+which is also its largest rejection week of the quarter. Drawn unguarded that cell reads
+"invalid email, 100% of rejections" over 47% coverage. Below `COVERAGE_FLOOR` (0.90, set in
+`job/main.py` so the audit line and the panel can never disagree) the tile states the gap
+instead of naming a reason.
+
+**DemandAI, Interlink and SitPub are absent from Integrate BY DESIGN** - they are the Regional
+(ANZ DnB) book and Integrate runs Core DG only. They resolve to 0% forever and the panel says
+"No reason data for this vendor"; a dropped tile would read as "no rejections".
+
+**`SOURCE_ID` -> publisher is 1:1; the reverse is NOT.** Final Funnel and Roverpath each own two
+source ids because they run in both theatres (`61A007`/`9E8948`, `B75F75`/`41710C`). Key on
+`SOURCE_ID` or on vendor + theatre, never vendor alone - and the on-screen legend prints the
+theatre for the same reason. The 11-row dictionary is inline in `sql/21` for now and SHOULD
+move to `definitions.json` -> a seed the day it changes; 3 of its 11 publisher spellings differ
+from ours (VSRM, SitPub, Inbox Insights), so it carries both names and is never name-joined.
+
+**An Integrate ACCEPT code on a rejected lead is real** (~12 in Q3): Integrate accepted, the
+rejection happened downstream. Carried as `accepted_upstream` and labelled, or "top rejection
+reason" can legitimately read `POSTOUT_SUCCESS`.
+
+**Reasons can be treated as final.** Across two loads 18h apart, 85 rows changed code - every
+one an accepted-lane progression, zero rejection codes, zero `STATUS` changes.
+
+**NOT YET LIVE:** the `TABLES` line in `ingest/snowflake_data_pull/loader.py` is committed but
+the mirror has not been run. Deploy order is **ingest -> views -> job -> dash**; apply views
+and force the job after the first mirror run. Until then the job
+prints a WARNING naming the view and the panel stays hidden - deliberately tolerant, because
+this panel is additive and must not take the whole export down, but LOUD, because a silent
+catch here is the geocon trap that published `0 CRM leads` against a full view.
+
 ## The data contract (`cloudflare.json` -> `/data.json`)
 
 ```json

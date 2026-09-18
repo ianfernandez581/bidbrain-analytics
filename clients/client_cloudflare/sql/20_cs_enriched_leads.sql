@@ -97,6 +97,7 @@ apj AS (
     l.DAY,
     l.CAMPAIGN,
     l.CAMPAIGN_ID,
+    TO_HEX(SHA256(LOWER(TRIM(l.EMAIL)))) AS LEAD_KEY,
     'APAC'                        AS THEATRE,
     l.PHONE,
     f.ENRICHED_PHONE_NUMBER       AS RAW_ENRICHED,
@@ -120,6 +121,7 @@ emea AS (
     f.DAY,
     f.CAMPAIGN,
     f.CAMPAIGN_ID,
+    TO_HEX(SHA256(LOWER(TRIM(f.EMAIL)))) AS LEAD_KEY,
     'EMEA'                        AS THEATRE,
     f.PHONE,
     f.ENRICHED_PHONE_NUMBER       AS RAW_ENRICHED,
@@ -143,6 +145,12 @@ SELECT
   DAY,
   CAMPAIGN,
   CAMPAIGN_ID,
+  -- Join key to sql/21_integrate_bridge, added 2026-09-18. Integrate carries NO Salesforce id
+  -- (its LEAD_ID is its own GUID), so email + campaign is the only way across - and the email
+  -- is HASHED here so a join key can exist without this view carrying an address. The pair is
+  -- not unique on its own, which is why every consumer joins on LEAD_KEY *and* CAMPAIGN and
+  -- the bridge is deduped to one row per pair.
+  LEAD_KEY,
   THEATRE,
   MARKET,
   PUBLISHER,

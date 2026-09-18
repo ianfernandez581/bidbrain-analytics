@@ -52,6 +52,14 @@ TABLES = {
     # the per-pixel/per-campaign breakdown the blended tradedesk_apac_all drops.
     # MongoDB's content-engagement section reads its slice (ADVERTISER_ID='9c1w83i').
     'APAC_ALL_PLATFORM.PUBLIC."TradeDesk_APAC ALL-Conversion"': "tradedesk_apac_conversion",
+    # Integrate's own lead record, via CaptureIQ (Transmission, 2026-09-18). Cloudflare CS only.
+    # It is the ONLY source that says which OFFER a lead came from (its URL carries the landing
+    # path), which is what lets the enriched-leads lane split the VRSM campaign; and it carries
+    # the rejection reason, which Salesforce never sends.
+    # HEAVY PII - name, email, phone, street, postcode on every row. It is mirrored whole
+    # because this loader is SELECT *, so NOTHING may read this table except the client's own
+    # sql/21 bridge, which is the membrane that keeps all of that out of the payload.
+    'APAC_ALL_PLATFORM.PUBLIC."INTEGRATE_LEADS"':         "integrate_leads",
 }
 
 
