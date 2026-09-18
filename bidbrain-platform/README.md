@@ -1214,6 +1214,63 @@ coloured like this console. The Explorer keeps two grid columns and never reflow
 Drawers slide over the conversation for **history** and **settings**; a phone gets a sheet with no
 drag and no resize.
 
+### Window controls: hide, enlarge, resize from any edge (2026-09-18)
+The panel is a window, so it behaves like one. **Hide** rolls it down to its own title bar and
+leaves it on screen; **Enlarge** takes it to the full viewport; the left, top and top-left edges
+resize it alongside the corner grip; `Ctrl/Cmd+Shift+A` opens or closes it from anywhere and
+`Ctrl/Cmd+Shift+F` enlarges. Double-clicking the header enlarges, and **shift**-double-click is
+the old behaviour - forget the arranged box and go back to the default window. Both states persist
+per browser (`bb.kb.max` / `bb.kb.min`, beside the existing `bb.kb.box`).
+
+- **🔴 HIDE IS NOT CLOSE.** Close puts the panel away and hands the page back to the bubble; hide
+  keeps it visible with the conversation intact, one click from being back. That is the only
+  reason to ship both, so the tooltip says which is which. Hiding also drops out of enlarged, so
+  there is never a full-width title bar across the page and never a question about which size a
+  restore should return to. Clicking Ask always un-hides - a panel that reopened as a title bar
+  reads as the button having failed - but a **reload** restores the hidden state, which is why
+  `openPanel` takes a `restoring` flag.
+- **🔴 `.is-min` MUST SIT AFTER `.is-max` IN THE FILE, AND BE RESTATED IN THE PHONE BLOCK.** Both
+  carry `!important` at the same specificity, so source order is what decides; the mobile media
+  query is later still and would otherwise re-expand a hidden sheet.
+- **🔴 NEVER SAVE THE BOX WHILE ENLARGED.** `.is-max` sizes the panel off the viewport, so
+  measuring it there overwrites the arranged window with the screen and restore has nothing to go
+  back to. `saveBox()` refuses; leaving enlarged saves from the *inline* styles instead.
+- The collapsed height is a **measured pixel value** written to `--kbp-headh`, not `auto`, because
+  `auto` cannot be transitioned - and it is measured *after* the panel is shown, since a
+  `display:none` header measures 0.
+- **An enlarged window is not an enlarged column.** Left alone the log would run to ~1,800px; the
+  reading column caps at 860px and centres while the chrome stays full width.
+
+### Motion: the panel, not the kit (2026-09-18)
+`/kb` includes the platform's premium layer, but the panel does its own motion - it is a floating
+window with states the kit knows nothing about. Written against Emil Kowalski's rules, and the
+ones that cost something here:
+
+- **Enter 220ms, exit 140ms, both `cubic-bezier(.23,1,.32,1)`.** `ease-in` appears nowhere: it
+  delays the first frame, which is the frame the eye is on. `--kbp-in` / `--kbp-out` /
+  `--kbp-press` are the only durations.
+- **The panel's `transform-origin` is `bottom right`** - the bubble's corner - so opening reads as
+  the bubble becoming the window. Same rule puts the scope menu's origin at `top left`. It never
+  starts from `scale(0)`; nothing in the real world appears out of nothing.
+- **🔴 EVERY APPEARING SURFACE GOES THROUGH `show()` / `hide()`,** the only code that touches
+  `hidden` on one. Show drops `[hidden]` while still wearing `.is-out`, **forces one reflow**, then
+  removes it - without that the element is born and styled in the same frame and simply snaps.
+  Hide sets `[hidden]` on `transitionend` **plus a 260ms timer**, because `transitionend` never
+  fires when the transition is suppressed (reduced motion, background tab) and a surface that
+  never gets `[hidden]` back sits over the conversation forever. Two more traps it closes:
+  `transitionend` **bubbles**, so a child's hover transition would end the close early; and a
+  sequence number makes a **reopen win**, or the pending settle hides what you just reopened.
+- **`prefers-reduced-motion` names `::before` and `::after` explicitly** - `*` does not match
+  pseudo-elements, and the dots and pulses live on them. It is "fewer and gentler", not "none":
+  opacity still carries every change at 120ms, only the movement goes.
+- Press feedback (`scale(.97)`) on every button; hover lifts gated behind
+  `@media (hover: hover) and (pointer: fine)` so a tap does not leave one stuck.
+- **Auto-scroll is conditional.** Scrolling up during a stream hands control over and a **Newest**
+  pill hands it back; sending, opening a past conversation and leaving enlarged force it on again.
+  It used to drag you to the bottom on every token.
+- Answers carry a **Copy** button beside Listen (async clipboard, `execCommand` fallback - the
+  async API also rejects on an unfocused document, so the old path stays).
+
 ### Settings: which model, which voice
 Stored per person at `kb/settings/<actor>.json`.
 

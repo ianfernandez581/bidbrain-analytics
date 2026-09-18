@@ -36,13 +36,16 @@
     back: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 5l-7 7 7 7"/></svg>',
     mic: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>',
     sound: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 9v6h3l5 4V5L7 9z"/><path d="M16 9a4 4 0 0 1 0 6"/></svg>',
-    trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16M9 7V5h6v2M7 7l1 13h8l1-13"/></svg>'
+    trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16M9 7V5h6v2M7 7l1 13h8l1-13"/></svg>',
+    copy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/></svg>',
+    tick: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7"/></svg>'
   };
 
   var A = {
     open: false, convId: '', busy: false, ctrl: null,
     scope: [], client: null,       // client: null = whole library, "" = agency-wide, "geocon" = one
-    clients: [], settings: null, lastRetrieval: null, speakThis: false
+    clients: [], settings: null, lastRetrieval: null, speakThis: false,
+    follow: true, sizeT: 0            // follow: is the log pinned to the newest message?
   };
   try { A.scope = JSON.parse(localStorage.getItem(LS + 'scope') || '[]'); } catch (e) { A.scope = []; }
   try { var sc = localStorage.getItem(LS + 'client'); A.client = sc === null ? null : JSON.parse(sc); } catch (e) { A.client = null; }
@@ -50,45 +53,111 @@
   function panel() { return $('#kbPanel'); }
   function log() { return $('#kbLog'); }
 
+  // --- show / hide, the one way ---------------------------------------------------------------
+  /* 🔴 EVERY APPEARING SURFACE IN THIS PANEL GOES THROUGH THESE TWO, and they are the only place
+   * that touches `hidden` on one. The pattern is the same each time: to show, drop the [hidden]
+   * while still wearing `.is-out`, force ONE reflow so the browser has a start value to animate
+   * from, then take `.is-out` off; to hide, put it back on and set [hidden] when the transition
+   * lands. Without that reflow the element is born and styled in the same frame and there is
+   * nothing to transition - it just snaps, which is exactly what it did before.
+   *
+   * The timer beside the transitionend is not belt-and-braces: `transitionend` never fires for an
+   * element whose transition is suppressed (reduced motion, a background tab), and a surface that
+   * never gets [hidden] back stays on top of the conversation forever. */
+  function show(node) {
+    if (!node) return;
+    node._kbSeq = (node._kbSeq || 0) + 1;         // cancels any hide still in flight
+    node.classList.add('is-out');
+    node.hidden = false;
+    void node.offsetHeight;                       // the reflow. Do not "optimise" this away.
+    node.classList.remove('is-out');
+  }
+  function hide(node, after) {
+    if (!node || node.hidden) { if (after) after(); return; }
+    var seq = node._kbSeq = (node._kbSeq || 0) + 1;
+    node.classList.add('is-out');
+    function settle(e) {
+      // 🔴 A REOPEN WINS. Without this, closing and immediately reopening left the pending
+      // settle to fire a moment later and hide the surface the person had just reopened.
+      if (node._kbSeq !== seq) return;
+      // transitionend BUBBLES, so a hover transition on any child inside would otherwise end the
+      // close early - and mid-fade is exactly when it would look broken.
+      if (e && e.target !== node) { node.addEventListener('transitionend', settle, { once: true }); return; }
+      node.hidden = true;
+      node.classList.remove('is-out');
+      if (after) after();
+    }
+    node.addEventListener('transitionend', settle, { once: true });
+    setTimeout(settle, 260);
+  }
+
   // --- open / close / drag / resize ---------------------------------------------------------
-  function openPanel(prefill, client) {
+  // `restoring` is boot re-opening the panel you left open, not you asking for it. The
+  // difference matters for one thing only: a panel left HIDDEN should come back hidden on a
+  // reload, and should come back OPEN when you click Ask.
+  function openPanel(prefill, client, restoring) {
     A.open = true;
-    panel().hidden = false;
-    $('#kbFab').classList.add('is-open');
     if (client !== undefined) { A.client = client; saveScope(); }
-    restoreBox();
+    restoreBox();                                  // sizes it BEFORE it is shown, so the box it
+    show(panel());                                 // grows into is the one it will keep
+    // The header measures 0 while the panel is display:none, so the collapsed height is taken
+    // now that it is on screen; restoreBox's 54px fallback only ever covers this one frame.
+    if (minned()) panel().style.setProperty('--kbp-headh', ($('#kbHead').offsetHeight || 54) + 'px');
+    $('#kbFab').classList.add('is-open');
     renderScopeChip();
     if (!log().childElementCount) greet();
     loadSettings();
     var i = $('#kbInput');
     i.focus();
     if (prefill) { i.value = prefill; autosize(i); }
+    A.follow = true;
+    renderJump();
     localStorage.setItem(LS + 'panelOpen', '1');
+    // 🔴 CLICKING ASK MUST GIVE YOU SOMETHING TO ASK IN. A panel left hidden would otherwise
+    // reopen as a title bar, which reads as the button having failed.
+    if (minned() && !restoring) toggleMin(false);
   }
   function closePanel() {
     A.open = false;
-    panel().hidden = true;
+    hide(panel());
     $('#kbFab').classList.remove('is-open');
     stopSpeaking();
     stopRecording();
     localStorage.setItem(LS + 'panelOpen', '0');
   }
 
+  var MIN_W = 340, MIN_H = 380;
   function floats() { return window.innerWidth > 560; }
+  function maxed() { return panel().classList.contains('is-max'); }
+
   function restoreBox() {
     if (!floats()) return;
     try {
+      // The enlarged state is remembered separately from the box, because they are answers to
+      // different questions: the box is the window you arranged, `max` is whether you were
+      // reading in it. Restoring from enlarged has to return to the former.
+      if (localStorage.getItem(LS + 'max') === '1') panel().classList.add('is-max');
+      if (localStorage.getItem(LS + 'min') === '1') {
+        panel().style.setProperty('--kbp-headh', ($('#kbHead').offsetHeight || 54) + 'px');
+        panel().classList.add('is-min');
+        panel().classList.remove('is-max');      // hidden and enlarged never hold at once
+      }
+      syncMaxButton();
+      syncMinButton();
       var b = JSON.parse(localStorage.getItem(LS + 'box') || 'null');
       if (!b) return;
       var p = panel();
-      p.style.width = Math.max(340, Math.min(b.w, innerWidth - 24)) + 'px';
-      p.style.height = Math.max(380, Math.min(b.h, innerHeight - 24)) + 'px';
-      if (b.r != null) p.style.right = Math.max(8, Math.min(b.r, innerWidth - 340)) + 'px';
-      if (b.b != null) p.style.bottom = Math.max(8, Math.min(b.b, innerHeight - 380)) + 'px';
+      p.style.width = Math.max(MIN_W, Math.min(b.w, innerWidth - 24)) + 'px';
+      p.style.height = Math.max(MIN_H, Math.min(b.h, innerHeight - 24)) + 'px';
+      if (b.r != null) p.style.right = Math.max(8, Math.min(b.r, innerWidth - MIN_W)) + 'px';
+      if (b.b != null) p.style.bottom = Math.max(8, Math.min(b.b, innerHeight - MIN_H)) + 'px';
     } catch (e) { /* a corrupt box is not worth failing the panel over */ }
   }
   function saveBox() {
-    if (!floats()) return;
+    // 🔴 NEVER SAVE THE ENLARGED BOX. `.is-max` sizes the panel with !important, so measuring it
+    // while enlarged would overwrite the arranged window with the screen, and restore would have
+    // nothing to go back to.
+    if (!floats() || maxed()) return;
     var p = panel(), r = p.getBoundingClientRect();
     localStorage.setItem(LS + 'box', JSON.stringify({
       w: Math.round(r.width), h: Math.round(r.height),
@@ -96,12 +165,86 @@
     }));
   }
 
+  function minned() { return panel().classList.contains('is-min'); }
+  /* HIDE, which is not close. The panel rolls down to its own title bar and stays on screen with
+   * the conversation intact; close puts it away entirely and gives the page back to the bubble.
+   * Hiding also leaves enlarged, so there is never a full-width title bar lying across the page
+   * and never a question about which of the two sizes a restore should return to. */
+  function toggleMin(on) {
+    var p = panel();
+    var want = on === undefined ? !minned() : !!on;
+    if (want === minned()) return;
+    if (want) {
+      toggleMax(false);
+      // Measured, not assumed: the header's height depends on the font, and a hardcoded value
+      // would either clip the title or leave a gap under it.
+      p.style.setProperty('--kbp-headh', ($('#kbHead').offsetHeight || 54) + 'px');
+    }
+    p.classList.add('is-sizing');
+    p.classList.toggle('is-min', want);
+    localStorage.setItem(LS + 'min', want ? '1' : '0');
+    syncMinButton();
+    clearTimeout(A.sizeT);
+    A.sizeT = setTimeout(function () { p.classList.remove('is-sizing'); }, 320);
+    if (!want) { A.follow = true; requestAnimationFrame(function () { toBottom(true); $('#kbInput').focus(); }); }
+  }
+  function syncMinButton() {
+    var b = $('#kbMin');
+    if (!b) return;
+    var on = minned();
+    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    b.title = on ? 'Show the conversation again' : 'Hide (keeps the conversation)';
+    b.setAttribute('aria-label', on ? 'Show' : 'Hide');
+  }
+
+  function syncMaxButton() {
+    var b = $('#kbMax');
+    if (!b) return;
+    var on = maxed();
+    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    b.title = (on ? 'Restore size' : 'Enlarge') + ' (Ctrl+Shift+F)';
+    b.setAttribute('aria-label', on ? 'Restore size' : 'Enlarge');
+  }
+  /* Enlarge is a TOGGLE, not a set of size presets: the question being answered is "do I want
+   * this out of the way, or do I want to read in it", and that is binary. `.is-sizing` is what
+   * lets the box animate; it is taken off again afterwards so a drag is never fighting a
+   * transition. */
+  function toggleMax(on) {
+    if (!floats()) return;
+    var p = panel();
+    var want = on === undefined ? !maxed() : !!on;
+    if (want === maxed()) return;
+    if (want && minned()) toggleMin(false);     // enlarging a hidden panel shows it first
+    if (!want) saveBoxFromInline();
+    p.classList.add('is-sizing');
+    p.classList.toggle('is-max', want);
+    localStorage.setItem(LS + 'max', want ? '1' : '0');
+    syncMaxButton();
+    clearTimeout(A.sizeT);
+    A.sizeT = setTimeout(function () { p.classList.remove('is-sizing'); }, 320);
+    if (A.follow) requestAnimationFrame(toBottom);
+  }
+  // On the way OUT of enlarged the inline width/height are still the arranged ones (is-max only
+  // overrides them), so the box to keep is what the styles say, not what the element measures.
+  function saveBoxFromInline() {
+    var p = panel();
+    if (!p.style.width) return;
+    localStorage.setItem(LS + 'box', JSON.stringify({
+      w: parseInt(p.style.width, 10) || MIN_W, h: parseInt(p.style.height, 10) || MIN_H,
+      r: parseInt(p.style.right, 10) || 24, b: parseInt(p.style.bottom, 10) || 24
+    }));
+  }
+
+  /* Drag to move, and resize from the corner grip OR the left / top / top-left edges. The panel
+   * is pinned bottom-right, so left and top are the edges that actually size it; dragging them
+   * changes width/height and leaves the anchored corner exactly where it was. */
   function wireDrag() {
     var p = panel(), head = $('#kbHead'), grip = $('#kbGrip');
     var mode = null, sx = 0, sy = 0, base = null;
     function start(m, e) {
-      if (!floats()) return;
-      if (e.target.closest('button')) return;
+      if (!floats() || e.button !== 0) return;
+      if (m === 'move' && e.target.closest('button')) return;
+      if (maxed() || minned()) return;            // enlarged or hidden: not a window to arrange
       mode = m; sx = e.clientX; sy = e.clientY;
       var r = p.getBoundingClientRect();
       base = { w: r.width, h: r.height, r: innerWidth - r.right, b: innerHeight - r.bottom };
@@ -109,26 +252,49 @@
       e.preventDefault();
     }
     head.addEventListener('mousedown', function (e) { start('move', e); });
-    grip.addEventListener('mousedown', function (e) { start('size', e); });
+    // Rolled down, the whole bar is the way back up - a 32px button is a small thing to ask
+    // someone to hit twice, and the cursor already says the bar is clickable.
+    head.addEventListener('click', function (e) {
+      if (minned() && !e.target.closest('button')) toggleMin(false);
+    });
+    grip.addEventListener('mousedown', function (e) { start('sw', e); });
+    Array.prototype.forEach.call(p.querySelectorAll('.kbp-edge'), function (h) {
+      h.addEventListener('mousedown', function (e) { start(h.dataset.edge, e); });
+    });
     document.addEventListener('mousemove', function (e) {
       if (!mode) return;
       var dx = e.clientX - sx, dy = e.clientY - sy;
       if (mode === 'move') {
-        p.style.right = Math.max(8, Math.min(base.r - dx, innerWidth - 340)) + 'px';
+        p.style.right = Math.max(8, Math.min(base.r - dx, innerWidth - MIN_W)) + 'px';
         p.style.bottom = Math.max(8, Math.min(base.b - dy, innerHeight - 200)) + 'px';
-      } else {
-        p.style.width = Math.max(340, Math.min(base.w - dx, innerWidth - 24)) + 'px';
-        p.style.height = Math.max(380, Math.min(base.h - dy, innerHeight - 24)) + 'px';
+        return;
+      }
+      // 'sw' is the corner grip (both), 'w'/'nw' widen, 'n'/'nw' heighten.
+      if (mode === 'sw' || mode === 'w' || mode === 'nw') {
+        p.style.width = Math.max(MIN_W, Math.min(base.w - dx, innerWidth - 24)) + 'px';
+      }
+      if (mode === 'sw' || mode === 'n' || mode === 'nw') {
+        p.style.height = Math.max(MIN_H, Math.min(base.h - dy, innerHeight - 24)) + 'px';
       }
     });
     document.addEventListener('mouseup', function () {
       if (!mode) return;
       mode = null; p.classList.remove('is-dragging'); saveBox();
+      if (A.follow) toBottom();
     });
+    // Double-clicking a window's header maximizes it. That is the convention people arrive with,
+    // and it is now the same action as the header button rather than a hidden second behaviour.
     head.addEventListener('dblclick', function (e) {
-      if (e.target.closest('button')) return;
-      p.style.width = p.style.height = p.style.right = p.style.bottom = '';
-      localStorage.removeItem(LS + 'box');
+      if (e.target.closest('button') || minned()) return;
+      // Shift is the escape hatch the old double-click used to be: forget the arranged box and
+      // go back to the default window.
+      if (e.shiftKey) {
+        toggleMax(false);
+        p.style.width = p.style.height = p.style.right = p.style.bottom = '';
+        localStorage.removeItem(LS + 'box');
+        return;
+      }
+      toggleMax();
     });
   }
 
@@ -138,6 +304,13 @@
     d.appendChild(document.createTextNode(
       'Plans, briefs, meetings, the playbook. Every answer cites the passages it came from, and if '
       + 'one is wrong you can say so here and the next person gets your correction.'));
+    // The window controls are discoverable by hand (drag the header, drag an edge) but the two
+    // keys are not, so they are stated once, here, where there is nothing else to read yet.
+    var k = el('div', 'kbp-note');
+    k.style.marginTop = '10px';
+    k.innerHTML = '<kbd>Ctrl</kbd><kbd>Shift</kbd><kbd>F</kbd> to enlarge · '
+      + '<kbd>Ctrl</kbd><kbd>Shift</kbd><kbd>A</kbd> to open or close · drag the edges to resize';
+    d.appendChild(k);
     log().appendChild(d);
   }
 
@@ -294,9 +467,9 @@
 
   function toggleScope() {
     var m = $('#kbScope');
-    if (!m.hidden) { m.hidden = true; return; }
+    if (!m.hidden) { hide(m); return; }
     paintScope();
-    m.hidden = false;
+    show(m);
   }
 
   function paintScope() {
@@ -328,7 +501,7 @@
         ? 'Reading agency-wide documents only.'
         : 'Reading ' + clientName(A.client) + ' plus agency-wide documents.'));
     var done = el('button', 'kbp-btn gold', 'Done');
-    done.onclick = function () { m.hidden = true; };
+    done.onclick = function () { hide(m); };
     foot.appendChild(done);
     m.appendChild(foot);
   }
@@ -385,7 +558,7 @@
     bubble.appendChild(ans);
     turn.appendChild(bubble);
     log().appendChild(turn);
-    toBottom();
+    toBottom(true);            // you just asked: follow it, whatever you were reading before
 
     A.busy = true;
     $('#kbSend').disabled = true;
@@ -447,7 +620,7 @@
         bubble.appendChild(proposalCard(prop));
       }
       if (split.prose.trim() || prop) {
-        if (split.prose.trim()) bubble.appendChild(listenButton(split.prose));
+        if (split.prose.trim()) bubble.appendChild(answerActions(split.prose));
         bubble.appendChild(verdictBar(q, state));
       } else if (!bubble.querySelector('.kbp-note.bad')) {
         // No prose, no usable block, and no error already shown: say so rather than leave a blank.
@@ -476,7 +649,40 @@
     });
   }
 
-  function toBottom() { var l = log(); l.scrollTop = l.scrollHeight; }
+  /* 🔴 AUTO-SCROLL IS NOW CONDITIONAL, and that is the whole point of it. An answer streams in a
+   * token at a time; reading back up through the previous one while it does used to mean being
+   * dragged to the bottom on every single token. Scrolling up more than a line hands control
+   * over, and the pill hands it back - nothing is ever silently lost, because the log keeps
+   * growing either way. */
+  function toBottom(force) {
+    var l = log();
+    if (!l) return;
+    if (force) A.follow = true;
+    if (A.follow) l.scrollTop = l.scrollHeight;
+    renderJump();
+  }
+  function atBottom() {
+    var l = log();
+    return !l || (l.scrollHeight - l.scrollTop - l.clientHeight) < 24;
+  }
+  function renderJump() {
+    var j = $('#kbJump');
+    if (!j) return;
+    // Offer it only when there is something below to go to: a pill over an already-complete view
+    // is a control that does nothing.
+    var want = A.open && !A.follow && !atBottom();
+    if (want === !j.hidden) return;
+    if (want) show(j); else hide(j);
+  }
+  function wireFollow() {
+    var l = log();
+    if (!l) return;
+    l.addEventListener('scroll', function () {
+      A.follow = atBottom();
+      renderJump();
+    }, { passive: true });
+    $('#kbJump').onclick = function () { A.follow = true; toBottom(true); };
+  }
 
   function readStream(reader, onEvent) {
     var dec = new TextDecoder(), buf = '';
@@ -935,6 +1141,55 @@
     next();
   }
 
+  /* The two things you do with an answer that is already written: hear it, or take it with you.
+   * They share a row so a third never gets bolted on somewhere else. */
+  function answerActions(text) {
+    var row = el('div', 'kbp-actions');
+    row.appendChild(listenButton(text));
+    row.appendChild(copyButton(text));
+    return row;
+  }
+  function legacyCopy(text) {
+    try {
+      var t = document.createElement('textarea');
+      t.value = text;
+      t.setAttribute('readonly', '');
+      t.style.cssText = 'position:fixed;top:0;left:-9999px;opacity:0';
+      document.body.appendChild(t);
+      t.select();
+      var ok = document.execCommand('copy');
+      document.body.removeChild(t);
+      return ok;
+    } catch (e) { return false; }
+  }
+  function copyButton(text) {
+    var b = el('button', 'kbp-listen kbp-copy');
+    b.innerHTML = ICONS.copy + '<span>Copy</span>';
+    b.title = 'Copy this answer as text';
+    b.onclick = function () {
+      // The citations are numbered in the prose, so the plain text is the honest thing to put on
+      // a clipboard - a screenshot of an answer loses the numbers it is arguing from.
+      var ok = function () {
+        b.classList.add('done');
+        b.innerHTML = ICONS.tick + '<span>Copied</span>';
+        setTimeout(function () {
+          b.classList.remove('done');
+          b.innerHTML = ICONS.copy + '<span>Copy</span>';
+        }, 1600);
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(ok, function () { if (legacyCopy(text)) ok();
+          else window.kbToast('Could not copy - select the answer and copy it by hand.', true); });
+        return;
+      }
+      // The async clipboard needs a secure context, which the proxy always gives us - but it also
+      // rejects on an unfocused document, so the old execCommand path stays as the fallback
+      // rather than telling someone to go and find https.
+      if (legacyCopy(text)) ok();
+      else window.kbToast('Could not copy - select the answer and copy it by hand.', true);
+    };
+    return b;
+  }
   function listenButton(text) {
     var b = el('button', 'kbp-listen');
     b.innerHTML = ICONS.sound + '<span>Listen</span>';
@@ -1073,7 +1328,7 @@
   // --- history ---------------------------------------------------------------------------------
   function openHistory() {
     var d = $('#kbHistory'), body = $('#kbHistoryBody');
-    d.hidden = false;
+    show(d);
     body.innerHTML = '<p class="kbp-note">Loading…</p>';
     window.kbApi('/chats').then(function (j) {
       body.innerHTML = '';
@@ -1091,7 +1346,7 @@
         open.appendChild(el('span', 'kbp-hist-title', c.title));
         open.appendChild(el('span', 'kbp-hist-meta', new Date(c.updated_at * 1000).toLocaleString()
           + ' · ' + c.turns + ' messages'));
-        open.onclick = function () { loadChat(c.id); d.hidden = true; };
+        open.onclick = function () { loadChat(c.id); hide(d); };
         row.appendChild(open);
         var del = el('button', 'kbp-icon');
         del.innerHTML = ICONS.trash;
@@ -1125,7 +1380,7 @@
           if ((m.content || '').trim()) {
             a.innerHTML = mdToHtml(m.content, null, el('div'));
             bubble.appendChild(a);
-            bubble.appendChild(listenButton(m.content));
+            bubble.appendChild(answerActions(m.content));
           } else {
             // Its text was only a proposal block, which is stripped before storing. Say what it
             // was rather than replaying an empty bubble; the card itself is not re-offered,
@@ -1140,7 +1395,7 @@
         turn.appendChild(bubble);
         log().appendChild(turn);
       });
-      toBottom();
+      toBottom(true);          // a conversation you just opened starts at its newest message
     }).catch(function (e) { if (!e.auth) window.kbToast(e.message, true); });
   }
 
@@ -1155,9 +1410,11 @@
       A.convId = ''; log().innerHTML = ''; greet(); $('#kbInput').focus();
     };
     $('#kbHistoryBtn').onclick = openHistory;
-    $('#kbHistoryClose').onclick = function () { $('#kbHistory').hidden = true; };
-    $('#kbSettingsBtn').onclick = function () { $('#kbSettings').hidden = false; paintSettings(); };
-    $('#kbSettingsClose').onclick = function () { $('#kbSettings').hidden = true; };
+    $('#kbHistoryClose').onclick = function () { hide($('#kbHistory')); };
+    $('#kbSettingsBtn').onclick = function () { show($('#kbSettings')); paintSettings(); };
+    $('#kbSettingsClose').onclick = function () { hide($('#kbSettings')); };
+    $('#kbMax').onclick = function () { toggleMax(); };
+    $('#kbMin').onclick = function () { toggleMin(); };
     $('#kbScopeBtn').onclick = function (e) { e.stopPropagation(); toggleScope(); };
     $('#kbSend').onclick = send;
     $('#kbMic').onclick = function () { dictateInto($('#kbInput'), $('#kbMic')); };
@@ -1166,7 +1423,7 @@
 
     document.addEventListener('click', function (e) {
       var m = $('#kbScope');
-      if (m && !m.hidden && !e.target.closest('#kbScope') && !e.target.closest('#kbScopeBtn')) m.hidden = true;
+      if (m && !m.hidden && !e.target.closest('#kbScope') && !e.target.closest('#kbScopeBtn')) hide(m);
     });
 
     var input = $('#kbInput');
@@ -1175,18 +1432,49 @@
       if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
     });
     document.addEventListener('keydown', function (e) {
-      if (e.key === 'Escape' && A.open && $('#kbScope').hidden && $('#kbSettings').hidden
-          && $('#kbHistory').hidden && !$('.kb-ovl')) closePanel();
+      // 🔴 ESCAPE PEELS ONE LAYER. It closes whatever is on top - the scope menu, a drawer -
+      // and only closes the panel when nothing is over it. Escape out of a settings drawer used
+      // to do nothing at all, which reads as a stuck panel.
+      if (e.key === 'Escape' && A.open && !$('.kb-ovl')) {
+        if (!$('#kbScope').hidden) { hide($('#kbScope')); return; }
+        if (!$('#kbSettings').hidden) { hide($('#kbSettings')); return; }
+        if (!$('#kbHistory').hidden) { hide($('#kbHistory')); return; }
+        closePanel();
+        return;
+      }
+      // Two shortcuts, both on Ctrl/Cmd+Shift so they cannot collide with the browser's own:
+      // A opens or closes the panel from anywhere on the page, F enlarges it.
+      // 🔴 NEITHER IS ANIMATED BEYOND WHAT THE MOUSE DOES, and that is deliberate for the open
+      // one - a keyboard action repeated all day must not make you wait for a card to fly in.
+      // The panel's 220ms is on the edge of that; if this becomes a habit, drop it to 0 here.
+      var meta = e.ctrlKey || e.metaKey;
+      if (meta && e.shiftKey && (e.key === 'A' || e.key === 'a')) {
+        e.preventDefault();
+        if (A.open) closePanel(); else openPanel();
+        return;
+      }
+      if (meta && e.shiftKey && (e.key === 'F' || e.key === 'f') && A.open) {
+        e.preventDefault();
+        toggleMax();
+      }
     });
     if (!SR) $('#kbMic').hidden = true;
 
     wireDrag();
+    wireFollow();
+    // An enlarged panel is sized off the viewport, and an arranged one can end up off-screen
+    // after a resize; re-clamping on the way back keeps both honest.
+    window.addEventListener('resize', function () {
+      if (!A.open || !floats() || maxed()) return;
+      restoreBox();
+    });
     loadClients();
     loadSettings();
     // 🔴 `panelOpen`, NOT `open`. kb.js keeps the Explorer's expanded tree nodes under
     // `bb.kb.open` as an OBJECT; writing '1' there turned it into a number and every
     // click on a tree twisty then threw "Cannot create property on number".
-    if (localStorage.getItem(LS + 'panelOpen') === '1' || location.hash === '#ask') openPanel();
+    if (localStorage.getItem(LS + 'panelOpen') === '1') openPanel(null, undefined, true);
+    else if (location.hash === '#ask') openPanel();
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);

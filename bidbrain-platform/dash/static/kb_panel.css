@@ -29,6 +29,17 @@
   --kbp-danger: #f87171;
   --kbp-ok: #22c55e;
   --kbp-warn: #f0a35e;
+
+  /* 🔴 MOTION TOKENS. The built-in CSS easings are too weak to read as intentional, so every
+   * transition here uses one of these three. `ease-in` appears NOWHERE: it delays the first
+   * frame, which is the frame the eye is on, so it feels slower than ease-out at the same
+   * duration. Enter is slower than exit on purpose - opening is the system explaining itself,
+   * closing is the system getting out of the way. */
+  --kbp-ease-out: cubic-bezier(.23, 1, .32, 1);
+  --kbp-ease-in-out: cubic-bezier(.77, 0, .175, 1);
+  --kbp-in: 220ms;
+  --kbp-out: 140ms;
+  --kbp-press: 120ms;
 }
 
 /* --- the bubble ------------------------------------------------------------------------------ */
@@ -39,12 +50,28 @@
   background: linear-gradient(135deg, var(--kbp-accent) 0%, var(--kbp-accent-2) 100%);
   color: #1a1405; font: 700 14px/1 Inter, system-ui, sans-serif;
   box-shadow: 0 10px 30px rgba(224, 168, 24, .38);
-  transition: transform .15s ease, box-shadow .15s ease;
+  transform-origin: center;
+  transition: transform var(--kbp-out) var(--kbp-ease-out), box-shadow var(--kbp-out) ease,
+              opacity var(--kbp-out) var(--kbp-ease-out), visibility 0s;
 }
-#kbFab:hover { transform: translateY(-2px); box-shadow: 0 14px 38px rgba(224, 168, 24, .5); }
+/* 🔴 HOVER IS GATED. A touch device fires :hover on tap, so an ungated lift leaves the bubble
+ * stuck 2px up after every tap. */
+@media (hover: hover) and (pointer: fine) {
+  #kbFab:hover { transform: translateY(-2px); box-shadow: 0 14px 38px rgba(224, 168, 24, .5); }
+}
+#kbFab:active { transform: scale(.97); transition-duration: var(--kbp-press); }
+#kbFab:focus-visible { outline: 2px solid var(--kbp-ink); outline-offset: 3px; }
 #kbFab svg { width: 22px; height: 22px; stroke: #1a1405; }
-/* Two independent reasons to hide it, two classes, so clearing one never undoes the other. */
-#kbFab.is-open, #kbFab.hidden { display: none; }
+/* Two independent reasons to hide it, two classes, so clearing one never undoes the other.
+ * `.hidden` is a hard hide (no bubble on this page at all); `.is-open` is the SAME bubble
+ * getting out of the way of its own panel, so it scales out rather than vanishing - the panel
+ * grows from exactly where it stood. `visibility` is what keeps it untabbable once faded. */
+#kbFab.hidden { display: none; }
+#kbFab.is-open {
+  opacity: 0; transform: scale(.82); pointer-events: none; visibility: hidden;
+  transition: transform var(--kbp-out) var(--kbp-ease-out), opacity var(--kbp-out) var(--kbp-ease-out),
+              visibility 0s var(--kbp-out);
+}
 #kbFab .kbp-fab-dot { width: 8px; height: 8px; border-radius: 50%; background: #1a1405; opacity: .55; }
 
 /* --- the panel ------------------------------------------------------------------------------- */
@@ -54,11 +81,89 @@
   display: flex; flex-direction: column; overflow: hidden;
   background: var(--kbp-card); color: var(--kbp-ink);
   border: 1px solid var(--kbp-line-2); border-radius: 16px;
-  box-shadow: 0 30px 80px rgba(0, 0, 0, .66);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, .66), inset 0 1px 0 rgba(255, 255, 255, .05);
   font: 13.5px/1.5 Inter, system-ui, sans-serif;
+  /* 🔴 ORIGIN-AWARE. The panel scales out of the bubble's corner, so opening reads as the bubble
+   * becoming the window rather than a card appearing over it. A modal would stay centre-origin;
+   * this is anchored to a trigger, so it is not. */
+  transform-origin: bottom right;
+  transition: transform var(--kbp-in) var(--kbp-ease-out), opacity var(--kbp-in) var(--kbp-ease-out);
 }
 .kbp[hidden] { display: none; }
-.kbp.is-dragging { user-select: none; opacity: .97; }
+/* The closed state. JS parks the panel here for one frame before opening and again on the way
+ * out, so both directions are ONE transition on transform + opacity - nothing that touches
+ * layout, and either direction can interrupt the other mid-flight. Never scale(0): nothing in
+ * the real world appears out of nothing. */
+.kbp.is-out {
+  opacity: 0; transform: scale(.96) translateY(10px);
+  transition-duration: var(--kbp-out);
+}
+.kbp.is-dragging { user-select: none; opacity: .97; transition: none; }
+
+/* Size changes (maximize, restore, double-click) animate the BOX, which is layout work - so it
+ * is opt-in, applied by JS only for the length of that one change and never while dragging. */
+.kbp.is-sizing {
+  transition: width .28s var(--kbp-ease-in-out), height .28s var(--kbp-ease-in-out),
+              right .28s var(--kbp-ease-in-out), bottom .28s var(--kbp-ease-in-out);
+}
+
+/* --- enlarged --------------------------------------------------------------------------------- */
+/* One toggle, not a set of presets: the question a person is answering is "do I want this out of
+ * the way or do I want to read in it", and that is binary. The pre-maximize box is remembered in
+ * JS, so restore returns to the exact window they had arranged. */
+.kbp.is-max {
+  right: 24px !important; bottom: 24px !important;
+  width: calc(100vw - 48px) !important; height: calc(100vh - 48px) !important;
+}
+/* 🔴 A WIDE WINDOW IS NOT A WIDE COLUMN. Left to itself the log would run to ~1,800px and become
+ * unreadable, so the reading column is capped and centred while the chrome stays full width. */
+.kbp.is-max .kbp-log { padding-left: max(14px, calc((100% - 860px) / 2));
+                       padding-right: max(14px, calc((100% - 860px) / 2)); }
+.kbp.is-max .kbp-msg.ai .kbp-bubble { max-width: 100%; }
+.kbp.is-max .kbp-msg.me .kbp-bubble { max-width: 72%; }
+.kbp.is-max .kbp-compose { padding-left: max(10px, calc((100% - 880px) / 2));
+                           padding-right: max(10px, calc((100% - 880px) / 2)); }
+.kbp.is-max .kbp-grip, .kbp.is-max .kbp-edge { display: none; }
+.kbp.is-max .kbp-head { cursor: default; }
+.kbp.is-max .kbp-title small { max-width: 420px; }
+/* The enlarge icon states the NEXT action, not the current one: arrows out to enlarge, arrows in
+ * to restore. Swapped in CSS off the same class that does the sizing, so the two can never
+ * disagree. */
+.kbp-max-in { display: none; }
+.kbp.is-max .kbp-max-out { display: none; }
+.kbp.is-max .kbp-max-in { display: inline; }
+
+/* --- hidden (collapsed to its own header) ------------------------------------------------------ */
+/* 🔴 HIDE IS NOT CLOSE, and the two must not be confused. Close puts the panel away and hands the
+ * page back to the bubble; hide rolls it down to its title bar and LEAVES IT ON SCREEN, so the
+ * conversation is one click away and visibly still there. That distinction is the only reason to
+ * have both, so the tooltip says it on the button.
+ *
+ * The collapsed height is a PIXEL VALUE, not `auto`, because `auto` cannot be transitioned - JS
+ * measures the header once and writes it to --kbp-headh so the roll-down actually animates.
+ *
+ * This block sits AFTER `.is-max` deliberately: both carry !important at the same specificity, so
+ * source order is what decides, and hidden has to win. (Hiding also drops out of enlarged - see
+ * toggleMin - so the pair can never argue about width either.) */
+.kbp.is-min { height: var(--kbp-headh, 54px) !important; }
+.kbp.is-min .kbp-chips, .kbp.is-min .kbp-convo, .kbp.is-min .kbp-body,
+.kbp.is-min .kbp-compose, .kbp.is-min .kbp-grip, .kbp.is-min .kbp-edge { display: none; }
+/* The whole bar is the target when it is rolled down - a 32px button is a small thing to ask
+ * someone to hit twice. The header stops being a drag handle at that size, so the cursor says so. */
+.kbp.is-min .kbp-head { cursor: pointer; border-bottom: none; }
+.kbp.is-min .kbp-title small { display: none; }
+.kbp-min-up { display: none; }
+.kbp.is-min .kbp-min-down { display: none; }
+.kbp.is-min .kbp-min-up { display: inline; }
+
+/* --- resize edges ------------------------------------------------------------------------------ */
+/* The panel is pinned bottom-right, so the LEFT and TOP edges are the ones that size it. The
+ * corner grip stays (it is the affordance people look for); these are the invisible 6px strips
+ * that make the window behave like a window. */
+.kbp-edge { position: absolute; z-index: 4; }
+.kbp-edge.l { left: 0; top: 10px; bottom: 16px; width: 6px; cursor: ew-resize; }
+.kbp-edge.t { top: 0; left: 16px; right: 10px; height: 6px; cursor: ns-resize; }
+.kbp-edge.tl { top: 0; left: 0; width: 14px; height: 14px; cursor: nwse-resize; }
 
 .kbp-head {
   display: flex; align-items: center; justify-content: space-between; gap: 10px;
@@ -72,8 +177,14 @@
   margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 240px; }
 .kbp-head-btns { display: flex; gap: 2px; flex: none; }
 .kbp-icon { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px;
-  border: none; background: none; color: var(--kbp-sub); border-radius: 9px; cursor: pointer; padding: 0; }
-.kbp-icon:hover { background: var(--kbp-raised); color: var(--kbp-ink); }
+  border: none; background: none; color: var(--kbp-sub); border-radius: 9px; cursor: pointer; padding: 0;
+  transition: background var(--kbp-press) ease, color var(--kbp-press) ease,
+              transform var(--kbp-press) var(--kbp-ease-out); }
+@media (hover: hover) and (pointer: fine) {
+  .kbp-icon:hover { background: var(--kbp-raised); color: var(--kbp-ink); }
+}
+.kbp-icon:active { transform: scale(.92); }
+.kbp-icon:focus-visible { outline: 2px solid var(--kbp-accent); outline-offset: -2px; }
 .kbp-icon svg { width: 17px; height: 17px; }
 .kbp-icon.on { color: #1a1405; background: var(--kbp-accent); }
 
@@ -81,8 +192,11 @@
 .kbp-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px 12px 0; flex: none; }
 .kbp-chip { border: 1px solid var(--kbp-line-2); background: transparent; color: var(--kbp-sub);
   font: 600 12px/1 Inter, sans-serif; padding: 6px 10px; border-radius: 999px; cursor: pointer;
-  display: inline-flex; align-items: center; gap: 6px; max-width: 220px; }
+  display: inline-flex; align-items: center; gap: 6px; max-width: 220px;
+  transition: color var(--kbp-press) ease, border-color var(--kbp-press) ease,
+              background var(--kbp-press) ease, transform var(--kbp-press) var(--kbp-ease-out); }
 .kbp-chip:hover { color: var(--kbp-ink); }
+.kbp-chip:active { transform: scale(.97); }
 .kbp-chip.on { background: var(--kbp-accent-dim); border-color: var(--kbp-accent-line); color: var(--kbp-accent); }
 .kbp-chip svg { width: 13px; height: 13px; flex: none; }
 .kbp-chip-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -94,8 +208,12 @@
 /* --- the scope dropdown (client + folders) --------------------------------------------------- */
 .kbp-scope { position: absolute; top: 6px; left: 10px; right: 10px; z-index: 3; max-height: calc(100% - 12px);
   display: flex; flex-direction: column; background: var(--kbp-card); border: 1px solid var(--kbp-line-2);
-  border-radius: 12px; box-shadow: 0 18px 44px rgba(0, 0, 0, .6); overflow: hidden; }
+  border-radius: 12px; box-shadow: 0 18px 44px rgba(0, 0, 0, .6); overflow: hidden;
+  /* It hangs off the scope chip in the top-left, so that is where it grows from. */
+  transform-origin: top left;
+  transition: opacity 160ms var(--kbp-ease-out), transform 160ms var(--kbp-ease-out); }
 .kbp-scope[hidden] { display: none; }
+.kbp-scope.is-out { opacity: 0; transform: scale(.97) translateY(-4px); transition-duration: 110ms; }
 .kbp-scope-head { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px 6px; }
 .kbp-scope-head b { font-size: 13px; }
 .kbp-scope-head span { font-size: 11.5px; color: var(--kbp-sub); line-height: 1.5; }
@@ -185,8 +303,11 @@
 .kbp-verdict { display: flex; gap: 6px; margin-top: 10px; align-items: center; flex-wrap: wrap; }
 .kbp-btn { font: 600 12px/1.2 Inter, sans-serif; padding: 5px 11px; border-radius: 8px; cursor: pointer;
   border: 1px solid var(--kbp-line-2); background: transparent; color: var(--kbp-ink);
-  display: inline-flex; align-items: center; gap: 6px; }
+  display: inline-flex; align-items: center; gap: 6px;
+  transition: background var(--kbp-press) ease, transform var(--kbp-press) var(--kbp-ease-out); }
 .kbp-btn:hover:not(:disabled) { background: var(--kbp-raised); }
+.kbp-btn:active:not(:disabled) { transform: scale(.97); }
+.kbp-btn:focus-visible { outline: 2px solid var(--kbp-accent); outline-offset: 2px; }
 .kbp-btn:disabled { opacity: .45; cursor: default; }
 .kbp-btn.gold { background: linear-gradient(135deg, var(--kbp-accent), var(--kbp-accent-2));
   border-color: transparent; color: #1a1405; font-weight: 700; }
@@ -216,8 +337,12 @@ textarea.kbp-input { resize: vertical; min-height: 66px; line-height: 1.55; }
   overflow: auto; margin-bottom: 10px; }
 
 /* --- drawers (history, settings) ----------------------------------------------------------------- */
-.kbp-drawer { position: absolute; inset: 0; background: var(--kbp-card); display: flex; flex-direction: column; z-index: 4; }
+.kbp-drawer { position: absolute; inset: 0; background: var(--kbp-card); display: flex; flex-direction: column; z-index: 4;
+  transition: opacity 190ms var(--kbp-ease-out), transform 190ms var(--kbp-ease-out); }
 .kbp-drawer[hidden] { display: none; }
+/* A drawer slides in OVER the conversation from the right and leaves the same way, so the
+ * direction itself says "this is on top of what you were reading, and it is going back". */
+.kbp-drawer.is-out { opacity: 0; transform: translateX(14px); transition-duration: 130ms; }
 .kbp-drawer-head { display: flex; align-items: center; justify-content: space-between; gap: 8px;
   padding: 10px 10px 10px 14px; border-bottom: 1px solid var(--kbp-line); font: 700 13.5px/1.2 Inter, sans-serif; }
 .kbp-drawer-body { flex: 1; overflow-y: auto; padding: 12px 14px; display: flex; flex-direction: column; gap: 12px; }
@@ -264,18 +389,109 @@ textarea.kbp-input { resize: vertical; min-height: 66px; line-height: 1.55; }
 .kbp-mic svg { width: 17px; height: 17px; }
 .kbp-send { flex: none; height: 38px; padding: 0 14px; border-radius: 10px; border: none;
   background: linear-gradient(135deg, var(--kbp-accent), var(--kbp-accent-2)); color: #1a1405;
-  font: 700 13px/1 Inter, sans-serif; cursor: pointer; }
+  font: 700 13px/1 Inter, sans-serif; cursor: pointer;
+  transition: transform var(--kbp-press) var(--kbp-ease-out), opacity var(--kbp-press) ease,
+              filter var(--kbp-press) ease; }
+.kbp-send:hover:not(:disabled) { filter: brightness(1.06); }
+.kbp-send:active:not(:disabled) { transform: scale(.96); }
+.kbp-send:focus-visible { outline: 2px solid var(--kbp-accent); outline-offset: 2px; }
 .kbp-send:disabled { opacity: .5; cursor: default; }
+.kbp-mic { transition: color var(--kbp-press) ease, background var(--kbp-press) ease,
+                       transform var(--kbp-press) var(--kbp-ease-out); }
+.kbp-mic:active { transform: scale(.94); }
 
 .kbp-grip { position: absolute; left: 0; bottom: 0; width: 16px; height: 16px; cursor: nesw-resize; z-index: 5;
   background: linear-gradient(45deg, transparent 50%, var(--kbp-line-2) 50%, var(--kbp-line-2) 60%,
     transparent 60%, transparent 72%, var(--kbp-line-2) 72%, var(--kbp-line-2) 82%, transparent 82%); }
 
+/* --- entry motion in the log --------------------------------------------------------------------- */
+/* A message arrives; it does not blink into existence. 8px is deliberately small - this is
+ * "something landed here", not a performance. Both the question and the answer shell use it, so
+ * the pair reads as one exchange. */
+@keyframes kbp-rise { from { opacity: 0; transform: translateY(8px); } }
+.kbp-msg { animation: kbp-rise 240ms var(--kbp-ease-out) both; }
+.kbp-sysnote { animation: kbp-rise 200ms var(--kbp-ease-out) both; }
+
+/* Citations arrive as a group, so they stagger. Delays stay short (35ms) and stop after six -
+ * a long cascade makes the interface feel slow, and nothing here waits on it. */
+.kbp-cite { animation: kbp-rise 220ms var(--kbp-ease-out) both;
+  transition: border-color var(--kbp-press) ease, color var(--kbp-press) ease,
+              transform var(--kbp-press) var(--kbp-ease-out); }
+.kbp-cite:nth-child(1) { animation-delay: 0ms; }
+.kbp-cite:nth-child(2) { animation-delay: 35ms; }
+.kbp-cite:nth-child(3) { animation-delay: 70ms; }
+.kbp-cite:nth-child(4) { animation-delay: 105ms; }
+.kbp-cite:nth-child(5) { animation-delay: 140ms; }
+.kbp-cite:nth-child(n+6) { animation-delay: 175ms; }
+.kbp-cite:active { transform: scale(.99); }
+
+/* The proposal card is rare and consequential - the one place a little more entrance is earned. */
+.kbp-propose { animation: kbp-rise 300ms var(--kbp-ease-out) both; }
+
+/* --- jump to the newest ---------------------------------------------------------------------- */
+/* Reading back through an answer while the next one streams in used to mean being yanked to the
+ * bottom or losing the thread entirely. Scrolling up now stops the auto-follow and offers this
+ * instead; it appears only when there is something below to go to. */
+.kbp-jump {
+  position: absolute; left: 50%; bottom: 14px; z-index: 2;
+  display: inline-flex; align-items: center; gap: 6px;
+  border: 1px solid var(--kbp-line-2); background: var(--kbp-raised); color: var(--kbp-ink);
+  border-radius: 999px; padding: 6px 12px 6px 10px; cursor: pointer;
+  font: 600 12px/1 Inter, sans-serif; box-shadow: 0 8px 22px rgba(0, 0, 0, .45);
+  transform: translate(-50%, 0);
+  transition: opacity var(--kbp-in) var(--kbp-ease-out), transform var(--kbp-in) var(--kbp-ease-out);
+}
+.kbp-jump[hidden] { display: none; }
+.kbp-jump.is-out { opacity: 0; transform: translate(-50%, 8px); transition-duration: var(--kbp-out); }
+.kbp-jump svg { width: 13px; height: 13px; }
+.kbp-jump:hover { border-color: var(--kbp-accent-line); }
+.kbp-jump:active { transform: translate(-50%, 0) scale(.97); }
+
+/* --- copy an answer ---------------------------------------------------------------------------- */
+.kbp-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.kbp-copy.done { color: var(--kbp-ok); border-color: rgba(34, 197, 94, .32); }
+
+/* --- keyboard hints ---------------------------------------------------------------------------- */
+kbd { font: 600 10.5px/1 Inter, sans-serif; padding: 2px 5px; border-radius: 5px;
+  border: 1px solid var(--kbp-line-2); background: var(--kbp-sunken); color: var(--kbp-sub); }
+.kbp-empty kbd { margin: 0 1px; }
+
+/* 🔴 REDUCED MOTION. `*` does NOT match pseudo-elements, so ::before/::after are named here too -
+ * the dots and the pulses live on them. This is "fewer and gentler", not "none": opacity still
+ * carries the change so nothing appears or vanishes abruptly, only the movement goes. */
+@media (prefers-reduced-motion: reduce) {
+  .kbp, .kbp *, .kbp *::before, .kbp *::after,
+  #kbFab, #kbFab::before, #kbFab::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 120ms !important;
+    transition-property: opacity, background-color, border-color, color !important;
+  }
+  .kbp.is-out { transform: none; }
+  .kbp-drawer.is-out, .kbp-scope.is-out, .kbp-jump.is-out { transform: translate(0, 0); }
+  .kbp-jump, .kbp-jump.is-out { transform: translate(-50%, 0); }
+  #kbFab.is-open { transform: none; }
+}
+
 /* A phone: a sheet, not a window. No drag, no resize. */
 @media (max-width: 560px) {
-  .kbp { right: 8px; left: 8px; bottom: 8px; top: auto;
+  /* 🔴 EVERY ANCHOR IS !important HERE. The drag handles write right/bottom as INLINE styles,
+   * which outrank a plain rule - so a window arranged on a desktop and then narrowed (or a
+   * laptop with a phone-width window) kept its old offsets and the sheet sat off-centre. */
+  .kbp { right: 8px !important; left: 8px !important; bottom: 8px !important; top: auto !important;
          width: auto !important; height: min(86vh, 700px) !important; }
-  .kbp-grip { display: none; }
+  .kbp-grip, .kbp-edge { display: none; }
   .kbp-head { cursor: default; }
   #kbFab { right: 16px; bottom: 16px; }
+  /* 🔴 A SHEET IS ALREADY MAXIMIZED. `.is-max` carries !important (it has to beat an inline box
+   * set by the drag handles), so it would otherwise outrank these and re-float the sheet on a
+   * phone. The enlarge button hides itself at this width, but a state saved on a desktop and
+   * reopened on a phone would still carry the class. */
+  .kbp.is-max { right: 8px !important; left: 8px !important; bottom: 8px !important;
+                width: auto !important; height: min(86vh, 700px) !important; }
+  .kbp.is-max .kbp-log, .kbp.is-max .kbp-compose { padding-left: 14px; padding-right: 14px; }
+  /* Hiding still works on a phone - it is the one window control that makes sense on a sheet -
+   * but this block is later in the file than the rule above, so it has to be restated here. */
+  .kbp.is-min { height: var(--kbp-headh, 54px) !important; }
+  #kbMax { display: none; }
 }

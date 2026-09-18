@@ -18,7 +18,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 {% include "_premium_head.html" %}
 <link rel="stylesheet" href="/static/kb.css?v=2">
-<link rel="stylesheet" href="/static/kb_panel.css?v=1">
+<link rel="stylesheet" href="/static/kb_panel.css?v=2">
 </head>
 <body>
 
@@ -95,7 +95,19 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></button>
       <button class="kbp-icon" id="kbSettingsBtn" type="button" title="Settings" aria-label="Settings">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8 2 2 0 1 1-2.8 2.8 1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5 2 2 0 1 1-4 0 1.6 1.6 0 0 0-1-1.5 1.6 1.6 0 0 0-1.8.3 2 2 0 1 1-2.8-2.8 1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1 2 2 0 1 1 0-4 1.6 1.6 0 0 0 1.5-1 1.6 1.6 0 0 0-.3-1.8 2 2 0 1 1 2.8-2.8 1.6 1.6 0 0 0 1.8.3 1.6 1.6 0 0 0 1-1.5 2 2 0 1 1 4 0 1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3 2 2 0 1 1 2.8 2.8 1.6 1.6 0 0 0-.3 1.8 1.6 1.6 0 0 0 1.5 1 2 2 0 1 1 0 4 1.6 1.6 0 0 0-1.5 1z"/></svg></button>
-      <button class="kbp-icon" id="kbClose" type="button" title="Close" aria-label="Close">
+      <button class="kbp-icon" id="kbMin" type="button" title="Hide (keeps the conversation)"
+              aria-label="Hide" aria-pressed="false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <path class="kbp-min-down" d="M6 15h12"/>
+          <path class="kbp-min-up" d="M7 14l5-5 5 5"/>
+        </svg></button>
+      <button class="kbp-icon" id="kbMax" type="button" title="Enlarge (Ctrl+Shift+F)"
+              aria-label="Enlarge" aria-pressed="false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+          <path class="kbp-max-out" d="M9 4H4v5M15 4h5v5M15 20h5v-5M9 20H4v-5"/>
+          <path class="kbp-max-in" d="M4 9h5V4M20 9h-5V4M20 15h-5v5M4 15h5v5"/>
+        </svg></button>
+      <button class="kbp-icon" id="kbClose" type="button" title="Close (Esc)" aria-label="Close">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
     </div>
   </div>
@@ -120,6 +132,11 @@
 
   <div class="kbp-body">
     <div class="kbp-log" id="kbLog"></div>
+    <button class="kbp-jump" id="kbJump" type="button" hidden>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 5v14M6 13l6 6 6-6"/></svg>
+      <span>Newest</span>
+    </button>
     <div class="kbp-scope" id="kbScope" hidden></div>
 
     <div class="kbp-drawer" id="kbHistory" hidden>
@@ -148,7 +165,13 @@
     <textarea id="kbInput" rows="1" placeholder="Ask about anything in the library…"></textarea>
     <button class="kbp-send" id="kbSend" type="button">Ask</button>
   </div>
+  <!-- The corner grip is the affordance people look for; the three edge strips are the ones that
+       make it behave like a window. The panel is pinned bottom-right, so left and top are the
+       edges that size it. -->
   <div class="kbp-grip" id="kbGrip" title="Drag to resize"></div>
+  <div class="kbp-edge l" data-edge="w"></div>
+  <div class="kbp-edge t" data-edge="n"></div>
+  <div class="kbp-edge tl" data-edge="nw"></div>
 </aside>
 
 <div class="kb-uploads" id="kbUploads"></div>
