@@ -21,6 +21,9 @@ COPY static ./static
 # Fathom meetings + client profile memory + the dashboard assistant's read of the library, and the
 # Client Assistant (dark: CLIENT_CHAT_ENABLED + per-client flag + visibility all default off).
 COPY kb_fathom.py kb_memory.py kb_fathom_routes.py kb_bridge.py client_chat.py ./
+# Slack channels into the library (2026-09-17): the connector, its page's routes. The page itself
+# and its script ride in templates/ and static/ above.
+COPY kb_slack.py kb_slack_routes.py ./
 COPY lineage ./lineage
 COPY glossary ./glossary
 # Agency logos: copied by WILDCARD, because main.py discovers them by globbing `agency_*` /

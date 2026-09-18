@@ -117,7 +117,20 @@ dates, "verified on") lives there too, never here.**
   THE RULE (2026-09-16): 95-100% sure files itself (sure rungs at 100%, the model at
   `FATHOM_AUTO_ASSIGN`=0.95, client or agency-wide), a call the model says is not work waits,
   anything less sure waits for a person, and watch-list titles (1:1, interview, hr...) always wait;
-  memory never learns from a model filing. Decisions come from AI + RAG + memory, not codified rules. **THIS REPO'S OWN MARKDOWN IS IN IT AND SYNCS ITSELF**
+  memory never learns from a model filing. Decisions come from AI + RAG + memory, not codified rules.
+  **CHANNELS (2026-09-17, built, not yet connected):** `/kb/channels` (`kb_slack.py`,
+  `kb_slack_routes.py`) files Slack channel conversations the same way - one document per
+  THREAD and one per CHANNEL-DAY (`kind=conversation`, `source=slack`, folder `Slack/#<channel>`).
+  The bot reads ONLY channels it is invited to (that invite is the whole scope control); a person
+  maps a channel to a client on the page and it files with no model call, an unmapped channel goes
+  through the meetings ladder. 🔴 EVENTS ARE TRIGGERS, HISTORY IS THE TRUTH: a Slack event only
+  says "re-read this channel", the document is always rebuilt from `conversations.history`, so an
+  edit or delete upstream reaches the library on the next sync and the webhook and Sync now share
+  one path. `app_uninstalled` purges every Slack-derived object (Developer Policy: 14 business
+  days). Secrets `SLACK_BOT_TOKEN` / `SLACK_SIGNING_SECRET`; unset = "not connected", nothing else
+  changes. Slack documents never reach a customer (`kb_bridge`). The legal read of Slack's Developer
+  Policy ("no sharing Data with third parties", "no LLM training") is OPEN - see
+  `docs/slack-ingestion-design.md`. **THIS REPO'S OWN MARKDOWN IS IN IT AND SYNCS ITSELF**
   (`scripts/kb_repo_sync.py` + `.github/workflows/kb-sync.yml`): every tracked `.md` becomes
   SECTION documents - one per heading, one per client row of the table below - in a
   `GCP Backend` folder, on every push to main. **Edit the markdown in git, never the

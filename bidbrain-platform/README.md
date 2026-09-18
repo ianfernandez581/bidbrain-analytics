@@ -1354,6 +1354,62 @@ over `{webhook-id}.{webhook-timestamp}.{body}`, secret `whsec_<base64>`, header 
   transcript after the summary. `MAX_PER_DOC=2` keeps a long transcript from crowding the library;
   if that is not enough, `kb_fathom.meeting_body` is the one place to drop it.
 
+### Channels: Slack into the library, the same way (2026-09-17, built - not yet connected)
+`/kb/channels` (`kb_slack.py`, `kb_slack_routes.py`, `kb_channels.html` + `static/kb_channels.js`,
+sharing `static/kb_fm.css` with Meetings), same gate as Documents. Design and the open legal gate:
+`docs/slack-ingestion-design.md`. One internal, undistributed Slack app on the 100% Digital
+workspace (`slack-app-manifest.yaml` at the clone root); secrets `slack-bot-token` /
+`slack-signing-secret` as env `SLACK_BOT_TOKEN` / `SLACK_SIGNING_SECRET`; unset = the page says
+"not connected", `POST /kb/api/slack/sync` answers 503, `POST /slack/events` 503, nothing else
+changes.
+
+- **The invite is the scope.** The bot reads only channels it has been added to; `list_channels`
+  keeps `is_member` only. No `im:*`, no `chat:write`, no `groups:*` in v1 (public channels only).
+- **Private channels are listed but NOT read** until `SLACK_ALLOW_PRIVATE=1` (`kb_slack.readable`):
+  the library has no per-reader membership filter yet, so a private channel filed today is readable
+  by every staff member tomorrow. The sync counts them as `skipped_private`, the page says so, and
+  a message event from one is ignored. Turning the switch on is the moment the filter must exist.
+- **One message = one chunk block**: `conversation_body` puts a blank line between messages because
+  `kb_chunk` cuts only a block over its budget - single newlines would make a day's chat one block
+  sliced mid-sentence (test: `Chunking`).
+- **A conversation becomes an ordinary document**: one per THREAD (`slack-<C>-t<ts>`), one per
+  CHANNEL-DAY (`slack-<C>-d<date>`, unthreaded messages), `kind=conversation`, `source=slack`,
+  folder `Slack/#<channel>`, body `[HH:MM] Name: text` with mentions/channels/links resolved and
+  files as names only. Raw messages kept as `conversation.json`; Slack facts under `doc["slack"]`.
+- **🔴 Events are triggers, history is the truth.** `POST /slack/events` verifies `v0` HMAC on the
+  raw body, answers the URL challenge, dedupes on `event_id` (process cache + `slack/inbox/`), and
+  then only re-reads that channel from `conversations.history`; documents are rebuilt under the
+  same id, so an edit or delete upstream lands on the next pass and `Sync now` shares the path.
+  Each sync re-reads a 14-day lookback (`SLACK_LOOKBACK_S`) because history filters by the
+  PARENT's timestamp and late replies would otherwise be missed. `reindex_document` is idempotent,
+  so an unchanged conversation writes nothing - a rebuild is not a decision and is not audited.
+- **Filing**: mapped channel (`slack/channels.json`, declared by a person on the page) ->
+  `assigned_by=channel`, no model; unmapped -> `kb_fathom.classify` over `kb_slack.as_meeting`
+  (empty invite list, so the transcript decides) -> file at `FATHOM_AUTO_ASSIGN` or wait in
+  `slack/unassigned/`. Mapping never re-files existing documents; `/kb/api/slack/refile` is the
+  explicit second step (K7-10's rule).
+- **Lifecycle**: `app_uninstalled` / `tokens_revoked` -> `kb_slack.purge_all()` (every Slack-derived
+  object; the Developer Policy's 14 business days, done at once); `channel_rename` follows the id;
+  archive/delete/bot-removed mark the channel `gone`, documents stay.
+- **Audit**: eight `slack_*` kinds, group `slack` in `kb_activity.GROUPS`; `/kb/api/slack/log`
+  filters server-side; Observability has a Slack panel beside Meetings (`_slack_summary`).
+- **Never a customer**: `kb_bridge.retrieve_for_client` drops `source=slack` / `kind=conversation`
+  regardless of `visibility`.
+- **Never a provider that trains on inputs**: `kb_slack.withhold_from` (env
+  `KB_SLACK_EXCLUDE_PROVIDERS`, default `kimi` - Moonshot's terms, read 2026-09-17) -> `kb_routes.ask`
+  -> `kb_chat.stream(exclude=...)`. Decided per answer from what was retrieved; the chosen model is
+  overridden for that answer only and the badge says "not Kimi". Slack's Developer Policy forbids
+  training an LLM on its Data; see `docs/slack-ingestion-design.md` s8a.
+- `GET /kb/api/slack/purge-check`: documents + objects left after an uninstall purge (`clean`).
+- **Memory learns from a confirmed conversation the way it learns from a meeting**: the people
+  who SPOKE stand in for the invite list (`kb_slack.authors` -> `as_meeting`), so a human Assign
+  teaches `kb_memory` the external guest (never a colleague - internal by domain) and the next
+  conversation with that guest, in any channel, files by the memory rung with no model call.
+  The card shows "Will remember" with tick boxes; unticked items travel as `skip`. A channel
+  mapping or a model filing teaches nothing.
+- Tests: `tests/test_kb_slack.py` (module, FakeSlack), `tests/test_kb_slack_routes.py` (routes,
+  events, lifecycle, Observability). `python -m unittest` and pytest alike.
+
 ### Observability, and Phoenix
 The page answers "why did it say that?" **with tracing switched off**, because the question record it
 reads is the activity log in the bucket, not this instance's memory: the instance that answered is
@@ -1496,6 +1552,10 @@ bidbrain-platform/
     kb_fathom_routes.py          /kb/meetings + /kb/api/fathom/* + POST /fathom/webhook, same injected gates as kb_routes
     templates/kb_meetings.html   the Meetings page (connection, queue, declared domains, memory)
     static/kb_meetings.js        the Meetings page's JS - talks only to /kb/api/fathom/*
+    static/kb_channels.js        the Channels page's JS - talks only to /kb/api/slack/*
+    static/kb_fm.css             the connector pages' shared look (Meetings + Channels)
+    kb_slack.py                  Slack -> conversation documents; signing, history, grouping, mapping, purge
+    kb_slack_routes.py           /kb/channels + /kb/api/slack/* + POST /slack/events
     kb/HOW-BIDBRAIN-KB-WORKS.md  the assistant's self-knowledge, shipped INSIDE the prompt on every turn
     static/kb.js kb.css          the Documents explorer (client tiles, folders, the file list)
     static/kb_ask.js kb_panel.css   the floating Ask panel: bubble, drawers, voice, feedback

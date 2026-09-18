@@ -377,6 +377,35 @@ class Memory(unittest.TestCase):
             self.assertEqual(bad, ["not a domain"])
             self.assertEqual(kb_memory.all_client_domains(), {"cloudflare": ["cloudflare.com", "cloudflare.net"]})
 
+    def test_a_free_mail_domain_is_never_learned_but_the_person_is(self):
+        """gmail.com identifies a billion people; christian@gmail.com identifies one. Learning the
+        domain would hand a later meeting a deterministic assign on the strength of a personal
+        address (found on the first real Slack sync, 2026-09-18)."""
+        meeting = {"title": "Geocon weekly",
+                   "calendar_invitees": [{"email": "sam@geocon.com.au", "is_external": True},
+                                         {"email": "christian@gmail.com", "is_external": True}]}
+        t = kb_memory.teaches(meeting)
+        self.assertEqual(t["people"], ["sam@geocon.com.au", "christian@gmail.com"])
+        self.assertEqual(t["domains"], ["geocon.com.au"], "the card must not offer a consumer mailbox")
+
+        fs = FakeStore()
+        with mock.patch.multiple(kb_store, _read_json=fs.read_json, _write_json=fs.write_json,
+                                 _storage=lambda: mock.Mock(list_blobs=fs.list_blobs)):
+            doc = kb_memory.learn("geocon", meeting, "fathom-1")
+        self.assertEqual(sorted(doc["domains"]), ["geocon.com.au"])
+        self.assertEqual(sorted(doc["people"]), ["christian@gmail.com", "sam@geocon.com.au"])
+
+    def test_the_free_mail_list_is_env_overridable(self):
+        self.assertTrue(kb_memory.is_free_mail("GMail.com"), "case and whitespace are normalised")
+        self.assertFalse(kb_memory.is_free_mail("geocon.com.au"))
+        self.assertFalse(kb_memory.is_free_mail(""))
+
+    def test_an_all_free_mail_meeting_teaches_people_only(self):
+        meeting = {"title": "intro call",
+                   "calendar_invitees": [{"email": "a@gmail.com", "is_external": True},
+                                         {"email": "b@outlook.com", "is_external": True}]}
+        self.assertEqual(kb_memory.teaches(meeting)["domains"], [])
+
     def test_client_safe_is_facts_only(self):
         mem = dict(kb_memory.empty(), facts=["NFP"], people={"p@x.com": {"n": 1}})
         self.assertEqual(kb_memory.client_safe(mem), {"facts": ["NFP"]})

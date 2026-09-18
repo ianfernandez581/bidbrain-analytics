@@ -51,7 +51,16 @@ KINDS = ("search", "question", "doc_added", "doc_edited", "doc_deleted", "doc_mo
          "meeting_assigned",  # a person confirmed or chose the client, FROM THE QUEUE
          "meeting_ignored",   # a person said this belongs in the library at all
          "meeting_moved",     # an ALREADY-FILED meeting was re-filed to a different client
-         "meeting_rebuilt")   # an already-filed meeting's document was regenerated
+         "meeting_rebuilt",   # an already-filed meeting's document was regenerated
+         # slack (kb_slack_routes, 2026-09-17): the same shape, one event per DECISION.
+         "slack_filed",       # a mapped channel or the model placed a conversation, no human involved
+         "slack_queued",      # not sure enough - waiting for a person
+         "slack_assigned",    # a person chose the client FROM THE QUEUE
+         "slack_ignored",     # a person said this does not belong in the library
+         "slack_moved",       # already-filed conversations re-filed after a channel's mapping changed
+         "slack_mapped",      # a person declared (or cleared) which client a channel belongs to
+         "slack_purged",      # the app was removed from Slack: every Slack-derived object deleted
+         "slack_channel")     # a channel was renamed, archived, deleted, or the bot removed from it
 
 # 🔴 `meeting_assigned` AND `meeting_moved` ARE NOT THE SAME EVENT, and collapsing them makes the
 # audit trail lie. Assigned means somebody worked the queue: the meeting was waiting, they chose.
@@ -62,7 +71,9 @@ KINDS = ("search", "question", "doc_added", "doc_edited", "doc_deleted", "doc_mo
 GROUPS = {"questions": ("search", "question", "feedback"),
           "documents": ("doc_added", "doc_edited", "doc_deleted", "doc_moved", "folder_renamed"),
           "meetings": ("meeting_filed", "meeting_queued", "meeting_assigned", "meeting_ignored",
-                       "meeting_moved", "meeting_rebuilt")}
+                       "meeting_moved", "meeting_rebuilt"),
+          "slack": ("slack_filed", "slack_queued", "slack_assigned", "slack_ignored", "slack_moved",
+                    "slack_mapped", "slack_purged", "slack_channel")}
 
 
 def kind_group(kind):

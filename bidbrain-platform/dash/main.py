@@ -46,6 +46,7 @@ import internal_notes
 import internal_chat
 import kb_routes
 import kb_fathom_routes
+import kb_slack_routes
 import kb_trace
 import client_chat
 from store import Store, verify_pw, is_external, agency_setting
@@ -617,6 +618,13 @@ kb_fathom_routes.init(app, allowed=_kb_allowed, signed_in=lambda: bool(session.g
                       actor=_kb_actor, mutation_blocked=_prod_mutation_blocked,
                       page_context=_kb_page_context, clients=_kb_clients,
                       registry_clients=_kb_registry_clients, entities=_fathom_entities)
+# --- Slack channels into the knowledge base (kb_slack.py, kb_slack_routes.py; 2026-09-17) --------
+# Same gate, actor, mutation guard, candidate list and entity harvest as Fathom: a channel's
+# conversations go through the same ladder when nobody has said which client the channel belongs to.
+kb_slack_routes.init(app, allowed=_kb_allowed, signed_in=lambda: bool(session.get("kind")),
+                     actor=_kb_actor, mutation_blocked=_prod_mutation_blocked,
+                     page_context=_kb_page_context, clients=_kb_clients,
+                     registry_clients=_kb_registry_clients, entities=_fathom_entities)
 # A no-op unless PHOENIX_COLLECTOR_ENDPOINT is set, and it swallows its own failure: observability
 # that can break the thing it observes is worse than none.
 kb_trace.configure()

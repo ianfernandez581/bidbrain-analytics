@@ -1,0 +1,119 @@
+{# The knowledge base's Channels page (Slack). Same shape and the same stylesheet as Meetings:
+   a connection strip, the channels the bot has been INVITED to (each with the client a person has
+   declared for it), the queue of conversations no rung placed, and the audit record filtered to
+   Slack events only. Same gate as Documents (kb_slack_routes.channels_page). Everything on this
+   page is INTERNAL; nothing from Slack ever reaches a client.
+
+   The invite is the scope control: a channel appears here the moment the bot is added to it and
+   nowhere in code. Mapping a channel to a client changes how FUTURE conversations file; moving the
+   ones already filed is a second, explicit button (the Meetings page's safe-Assign rule). #}
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Knowledge base channels · Bidbrain</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+{% include "_premium_head.html" %}
+<link rel="stylesheet" href="/static/kb.css?v=1">
+<link rel="stylesheet" href="/static/kb_fm.css?v=1">
+<style>
+/* channel table: name, mapping, last sync, docs - one row per channel the bot is in */
+.ch-table{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:6px}
+.ch-table th{text-align:left;font-size:11px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;color:var(--muted);padding:6px 8px 6px 0;border-bottom:1px solid var(--border)}
+.ch-table td{padding:8px 8px 8px 0;border-bottom:1px solid var(--border);vertical-align:middle}
+.ch-table tr:last-child td{border-bottom:0}
+.ch-name{font-weight:600;color:var(--text);white-space:nowrap}
+.ch-name small{color:var(--muted);font-weight:500;margin-left:6px}
+.ch-map{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.ch-map select{min-width:200px}
+.ch-map .btn.sm{padding:6px 10px;font-size:12px}
+.ch-note{color:var(--muted);font-size:11.5px}
+.ch-unmapped{color:var(--warn);font-weight:600}
+.ch-preview{font-size:12px;color:var(--muted);margin-top:8px;line-height:1.55;white-space:pre-wrap;font-variant-numeric:tabular-nums}
+@media (max-width:760px){.ch-table thead{display:none}.ch-table td{display:block;padding:4px 0}.ch-table tr{display:block;padding:8px 0;border-bottom:1px solid var(--border)}}
+</style>
+</head>
+<body>
+
+<div class="kb-top">
+  <span class="logo">{{ logo_svg | safe }}</span>
+  <span class="kb-pill">KNOWLEDGE BASE</span>
+  <span class="label">internal - never shown to a client</span>
+  <span class="spacer"></span>
+  <a class="kb-navlink" href="/kb/">Documents</a>
+  <a class="kb-navlink" href="/kb/meetings">Meetings</a>
+  <a class="kb-navlink on" href="/kb/channels">Channels</a>
+  {% if is_staff %}<a class="kb-navlink" href="/kb/observability">Observability</a>{% endif %}
+  <a class="btn sm" href="/">← Back</a>
+  <a class="btn sm" href="/logout">Log out</a>
+</div>
+
+<div class="kb-page">
+  <div class="kb-wrap">
+    <div class="fm-head">
+      <h1 class="kb-h">Channels</h1>
+      <details class="fm-help">
+        <summary>How filing works</summary>
+        <ol>
+          <li><b>Invite the bot</b> to a Slack channel (<code>/invite @Bidbrain Knowledge</code>). That invite is the only thing that puts a channel in scope - nothing else is read.</li>
+          <li><b>Say whose channel it is</b> in the table below. A mapped channel files every thread and every day's messages under that client's <b>Slack</b> folder on its own.</li>
+          <li><b>An unmapped channel</b> goes through the same steps as a meeting: memory, evidence, one AI read. Sure enough files itself; the rest waits here for a person.</li>
+        </ol>
+        <p>Edits and deletions in Slack are honoured on the next sync - the library never holds a message Slack no longer holds. Remove the app from Slack and everything it filed is deleted. Everything here is internal.</p>
+      </details>
+    </div>
+
+    <section class="kb-panel fm-queue" aria-labelledby="chQueueH">
+      <div class="fm-strip">
+        <span class="nm">Slack</span>
+        <span id="chConn" class="fm-pill {{ 'on' if connected else 'off' }}">{{ 'connected' if connected else 'not connected' }}</span>
+        <span class="fm-pill {{ 'on' if events else 'warn' }}" title="Slack pushes each new message to /slack/events, signature-verified; without it, Sync now is the only way in">events {{ 'on' if events else 'off' }}</span>
+        <span class="kv" id="chStrip"></span>
+        <span class="spacer"></span>
+        <label class="fm-hint" style="margin:0;display:inline-flex;gap:6px;align-items:center">since
+          <select class="kb-input" id="chSince" style="width:auto;padding:5px 26px 5px 8px;font-size:12px">
+            <option value="7">7 days</option><option value="30" selected>30 days</option><option value="90">90 days</option><option value="365">a year</option>
+          </select></label>
+        <button class="btn sm" id="chSync" {% if not connected %}disabled title="Connect Slack first"{% endif %}>Sync now</button>
+        <details class="fm-more">
+          <summary>Details</summary>
+          <div class="fm-kv" id="chState"></div>
+          <p class="fm-hint">Sync reads every channel the bot is in, back to the chosen window, and re-reads the last two weeks each time so late replies are caught. <span id="chSyncStatus"></span></p>
+        </details>
+      </div>
+      {% if not connected %}
+      <p class="fm-hint">Not connected yet - create the app from <code>slack-app-manifest.yaml</code>, install it, and mount <code>SLACK_BOT_TOKEN</code> + <code>SLACK_SIGNING_SECRET</code>. Channels appear here as soon as the bot is invited to them.</p>
+      {% endif %}
+
+      <h2 id="chChansH">Channels the bot is in <span class="fm-pill count zero" id="chChanCount" aria-live="polite">…</span></h2>
+      <div id="chChannels"><div class="fm-empty">Loading…</div></div>
+
+      <h2 id="chQueueH" style="margin-top:22px">Waiting for a client <span class="fm-pill count zero" id="chCount" aria-live="polite">…</span></h2>
+      <div id="chQueue"><div class="fm-empty">Loading…</div></div>
+    </section>
+
+    <section class="kb-panel" aria-labelledby="chLogH">
+      <div class="fm-head">
+        <h2 id="chLogH">What landed <span class="fm-pill count zero" id="chLogCount" aria-live="polite">…</span></h2>
+        <div class="fm-filters" id="chLogFilters" role="group" aria-label="Filter by what happened"></div>
+      </div>
+      <div id="chLog"><div class="fm-empty">Loading…</div></div>
+      <p class="fm-hint">One line per decision, newest first - Slack events only. Meetings and document edits have their own pages.</p>
+    </section>
+  </div>
+</div>
+
+<script>
+window.KB_CHANNELS = {
+  clients: {{ clients | tojson }},
+  connected: {{ 'true' if connected else 'false' }},
+  actor: {{ actor | tojson }}
+};
+</script>
+<script src="/static/kb_channels.js?v=1"></script>
+{% include "_premium.html" %}
+</body>
+</html>

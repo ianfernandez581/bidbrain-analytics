@@ -505,8 +505,10 @@
   }
 
   function modelBadge(m) {
-    var b = el('span', 'kbp-badge model', m.label + (m.fallback ? ' (fallback)' : ''));
-    b.title = m.model + (m.fallback ? ' - the first choice could not answer, so this one did.' : '');
+    var held = (m.withheld_from || []).length ? m.withheld_from.map(function (p) { return p.charAt(0).toUpperCase() + p.slice(1); }).join(', ') : '';
+    var b = el('span', 'kbp-badge model', m.label + (m.fallback ? ' (fallback)' : '') + (held ? ' · not ' + held : ''));
+    b.title = m.model + (m.fallback ? ' - the first choice could not answer, so this one did.' : '') +
+      (held ? ' - this answer draws on Slack messages, which are never sent to ' + held + ' (its terms allow training on what it receives).' : '');
     return b;
   }
   function kwBadge(r) {
