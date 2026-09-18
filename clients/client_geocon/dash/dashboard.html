@@ -1165,22 +1165,26 @@ const hasAny =f=>ROWS().some(r=>n(r[f])>0);
 // enough: a lead campaign on day one has a target and no leads yet, and a development can report
 // leads the signed plan never set a target against.
 const leadsMeasured=()=>reports('leads')||bench('lead_target')!=null;
-// ========== enquiries: WITHHELD 2026-09-03, RESTORED 2026-09-17 (Salesforce still NOT wired) =====
+// ========== platform-reported enquiries: WITHHELD 2026-09-03, STILL WITHHELD (see the tail) =====
 // CLIENT INSTRUCTION 2026-09-03: report no enquiry count and no cost per enquiry until Salesforce
 // is connected. What the platforms hand us is a Meta lead-FORM submit count with nothing behind it
 // - and the tile stacked on top of it, `Qualified leads (modelled)`, was enquiries x an assumed
 // 20% rate. Two figures a reader can reasonably take for pipeline when neither has been near a
 // CRM. That second tile has since been DELETED outright - see the note above `leadsMeasured`.
 //
-// RESTORED 2026-09-17 on the AGENCY's instruction, and the precondition above has NOT been met -
-// recorded here rather than left for the flag to imply otherwise. SALESFORCE IS NOT CONNECTED,
-// verified 2026-09-17 three ways: this client's sql/ reads Meta / LinkedIn / TTD / Google Ads / GA4
-// and no CRM source at all; the estate's ONLY Salesforce mirror (raw_snowflake.salesforce_cs_apac_all,
-// which is Transmission's Snowflake) returns ZERO Geocon rows; and Windsor has no Salesforce
-// connector configured for any client. So `leads` is STILL a Meta lead-FORM submit count that has
-// never been near a CRM - so the `renderNote()` explainer saying exactly that is load-bearing and
-// must not be quietly dropped. The modelled qualified-lead tile that used to sit beside it is
-// GONE (2026-09-17, client: no invented numbers), so what is left on screen is measured.
+// SALESFORCE IS CONNECTED (2026-09-17), so the 2026-09-03 precondition IS met. Windsor holds a
+// Geocon Salesforce grant feeding raw_windsor.geocon_salesforce_leads -> sql/13_stg_salesforce ->
+// the payload's `crm` block: 9,782 leads across 30 projects. An earlier version of this note said
+// the opposite, "verified three ways" - it checked Transmission's Snowflake mirror and the old
+// Windsor connector list, and NEITHER can see this connector. Do not re-derive that claim from
+// those two sources; query client_geocon.stg_salesforce.
+//
+// CRM LEADS ARE NOT THIS FLAG. They are reported separately (crmReportable / crmRows); this flag
+// governs the PLATFORM-reported count alone, and they are different measures - over
+// 2026-08-24..09-16 Meta claimed 158 where the CRM recorded 136 from EVERY source, portals and
+// organic included. Publishing both invites them being read as one number. The modelled
+// qualified-lead tile that used to sit beside it is GONE (2026-09-17, client: no invented
+// numbers), so what is left on screen is measured.
 //
 // ONE FLAG, NOT A HUNDRED DELETIONS. The page already knows how to render a development that does
 // not measure leads - see `renderMeasureScope` below, built in August for Northbourne's Trade Desk
