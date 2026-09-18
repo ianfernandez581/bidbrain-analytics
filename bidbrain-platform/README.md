@@ -1214,6 +1214,108 @@ coloured like this console. The Explorer keeps two grid columns and never reflow
 Drawers slide over the conversation for **history** and **settings**; a phone gets a sheet with no
 drag and no resize.
 
+### Window controls: hide, enlarge, resize from any edge (2026-09-18)
+The panel is a window, so it behaves like one. **Hide** rolls it down to its own title bar and
+leaves it on screen; **Enlarge** takes it to the full viewport; the left, top and top-left edges
+resize it alongside the corner grip; `Ctrl/Cmd+Shift+A` opens or closes it from anywhere and
+`Ctrl/Cmd+Shift+F` enlarges. Double-clicking the header enlarges, and **shift**-double-click is
+the old behaviour - forget the arranged box and go back to the default window. Both states persist
+per browser (`bb.kb.max` / `bb.kb.min`, beside the existing `bb.kb.box`).
+
+- **🔴 HIDE IS NOT CLOSE.** Close puts the panel away and hands the page back to the bubble; hide
+  keeps it visible with the conversation intact, one click from being back. That is the only
+  reason to ship both, so the tooltip says which is which. Hiding also drops out of enlarged, so
+  there is never a full-width title bar across the page and never a question about which size a
+  restore should return to. Clicking Ask always un-hides - a panel that reopened as a title bar
+  reads as the button having failed - but a **reload** restores the hidden state, which is why
+  `openPanel` takes a `restoring` flag.
+- **🔴 `.is-min` MUST SIT AFTER `.is-max` IN THE FILE, AND BE RESTATED IN THE PHONE BLOCK.** Both
+  carry `!important` at the same specificity, so source order is what decides; the mobile media
+  query is later still and would otherwise re-expand a hidden sheet.
+- **🔴 NEVER SAVE THE BOX WHILE ENLARGED.** `.is-max` sizes the panel off the viewport, so
+  measuring it there overwrites the arranged window with the screen and restore has nothing to go
+  back to. `saveBox()` refuses; leaving enlarged saves from the *inline* styles instead.
+- The collapsed height is a **measured pixel value** written to `--kbp-headh`, not `auto`, because
+  `auto` cannot be transitioned - and it is measured *after* the panel is shown, since a
+  `display:none` header measures 0.
+- **An enlarged window is not an enlarged column.** Left alone the log would run to ~1,800px; the
+  reading column caps at 860px and centres while the chrome stays full width.
+
+### The passage list is a disclosure (2026-09-18)
+Eight rows of title, folder and badge sat above every answer, so the evidence was louder than the
+thing it was evidence for. The list now collapses behind a one-line summary -
+`› 5 sources · Meetings, Clients +2` - that opens on click and **remembers the choice**
+(`bb.kb.cites`), because reading every citation is a working habit, not a per-answer decision.
+
+- **🔴 THREE THINGS MUST NEVER BE COLLAPSED**, and the split is the whole design: the **count**
+  (so an answer never looks uncited), a **CORRECTION** badge (a human overruled the library on
+  this very point - that list opens itself) and the **"meaning search was unavailable"** warning
+  (the retrieval was weaker than usual). Anything that changes how far to trust the answer stays
+  on screen; only the evidence for it folds away.
+- **The collapse is `grid-template-rows: 0fr -> 1fr`**, not height and not `display:none`: it
+  animates without measuring anything and survives the list changing length. The inner div needs
+  `overflow:hidden` or the content spills out of a 0fr row.
+- **🔴 A 0fr ROW IS NOT `display:none`** - it stays in the tab order. The inner div is
+  `visibility:hidden` **on a 220ms delay**, so it is untabbable when shut without blanking the
+  text before the row has finished collapsing.
+- The stagger is scoped to `.is-open`. A CSS animation starts when its rule begins to match, so
+  the cascade plays **when you open the list**, not unseen behind a closed one at render.
+
+### The answer is set as prose, not as a chat bubble (2026-09-18)
+- **🔴 `mdToHtml` EMITTED NO BLOCK ELEMENTS AT ALL.** It substituted bold, code, a bullet
+  character and the citation links inline and handed the result to `innerHTML` - so every blank
+  line the model wrote was collapsed by HTML whitespace rules and a six-paragraph answer arrived
+  as one unbroken slab. The stylesheet had `.kbp-bubble p` and `ul` rules that nothing could ever
+  match. Paragraphs, bullet and numbered lists and short headings are now real elements, which is
+  most of the readability win. It is deliberately not a markdown library: it renders the four
+  things the model is asked to produce and leaves anything else as the text it literally is.
+- **The answer has no bubble.** Boxing it put a border and a second background behind the longest
+  text on screen. The QUESTION keeps its bubble - it is short, and it is what separates one turn
+  from the next. 14px/1.72 with 13px paragraph spacing.
+- **An inline citation is a footnote** (`.kbp-ref`): raised, 10px, quiet, so a sentence carrying
+  four of them is still a sentence. It was 700-weight body-size text, louder than the claim it
+  supported. Margin on the **left only** - a right margin prints `support [1] .`
+- **`color` is stated, not inherited.** Every class here is `kbp-`-prefixed so the panel cannot
+  restyle the page, but the page can still restyle the PANEL through a bare `p` or `li` rule, and
+  the answer is the one thing that must never come out dim.
+- While the answer streams it is plain text, so `.ans` carries `white-space: pre-wrap` until the
+  real HTML replaces it - otherwise it reflows into a slab for the whole stream and snaps into
+  paragraphs at the end, the one moment the reader is watching.
+- **🔴 `citesHost.children[i]` NO LONGER ADDRESSES A CITATION** now the list is a disclosure - the
+  host's children are the summary button, the collapse wrapper and possibly a warning note. The
+  inline `[n]` links query `.kbp-cite` and **open the list first**, because scrolling to a row
+  inside a shut disclosure moves the view to a control showing nothing.
+
+### Motion: the panel, not the kit (2026-09-18)
+`/kb` includes the platform's premium layer, but the panel does its own motion - it is a floating
+window with states the kit knows nothing about. Written against Emil Kowalski's rules, and the
+ones that cost something here:
+
+- **Enter 220ms, exit 140ms, both `cubic-bezier(.23,1,.32,1)`.** `ease-in` appears nowhere: it
+  delays the first frame, which is the frame the eye is on. `--kbp-in` / `--kbp-out` /
+  `--kbp-press` are the only durations.
+- **The panel's `transform-origin` is `bottom right`** - the bubble's corner - so opening reads as
+  the bubble becoming the window. Same rule puts the scope menu's origin at `top left`. It never
+  starts from `scale(0)`; nothing in the real world appears out of nothing.
+- **🔴 EVERY APPEARING SURFACE GOES THROUGH `show()` / `hide()`,** the only code that touches
+  `hidden` on one. Show drops `[hidden]` while still wearing `.is-out`, **forces one reflow**, then
+  removes it - without that the element is born and styled in the same frame and simply snaps.
+  Hide sets `[hidden]` on `transitionend` **plus a 260ms timer**, because `transitionend` never
+  fires when the transition is suppressed (reduced motion, background tab) and a surface that
+  never gets `[hidden]` back sits over the conversation forever. Two more traps it closes:
+  `transitionend` **bubbles**, so a child's hover transition would end the close early; and a
+  sequence number makes a **reopen win**, or the pending settle hides what you just reopened.
+- **`prefers-reduced-motion` names `::before` and `::after` explicitly** - `*` does not match
+  pseudo-elements, and the dots and pulses live on them. It is "fewer and gentler", not "none":
+  opacity still carries every change at 120ms, only the movement goes.
+- Press feedback (`scale(.97)`) on every button; hover lifts gated behind
+  `@media (hover: hover) and (pointer: fine)` so a tap does not leave one stuck.
+- **Auto-scroll is conditional.** Scrolling up during a stream hands control over and a **Newest**
+  pill hands it back; sending, opening a past conversation and leaving enlarged force it on again.
+  It used to drag you to the bottom on every token.
+- Answers carry a **Copy** button beside Listen (async clipboard, `execCommand` fallback - the
+  async API also rejects on an unfocused document, so the old path stays).
+
 ### Settings: which model, which voice
 Stored per person at `kb/settings/<actor>.json`.
 
@@ -1353,6 +1455,62 @@ over `{webhook-id}.{webhook-timestamp}.{body}`, secret `whsec_<base64>`, header 
 - A 🔴 for Ian's `CLIENT_FOLDERS` note "Outcomes, not transcripts": these documents DO carry the
   transcript after the summary. `MAX_PER_DOC=2` keeps a long transcript from crowding the library;
   if that is not enough, `kb_fathom.meeting_body` is the one place to drop it.
+
+### Channels: Slack into the library, the same way (2026-09-17, built - not yet connected)
+`/kb/channels` (`kb_slack.py`, `kb_slack_routes.py`, `kb_channels.html` + `static/kb_channels.js`,
+sharing `static/kb_fm.css` with Meetings), same gate as Documents. Design and the open legal gate:
+`docs/slack-ingestion-design.md`. One internal, undistributed Slack app on the 100% Digital
+workspace (`slack-app-manifest.yaml` at the clone root); secrets `slack-bot-token` /
+`slack-signing-secret` as env `SLACK_BOT_TOKEN` / `SLACK_SIGNING_SECRET`; unset = the page says
+"not connected", `POST /kb/api/slack/sync` answers 503, `POST /slack/events` 503, nothing else
+changes.
+
+- **The invite is the scope.** The bot reads only channels it has been added to; `list_channels`
+  keeps `is_member` only. No `im:*`, no `chat:write`, no `groups:*` in v1 (public channels only).
+- **Private channels are listed but NOT read** until `SLACK_ALLOW_PRIVATE=1` (`kb_slack.readable`):
+  the library has no per-reader membership filter yet, so a private channel filed today is readable
+  by every staff member tomorrow. The sync counts them as `skipped_private`, the page says so, and
+  a message event from one is ignored. Turning the switch on is the moment the filter must exist.
+- **One message = one chunk block**: `conversation_body` puts a blank line between messages because
+  `kb_chunk` cuts only a block over its budget - single newlines would make a day's chat one block
+  sliced mid-sentence (test: `Chunking`).
+- **A conversation becomes an ordinary document**: one per THREAD (`slack-<C>-t<ts>`), one per
+  CHANNEL-DAY (`slack-<C>-d<date>`, unthreaded messages), `kind=conversation`, `source=slack`,
+  folder `Slack/#<channel>`, body `[HH:MM] Name: text` with mentions/channels/links resolved and
+  files as names only. Raw messages kept as `conversation.json`; Slack facts under `doc["slack"]`.
+- **🔴 Events are triggers, history is the truth.** `POST /slack/events` verifies `v0` HMAC on the
+  raw body, answers the URL challenge, dedupes on `event_id` (process cache + `slack/inbox/`), and
+  then only re-reads that channel from `conversations.history`; documents are rebuilt under the
+  same id, so an edit or delete upstream lands on the next pass and `Sync now` shares the path.
+  Each sync re-reads a 14-day lookback (`SLACK_LOOKBACK_S`) because history filters by the
+  PARENT's timestamp and late replies would otherwise be missed. `reindex_document` is idempotent,
+  so an unchanged conversation writes nothing - a rebuild is not a decision and is not audited.
+- **Filing**: mapped channel (`slack/channels.json`, declared by a person on the page) ->
+  `assigned_by=channel`, no model; unmapped -> `kb_fathom.classify` over `kb_slack.as_meeting`
+  (empty invite list, so the transcript decides) -> file at `FATHOM_AUTO_ASSIGN` or wait in
+  `slack/unassigned/`. Mapping never re-files existing documents; `/kb/api/slack/refile` is the
+  explicit second step (K7-10's rule).
+- **Lifecycle**: `app_uninstalled` / `tokens_revoked` -> `kb_slack.purge_all()` (every Slack-derived
+  object; the Developer Policy's 14 business days, done at once); `channel_rename` follows the id;
+  archive/delete/bot-removed mark the channel `gone`, documents stay.
+- **Audit**: eight `slack_*` kinds, group `slack` in `kb_activity.GROUPS`; `/kb/api/slack/log`
+  filters server-side; Observability has a Slack panel beside Meetings (`_slack_summary`).
+- **Never a customer**: `kb_bridge.retrieve_for_client` drops `source=slack` / `kind=conversation`
+  regardless of `visibility`.
+- **Never a provider that trains on inputs**: `kb_slack.withhold_from` (env
+  `KB_SLACK_EXCLUDE_PROVIDERS`, default `kimi` - Moonshot's terms, read 2026-09-17) -> `kb_routes.ask`
+  -> `kb_chat.stream(exclude=...)`. Decided per answer from what was retrieved; the chosen model is
+  overridden for that answer only and the badge says "not Kimi". Slack's Developer Policy forbids
+  training an LLM on its Data; see `docs/slack-ingestion-design.md` s8a.
+- `GET /kb/api/slack/purge-check`: documents + objects left after an uninstall purge (`clean`).
+- **Memory learns from a confirmed conversation the way it learns from a meeting**: the people
+  who SPOKE stand in for the invite list (`kb_slack.authors` -> `as_meeting`), so a human Assign
+  teaches `kb_memory` the external guest (never a colleague - internal by domain) and the next
+  conversation with that guest, in any channel, files by the memory rung with no model call.
+  The card shows "Will remember" with tick boxes; unticked items travel as `skip`. A channel
+  mapping or a model filing teaches nothing.
+- Tests: `tests/test_kb_slack.py` (module, FakeSlack), `tests/test_kb_slack_routes.py` (routes,
+  events, lifecycle, Observability). `python -m unittest` and pytest alike.
 
 ### Observability, and Phoenix
 The page answers "why did it say that?" **with tracing switched off**, because the question record it
@@ -1496,6 +1654,10 @@ bidbrain-platform/
     kb_fathom_routes.py          /kb/meetings + /kb/api/fathom/* + POST /fathom/webhook, same injected gates as kb_routes
     templates/kb_meetings.html   the Meetings page (connection, queue, declared domains, memory)
     static/kb_meetings.js        the Meetings page's JS - talks only to /kb/api/fathom/*
+    static/kb_channels.js        the Channels page's JS - talks only to /kb/api/slack/*
+    static/kb_fm.css             the connector pages' shared look (Meetings + Channels)
+    kb_slack.py                  Slack -> conversation documents; signing, history, grouping, mapping, purge
+    kb_slack_routes.py           /kb/channels + /kb/api/slack/* + POST /slack/events
     kb/HOW-BIDBRAIN-KB-WORKS.md  the assistant's self-knowledge, shipped INSIDE the prompt on every turn
     static/kb.js kb.css          the Documents explorer (client tiles, folders, the file list)
     static/kb_ask.js kb_panel.css   the floating Ask panel: bubble, drawers, voice, feedback

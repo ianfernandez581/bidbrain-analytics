@@ -97,6 +97,7 @@ apj AS (
     l.DAY,
     l.CAMPAIGN,
     l.CAMPAIGN_ID,
+    TO_HEX(SHA256(LOWER(TRIM(l.EMAIL)))) AS LEAD_KEY,
     'APAC'                        AS THEATRE,
     l.PHONE,
     f.ENRICHED_PHONE_NUMBER       AS RAW_ENRICHED,
@@ -120,6 +121,7 @@ emea AS (
     f.DAY,
     f.CAMPAIGN,
     f.CAMPAIGN_ID,
+    TO_HEX(SHA256(LOWER(TRIM(f.EMAIL)))) AS LEAD_KEY,
     'EMEA'                        AS THEATRE,
     f.PHONE,
     f.ENRICHED_PHONE_NUMBER       AS RAW_ENRICHED,
@@ -138,15 +140,82 @@ emea AS (
   WHERE LOWER(IFNULL(SPLIT(f.EMAIL, '@')[SAFE_OFFSET(1)], '')) NOT IN
         ('transmissionagency.com', 'transmission.com')
 ),
-both AS (SELECT * FROM apj UNION ALL SELECT * FROM emea)
+both AS (SELECT * FROM apj UNION ALL SELECT * FROM emea),
+
+-- BLANK-FILL FROM INTEGRATE (2026-09-18). Integrate enriched 46 VSRM leads and 4 Final Funnel
+-- leads between 3 and 24 Aug and never re-sent them to Salesforce - a single retroactive batch
+-- written at 27 Aug 07:49 that, being already delivered, triggered no re-send. In OUR feed those
+-- leads read '-', which everywhere ELSE means "never submitted", so VSRM reported 46% enrichment
+-- against a true 82% and looked like the worst publisher on the tab instead of an average one.
+--
+-- IT IS A BLANK-FILL AND MUST STAY ONE. Verified over the whole flight, reported population:
+--   * B-only = 0            Salesforce never holds an enrichment Integrate lacks
+--   * both hold one = 402   and all 402 agree EXACTLY on digits, zero conflicts
+--   * A-only = 50           the leads this rescues
+-- But 903 accepted survey leads from 27 Mar to 29 Jun have NO ROW in Integrate at all (its data
+-- starts 30 Jun). They carry no enrichment today so nothing is lost - and a wholesale switch to
+-- Integrate would silently drop all 903 the day one of them enriches. Hence COALESCE, never
+-- replacement: Salesforce wins wherever it has an answer, Integrate only fills a blank.
+--
+-- LEFT JOIN, so a missing or empty bridge degrades to today's behaviour rather than dropping a
+-- lead. The job WARNs when the fill contributes zero, because that is what a stalled Integrate
+-- mirror looks like from here - the rate would quietly fall back with nothing on screen saying so.
+filled AS (
+  SELECT b.*, COALESCE(i.HAS_ENRICHED, FALSE) AS INTEGRATE_ENRICHED,
+         -- Integrate's landing-page URL names the OFFER. Carried here (not re-joined later) so
+         -- the fill and the offer split read ONE join. See the OFFER_TYPE note below.
+         i.OFFER_FROM_URL
+  FROM both b
+  LEFT JOIN `bidbrain-analytics.client_cloudflare.integrate_bridge` i
+    ON  i.LEAD_KEY = b.LEAD_KEY
+    AND i.CAMPAIGN = b.CAMPAIGN
+),
+
+-- The one normalisation, unchanged, now in a CTE so the flag below can READ it instead of
+-- repeating it. BigQuery cannot reference a select-list alias inside the same SELECT, and a
+-- second copy of that CASE is exactly what this file's header forbids.
+norm AS (
 SELECT
   DAY,
   CAMPAIGN,
   CAMPAIGN_ID,
+  -- Join key to sql/19b_integrate_bridge, added 2026-09-18. Integrate carries NO Salesforce id
+  -- (its LEAD_ID is its own GUID), so email + campaign is the only way across - and the email
+  -- is HASHED here so a join key can exist without this view carrying an address. The pair is
+  -- not unique on its own, which is why every consumer joins on LEAD_KEY *and* CAMPAIGN and
+  -- the bridge is deduped to one row per pair.
+  LEAD_KEY,
   THEATRE,
   MARKET,
   PUBLISHER,
-  OFFER_TYPE,
+  -- VRSM'S OFFER, RESOLVED FROM INTEGRATE (2026-09-18, Jade: "yeah please add it there").
+  -- VRSM runs survey leads and Lead Magnet leads through ONE campaign and nothing in the
+  -- Salesforce feed separates them, so its leads carried 'Lead Magnet', fell outside the
+  -- available population, and the tab reported 413 available with VRSM appearing NOWHERE on it.
+  -- Integrate's URL folder names the offer ('-Pulse-Survey' / '-Qualification-Que'): it agrees
+  -- with the survey ANSWERS on the same record 99% of the time (Pulse 79/79, QQ 73/74), and the
+  -- 471 VRSM rows carrying neither marker carry no answers either (4 of 471), so those are
+  -- genuinely Lead Magnet rather than a marker that failed to write.
+  --
+  -- CONFINED TO VRSM ON PURPOSE. Every other campaign sells ONE offer, so its id already names
+  -- the offer and sql/10's value is authoritative; applying this everywhere would re-derive
+  -- offers that are already correct and silently move figures the client has signed off.
+  -- COALESCE, never replacement: a VRSM lead the bridge cannot resolve keeps 'Lead Magnet' and
+  -- stays OUT of the available population. That is the conservative direction - an unresolved
+  -- lead understates the rate rather than flattering it.
+  --
+  -- THIS IS NOW THE ONLY DEFINITION. sql/23 carried its own copy of this override and now reads
+  -- the resolved value from here, so the headline and the by-publisher panel underneath it
+  -- cannot disagree about which leads are available. Headline 413/345 (83.5%) -> 543/451
+  -- (83.1%), which ties EXACTLY to that panel; the rate falls 0.4pt because VRSM enriches
+  -- slightly below the other two publishers, not because anything broke.
+  IF(CAMPAIGN_ID = '701RG00001W1FQRYA3',
+     COALESCE(OFFER_FROM_URL, OFFER_TYPE), OFFER_TYPE)          AS OFFER_TYPE,
+  -- Did the bridge actually answer for this lead? True only on VRSM. sql/23 surfaces it as
+  -- SPLIT_BY_INTEGRATE and the job prints it, so a silent drop in the split's reach - a URL
+  -- convention change upstream - shows up as a falling number rather than a quiet shortfall.
+  (CAMPAIGN_ID = '701RG00001W1FQRYA3'
+   AND OFFER_FROM_URL IS NOT NULL)                              AS OFFER_FROM_INTEGRATE,
   PHONE,
   LEAD_STATUS,
   -- ACCEPTED is the client's stated basis for this tab (2026-09-10, Jade: "Enrichment % on this
@@ -182,8 +251,28 @@ SELECT
     WHEN TRIM(IFNULL(RAW_ENRICHED, '')) = '-'         THEN 'DASH'
     WHEN REGEXP_CONTAINS(IFNULL(RAW_ENRICHED, ''), r'[0-9]') THEN 'VALUE'
     ELSE 'OTHER'
-  END AS ENRICHED_STATE
-FROM both;
+  END AS ENRICHED_STATE,
+  -- THE ONE FLAG EVERY COUNT USES. Salesforce's own value first; Integrate only where ours is
+  -- blank. `ENRICHED_PHONE` deliberately stays Salesforce-only - it is the actual number and feeds
+  -- the staff detail list, which can only show digits we hold. So the staff list is a SUBSET of
+  -- the count by exactly the filled leads; that was already true of it for other reasons and is
+  -- noted on the card.
+  INTEGRATE_ENRICHED
+FROM filled
+)
+-- THE ONE FLAG EVERY COUNT USES. Salesforce's own value first; Integrate only where ours is blank.
+-- `ENRICHED_PHONE` deliberately stays Salesforce-only - it is the actual NUMBER and feeds the
+-- staff detail list, which can only show digits we hold. So that list is a SUBSET of the count by
+-- exactly the filled leads, and its card already says it is a different population.
+SELECT n.* EXCEPT (INTEGRATE_ENRICHED),
+  (n.ENRICHED_PHONE IS NOT NULL OR n.INTEGRATE_ENRICHED) AS IS_ENRICHED,
+  -- RESCUED, not merely present in Integrate. `INTEGRATE_ENRICHED` alone is true for every lead
+  -- Integrate holds a number for - including the ~400 Salesforce already had - which makes it
+  -- useless as an audit signal: the job WARNs when the fill contributes ZERO, and a column that
+  -- is true 539 times regardless can never reach zero. THIS is the leads that would have counted
+  -- as not enriched without the fill.
+  (n.ENRICHED_PHONE IS NULL AND n.INTEGRATE_ENRICHED)    AS ENRICHED_FILLED
+FROM norm n;
 
 
 -- DAY grain: what the payload ships, so a mid-week date range is exact. See header.
@@ -211,8 +300,8 @@ SELECT
   -- by-market chart shipped with (md/AGENTS.md, "pace in the unit the plan is bought in").
   COUNT(*)                                               AS LEAD_COUNT,
   COUNTIF(IS_ACCEPTED)                                   AS ACCEPTED_COUNT,
-  COUNTIF(ENRICHED_PHONE IS NOT NULL)                    AS ENRICHED_COUNT,
-  COUNTIF(IS_ACCEPTED AND ENRICHED_PHONE IS NOT NULL)    AS ACCEPTED_ENRICHED_COUNT,
+  COUNTIF(IS_ENRICHED)                                   AS ENRICHED_COUNT,
+  COUNTIF(IS_ACCEPTED AND IS_ENRICHED)                   AS ACCEPTED_ENRICHED_COUNT,
   -- The '-' vs 'NA' split, on the ACCEPTED basis to match everything above it. Internal.
   COUNTIF(IS_ACCEPTED AND ENRICHED_STATE = 'DASH')       AS DASH_COUNT,
   COUNTIF(IS_ACCEPTED AND ENRICHED_STATE = 'NA')         AS NA_COUNT
@@ -234,12 +323,12 @@ SELECT
   MIN(CAMPAIGN)                                          AS CAMPAIGN,
   COUNT(*)                                               AS LEAD_COUNT,
   COUNTIF(IS_ACCEPTED)                                   AS ACCEPTED_COUNT,
-  COUNTIF(ENRICHED_PHONE IS NOT NULL)                    AS ENRICHED_COUNT,
-  COUNTIF(IS_ACCEPTED AND ENRICHED_PHONE IS NOT NULL)    AS ACCEPTED_ENRICHED_COUNT,
+  COUNTIF(IS_ENRICHED)                                   AS ENRICHED_COUNT,
+  COUNTIF(IS_ACCEPTED AND IS_ENRICHED)                   AS ACCEPTED_ENRICHED_COUNT,
   -- The rate at THIS grain, on the ACCEPTED basis. SAFE_DIVIDE, so a week with no accepted lead
   -- is NULL, never a divide-by-zero. Anything aggregating across campaigns MUST re-derive the
   -- rate from the two summed counts and never average these -- a rate is not additive.
-  SAFE_DIVIDE(COUNTIF(IS_ACCEPTED AND ENRICHED_PHONE IS NOT NULL),
+  SAFE_DIVIDE(COUNTIF(IS_ACCEPTED AND IS_ENRICHED),
               COUNTIF(IS_ACCEPTED))                      AS ENRICHMENT_RATE
 FROM `client_cloudflare.cs_enriched_leads`
 GROUP BY WEEK_START, THEATRE, MARKET, PUBLISHER, OFFER_TYPE, CAMPAIGN_ID;

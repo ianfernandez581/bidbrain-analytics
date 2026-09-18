@@ -481,6 +481,189 @@ form ACTIVITY (`leads > 0 OR lead_form_opens > 0`), never merely a non-null coun
 for leads and got none". Form opens separate the two, so a Conversion line that genuinely converted
 nobody still prints a real `0` while an Awareness line prints `-`. Trade Desk always prints `-`.
 
+## Industrial Edge's Awareness line spans a TARGETING CHANGE, so a blended rate describes neither side
+
+Shipped 2026-09-18 as a footnote on both line-item tables (`tacticFootnotes()` in
+`dash/dashboard.html`). The finding is MEASURED, not inferred, and it took three passes to reach -
+the first two readings were wrong in ways worth recording, because both were plausible.
+
+**What happened.** On **2026-08-02** the audience on LinkedIn ad set **859128356** (`ind_edge` /
+Awareness / AU) went from **~7.3 million to ~130,000**, a ~56x cut. Measured, not estimated:
+LinkedIn reports `approximate_unique_impressions` (reach) and `audience_penetration`
+(reach / target audience size), so **reach / penetration IS the audience size**. Four July days
+agree within 1.3%, seven August days within 0.8%. ~7.3M is approximately the entire Australian
+professional base, i.e. a geo-only audience with no title filter; ~130K is "Australia + nine job
+titles", which is what that ad set's current `targeting_include_titles` actually holds.
+
+**It was a job-title filter, applied across the brief, and NOT the other candidates.**
+- **TAL swap is ruled out twice over**: 30 of the top 30 July companies also appear in August (BHP,
+  Woolworths, Rio Tinto, Coles, Fortescue, Woodside...), and `targeting_include_employers` is NULL,
+  so there is no account list on the ad set at all.
+- **Audience expansion does not survive the 7.3M figure**: expansion broadens toward lookalikes, it
+  does not converge on a national population, and July's delivered mix carried Healthcare Services,
+  Education, Retail, Accounting and Marketing at real share - not lookalikes of nine industrial job
+  titles. No expansion flag exists in the connector, so this one is inference from magnitude and
+  composition rather than from a field.
+- **BRIEF-WIDE, not one ad set**: both Conversion ad sets stepped the same day (860493666 ~24x,
+  859158326 ~79x). An earlier reading attributed their drop to budget moving to the two Consideration
+  ad sets launched 02-03 Aug. That was wrong.
+
+**Two corrections to keep, because the wrong readings were the natural ones.**
+1. **The audience network was NOT switched off.** OFFSITE delivery continues every single day after
+   the cut, at a CPM climbing A$5 -> A$177. That is frequency saturation on a tiny pool, not a
+   placement toggle - and a placement toggle CANNOT explain it, because LAN is a placement setting
+   while `audience_penetration`'s denominator derives from targeting criteria. Switching LAN cannot
+   move the audience size at all.
+2. **The post-change CPM is TOP of range, not "expensive but normal."** A$207-488 sits above every
+   sibling on the brief (A$68 NZ Conversion, A$92 AU Conversion) and above the ANZ spread (A$16-138).
+
+**The strongest argument is internal to the account, so it needs no external benchmark**: the
+account's other cheap ad sets (India / MEA / SAM at A$7-16 CPM) all have NORMAL CTR of 0.24-0.36%.
+859128356 at A$5.96 with **0.047%** CTR is the only ad set in the account pairing bottom-of-range
+cost with dead engagement. That is the tell, and it is defensible without quoting a market rate.
+
+**Why a footnote and not a hidden figure.** The line's two halves are **178,745 imps at A$5.72 CPM
+/ 0.06% CTR** before, **10,014 at A$206.75 / 0.34%** after. Whole-flight that is 59% of the BRIEF's
+impressions on 7.6% of its spend, so including it roughly halves both the reported CPM (A$46.63 vs
+A$105.34) and the reported CTR (0.220% vs 0.454%). Hiding it would break the rule that parts sum to
+the whole; the honest fix is to keep every number and say what was bought. The note states the
+SPLIT and never a cause - we can measure that the audience changed, not which control was moved.
+
+**Three things the implementation gets right and must keep:**
+- It splits on **02-08, the day the AUDIENCE changed**, not 03-08 when delivery fell. That day's
+  impressions were already bought against the old audience, which is why penetration spikes on 02-08
+  while volume is still flat.
+- Figures are **scoped to the line the sentence names** (ind_edge / linkedin / Awareness), not to
+  the brief. The prose quotes them, so they have to be that line's own or the words and the numbers
+  describe different things.
+- It is computed from **`pmRows()`** - the one filtered-rows accessor both footnote callers derive
+  from - and requires BOTH sides present plus a >=10% July share, so it **retires itself** when the
+  date range excludes either period. Do not re-key it on the date picker: a caveat that outlives its
+  own evidence is worse than none.
+
+**`fmtPct()` MULTIPLIES BY 100 ITSELF** (`(v*100).toFixed(d)`), so it takes a FRACTION via `pct()`.
+The first cut of this note handed it an already-multiplied CTR, which would have printed every
+figure 100x high on a client-facing surface. Every other CTR on this page goes through
+`fmtPct(pct(a,b),2)` - match it.
+
+**THE POST-CUTOVER FIGURE IS LINE GRAIN, AND THAT IS A CONSTRAINT RATHER THAN A CHOICE.**
+`delivery` is aggregated and carries **no `adset_id`**, so the dashboard cannot isolate the ad set
+that was actually narrowed. The note's "after" figure therefore POOLS two ad sets:
+
+| ad set | imps | spend | CPM |
+|---|---|---|---|
+| 859128356 (the one narrowed on 02-08) | 7,851 | A$1,626.99 | A$207.23 |
+| 864925616 (launched **18 Aug**, sixteen days AFTER) | 2,163 | A$443.44 | A$205.01 |
+| **pooled - what the note prints** | **10,014** | A$2,070.43 | **A$206.75** |
+
+The two CPMs land within A$2 of each other, so the pooled figure is not misleading. **The SENTENCE
+is what had to change**: it now says the line *"spans"* a narrowing rather than asserting the line's
+audience was narrowed, because only one of its ad sets was and the other did not exist yet. Shipped
+with the wrong wording on 2026-09-18 and corrected the same day - if a footnote quotes figures, the
+grain of the prose and the grain of the figures have to match.
+
+**AND ONE AD SET IS ATTRIBUTED TO TWO MARKETS AT ONCE. NOT FIXABLE HERE.**
+`864925616` is named `2463_SE_Industrial Edge Wave3_AWR_NZ_image` but **delivers to Australia** -
+verified, not inferred, from LinkedIn's `member_country` pivot (a metric pivot, so retrospective):
+
+- **864925616: Australia 2,014 imps (98.2%), New Zealand 36 (1.8%), all 8 clicks Australian.**
+  Region detail: Greater Sydney 493 / Melbourne 472 / Perth 439 / Brisbane 316 / Adelaide 93 against
+  Auckland 16 / Hamilton 5 / Christchurch 4. 94.8% of its impressions are classified.
+- **Controls confirm the field discriminates** (this is what makes the test worth anything): the two
+  genuine NZ ad sets, 859158326 and 865104866, return **New Zealand and nothing else**.
+- Its current `targeting_include_locations` is the same geo URN all three AU-named ad sets use, while
+  the real NZ ad sets use a different one - but that field is current-state, which is exactly why the
+  `member_country` measurement was needed before raising it with the agency.
+
+`01_stg_linkedin` resolves market from the ad set NAME. It already defers a COARSE token (`ANZ`) to
+the ad set's current country by ID, which is why 859128356 correctly reads Australia despite an ANZ
+name - but 864925616's name is SPECIFIC (`_NZ_`), so no deferral happens and the wrong name is
+trusted. The repo's own rule, applied to coarse tokens and not to specific ones.
+
+**Consequence: A$443.44 sits inside the client-facing AU-awareness CPM above AND inside the
+dashboard's New Zealand market spend** (13.3% of the brief's reported NZ spend: A$3,341.03 reported
+vs A$2,897.59 if that ad set is AU). One ad set, two contradictory attributions, both on screen.
+**Do NOT "fix" this with a market override or an alias map** - that hides a real trafficking error,
+the same trap `client_geocon` records for its GATEWAY-BRADDON-named Northbourne creatives. It needs
+the ad set RENAMED or RE-GEOED at source. Until then the inconsistency is documented, not patched.
+
+**Still open, and worth one narrow question:** which control was moved on 02-08 (a targeting edit,
+audience expansion being disabled, or a TAL swap). The 18 `targeting_include_*` /
+`targeting_exclude_*` fields Windsor exposes are **current-state only** - identical on every July
+date - so nothing available to us adjudicates. Also open and NOT resolvable: whether July's
+demographic profile reflects targeting or off-platform audience characteristics, since the API will
+not cross `placement_name` with the `member_*` pivots.
+
+## Media-plan pacing: WIRED AND DORMANT (2026-09-18)
+
+The whole chain exists and carries real targets. **The dashboard shows nothing**, because the global
+switch is off. This is the `client_hireright` pattern - pacing wired end to end with `has_targets`
+false so the UI hides the section rather than drawing 0/0 cards - and it is deliberate, not
+half-finished work.
+
+    targets/media_plan.csv  ->  load_media_plan.py  ->  seed_media_plan
+                            ->  job/main.py  ->  campaigns[].plan + campaigns[].has_targets
+                            ->  (dashboard render: NOT BUILT YET)
+
+**Why it is dark.** The impression targets are OURS, not the client's. They are the client's own
+cost and CPM figures divided correctly - 10x above what their sheet prints, because column I used
+`cost/CPM*100` where the stated formula is `*1000`. Publishing pacing against 859,999 while the plan
+document in their inbox says 85,999 would put the dashboard in conflict with the client's own
+paperwork, on the very brief that error was found in. **Flip it when the client reissues the sheet or
+confirms the corrected figures in writing** - that is one word in `job/main.py` plus a forced run.
+
+**Verified on load (the seed loader prints this every run):**
+
+| | |
+|---|---|
+| committed budget | **A$52,150** - ties EXACTLY to the plan's own stated Overall Budget |
+| measurable budget | **A$29,150** |
+| excluded | Direct IT A$23,000 |
+| impression target | **859,999** (610,000 + 93,333 + 73,333 + 83,333) |
+| flight | 2026-07-01 -> **2026-11-30** |
+
+That committed figure tying to the client's stated total is the strongest single check that cost and
+CPM are the trustworthy inputs and impressions are the derived output.
+
+**TARGETS ARE PER BRIEF, and that is the point.** Only ind_edge has a plan. `campaigns[].plan` is
+None and `campaigns[].has_targets` false for ent_it (1958) and software_first (2305), so the
+dashboard must hide pacing for those rather than draw a zero target - the `client_schneider` lesson
+where a lead-gen-shaped card printed "0 / 0 leads" at 0% over an awareness play. **The render must
+require BOTH the global `has_targets` AND the brief's own.** And decide what a MIXED selection does
+before building it: ind_edge + ent_it selected together is one brief with targets and one without, so
+render for the brief that has them and say so - never sum, never hide.
+
+**TWO BUDGETS, and the UI must NAME which one the bar is drawn against.** `committed_budget` is every
+line the client signed; `measurable_budget` is only the lines that can report delivery.
+`pace_basis: "measurable"` says which was used and `excluded[]` names what was left out with a
+reason, so a reader is never left guessing which of two figures the bar refers to.
+
+**Direct IT is A$23,000 of A$52,150 - 44% - and reaches no ad server.** An offline lead vendor
+(40 HQLs @ A$575 CPL) with no media delivery in any warehouse. Pacing on the committed figure would
+publish a permanent 44% shortfall no delivery could ever close (the repo-wide "pace against the
+budget that can actually spend" rule). It is carried with `measurable=0` rather than deleted, because
+the committed total is what the client recognises and dropping the row would make our budget disagree
+with their plan. **`measurable` is a CSV column, not code**, so a new non-reporting line needs no
+deploy.
+
+**REACH, CLICKS AND CTR ARE DELIBERATELY NOT SEEDED.** The sheet derives them from the impression
+column, so they inherited the same 10x error and no corrected values have been confirmed. A missing
+target hides its card; a wrong one paces against a number nobody agreed to. Add them only when the
+client states them.
+
+**`seed_media_plan` is NOT in `GATING_TABLES`** - the freshness gate deliberately does not watch seed
+tables, so a plan edit needs `FORCE_REBUILD=1`. And the seed read carries **no tolerant
+try/except**: a swallowed exception around one stage of the 3-stage name-matched contract turns a
+rename into silence (`client_geocon` published `0 CRM leads` against a view holding 9,779 exactly
+that way). If the table goes missing this job should fail loudly.
+
+**Deploy order when you light it up:** `load_media_plan.py` FIRST, then the job, then the dash.
+
+**Still to build:** `paceBar()` / `renderPacing()` ported from `client_schneiderlqai`, and
+`dash/report.py`'s guardrail re-templated - it currently forbids ALL target and pacing language on
+the basis that no plan exists, which stops being true for ind_edge the moment the switch flips. That
+guardrail must go per-brief too, or the deck will narrate targets for the two briefs that have none.
+
 ## Monitoring
 In the status pipeline's `CLIENTS` roster (`status_dashboard/job/main.py`) since 2026-08-17, with
 **4 accuracy checks** — LinkedIn and Trade Desk impressions + clicks, each comparing the dashboard
@@ -552,9 +735,25 @@ a failed run instead of a dashboard that reads "campaign stopped".
 - **A MEDIA PLAN NOW EXISTS FOR ind_edge (2463) — and is deliberately NOT wired up yet.** The client
   supplied *"2463 Final media plan - SEE Industrial Edge Wave 3 Media Plan.xlsx"* on 2026-08-18 as the
   reference for the line-item split (that is all the 2026-08-18 change used it for). It carries real
-  targets: flight **2026-07-01 -> 10-31**, budget **A$52,150**, 85,999 planned impressions, and per-line
-  targets — Awareness/Programmatic 61,000 imps @ A$9,150 (CPM A$15) · Awareness/LinkedIn 9,333 @ A$7,000
-  (CPM A$75) · Consideration/LinkedIn 7,333 @ A$5,500 · Conversion/LinkedIn lead-gen 8,333 @ A$7,500 ·
+  targets: flight **2026-07-01 -> 11-30**, budget **A$52,150**, and per-line targets.
+  **THE SHEET'S OWN IMPRESSION COLUMN IS 10x LOW AND MUST NOT BE SEEDED AS PRINTED (confirmed with
+  the client, 2026-09-18).** Column I on rows 14-17 was calculated as `cost / CPM * 100` where the
+  intended formula is `cost / CPM * 1000` - the client stated that formula herself, and all four
+  lines reproduce to the decimal under the x100 form, so it is one bad cell copied down rather than
+  four typos. **Cost and CPM are correct** (they tie to the stated A$52,150 once the Direct IT line
+  is added), so cost and CPM are the trustworthy inputs and impressions are a derived OUTPUT; REACH
+  and CLICKS in the sheet are themselves derived from impressions and inherit the same error. Seed
+  the CORRECTED figures: Awareness/Programmatic **610,000** imps @ A$9,150 (CPM A$15) ·
+  Awareness/LinkedIn **93,333** @ A$7,000 (CPM A$75) · Consideration/LinkedIn **73,333** @
+  A$5,500 · Conversion/LinkedIn lead-gen **83,333** @ A$7,500 - so **859,999 planned
+  impressions**, not 85,999. Seeding the sheet as printed would report Industrial Edge **10x better
+  than it is running** - the whole difference between a campaign that looks finished and one about a
+  third of the way through. **Quote the RATIO, not a percentage**: at 2026-09-18 its 304,087
+  delivered impressions read as **354%** of the printed target and **35%** of the corrected one, and
+  both of those move every day while the 10x does not. (An earlier draft of this README froze
+  "337% vs 34%" from a 290,416-impression snapshot; it was stale within days.) **The flight END is 2026-11-30** (client,
+  2026-09-18) - the sheet contradicts itself, row 6 reading 31-Oct while rows 14-17 read
+  1 July - 30 Nov, and the client confirmed the line items. ·
   plus a **Direct IT** line (40 HQLs @ A$575 CPL, A$23,000) that is an **offline lead vendor with no
   media delivery** and therefore has no row in this warehouse at all.
   Wiring it means turning this dashboard from delivery-only into partly-paced, which touches more than

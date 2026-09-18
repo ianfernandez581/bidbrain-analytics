@@ -22,6 +22,7 @@
   <span class="spacer"></span>
   <a class="kb-navlink" href="/kb/">Documents</a>
   <a class="kb-navlink" href="/kb/meetings">Meetings</a>
+  <a class="kb-navlink" href="/kb/channels">Channels</a>
   <a class="kb-navlink on" href="/kb/observability">Observability</a>
   <a class="btn sm" href="/">← Back</a>
   <a class="btn sm" href="/logout">Log out</a>
@@ -92,6 +93,15 @@
       <div class="kb-kpis" id="obsMeetings"></div>
     </div>
 
+    <!-- Slack, the same shape. Hidden until a Slack decision exists, for the same reason as above. -->
+    <div class="kb-panel" id="obsSlackPanel" hidden>
+      <h3>Slack</h3>
+      <p class="note">How channel conversations were placed. Filings "by channel" needed no judgement -
+        a person had already said whose channel it is. Every decision is on the
+        <a href="/kb/channels">Channels page</a>.</p>
+      <div class="kb-kpis" id="obsSlack"></div>
+    </div>
+
     <div class="kb-panel">
       <h3>Settings in force</h3>
       <p class="note">The numbers the retriever is actually running with, read from the code rather
@@ -107,7 +117,7 @@
 </div>
 
 <script>window.KB_STAFF = {{ is_staff | tojson }};</script>
-<script src="/static/kb_obs.js?v=2"></script>
+<script src="/static/kb_obs.js?v=3"></script>
 {% include "_premium.html" %}
 </body>
 </html>

@@ -246,6 +246,24 @@
     if (M.rebuilt) host.appendChild(kpi(M.rebuilt, 'documents rebuilt'));
   }
 
+  function renderSlack() {
+    var S = D.slack, panel = $('#obsSlackPanel'), host = $('#obsSlack');
+    if (!panel || !host) return;
+    if (!S || !S.total) { panel.hidden = true; return; }
+    panel.hidden = false;
+    host.innerHTML = '';
+    host.appendChild(kpi(S.filed, 'filed themselves',
+      (S.by_channel ? S.by_channel + ' by a mapped channel' : '') +
+      (S.auto_rate == null ? '' : (S.by_channel ? ' · ' : '') + Math.round(S.auto_rate * 100) + '% of conversations')));
+    host.appendChild(kpi(S.waited, 'waited for a person', S.waited ? 'the system was not sure enough' : ''));
+    host.appendChild(kpi(S.confirmed, 'confirmed from the queue',
+      S.overruled ? S.overruled + ' overruled the guess' : (S.confirmed ? 'all agreed with the guess' : '')));
+    host.appendChild(kpi(S.ignored, 'kept out of the library'));
+    if (S.mapped) host.appendChild(kpi(S.mapped, 'channels mapped', 'a person declared the client'));
+    if (S.moved) host.appendChild(kpi(S.moved, 'moved after filing', 'a mapping changed'));
+    if (S.purged) host.appendChild(kpi(S.purged, 'purges', 'the app was removed from Slack'));
+  }
+
   // --- activity -----------------------------------------------------------------------------------
   function renderActivity() {
     var A = D.activity, F = D.feedback;
@@ -265,6 +283,7 @@
       A.documents_edited + ' edited'));
 
     renderMeetings();
+    renderSlack();
 
     var weeks = $('#obsWeeks');
     weeks.innerHTML = '';

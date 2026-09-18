@@ -724,7 +724,17 @@ def ask():
             yield _sse("error", {"message": "The library could not be searched just now. Nothing "
                                             "was lost; try the question again in a moment."})
             return
+        # Slack-derived passages never reach a provider whose terms allow training on inputs
+        # (kb_slack.withhold_from). Decided HERE, from what was actually retrieved, so a person's
+        # chosen model is honoured for every other question and overridden only for this one.
+        try:
+            import kb_slack
+            withheld = kb_slack.withhold_from(res["excerpts"], kb_index.all_meta(include_archived=False))
+        except Exception:                          # noqa: BLE001 - never lose the answer over this
+            log.exception("kb: withhold check failed")
+            withheld = ()
         yield _sse("retrieval", {
+            "withheld_from": list(withheld),
             "excerpts": [{k: e[k] for k in ("document_id", "title", "folder", "trust", "ord",
                                             "passage_id", "passage", "found_by", "score",
                                             "keyword_rank", "semantic_rank", "semantic_score")}
@@ -753,7 +763,8 @@ def ask():
         answer, model_info, usage = [], None, {}
         try:
             for kind, payload in kb_chat.stream(prefix, messages,
-                                                prefer=settings.get("model") or None):
+                                                prefer=settings.get("model") or None,
+                                                exclude=withheld):
                 if kind == "model":
                     model_info = payload
                     yield _sse("model", payload)
@@ -797,6 +808,7 @@ def ask():
                    model=(model_info or {}).get("model", ""),
                    provider=(model_info or {}).get("provider", ""),
                    fallback=bool((model_info or {}).get("fallback")),
+                   withheld_from=list(withheld),
                    docs=sorted({e["document_id"] for e in res["excerpts"]}),
                    outcome=res["outcome"], tokens_out=usage.get("tokens_out"),
                    proposed_edit=proposed,
@@ -968,6 +980,25 @@ def obs_data():
                 "auto_rate": (round(auto / (auto + waited), 3) if (auto + waited) else None),
                 "total": sum(c.values())}
 
+    def _slack_summary(events):
+        """Slack decisions, same shape as meetings so the two panels read alike. `by_channel` counts
+        filings that needed no judgement at all (a person mapped the channel) - the number that
+        should grow over time if the page is doing its job."""
+        c = {}
+        for e in events:
+            if kb_activity.kind_group(e.get("kind")) == "slack":
+                c[e["kind"]] = c.get(e["kind"], 0) + 1
+        filed = [e for e in events if e.get("kind") == "slack_filed"]
+        decided = [e for e in events if e.get("kind") == "slack_assigned"]
+        auto, waited = len(filed), c.get("slack_queued", 0)
+        return {"filed": auto, "by_channel": sum(1 for e in filed if e.get("by") == "channel"),
+                "waited": waited, "confirmed": len(decided),
+                "overruled": sum(1 for e in decided if e.get("agreed") is False),
+                "ignored": c.get("slack_ignored", 0), "moved": c.get("slack_moved", 0),
+                "mapped": c.get("slack_mapped", 0), "purged": c.get("slack_purged", 0),
+                "auto_rate": (round(auto / (auto + waited), 3) if (auto + waited) else None),
+                "total": sum(c.values())}
+
     meta = kb_index.all_meta(include_archived=False)
     events = kb_activity.recent()
     summary = kb_activity.summarise(events, known_doc_ids=list(meta))
@@ -1003,6 +1034,7 @@ def obs_data():
         # Meetings are counted SEPARATELY from `activity` above, and rendered in their own panel.
         # Folding them into the question tiles would present two different measures as one.
         meetings=_meeting_summary(events),
+        slack=_slack_summary(events),
         questions=[e for e in reversed(events) if e.get("kind") in ("question", "search")][:50],
         feedback=kb_feedback.summary(),
         titles=titles,
