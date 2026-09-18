@@ -1,0 +1,1673 @@
+<!DOCTYPE html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ray White Projects · 100% Digital</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@300;400;500;600&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<style>
+/* ============================================================================================
+   Ray White Projects - bone and concrete over a dark shell.
+
+   BRAND NOTE, and it is a correctness rule, not a preference: Ray White yellow (--yellow) is a
+   FILL and a RULE, never text. It is ~1.3:1 on the bone field and ~1.07:1 on white, so anything
+   yellow that has to be READ is unreadable at every size. It appears here only as: the scroll
+   progress bar, the 6px live/agency dots, a 3px border on the callout, one donut/bar segment, and
+   the EOI state on the stock board. Ray White Projects also uses the CONCRETE lockup on Monair,
+   not the yellow one, which is why the topbar mark is bone on ink.
+   ============================================================================================ */
+:root{
+  --field:#EFEDE8;--paper:#FBFAF7;--well:#E7E4DD;
+  --ink:#131311;--ink-2:#1C1C19;--concrete:#7E7B74;--faint:#A6A29A;
+  --bone:#F4F2ED;
+  --line:rgba(19,19,17,.11);--line-soft:rgba(19,19,17,.06);
+  --yellow:#FFE512;--sand:#C4B49C;--ok:#5E7A62;--warn:#A8823A;--bad:#A85440;
+  --glow:rgba(150,120,80,.28);
+  --ease:cubic-bezier(.16,1,.3,1);
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--field);color:var(--ink);font-family:Archivo,"Helvetica Neue",Arial,sans-serif;
+  font-size:14px;line-height:1.55;-webkit-font-smoothing:antialiased;position:relative;overflow-x:hidden}
+/* ambient warm wash behind the whole page */
+body::before{content:"";position:fixed;inset:-20vh -10vw auto;height:120vh;pointer-events:none;z-index:0;
+  background:radial-gradient(60vw 50vh at 78% 12%,rgba(196,180,156,.42),transparent 62%),
+             radial-gradient(48vw 44vh at 8% 38%,rgba(196,180,156,.22),transparent 66%);
+  animation:wash 38s var(--ease) infinite alternate}
+@keyframes wash{to{transform:translate3d(-3vw,4vh,0) scale(1.08)}}
+.serif{font-family:"Instrument Serif",Georgia,serif;font-weight:400}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+:focus-visible{outline:2px solid var(--ink);outline-offset:2px;border-radius:4px}
+/* Forced, because the UA rule for [hidden] loses to ANY author `display`. A .filter-row{display:flex}
+   silently defeated el.hidden=true on a sibling dashboard and shipped an empty labelled strip. */
+[hidden]{display:none !important}
+
+/* ---------- scroll progress ---------- */
+.progress{position:fixed;top:0;left:0;height:2px;width:0;background:var(--yellow);z-index:60;
+  box-shadow:0 0 12px rgba(255,229,18,.7)}
+
+/* ---------- top bar ---------- */
+.topbar{position:sticky;top:0;z-index:40;background:var(--ink);color:var(--bone);
+  display:flex;align-items:center;justify-content:space-between;gap:24px;padding:12px 40px}
+.lockup{display:flex;align-items:center;gap:16px;min-width:0}
+.agency{display:flex;align-items:center;gap:9px;font-size:10.5px;letter-spacing:.2em;text-transform:uppercase;color:rgba(244,242,237,.62)}
+.agency i{width:6px;height:6px;border-radius:50%;background:var(--yellow);display:block;box-shadow:0 0 10px rgba(255,229,18,.9)}
+.divider{width:1px;height:24px;background:rgba(244,242,237,.18)}
+.client{display:flex;align-items:center;gap:10px}
+.client .sq{width:26px;height:26px;background:var(--bone);display:grid;place-items:center;flex:none}
+.client .sq span{font-weight:600;font-size:10px;letter-spacing:-.04em;color:var(--ink)}
+.client .wm{font-size:9.5px;letter-spacing:.2em;text-transform:uppercase;color:rgba(244,242,237,.55);line-height:1.5}
+.client .wm b{display:block;color:var(--bone);font-weight:500;letter-spacing:.17em}
+.switch{display:flex;align-items:center;gap:8px;font-size:12.5px;padding-left:16px;border-left:1px solid rgba(244,242,237,.18)}
+.switch em{font-style:normal;font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:rgba(244,242,237,.5)}
+/* The project control. Below two projects it is a plain LABEL, not a dead dropdown. */
+.switch select{background:var(--ink-2);color:var(--bone);border:1px solid rgba(244,242,237,.22);
+  padding:4px 8px;font:inherit;font-size:12.5px;max-width:230px}
+.switch .static{color:var(--bone)}
+.topright{display:flex;align-items:center;gap:20px}
+.live{display:flex;align-items:center;gap:8px;font-size:11.5px;color:rgba(244,242,237,.62)}
+.live i{width:6px;height:6px;border-radius:50%;background:var(--yellow);display:block;
+  box-shadow:0 0 0 0 rgba(255,229,18,.6);animation:pulse 2.6s ease-out infinite}
+@keyframes pulse{70%{box-shadow:0 0 0 8px rgba(255,229,18,0)}100%{box-shadow:0 0 0 0 rgba(255,229,18,0)}}
+.chip{font-size:10px;letter-spacing:.14em;text-transform:uppercase;padding:4px 9px;
+  border:1px solid rgba(244,242,237,.3);color:rgba(244,242,237,.75)}
+.logout{border:1px solid rgba(244,242,237,.25);border-radius:999px;padding:6px 15px;font-size:11.5px;color:rgba(244,242,237,.8);
+  transition:all .35s var(--ease);text-decoration:none;display:inline-block}
+.logout:hover{color:var(--ink);background:var(--bone);border-color:var(--bone)}
+
+/* ---------- hero ---------- */
+.hero{background:var(--ink-2);color:var(--bone);padding:44px 40px 38px;position:relative;overflow:hidden;z-index:1}
+.hero .glow{position:absolute;right:-12vw;top:-70%;width:60vw;height:240%;pointer-events:none;
+  background:radial-gradient(circle,rgba(196,180,156,.26),transparent 62%);animation:drift 30s var(--ease) infinite alternate}
+@keyframes drift{to{transform:translate3d(-5vw,4vh,0) scale(1.12)}}
+.hero .sweep{position:absolute;inset:0;pointer-events:none;
+  background:linear-gradient(103deg,transparent 34%,rgba(244,242,237,.06) 50%,transparent 64%);
+  transform:translateX(-45%);animation:sweep 19s linear infinite}
+@keyframes sweep{to{transform:translateX(65%)}}
+.hero svg.tower{position:absolute;right:0;top:0;height:100%;width:52%;pointer-events:none}
+.hero .inner{position:relative;z-index:2;max-width:1260px;margin:0 auto}
+.hero h1{font-size:clamp(36px,4.6vw,58px);line-height:1;margin:0 0 16px;letter-spacing:-.015em}
+.hero h1 em{font-style:italic;color:var(--sand)}
+.credits{display:flex;gap:28px;flex-wrap:wrap;font-size:11px;color:rgba(244,242,237,.55)}
+.credits b{display:block;color:var(--bone);font-weight:400;font-size:12.5px}
+.plate{opacity:0;animation:platein 1.4s var(--ease) forwards}
+@keyframes platein{to{opacity:1}}
+
+/* ---------- shell ---------- */
+.wrap{position:relative;z-index:2;max-width:1260px;margin:0 auto;padding:26px 40px 90px}
+.panel{background:var(--paper);border:1px solid var(--line);transition:box-shadow .5s var(--ease),transform .5s var(--ease)}
+.panel:hover{box-shadow:0 18px 44px -26px var(--glow)}
+
+/* ---------- control ---------- */
+.control{background:var(--paper);border:1px solid var(--line);margin-bottom:26px}
+.tabrow{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;
+  padding:0 18px;border-bottom:1px solid var(--line-soft)}
+.tabs{display:flex;gap:2px;flex-wrap:wrap}
+.tab{padding:15px 15px 13px;font-size:13px;color:var(--concrete);position:relative;transition:color .3s var(--ease)}
+.tab:hover{color:var(--ink)}
+.tab[aria-selected="true"]{color:var(--ink);font-weight:500}
+.tab::after{content:"";position:absolute;left:15px;right:15px;bottom:-1px;height:2px;background:var(--ink);
+  transform:scaleX(0);transform-origin:left;transition:transform .45s var(--ease)}
+.tab[aria-selected="true"]::after{transform:scaleX(1)}
+.tools{display:flex;gap:8px;align-items:center;font-size:11.5px;color:var(--faint)}
+.btn{border:1px solid var(--line);padding:6px 13px;font-size:11.5px;color:var(--concrete);background:var(--paper);
+  transition:all .3s var(--ease)}
+.btn:hover{color:var(--ink);border-color:var(--ink);box-shadow:0 6px 16px -10px var(--glow)}
+.filters{display:flex;gap:26px;align-items:center;flex-wrap:wrap;padding:14px 18px}
+.fgroup{display:flex;gap:7px;align-items:center;flex-wrap:wrap}
+.flab{font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--faint);margin-right:2px}
+.pill{border:1px solid var(--line);border-radius:999px;padding:5px 13px;font-size:12px;color:var(--concrete);
+  background:var(--paper);display:inline-flex;align-items:center;gap:7px;transition:all .3s var(--ease)}
+.pill:hover{border-color:var(--ink);color:var(--ink)}
+.pill[aria-pressed="true"]{background:var(--ink);color:var(--bone);border-color:var(--ink)}
+.pill.ghost[aria-pressed="true"]{background:var(--well);color:var(--ink);border-color:var(--line)}
+.pill i{width:8px;height:8px;display:block;flex:none}
+.pill[aria-pressed="true"] i{box-shadow:0 0 0 1px rgba(244,242,237,.5)}
+.pill[disabled]{opacity:.45;cursor:not-allowed}
+.pill[disabled]:hover{border-color:var(--line);color:var(--concrete)}
+.statement{font-size:12px;color:var(--concrete);border:1px dashed var(--line);padding:5px 13px;border-radius:999px}
+
+/* ---------- lede ---------- */
+.lede{margin:0 0 24px;max-width:76ch}
+.lede h2{font-size:25px;font-weight:400;letter-spacing:-.01em;margin:0 0 9px}
+.lede p{margin:0;color:var(--concrete);max-width:72ch}
+.lede b{color:var(--ink);font-weight:500}
+
+.banner{border:1px solid var(--line);border-left:3px solid var(--yellow);background:var(--paper);
+  padding:13px 18px;font-size:12.5px;color:var(--concrete);margin-bottom:22px;
+  box-shadow:0 10px 30px -24px var(--glow)}
+.banner b{color:var(--ink);font-weight:500}
+.banner.internal{border-left-color:var(--bad)}
+
+/* ---------- KPI band ---------- */
+.band{border:1px solid var(--line);background:var(--paper);margin-bottom:22px}
+.bandhead{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;padding:12px 24px;
+  border-bottom:1px solid var(--line-soft);font-size:12px;color:var(--concrete)}
+.bandhead b{color:var(--ink);font-weight:500}
+.strip{display:grid;grid-template-columns:repeat(4,1fr)}
+.cell{padding:20px 24px 16px;border-right:1px solid var(--line-soft);border-bottom:1px solid var(--line-soft);
+  position:relative;overflow:hidden;transition:background .5s var(--ease)}
+.cell::after{content:"";position:absolute;inset:0;pointer-events:none;opacity:0;transition:opacity .5s var(--ease);
+  background:radial-gradient(90% 120% at 50% 130%,rgba(196,180,156,.35),transparent 70%)}
+.cell:hover::after{opacity:1}
+.strip .cell:nth-child(4n){border-right:0}
+.strip .cell:nth-last-child(-n+4){border-bottom:0}
+.cell h3{margin:0 0 10px;font-size:11.5px;font-weight:400;color:var(--concrete);display:flex;align-items:center;gap:8px;position:relative;z-index:2}
+.cell h3 i{width:6px;height:6px;border-radius:50%;display:block;flex:none;transition:box-shadow .5s var(--ease)}
+.cell:hover h3 i{box-shadow:0 0 0 4px rgba(19,19,17,.06)}
+.i-ok{background:var(--ok)}.i-warn{background:var(--warn)}.i-bad{background:var(--bad)}.i-n{background:var(--faint)}
+.num{font-family:"Instrument Serif",Georgia,serif;font-size:36px;line-height:1;font-variant-numeric:tabular-nums;position:relative;z-index:2}
+.cell small{display:block;margin-top:8px;font-size:11.5px;color:var(--faint);line-height:1.45;position:relative;z-index:2}
+/* Marks a tile the channel chips do NOT move. A whole-site figure has no delivering channel, so a
+   chip that silently moved it would be worse than no chip at all. */
+.cell small em{font-style:normal;color:var(--concrete);border-bottom:1px dotted var(--faint)}
+.spark{display:block;width:100%;height:30px;margin-top:10px;position:relative;z-index:2;overflow:visible}
+
+/* ---------- cards ---------- */
+.split{display:grid;grid-template-columns:1.5fr 1fr;gap:16px;margin-bottom:22px}
+.split.even{grid-template-columns:1fr 1fr}
+.card{padding:21px 24px}
+.card h3.t{font-size:15px;font-weight:500;margin:0 0 6px}
+.card p.hint{margin:0 0 16px;font-size:12.5px;color:var(--concrete);max-width:62ch}
+.chartctl{display:flex;gap:20px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+.seg{display:inline-flex;border:1px solid var(--line);overflow:hidden}
+.seg button{padding:5px 12px;font-size:11.5px;color:var(--concrete);transition:all .3s var(--ease)}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--bone)}
+.legend{display:flex;gap:16px;flex-wrap:wrap;justify-content:center;font-size:11.5px;margin-top:10px}
+.legend button{display:inline-flex;align-items:center;gap:7px;color:var(--ink);transition:opacity .3s var(--ease)}
+.legend button[aria-pressed="false"]{color:var(--faint);text-decoration:line-through}
+.legend i{width:10px;height:10px;display:block;flex:none}
+.legend button[aria-pressed="false"] i{opacity:.3}
+.legendnote{text-align:center;font-size:10.5px;color:var(--faint);margin-top:8px}
+svg.chart{width:100%;height:auto;display:block;overflow:visible}
+.plot{position:relative}
+.tip{position:absolute;pointer-events:none;opacity:0;transform:translate(-50%,-8px);
+  background:var(--ink);color:var(--bone);padding:9px 12px;font-size:11.5px;line-height:1.5;white-space:nowrap;
+  box-shadow:0 14px 34px -16px rgba(19,19,17,.6);transition:opacity .2s var(--ease);z-index:5}
+.tip b{display:block;font-weight:500;margin-bottom:3px;color:var(--bone)}
+.tip span{display:flex;align-items:center;gap:7px;color:rgba(244,242,237,.75)}
+.tip i{width:7px;height:7px;display:block}
+/* An empty state HIDES its canvas, it never replaces the canvas's parent: overwriting the parent
+   deletes the <svg> from the DOM and every later render of that card then short-circuits on its
+   own "if (!node) return" guard, silently and for the rest of the session. */
+.chart-empty{padding:26px 0;text-align:center;font-size:12px;color:var(--faint)}
+
+/* ---------- units ---------- */
+.units{display:grid;grid-template-columns:repeat(12,1fr);gap:6px;margin:6px 0 18px}
+.unit{aspect-ratio:1;border:1px solid var(--line);background:var(--well);opacity:0;transform:scale(.7);
+  transition:transform .35s var(--ease),box-shadow .35s var(--ease)}
+.unit.in{animation:pop .5s var(--ease) forwards}
+@keyframes pop{to{opacity:1;transform:none}}
+.unit:hover{transform:scale(1.18);box-shadow:0 8px 18px -8px var(--glow);z-index:2}
+.unit.exchanged{background:var(--ink);border-color:var(--ink)}
+.unit.reserved{background:var(--sand);border-color:#B3A38B}
+.unit.eoi{background:var(--yellow);border-color:#E3CD10;animation:pop .5s var(--ease) forwards, eoiglow 3.4s ease-in-out infinite 1s}
+@keyframes eoiglow{0%,100%{box-shadow:0 0 0 0 rgba(255,229,18,0)}50%{box-shadow:0 0 0 4px rgba(255,229,18,.35)}}
+.unit.available{background:var(--paper)}
+.unit.unreleased{background:transparent;border-style:dashed;border-color:rgba(19,19,17,.16)}
+.key{display:flex;gap:20px;flex-wrap:wrap;font-size:11.5px;color:var(--concrete)}
+.key span{display:inline-flex;align-items:center;gap:8px}
+.key i{width:11px;height:11px;border:1px solid var(--line);display:block}
+
+/* ---------- pacing ---------- */
+.meter{height:24px;background:var(--well);border:1px solid var(--line);position:relative;overflow:hidden;margin:4px 0 12px}
+.meter .fill{position:absolute;inset:0 auto 0 0;width:0;background:linear-gradient(90deg,#131311,#3A3630);
+  transition:width 1.4s var(--ease)}
+.meter .val{position:absolute;left:12px;top:0;bottom:0;display:flex;align-items:center;font-size:12px;color:var(--bone);z-index:2}
+.meter .mark{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--bad);z-index:3}
+.metarow{display:flex;justify-content:space-between;font-size:11.5px;color:var(--concrete);gap:12px;flex-wrap:wrap}
+.tag{display:inline-block;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;padding:4px 9px;margin-top:13px;background:var(--well);color:var(--concrete)}
+.verdict{font-size:12.5px;margin:2px 0 0}
+
+/* ---------- tables ---------- */
+.tablewrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th{font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);font-weight:500;
+  text-align:right;padding:0 0 11px;border-bottom:1px solid var(--line)}
+th:first-child{text-align:left}
+td{padding:13px 0;border-bottom:1px solid var(--line-soft);text-align:right;font-variant-numeric:tabular-nums}
+td:first-child{text-align:left}
+tbody tr{transition:background .3s var(--ease)}
+tbody tr:hover td{background:rgba(196,180,156,.13)}
+tr:last-child td{border-bottom:0}
+tbody tr.total td{border-top:1px solid var(--line);border-bottom:0;font-weight:500}
+.ch{display:inline-flex;align-items:center;gap:10px}
+.ch i{width:9px;height:9px;display:block;flex:none}
+.sub{display:block;font-size:10.5px;color:var(--faint)}
+.vp{font-weight:500}.pos{color:var(--ok)}.neg{color:var(--bad)}
+.plan{color:var(--faint);font-style:italic;font-size:11px}
+
+/* ---------- notes ---------- */
+.notes{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.list{list-style:none;margin:0;padding:0}
+.list li{display:flex;gap:14px;padding:13px 0;border-bottom:1px solid var(--line-soft)}
+.list li:last-child{border-bottom:0}
+.list b{display:block;font-weight:500;margin-bottom:2px}
+.list span{color:var(--concrete);font-size:12px}
+.state{flex:none;width:62px;font-size:10px;letter-spacing:.08em;text-transform:uppercase;padding-top:3px;color:var(--faint)}
+.state.ask{color:var(--ink)}
+.state.live{color:var(--ok)}
+
+.foot{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-top:34px;
+  padding-top:20px;border-top:1px solid var(--line);font-size:11.5px;color:var(--faint)}
+
+.rev{opacity:0;transform:translateY(14px)}
+.rev.in{animation:rise .8s var(--ease) forwards}
+@keyframes rise{to{opacity:1;transform:none}}
+.fade{animation:fade .4s var(--ease)}
+@keyframes fade{from{opacity:0;transform:translateY(6px)}}
+
+@media (max-width:1040px){
+  .strip{grid-template-columns:repeat(2,1fr)}
+  .strip .cell:nth-child(4n){border-right:1px solid var(--line-soft)}
+  .strip .cell:nth-child(2n){border-right:0}
+  .split,.split.even,.notes{grid-template-columns:1fr}
+  .hero svg.tower{opacity:.45}
+}
+@media (max-width:680px){
+  .topbar,.hero{padding-left:18px;padding-right:18px}
+  .wrap{padding:20px 18px 64px}
+  .strip{grid-template-columns:1fr}
+  .strip .cell{border-right:0 !important}
+  .units{grid-template-columns:repeat(8,1fr)}
+  .switch{padding-left:0;border-left:0}
+  .num{font-size:31px}
+  .hero svg.tower{display:none}
+}
+/* `*` matches ELEMENTS, never pseudo-elements - so the bare `*` rule this started as left
+   body::before's 38s ambient wash looping and .cell::after's hover transition live for exactly
+   the visitors the rule exists to protect. Name the pseudo-elements explicitly. */
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none !important;transition:none !important}
+  .rev{opacity:1;transform:none}.unit,.plate{opacity:1;transform:none}
+}
+</style>
+</head>
+<body>
+
+<div class="progress" id="progress"></div>
+
+<header class="topbar">
+  <div class="lockup">
+    <div class="agency"><i></i>100% Digital</div>
+    <div class="divider"></div>
+    <!-- BB-RWP:lockup -->
+    <!-- PLACEHOLDER MARK. No Ray White Projects artwork has been supplied yet, so this is a
+         typographic stand-in, not the brand lockup. It is INLINE on purpose: a root-relative
+         /logo.svg 404s behind the platform proxy at /d/raywhiteprojects/. When the real art lands,
+         gen_brand_assets.py replaces everything between these two markers - do not hand-paste it,
+         or the injected copy and the file on disk drift. -->
+    <div class="client">
+      <div class="sq"><span>RW</span></div>
+      <div class="wm"><b>Ray White</b>Projects</div>
+    </div>
+    <!-- /BB-RWP:lockup -->
+    <div class="switch">
+      <em>Project</em>
+      <span id="projMount"><span class="static">Loading</span></span>
+    </div>
+  </div>
+  <div class="topright">
+    <span class="chip" id="previewChip" hidden>Preview</span>
+    <div class="live"><i></i><span id="liveState">Pre-launch</span></div>
+    <a class="logout" href="logout">Log out</a>
+  </div>
+</header>
+
+<section class="hero">
+  <div class="glow" aria-hidden="true"></div>
+  <svg class="tower" viewBox="0 0 800 400" preserveAspectRatio="xMaxYMid slice" aria-hidden="true">
+    <defs>
+      <linearGradient id="pl" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0%" stop-color="#F4F2ED" stop-opacity="0"/>
+        <stop offset="45%" stop-color="#F4F2ED" stop-opacity=".07"/>
+        <stop offset="100%" stop-color="#F4F2ED" stop-opacity=".14"/>
+      </linearGradient>
+    </defs>
+    <g id="plates"></g>
+  </svg>
+  <div class="sweep" aria-hidden="true"></div>
+  <div class="inner">
+    <h1 class="serif rev in" id="heroTitle"></h1>
+    <div class="credits rev in" id="heroCredits" style="animation-delay:.12s"></div>
+  </div>
+</section>
+
+<div class="wrap">
+
+  <div class="control">
+    <div class="tabrow">
+      <div class="tabs" role="tablist" aria-label="Sections">
+        <button class="tab" role="tab" aria-selected="true" data-tab="overview">Overview</button>
+        <button class="tab" role="tab" aria-selected="false" data-tab="media">Media</button>
+        <button class="tab" role="tab" aria-selected="false" data-tab="enquiries">Enquiries</button>
+        <button class="tab" role="tab" aria-selected="false" data-tab="selldown">Sell-down</button>
+        <!-- Staff only. Ships hidden; renderNotes() is the ONLY thing that reveals it, and only
+             when the proxy has injected window.BB_INTERNAL. -->
+        <button class="tab" role="tab" aria-selected="false" data-tab="notes" id="notesTab" hidden>Internal notes</button>
+      </div>
+      <div class="tools">
+        <span id="showing"></span>
+        <button class="btn" id="expTab">Export this tab</button>
+        <button class="btn" id="expAll">Export all data</button>
+      </div>
+    </div>
+    <div class="filters">
+      <div class="fgroup" id="projFilter" hidden>
+        <span class="flab">Project</span>
+        <span id="projPills"></span>
+      </div>
+      <div class="fgroup" id="chanFilter">
+        <span class="flab">Channel</span>
+        <span id="chanPills"></span>
+        <button class="pill ghost" id="chanAll" aria-pressed="false">All</button>
+      </div>
+      <div class="fgroup">
+        <span class="flab">Date range</span>
+        <!-- A STATEMENT, not a picker. `daily` is the only dated array and every breakdown
+             (line items, suburbs, configuration, sell-down) is whole-flight, so a real picker
+             would move the KPI band while the tables under it sat still. -->
+        <span class="statement" id="rangeStatement"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ OVERVIEW ============ -->
+  <section data-panel="overview">
+    <div class="lede rev">
+      <h2 class="serif">Campaign performance</h2>
+      <p>Paid media driving registrations of interest at <b id="ledeSite">the project site</b>. The number that matters is
+        <b id="ledeKpi">cost per enquiry</b>; everything else is a means to it.</p>
+    </div>
+
+    <div class="banner rev" id="previewBanner" hidden></div>
+
+    <div class="band rev">
+      <div class="bandhead">
+        <span id="bandPeriod"></span>
+        <span id="bandTarget"></span>
+      </div>
+      <div class="strip" id="kpiStrip"></div>
+    </div>
+
+    <div class="split">
+      <div class="panel card rev">
+        <h3 class="t">Delivery over time</h3>
+        <p class="hint">Enquiries (bars), media spend and sessions (lines). Relative indexes each series to peak=100 so the
+          shapes compare; absolute labels the axes in real units. Move across the chart for daily values.</p>
+        <div class="chartctl">
+          <span class="flab">View by</span>
+          <div class="seg" id="viewseg">
+            <button data-view="month" aria-pressed="false">Month</button>
+            <button data-view="week" aria-pressed="false">Week</button>
+            <button data-view="day" aria-pressed="true">Day</button>
+          </div>
+          <span class="flab">Axis</span>
+          <div class="seg" id="axisseg">
+            <button data-axis="relative" aria-pressed="true">Relative</button>
+            <button data-axis="absolute" aria-pressed="false">Absolute</button>
+          </div>
+        </div>
+        <div class="plot" id="plot">
+          <svg class="chart" id="trend" viewBox="0 0 760 300" role="img" aria-label="Enquiries, spend and sessions over time"></svg>
+          <div class="tip" id="tip"></div>
+        </div>
+        <div class="legend" id="trendlegend"></div>
+        <div class="legendnote" id="trendnote">Click a label to show or hide it</div>
+      </div>
+
+      <div class="panel card rev">
+        <h3 class="t">Budget pacing</h3>
+        <p class="hint" id="pacingHint"></p>
+        <div class="meter"><div class="fill" id="pacingFill" data-w="0"></div><div class="val" id="pacingVal"></div><div class="mark" id="pacingMark" style="left:0%"></div></div>
+        <div class="metarow"><span id="pacingExpected"></span><span id="pacingCommitted"></span></div>
+        <p class="verdict" id="pacingVerdict"></p>
+        <div id="pacingTagWrap" hidden><span class="tag">Illustrative</span></div>
+
+        <h3 class="t" style="margin-top:26px">Spend by channel</h3>
+        <p class="hint" id="donutHint"></p>
+        <svg class="chart" id="donut" viewBox="0 0 300 230" role="img" aria-label="Share of spend by channel"></svg>
+        <div class="chart-empty" id="donutEmpty" hidden>No spend in the current selection.</div>
+      </div>
+    </div>
+
+    <div class="panel card rev">
+      <h3 class="t">Channel performance vs media plan</h3>
+      <p class="hint" id="chanTableHint"></p>
+      <div class="tablewrap">
+        <table id="chanTable">
+          <thead><tr><th>Channel</th><th>Spend</th><th>Imps</th><th>Clicks</th><th>CTR</th><th>vs plan</th><th>Enquiries</th><th>CPE</th><th>vs plan</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ MEDIA ============ -->
+  <section data-panel="media" hidden>
+    <div class="lede rev">
+      <h2 class="serif">Media detail</h2>
+      <p>Line items as they appear in the signed plan. Creative-level reporting switches on once the ad accounts are linked.</p>
+    </div>
+    <div class="panel card rev" style="margin-bottom:22px">
+      <h3 class="t">Line items</h3>
+      <p class="hint">Naming will follow whatever the media team already uses in each account.</p>
+      <div class="tablewrap">
+        <table id="liTable">
+          <thead><tr><th>Line item</th><th>Channel</th><th>Objective</th><th>Spend</th><th>Clicks</th><th>Enquiries</th><th>CPE</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="chart-empty" id="liEmpty" hidden>No line items in the current selection.</div>
+    </div>
+    <div class="split even">
+      <div class="panel card rev">
+        <h3 class="t">Cost per enquiry vs plan</h3>
+        <p class="hint" id="cpeHint"></p>
+        <svg class="chart" id="cpe" viewBox="0 0 340 210" role="img" aria-label="Cost per enquiry by channel against plan"></svg>
+        <div class="chart-empty" id="cpeEmpty" hidden>No enquiries in the current selection.</div>
+      </div>
+      <div class="panel card rev">
+        <h3 class="t">Spend split</h3>
+        <p class="hint" id="shareHint"></p>
+        <svg class="chart" id="share" viewBox="0 0 400 108" role="img" aria-label="Share of spend by channel"></svg>
+        <div class="chart-empty" id="shareEmpty" hidden>No spend in the current selection.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ ENQUIRIES ============ -->
+  <section data-panel="enquiries" hidden>
+    <div class="lede rev">
+      <h2 class="serif">Enquiry quality</h2>
+      <p>The register-interest form captures configuration, which makes demand by apartment type the most useful signal in
+        the campaign. It should steer both the release strategy and the media mix.</p>
+    </div>
+    <div class="banner rev" id="enqScopeNote"></div>
+    <div class="split">
+      <div class="panel card rev">
+        <h3 class="t">Demand by configuration</h3>
+        <p class="hint" id="configHint"></p>
+        <svg class="chart" id="config" viewBox="0 0 700 220" role="img" aria-label="Enquiries by apartment configuration"></svg>
+        <div class="chart-empty" id="configEmpty" hidden>No configuration data yet.</div>
+      </div>
+      <div class="panel card rev">
+        <h3 class="t">Form completion</h3>
+        <p class="hint">Where registrations fall over between landing and submit.</p>
+        <svg class="chart" id="funnel" viewBox="0 0 340 250" role="img" aria-label="Form completion funnel"></svg>
+        <div class="chart-empty" id="funnelEmpty" hidden>No form data yet.</div>
+      </div>
+    </div>
+    <div class="panel card rev">
+      <h3 class="t">Enquiries by suburb of origin</h3>
+      <p class="hint">Downsizers move short distances. If the top suburbs are not the local catchment, the targeting is wrong.</p>
+      <div class="tablewrap">
+        <table id="subTable">
+          <thead><tr><th>Suburb</th><th>Enquiries</th><th>Share</th><th>Appointments</th><th>Most requested</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ SELL-DOWN ============ -->
+  <section data-panel="selldown" hidden>
+    <div class="lede rev">
+      <h2 class="serif">Sell-down</h2>
+      <p id="sellLede"></p>
+    </div>
+    <div class="band rev">
+      <div class="bandhead"><span id="sellHead"></span><span id="sellTag"></span></div>
+      <div class="strip" id="sellStrip"></div>
+    </div>
+    <div class="panel card rev">
+      <h3 class="t">Stock board</h3>
+      <p class="hint">Each square is one residence, ordered by level. Dashed squares are not yet released.</p>
+      <div class="units" id="units"></div>
+      <div class="key">
+        <span><i class="unit exchanged" style="opacity:1;transform:none;animation:none"></i>Exchanged</span>
+        <span><i class="unit reserved" style="opacity:1;transform:none;animation:none"></i>Reserved</span>
+        <span><i class="unit eoi" style="opacity:1;transform:none;animation:none"></i>Expression of interest</span>
+        <span><i class="unit available" style="opacity:1;transform:none;animation:none"></i>Available</span>
+        <span><i class="unit unreleased" style="opacity:1;transform:none;animation:none"></i>Not released</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ INTERNAL NOTES (staff only) ============ -->
+  <section data-panel="notes" hidden>
+    <div class="lede rev">
+      <h2 class="serif">What is connected, and what we still need</h2>
+      <p>Visible to the 100% Digital team only. Hidden from the Ray White and developer logins.</p>
+    </div>
+    <div class="banner internal rev"><b>Internal - not shown to the client.</b> A hidden tab is not a
+      permission: this route authenticates but does not yet authorise by role, so keep anything
+      genuinely sensitive out of it.</div>
+    <div class="notes" id="notesGrid"></div>
+  </section>
+
+  <div class="foot">
+    <span id="footLeft"></span>
+    <span id="footRight">Prepared by 100% Digital</span>
+  </div>
+</div>
+
+<script>
+'use strict';
+/* =============================================================================================
+   Ray White Projects dashboard.
+
+   EVERYTHING renders from /data.json. Nothing is hardcoded here, which is the point: connecting
+   GA4, Meta, Google Ads and the portals is a DATA change, not a template rewrite. Until an export
+   job writes a real raywhiteprojects.json the service serves dash/placeholder.json, whose
+   meta.placeholder flag is the ONE switch behind the preview notice, the topbar chip and the
+   PREVIEW_ export prefix.
+
+   The literal string /data.json below is load-bearing twice over: the platform proxy rewrites it
+   to /d/raywhiteprojects/data.json, and its presence in the body is how the proxy recognises this
+   as the dashboard page and injects window.BB_INTERNAL / BB_SPEND_MULT. Every OTHER fetch must
+   stay RELATIVE - an absolute path resolves against the PLATFORM root and never reaches this
+   service.
+   ============================================================================================= */
+const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const NS = 'http://www.w3.org/2000/svg';
+const svgEl = (n, a) => { const e = document.createElementNS(NS, n); for (const k in a) e.setAttribute(k, a[k]); return e; };
+const txt = (x, y, s, o) => {
+  const t = svgEl('text', Object.assign({x: x, y: y, fill: '#A6A29A', 'font-size': '10'}, o || {}));
+  t.textContent = s; return t;
+};
+const el = id => document.getElementById(id);
+const n = v => { const x = Number(v); return Number.isFinite(x) ? x : 0; };
+/* Number(null) and Number('') are BOTH 0, so Number.isFinite(Number(x)) is not a null guard.
+   Reject the empty forms BEFORE coercing, or a deliberately-blank target reads as "target 0". */
+const numOrNull = v => (v === null || v === undefined || v === '' ? null : (Number.isFinite(Number(v)) ? Number(v) : null));
+const au = v => Number(v).toLocaleString('en-AU');
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c =>
+  ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
+const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+/* Parse an ISO date as UTC. The local Date ctor shifts the day either side of midnight, which is
+   how a Sunday ends up bucketed into the previous week. */
+const isoDate = s => new Date(String(s) + 'T00:00:00Z');
+const dLabel = d => d.getUTCDate() + ' ' + MON[d.getUTCMonth()];
+const fullDate = s => { const d = isoDate(s); return d.getUTCDate() + ' ' + MON[d.getUTCMonth()] + ' ' + d.getUTCFullYear(); };
+
+let DATA = null;
+const STATE = {project: null, off: new Set(), chansOff: new Set(), view: 'day', axis: 'relative'};
+let RENDER_GEN = 0;          // bumped on every render; stale count-up frames bail on it
+
+/* ---------------------------------------------------------------------------------------------
+   SPEND MULTIPLIER SHIM (vendored - every dashboard in the estate carries one)
+
+   Grosses RAW media cost to the client-billed figure from window.BB_SPEND_MULT, injected by the
+   platform proxy as {channel: factor}. Grossed PER ROW BY THAT ROW'S OWN CHANNEL: a single
+   hardcoded channel key is how a sibling dashboard billed Trade Desk delivery at Meta's rate.
+
+   The portal channels (realestate.com.au, Domain) have NO key in the platform's SPEND_CHANNELS
+   list, so they stay at factor 1 = raw, rather than inheriting a rate nobody agreed for them.
+   That means a total could mix billed and raw if a factor is ever set here; see README ->
+   "Open items" before setting one.
+   --------------------------------------------------------------------------------------------- */
+const SPEND_CHANNEL = {'meta': 'meta', 'facebook': 'meta', 'google_ads': 'google', 'google ads': 'google',
+  'google': 'google', 'linkedin': 'linkedin', 'the trade desk': 'ttd', 'ttd': 'ttd'};
+function bbMultFor(channel){
+  const m = window.BB_SPEND_MULT || {};
+  const key = SPEND_CHANNEL[String(channel || '').toLowerCase()] || String(channel || '').toLowerCase();
+  const v = Number(m[key]);
+  return (Number.isFinite(v) && v > 0) ? v : 1;
+}
+function bbApplySpendMult(){
+  /* The fact is channel-grain, so every spend figure on the page derives from these rows and
+     follows automatically. `_rawSpend` is the stash; CSV export filters _-prefixed keys so raw
+     pre-markup spend never leaks to a client. */
+  (DATA.daily || []).forEach(r => {
+    if (r._rawSpend == null) r._rawSpend = n(r.spend);
+    r.spend = r._rawSpend * bbMultFor(r.channel);
+  });
+  (DATA.line_items || []).forEach(r => {
+    if (r._rawSpend == null) r._rawSpend = n(r.spend);
+    r.spend = r._rawSpend * bbMultFor(r.channel);
+  });
+  /* The PLAN side is never grossed. A media plan is what the client signed and pays, so it is
+     already the billed number - grossing it bills them twice on paper. */
+}
+/* A money figure must SAY which basis it is on, and it cannot derive that: an EXTERNAL tenant is
+   grossed server-side with the factor withheld, so an empty BB_SPEND_MULT does not mean raw. The
+   proxy states it. ONE string says it for the whole page. */
+const bbSpendBasis = () => (window.BB_SPEND_BASIS === 'billed'
+  ? 'Spend figures are the client-billed amount.'
+  : 'Spend figures are raw media cost.');
+
+/* ---------------------------------------------------------------------------------------------
+   payload accessors
+   --------------------------------------------------------------------------------------------- */
+const meta = () => (DATA && DATA.meta) || {};
+const isPlaceholder = () => !!meta().placeholder;
+const cur = () => meta().currency_symbol || 'A$';
+const money = (v, dp) => cur() + Number(v).toLocaleString('en-AU',
+  {minimumFractionDigits: dp == null ? 0 : dp, maximumFractionDigits: dp == null ? 0 : dp});
+const projects = () => (DATA && DATA.projects) || [];
+const project = () => projects().find(p => p.key === STATE.project) || projects()[0] || {};
+const channels = () => (DATA && DATA.channels) || [];
+const chanOf = key => channels().find(c => c.key === key) || {key: key, label: key, colour: '#8E8B83'};
+const derivedTargets = () => !!((project().targets || {}).derived);
+/* One literal "(derived)" label wherever a target we inferred is printed. An unlabelled red delta
+   accuses the campaign of missing a KPI nobody agreed to. */
+const derivedLabel = () => (derivedTargets() ? ' (derived)' : '');
+
+const projOk = r => !STATE.project || r.project === STATE.project;
+const chanOk = r => !STATE.chansOff.has(r.channel);
+/* THE single enforcement point for the paid fact. Every paid rollup on the page goes through it,
+   so a filter can never move half a panel. */
+const ROWS = () => (DATA.daily || []).filter(r => projOk(r) && chanOk(r));
+/* Whole-site rows: sessions and CRM appointments. Filtered by PROJECT only - they carry no
+   delivering channel, so the channel chips must not move them. */
+const SITE = () => (DATA.site_daily || []).filter(projOk);
+const activeChans = () => channels().filter(c => !STATE.chansOff.has(c.key));
+const chanFiltered = () => STATE.chansOff.size > 0;
+
+function sum(rows, field){ let t = 0; for (const r of rows) t += n(r[field]); return t; }
+
+function totals(){
+  const rows = ROWS(), site = SITE();
+  const spend = sum(rows, 'spend'), imps = sum(rows, 'impressions');
+  const clicks = sum(rows, 'clicks'), enq = sum(rows, 'enquiries');
+  return {
+    spend: spend, impressions: imps, clicks: clicks, enquiries: enq,
+    sessions: sum(site, 'sessions'), appointments: sum(site, 'appointments'),
+    cpe: enq ? spend / enq : null,
+    ctr: imps ? clicks / imps * 100 : null,
+    cpc: clicks ? spend / clicks : null,
+  };
+}
+
+/* ---------------------------------------------------------------------------------------------
+   scroll progress + hero floorplates
+   --------------------------------------------------------------------------------------------- */
+(function () {
+  const bar = el('progress');
+  const set = () => {
+    const h = document.documentElement.scrollHeight - window.innerHeight;
+    bar.style.width = (h > 0 ? (window.scrollY / h) * 100 : 0) + '%';
+  };
+  set(); window.addEventListener('scroll', set, {passive: true}); window.addEventListener('resize', set);
+})();
+
+(function () {
+  const g = el('plates');
+  const levels = 9, top = 26, h = 26, gap = 14;
+  for (let i = 0; i < levels; i++) {
+    const inset = i * 22;
+    const r = svgEl('rect', {x: 120 + inset, y: top + i * (h + gap), width: 700 - inset, height: h,
+      fill: 'url(#pl)', class: 'plate'});
+    r.style.animationDelay = (0.3 + i * 0.1) + 's';
+    g.appendChild(r);
+  }
+})();
+
+/* ---------------------------------------------------------------------------------------------
+   reveal + count-up
+   --------------------------------------------------------------------------------------------- */
+const io = new IntersectionObserver(es => es.forEach(e => {
+  if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); }
+}), {threshold: 0});   /* threshold 0, never a fraction: a card taller than the viewport never
+                          reaches a fractional threshold and would sit at opacity 0 forever. */
+const observeAll = root => root.querySelectorAll('.rev:not(.in)').forEach(x => reduce ? x.classList.add('in') : io.observe(x));
+
+function countUp(node){
+  const target = parseFloat(node.dataset.count), dp = parseInt(node.dataset.dp || '0', 10);
+  const pre = node.dataset.prefix || '', suf = node.dataset.suffix || '';
+  const fmt = v => pre + Number(v).toLocaleString('en-AU', {minimumFractionDigits: dp, maximumFractionDigits: dp}) + suf;
+  if (!Number.isFinite(target)) return;
+  if (reduce) { node.textContent = fmt(target); return; }
+  const gen = RENDER_GEN, dur = 1100, t0 = performance.now();
+  let last = node.textContent;
+  const step = t => {
+    /* Two guards. The generation token stops a frame from a previous scope painting over fresh
+       figures; the text check stops an animation whose element was re-rendered underneath it
+       from restoring the OLD value and leaving it there. */
+    if (gen !== RENDER_GEN || node.textContent !== last) return;
+    const p = Math.min(1, (t - t0) / dur);
+    last = fmt(target * (1 - Math.pow(1 - p, 3)));
+    node.textContent = last;
+    if (p < 1) requestAnimationFrame(step);
+    else { last = fmt(target); node.textContent = last; }
+  };
+  requestAnimationFrame(step);
+}
+const ioNum = new IntersectionObserver(es => es.forEach(e => {
+  if (e.isIntersecting) { countUp(e.target); ioNum.unobserve(e.target); }
+}), {threshold: .4});
+const observeNums = root => root.querySelectorAll('.num[data-count]').forEach(x => reduce ? countUp(x) : ioNum.observe(x));
+const runMeters = root => root.querySelectorAll('.meter .fill').forEach(f =>
+  setTimeout(() => f.style.width = f.dataset.w + '%', reduce ? 0 : 250));
+
+/* ---------------------------------------------------------------------------------------------
+   KPI sparklines - derived from the FILTERED fact, so they follow the chips like the figure above
+   --------------------------------------------------------------------------------------------- */
+function series(kind){
+  const by = new Map();
+  ROWS().forEach(r => {
+    const o = by.get(r.date) || {spend: 0, imps: 0, clicks: 0, enq: 0};
+    o.spend += n(r.spend); o.imps += n(r.impressions); o.clicks += n(r.clicks); o.enq += n(r.enquiries);
+    by.set(r.date, o);
+  });
+  const site = new Map();
+  SITE().forEach(r => site.set(r.date, {sess: n(r.sessions), appts: n(r.appointments)}));
+  const days = [...new Set([...by.keys(), ...site.keys()])].sort();
+  return days.map(d => {
+    const p = by.get(d) || {spend: 0, imps: 0, clicks: 0, enq: 0};
+    const s = site.get(d) || {sess: 0, appts: 0};
+    switch (kind) {
+      case 'enq': return p.enq;
+      case 'spend': return p.spend;
+      case 'sess': return s.sess;
+      case 'appts': return s.appts;
+      case 'cpe': return p.enq ? p.spend / p.enq : 0;
+      case 'cpc': return p.clicks ? p.spend / p.clicks : 0;
+      case 'ctr': return p.imps ? p.clicks / p.imps * 100 : 0;
+      case 'rate': return s.sess ? p.enq / s.sess * 100 : 0;
+      default: return 0;
+    }
+  });
+}
+
+function sparkline(svg){
+  const data = series(svg.dataset.spark);
+  if (!data || data.length < 2) { svg.textContent = ''; return; }
+  svg.textContent = '';
+  const W = 240, H = 30, min = Math.min(...data), max = Math.max(...data), pad = (max - min) * .18 || 1;
+  svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+  svg.setAttribute('preserveAspectRatio', 'none');
+  const x = i => (i / (data.length - 1)) * W;
+  const y = v => H - 2 - ((v - min + pad / 2) / (max - min + pad)) * (H - 4);
+  const id = 'sp' + Math.random().toString(36).slice(2, 8);
+  const defs = svgEl('defs');
+  const grad = svgEl('linearGradient', {id: id, x1: 0, y1: 0, x2: 0, y2: 1});
+  grad.appendChild(svgEl('stop', {offset: '0%', 'stop-color': '#C4B49C', 'stop-opacity': '.55'}));
+  grad.appendChild(svgEl('stop', {offset: '100%', 'stop-color': '#C4B49C', 'stop-opacity': '0'}));
+  defs.appendChild(grad); svg.appendChild(defs);
+  const line = data.map((v, i) => (i ? 'L' : 'M') + x(i).toFixed(1) + ',' + y(v).toFixed(1)).join(' ');
+  svg.appendChild(svgEl('path', {d: line + ' L' + W + ',' + H + ' L0,' + H + ' Z', fill: 'url(#' + id + ')'}));
+  const p = svgEl('path', {d: line, fill: 'none', stroke: '#7E7B74', 'stroke-width': 1.2,
+    'vector-effect': 'non-scaling-stroke', 'stroke-linejoin': 'round'});
+  svg.appendChild(p);
+  svg.appendChild(svgEl('circle', {cx: x(data.length - 1), cy: y(data[data.length - 1]), r: 2.6,
+    fill: svg.dataset.invert ? '#A85440' : '#131311'}));
+  if (!reduce) {
+    const len = p.getTotalLength();
+    p.style.strokeDasharray = len; p.style.strokeDashoffset = len;
+    setTimeout(() => { p.style.transition = 'stroke-dashoffset 1.4s cubic-bezier(.16,1,.3,1)'; p.style.strokeDashoffset = 0; }, 400);
+  }
+}
+const ioSpark = new IntersectionObserver(es => es.forEach(e => {
+  if (e.isIntersecting) { sparkline(e.target); ioSpark.unobserve(e.target); }
+}), {threshold: .3});
+const observeSparks = root => root.querySelectorAll('.spark').forEach(s => reduce ? sparkline(s) : ioSpark.observe(s));
+
+/* ---------------------------------------------------------------------------------------------
+   KPI band
+   --------------------------------------------------------------------------------------------- */
+function kpiCard(o){
+  const d = document.createElement('div');
+  d.className = 'cell';
+  const num = o.value == null
+    ? '<div class="num">-</div>'
+    : '<div class="num" data-count="' + o.value + '"' +
+      (o.prefix ? ' data-prefix="' + esc(o.prefix) + '"' : '') +
+      (o.suffix ? ' data-suffix="' + esc(o.suffix) + '"' : '') +
+      (o.dp ? ' data-dp="' + o.dp + '"' : '') + '>0</div>';
+  d.innerHTML = '<h3><i class="i-' + (o.tone || 'n') + '"></i>' + esc(o.label) + '</h3>' + num +
+    '<small>' + (o.note || '') + '</small>' +
+    (o.spark ? '<svg class="spark" data-spark="' + o.spark + '"' + (o.invert ? ' data-invert="1"' : '') + '></svg>' : '');
+  return d;
+}
+
+/* Marks a figure the channel chips do not move, and ONLY while a filter is on - an unconditional
+   caveat on an unfiltered page is noise. */
+const wholeSite = txtStr => '<em>Whole site</em> ' + txtStr;
+
+function renderKpis(){
+  const t = totals(), p = project(), tg = p.targets || {};
+  const cpeTarget = numOrNull(tg.cost_per_enquiry);
+  const lo = numOrNull(tg.enquiry_rate_low), hi = numOrNull(tg.enquiry_rate_high);
+  const rate = t.sessions ? t.enquiries / t.sessions * 100 : null;
+  const strip = el('kpiStrip');
+  strip.textContent = '';
+
+  const cpeTone = (t.cpe == null || cpeTarget == null) ? 'n' : (t.cpe <= cpeTarget ? 'ok' : 'bad');
+  const cpeNote = (t.cpe != null && cpeTarget)
+    ? Math.abs(Math.round((t.cpe / cpeTarget - 1) * 100)) + '% ' + (t.cpe <= cpeTarget ? 'under' : 'over') + ' plan' + derivedLabel()
+    : 'No plan rate recorded';
+  const rateTone = (rate == null || lo == null || hi == null) ? 'n' : (rate >= lo ? 'ok' : 'warn');
+
+  const cards = [
+    {label: 'Enquiries', value: t.enquiries, tone: t.enquiries ? 'ok' : 'n', spark: 'enq',
+     note: 'Register-interest form submissions'},
+    {label: 'Cost per enquiry', value: t.cpe, prefix: cur(), dp: 2, tone: cpeTone, spark: 'cpe', invert: true,
+     note: esc(cpeNote)},
+    {label: 'Media spend', value: t.spend, prefix: cur(), tone: 'n', spark: 'spend',
+     note: 'Of ' + money(n((p.flight || {}).budget_committed)) + ' committed to ' +
+           ((p.flight || {}).end ? fullDate(p.flight.end) : 'the end of the flight')},
+    {label: 'Appointments', value: t.appointments, tone: t.appointments ? 'ok' : 'n', spark: 'appts',
+     note: chanFiltered() ? wholeSite('- from the CRM, no channel attribution')
+                          : (t.enquiries ? Math.round(t.appointments / t.enquiries * 100) + '% of enquiries' : 'From the CRM')},
+    {label: 'Sessions', value: t.sessions, tone: 'n', spark: 'sess',
+     note: chanFiltered() ? wholeSite('- ' + esc(p.site || 'the project site') + ', all sources')
+                          : esc(p.site || 'the project site') + ', all sources'},
+    {label: 'Enquiry rate', value: rate, suffix: '%', dp: 2, tone: rateTone, spark: 'rate',
+     note: (lo != null && hi != null ? 'Benchmark ' + lo.toFixed(1) + ' to ' + hi.toFixed(1) + '%' + derivedLabel() : 'No benchmark recorded') +
+           (chanFiltered() ? ' <em>Sessions are whole site</em>' : '')},
+    {label: 'Blended CTR', value: t.ctr, suffix: '%', dp: 3, tone: 'ok', spark: 'ctr',
+     note: au(t.impressions) + ' impressions, ' + au(t.clicks) + ' clicks'},
+    {label: 'Blended CPC', value: t.cpc, prefix: cur(), dp: 2, tone: 'n', spark: 'cpc', invert: true,
+     note: 'Premium downsizer audiences run hot'},
+  ];
+  cards.forEach(c => strip.appendChild(kpiCard(c)));
+
+  el('bandPeriod').innerHTML = esc(meta().period_label || 'Campaign to date') + ' &middot; <b>' +
+    esc(fullDate(meta().date_min) + ' to ' + fullDate(meta().date_max)) + '</b>';
+  el('bandTarget').innerHTML = cpeTarget != null
+    ? 'Plan cost per enquiry <b>' + esc(money(cpeTarget)) + esc(derivedLabel()) + '</b>'
+    : 'No plan cost per enquiry recorded';
+}
+
+/* ---------------------------------------------------------------------------------------------
+   delivery over time
+   --------------------------------------------------------------------------------------------- */
+const SERIES = [
+  {key: 'enq',   label: 'Enquiries', colour: '#C4B49C', type: 'bar',  fmt: v => au(Math.round(v))},
+  {key: 'spend', label: 'Spend',     colour: '#131311', type: 'line', area: true, fmt: v => money(Math.round(v))},
+  {key: 'sess',  label: 'Sessions',  colour: '#8E8B83', type: 'line', dash: '4 3', fmt: v => au(Math.round(v))}
+];
+let GEO = null;
+
+function bucket(view){
+  const paid = new Map(), site = new Map();
+  ROWS().forEach(r => paid.set(r.date, (paid.get(r.date) || 0) + n(r.enquiries)));
+  const spendBy = new Map();
+  ROWS().forEach(r => spendBy.set(r.date, (spendBy.get(r.date) || 0) + n(r.spend)));
+  SITE().forEach(r => site.set(r.date, n(r.sessions)));
+  const days = [...new Set([...paid.keys(), ...site.keys()])].sort();
+  const rows = days.map(d => ({date: d, enq: paid.get(d) || 0, spend: spendBy.get(d) || 0, sess: site.get(d) || 0}));
+  if (view === 'day') return rows.map(r => Object.assign({label: dLabel(isoDate(r.date))}, r));
+  const out = [];
+  let cur_ = null;
+  rows.forEach(r => {
+    const d = isoDate(r.date);
+    /* ISO week anchored on Monday, in UTC. */
+    const k = view === 'week'
+      ? (function(){ const x = new Date(d); x.setUTCDate(x.getUTCDate() - ((x.getUTCDay() + 6) % 7)); return x.toISOString().slice(0, 10); })()
+      : d.getUTCFullYear() + '-' + d.getUTCMonth();
+    if (!cur_ || cur_.k !== k) {
+      cur_ = {k: k, label: view === 'week' ? 'w/c ' + dLabel(isoDate(k)) : MON[d.getUTCMonth()],
+              enq: 0, spend: 0, sess: 0};
+      out.push(cur_);
+    }
+    cur_.enq += r.enq; cur_.spend += r.spend; cur_.sess += r.sess;
+  });
+  return out;
+}
+
+function drawTrend(){
+  const svg = el('trend');
+  svg.textContent = '';
+  const rows = bucket(STATE.view);
+  const on = SERIES.filter(s => !STATE.off.has(s.key));
+  const W = 760, H = 300, L = 52, R = 62, T = 16, B = 40, iw = W - L - R, ih = H - T - B;
+  GEO = {rows: rows, on: on, W: W, H: H, L: L, R: R, T: T, B: B, iw: iw, ih: ih, step: iw / (rows.length || 1)};
+  if (!rows.length) { svg.appendChild(txt(W / 2, H / 2, 'No delivery in the current selection', {'text-anchor': 'middle', 'font-size': '12'})); return; }
+  if (!on.length) { svg.appendChild(txt(W / 2, H / 2, 'Select a series to display', {'text-anchor': 'middle', 'font-size': '12'})); return; }
+
+  const maxOf = k => Math.max.apply(null, rows.map(r => r[k]).concat([0])) || 1;
+  const y = (k, v) => T + ih - (v / maxOf(k)) * ih;
+  GEO.y = y;
+  const rel = STATE.axis === 'relative';
+
+  const defs = svgEl('defs');
+  const grad = svgEl('linearGradient', {id: 'spendArea', x1: 0, y1: 0, x2: 0, y2: 1});
+  grad.appendChild(svgEl('stop', {offset: '0%', 'stop-color': '#131311', 'stop-opacity': '.16'}));
+  grad.appendChild(svgEl('stop', {offset: '100%', 'stop-color': '#131311', 'stop-opacity': '0'}));
+  defs.appendChild(grad); svg.appendChild(defs);
+
+  for (let i = 0; i <= 4; i++) {
+    const gy = T + (ih / 4) * i;
+    svg.appendChild(svgEl('line', {x1: L, x2: W - R, y1: gy, y2: gy, stroke: 'rgba(19,19,17,.08)'}));
+    if (rel) svg.appendChild(txt(L - 10, gy + 4, 100 - i * 25, {'text-anchor': 'end'}));
+    else {
+      const bars = on.find(s => s.type === 'bar'), lines = on.find(s => s.type === 'line');
+      if (bars) svg.appendChild(txt(L - 10, gy + 4, Math.round(maxOf(bars.key) * (1 - i / 4)), {'text-anchor': 'end'}));
+      if (lines) svg.appendChild(txt(W - R + 10, gy + 4, lines.fmt(maxOf(lines.key) * (1 - i / 4))));
+    }
+  }
+  if (rel) svg.appendChild(txt(L - 10, T - 6, 'index (peak=100)', {'text-anchor': 'end', 'font-size': '9.5'}));
+
+  const step = GEO.step;
+  on.filter(s => s.type === 'bar').forEach(s => {
+    const bw = Math.min(step * .56, 44);
+    rows.forEach((r, i) => {
+      const h = ih - (y(s.key, r[s.key]) - T);
+      const rect = svgEl('rect', {x: L + step * (i + .5) - bw / 2, y: T + ih, width: bw, height: 0, fill: s.colour});
+      svg.appendChild(rect);
+      if (reduce) { rect.setAttribute('y', T + ih - h); rect.setAttribute('height', h); }
+      else setTimeout(() => {
+        rect.style.transition = 'height .6s cubic-bezier(.16,1,.3,1), y .6s cubic-bezier(.16,1,.3,1)';
+        rect.setAttribute('y', T + ih - h); rect.setAttribute('height', h);
+      }, 60 + i * 16);
+    });
+  });
+
+  on.filter(s => s.type === 'line').forEach(s => {
+    const pts = rows.map((r, i) => [L + step * (i + .5), y(s.key, r[s.key])]);
+    const d = pts.map((pt, i) => (i ? 'L' : 'M') + pt[0].toFixed(1) + ',' + pt[1].toFixed(1)).join(' ');
+    if (s.area) svg.appendChild(svgEl('path',
+      {d: d + ' L' + pts[pts.length - 1][0].toFixed(1) + ',' + (T + ih) + ' L' + pts[0][0].toFixed(1) + ',' + (T + ih) + ' Z',
+       fill: 'url(#spendArea)'}));
+    const p = svgEl('path', {d: d, fill: 'none', stroke: s.colour, 'stroke-width': 1.7, 'stroke-linejoin': 'round'});
+    if (s.dash) p.setAttribute('stroke-dasharray', s.dash);
+    svg.appendChild(p);
+    if (!reduce && !s.dash) {
+      const len = p.getTotalLength();
+      p.style.strokeDasharray = len; p.style.strokeDashoffset = len;
+      setTimeout(() => { p.style.transition = 'stroke-dashoffset 1.3s cubic-bezier(.16,1,.3,1)'; p.style.strokeDashoffset = 0; }, 200);
+    }
+  });
+
+  const cross = svgEl('line', {x1: 0, x2: 0, y1: T, y2: T + ih, stroke: '#131311', 'stroke-width': 1, opacity: 0, id: 'cross'});
+  svg.appendChild(cross);
+  svg.appendChild(svgEl('g', {id: 'crossdots', opacity: 0}));
+
+  const every = Math.ceil(rows.length / 6);
+  rows.forEach((r, i) => {
+    if (i % every === 0 || i === rows.length - 1)
+      svg.appendChild(txt(L + step * (i + .5), H - 14, r.label, {'text-anchor': 'middle'}));
+  });
+  svg.appendChild(svgEl('rect', {x: L, y: T, width: iw, height: ih, fill: 'transparent', style: 'cursor:crosshair'}));
+}
+
+(function () {
+  const tip = el('tip'), svg = el('trend');
+  const hide = () => {
+    tip.style.opacity = 0;
+    const c = svg.querySelector('#cross'), d = svg.querySelector('#crossdots');
+    if (c) c.setAttribute('opacity', 0);
+    if (d) d.setAttribute('opacity', 0);
+  };
+  svg.addEventListener('mouseleave', hide);
+  svg.addEventListener('mousemove', e => {
+    if (!GEO || !GEO.on.length || !GEO.rows.length || !GEO.y) return;
+    const box = svg.getBoundingClientRect();
+    const vx = (e.clientX - box.left) / box.width * GEO.W;
+    let i = Math.round((vx - GEO.L) / GEO.step - .5);
+    i = Math.max(0, Math.min(GEO.rows.length - 1, i));
+    const cx = GEO.L + GEO.step * (i + .5);
+    const cross = svg.querySelector('#cross'), dots = svg.querySelector('#crossdots');
+    if (!cross || !dots) return;
+    cross.setAttribute('x1', cx); cross.setAttribute('x2', cx); cross.setAttribute('opacity', .22);
+    dots.textContent = '';
+    GEO.on.forEach(s => dots.appendChild(svgEl('circle',
+      {cx: cx, cy: GEO.y(s.key, GEO.rows[i][s.key]), r: 3.4, fill: s.colour, stroke: '#FBFAF7', 'stroke-width': 1.4})));
+    dots.setAttribute('opacity', 1);
+    tip.innerHTML = '<b>' + esc(GEO.rows[i].label) + '</b>' + GEO.on.map(s =>
+      '<span><i style="background:' + s.colour + '"></i>' + esc(s.label) + ' ' + esc(s.fmt(GEO.rows[i][s.key])) + '</span>').join('');
+    tip.style.left = (cx / GEO.W * 100) + '%';
+    tip.style.top = '8px';
+    tip.style.opacity = 1;
+  });
+})();
+
+function drawLegend(){
+  const box = el('trendlegend');
+  box.textContent = '';
+  SERIES.forEach(s => {
+    const b = document.createElement('button');
+    b.setAttribute('aria-pressed', String(!STATE.off.has(s.key)));
+    b.innerHTML = '<i style="background:' + s.colour + '"></i>' + esc(s.label);
+    b.addEventListener('click', () => {
+      STATE.off.has(s.key) ? STATE.off.delete(s.key) : STATE.off.add(s.key);
+      drawLegend(); drawTrend();
+    });
+    box.appendChild(b);
+  });
+  /* Sessions is whole-site, so it does NOT move with the channel chips. Saying so beats letting
+     a reader conclude the line is broken. */
+  el('trendnote').textContent = chanFiltered()
+    ? 'Click a label to show or hide it. Sessions are whole site and do not follow the channel filter.'
+    : 'Click a label to show or hide it';
+}
+
+/* ---------------------------------------------------------------------------------------------
+   pacing
+   --------------------------------------------------------------------------------------------- */
+function renderPacing(){
+  const p = project(), f = p.flight || {};
+  const committed = n(f.budget_committed);
+  /* Pace against the budget that can actually spend. Nothing here is unmeasurable today, but the
+     field is carried so a retainer or a management fee joining the plan cannot silently create a
+     shortfall no delivery could ever close. */
+  const measurable = numOrNull(f.budget_measurable);
+  const basis = measurable != null ? measurable : committed;
+  /* Spend-to-date is the FILTERED total only when no filter is on. Pacing is a full-flight fact
+     and must not move when a user unticks a channel. */
+  const spend = sum((DATA.daily || []).filter(projOk), 'spend');
+  const expected = numOrNull(f.expected_to_date);
+  const pct = basis ? spend / basis * 100 : 0;
+
+  /* The expectation is only as good as the flighting behind it. Where we have the plan's TOTAL
+     but not its monthly splits, expected-to-date is our own even spread - so say so, exactly as a
+     derived target is labelled. Without that the card asserts a pacing position the plan never
+     stated, and a launch burst is normally front-loaded rather than even. */
+  const basisNote = f.pace_basis ? ' Expected-to-date assumes an ' + f.pace_basis +
+    ' across the flight, not the plan flighting.' : '';
+  el('pacingHint').textContent = 'Spend to date against the plan through to ' +
+    (f.end ? fullDate(f.end) : 'the end of the flight') + '. The red marker is where pacing should sit' +
+    (f.pace_through ? ' at ' + fullDate(f.pace_through) : ' today') + '.' + basisNote;
+  el('pacingFill').dataset.w = Math.max(0, Math.min(100, pct)).toFixed(1);
+  el('pacingVal').textContent = money(spend);
+  el('pacingMark').style.left = (basis && expected != null ? Math.max(0, Math.min(100, expected / basis * 100)) : 0) + '%';
+  el('pacingExpected').textContent = expected != null
+    ? 'Expected by ' + (f.pace_through ? fullDate(f.pace_through) : 'now') + ': ' + money(expected)
+    : 'No expected-to-date figure';
+  el('pacingCommitted').textContent = 'Committed: ' + money(committed);
+
+  /* Withhold a GREEN either side of plan: overspending is not a win. Within 5% reads as on plan.
+     And withhold the COLOUR entirely when the expectation is our own even spread rather than the
+     plan's flighting - a red delta against an assumption accuses the campaign of missing a
+     position nobody agreed to, the same reason a derived target never carries an unlabelled
+     verdict. The figure still prints; only the judgement is withheld. */
+  const v = el('pacingVerdict');
+  if (expected == null || !expected) { v.textContent = ''; v.className = 'verdict'; }
+  else {
+    const ratio = spend / expected;
+    const off = Math.abs(Math.round((ratio - 1) * 100));
+    const assumed = !!f.pace_basis;
+    v.className = 'verdict ' + ((assumed || Math.abs(ratio - 1) <= .05) ? '' : 'neg');
+    const word = Math.abs(ratio - 1) <= .05
+      ? 'On plan at ' + Math.round(ratio * 100) + '% of pace'
+      : (ratio < 1 ? off + '% under pace' : off + '% over pace');
+    v.textContent = word + (assumed ? ' against an even spread, which the plan has not confirmed.' : '.');
+  }
+  el('pacingTagWrap').hidden = !isPlaceholder();
+}
+
+/* ---------------------------------------------------------------------------------------------
+   channel charts. All read the SAME per-channel aggregate, so they cannot disagree.
+   --------------------------------------------------------------------------------------------- */
+function chanTotals(){
+  return activeChans().map(c => {
+    const rows = ROWS().filter(r => r.channel === c.key);
+    const spend = sum(rows, 'spend'), imps = sum(rows, 'impressions');
+    const clicks = sum(rows, 'clicks'), enq = sum(rows, 'enquiries');
+    return {
+      key: c.key, label: c.label, sublabel: c.sublabel, colour: c.colour,
+      plan_ctr: numOrNull(c.plan_ctr), plan_cpe: numOrNull(c.plan_cpe),
+      spend: spend, impressions: imps, clicks: clicks, enquiries: enq,
+      ctr: imps ? clicks / imps * 100 : null,
+      cpe: enq ? spend / enq : null,
+    };
+  }).filter(c => c.spend > 0 || c.impressions > 0 || c.enquiries > 0);
+}
+
+/* Hide a canvas, never remove it. Returns whether to draw. */
+function chartEmpty(id, empty){
+  const c = el(id), e = el(id + 'Empty');
+  if (c) c.hidden = !!empty;
+  if (e) e.hidden = !empty;
+  return !empty;
+}
+
+function renderDonut(){
+  const svg = el('donut'), rows = chanTotals().filter(c => c.spend > 0);
+  const total = rows.reduce((a, r) => a + r.spend, 0);
+  if (!chartEmpty('donut', !total)) return;
+  svg.textContent = '';
+  const cx = 150, cy = 88, r = 62, sw = 22, C = 2 * Math.PI * r;
+  let acc = 0;
+  svg.appendChild(svgEl('circle', {cx: cx, cy: cy, r: r, fill: 'none', stroke: '#E7E4DD', 'stroke-width': sw}));
+  rows.forEach((row, i) => {
+    const frac = row.spend / total;
+    const arc = svgEl('circle', {cx: cx, cy: cy, r: r, fill: 'none', stroke: row.colour, 'stroke-width': sw,
+      'stroke-dasharray': '0 ' + C, 'stroke-dashoffset': -acc * C,
+      transform: 'rotate(-90 ' + cx + ' ' + cy + ')'});
+    svg.appendChild(arc);
+    const set = () => arc.setAttribute('stroke-dasharray', (frac * C - 2) + ' ' + C);
+    if (reduce) set();
+    else { arc.style.transition = 'stroke-dasharray 1s cubic-bezier(.16,1,.3,1)'; setTimeout(set, 260 + i * 160); }
+    acc += frac;
+  });
+  svg.appendChild(txt(cx, cy - 2, money(total), {'text-anchor': 'middle', 'font-size': '20', fill: '#131311',
+    'font-family': 'Instrument Serif, Georgia, serif'}));
+  svg.appendChild(txt(cx, cy + 15, 'TOTAL SPEND', {'text-anchor': 'middle', 'font-size': '8.5', 'letter-spacing': '1.6'}));
+  rows.forEach((row, i) => {
+    const x = 14 + (i % 2) * 150, y = 180 + Math.floor(i / 2) * 22;
+    svg.appendChild(svgEl('rect', {x: x, y: y - 8, width: 9, height: 9, fill: row.colour}));
+    svg.appendChild(txt(x + 15, y, row.label + ' ' + Math.round(row.spend / total * 100) + '%',
+      {'font-size': '10.5', fill: '#7E7B74'}));
+  });
+}
+
+function renderCpeChart(){
+  const svg = el('cpe'), rows = chanTotals().filter(c => c.cpe != null);
+  const target = numOrNull((project().targets || {}).cost_per_enquiry);
+  if (!chartEmpty('cpe', !rows.length)) return;
+  svg.textContent = '';
+  const L = 118, W = 340, R = 42, iw = W - L - R;
+  const max = Math.max.apply(null, rows.map(r => r.cpe).concat([target || 0])) * 1.18 || 1;
+  const rowH = 44;
+  svg.setAttribute('viewBox', '0 0 ' + W + ' ' + Math.max(210, rows.length * rowH + 42));
+  rows.forEach((r, i) => {
+    const y = 16 + i * rowH;
+    svg.appendChild(txt(L - 10, y + 15, r.label, {'text-anchor': 'end', 'font-size': '11', fill: '#7E7B74'}));
+    svg.appendChild(svgEl('rect', {x: L, y: y, width: iw, height: 20, fill: '#E7E4DD'}));
+    const b = svgEl('rect', {x: L, y: y, width: 0, height: 20, fill: r.colour});
+    svg.appendChild(b);
+    const w = iw * (r.cpe / max);
+    if (reduce) b.setAttribute('width', w);
+    else setTimeout(() => { b.style.transition = 'width .9s cubic-bezier(.16,1,.3,1)'; b.setAttribute('width', w); }, 200 + i * 110);
+    svg.appendChild(txt(L + w + 8, y + 15, money(r.cpe), {fill: '#131311', 'font-size': '11'}));
+  });
+  if (target != null) {
+    const tx = L + iw * (target / max), bottom = 16 + rows.length * rowH;
+    svg.appendChild(svgEl('line', {x1: tx, x2: tx, y1: 8, y2: bottom, stroke: '#A85440', 'stroke-width': 1, 'stroke-dasharray': '3 3'}));
+    svg.appendChild(txt(tx, bottom + 16, 'plan ' + money(target) + derivedLabel(), {'text-anchor': 'middle', 'font-size': '10.5'}));
+  }
+  el('cpeHint').textContent = target != null
+    ? 'Bars are actual, the dashed line is the ' + money(target) + ' plan rate' + derivedLabel() + '.'
+    : 'Bars are actual. No plan rate is recorded, so nothing is marked.';
+}
+
+function renderShare(){
+  const svg = el('share'), rows = chanTotals().filter(c => c.spend > 0);
+  const total = rows.reduce((a, r) => a + r.spend, 0);
+  if (!chartEmpty('share', !total)) return;
+  svg.textContent = '';
+  const W = 400;
+  let x = 0;
+  rows.forEach((r, i) => {
+    const w = (r.spend / total) * W;
+    const rect = svgEl('rect', {x: x, y: 8, width: 0, height: 26, fill: r.colour});
+    svg.appendChild(rect);
+    if (reduce) rect.setAttribute('width', Math.max(w - 2, 2));
+    else setTimeout(() => { rect.style.transition = 'width .8s cubic-bezier(.16,1,.3,1)'; rect.setAttribute('width', Math.max(w - 2, 2)); }, 120 + i * 130);
+    svg.appendChild(txt(x, 54, r.label, {fill: '#131311', 'font-size': '10.5'}));
+    svg.appendChild(txt(x, 70, money(r.spend), {'font-size': '10'}));
+    x += w;
+  });
+  el('shareHint').textContent = 'The ' + rows.length + ' delivering channel' + (rows.length === 1 ? '' : 's') +
+    ', read as a share of the period total.';
+}
+
+/* A vs-plan delta, with the verdict colour withheld below a volume floor: on a handful of
+   enquiries one more moves the number by more than the delta itself. */
+const VERDICT_FLOOR = 10;
+function delta(actual, plan, lowerIsBetter, volume){
+  if (actual == null || plan == null || !plan) return {txt: '-', cls: ''};
+  const pc = Math.round((actual / plan - 1) * 100);
+  const good = lowerIsBetter ? pc <= 0 : pc >= 0;
+  const cls = (volume != null && volume < VERDICT_FLOOR) ? '' : (good ? 'pos' : 'neg');
+  return {txt: (pc > 0 ? '+' : pc < 0 ? '−' : '') + Math.abs(pc) + '%', cls: cls};
+}
+
+function renderChanTable(){
+  const rows = chanTotals();
+  const body = el('chanTable').querySelector('tbody');
+  body.textContent = '';
+  const t = totals(), tg = project().targets || {};
+  const planCpe = numOrNull(tg.cost_per_enquiry);
+  rows.forEach(r => {
+    const dCtr = delta(r.ctr, r.plan_ctr, false, r.clicks >= 100 ? 100 : r.clicks);
+    const dCpe = delta(r.cpe, r.plan_cpe, true, r.enquiries);
+    const tr = document.createElement('tr');
+    tr.innerHTML =
+      '<td><span class="ch"><i style="background:' + r.colour + '"></i><span>' + esc(r.label) +
+        (r.sublabel ? '<span class="sub">' + esc(r.sublabel) + '</span>' : '') + '</span></span></td>' +
+      '<td>' + esc(money(r.spend)) + '</td>' +
+      '<td>' + esc(au(r.impressions)) + '</td>' +
+      '<td>' + esc(au(r.clicks)) + '</td>' +
+      '<td>' + (r.ctr == null ? '-' : r.ctr.toFixed(3) + '%') +
+        (r.plan_ctr != null ? ' <span class="plan">vs ' + r.plan_ctr.toFixed(3) + '%</span>' : '') + '</td>' +
+      '<td class="vp ' + dCtr.cls + '">' + dCtr.txt + '</td>' +
+      '<td>' + esc(au(r.enquiries)) + '</td>' +
+      '<td>' + (r.cpe == null ? '-' : esc(money(r.cpe, 2))) +
+        (r.plan_cpe != null ? ' <span class="plan">vs ' + esc(money(r.plan_cpe)) + '</span>' : '') + '</td>' +
+      '<td class="vp ' + dCpe.cls + '">' + dCpe.txt + '</td>';
+    body.appendChild(tr);
+  });
+  /* The total row compares against the campaign plan rate, not a sum of the channel plan rates -
+     summing those would invent a blended target that moves with the channel MIX. */
+  const dTot = delta(t.cpe, planCpe, true, t.enquiries);
+  const tr = document.createElement('tr');
+  tr.className = 'total';
+  tr.innerHTML = '<td>Total</td><td>' + esc(money(t.spend)) + '</td><td>' + esc(au(t.impressions)) +
+    '</td><td>' + esc(au(t.clicks)) + '</td><td>' + (t.ctr == null ? '-' : t.ctr.toFixed(3) + '%') +
+    '</td><td>-</td><td>' + esc(au(t.enquiries)) + '</td><td>' +
+    (t.cpe == null ? '-' : esc(money(t.cpe, 2))) +
+    (planCpe != null ? ' <span class="plan">vs ' + esc(money(planCpe)) + '</span>' : '') +
+    '</td><td class="vp ' + dTot.cls + '">' + dTot.txt + '</td>';
+  body.appendChild(tr);
+
+  el('chanTableHint').textContent = 'Change against the plan rates for CTR and cost per enquiry. ' +
+    'Green beats plan, which for cost per enquiry means coming in under the planned rate. ' +
+    'A verdict colour is withheld below ' + VERDICT_FLOOR + ' enquiries.' +
+    (derivedTargets() ? ' Plan rates here are derived, not read from a signed plan.' : '');
+}
+
+function renderLineItems(){
+  const rows = (DATA.line_items || []).filter(r => projOk(r) && chanOk(r));
+  const body = el('liTable').querySelector('tbody');
+  body.textContent = '';
+  el('liEmpty').hidden = !!rows.length;
+  el('liTable').hidden = !rows.length;
+  if (!rows.length) return;
+  rows.forEach(r => {
+    const cpe = n(r.enquiries) ? n(r.spend) / n(r.enquiries) : null;
+    const tr = document.createElement('tr');
+    tr.innerHTML = '<td>' + esc(r.label) + (r.sublabel ? '<span class="sub">' + esc(r.sublabel) + '</span>' : '') +
+      '</td><td>' + esc(chanOf(r.channel).label) + '</td><td>' + esc(r.objective || '-') +
+      '</td><td>' + esc(money(r.spend)) + '</td><td>' + esc(au(r.clicks)) +
+      '</td><td>' + esc(au(r.enquiries)) + '</td><td>' + (cpe == null ? '-' : esc(money(cpe, 2))) + '</td>';
+    body.appendChild(tr);
+  });
+  const sp = sum(rows, 'spend'), cl = sum(rows, 'clicks'), eq = sum(rows, 'enquiries');
+  const nchan = new Set(rows.map(r => r.channel)).size;
+  const tr = document.createElement('tr');
+  tr.className = 'total';
+  tr.innerHTML = '<td>' + rows.length + ' line item' + (rows.length === 1 ? '' : 's') + '</td><td>' +
+    nchan + ' channel' + (nchan === 1 ? '' : 's') + '</td><td>-</td><td>' + esc(money(sp)) + '</td><td>' +
+    esc(au(cl)) + '</td><td>' + esc(au(eq)) + '</td><td>' + (eq ? esc(money(sp / eq, 2)) : '-') + '</td>';
+  body.appendChild(tr);
+}
+
+/* ---------------------------------------------------------------------------------------------
+   enquiries tab. These breakdowns are whole-flight and carry no channel, so the tab states that
+   rather than letting the chips look broken.
+   --------------------------------------------------------------------------------------------- */
+function renderEnquiries(){
+  const e = (DATA.enquiries || {});
+  const note = el('enqScopeNote');
+  note.innerHTML = '<b>Whole campaign.</b> Configuration, suburb of origin and form completion come from the ' +
+    'register-interest form, which records no delivering channel, so the channel filter above does not move these panels.';
+  note.hidden = false;
+
+  /* configuration */
+  const cfg = e.by_configuration || [];
+  if (chartEmpty('config', !cfg.length)) {
+    const svg = el('config');
+    svg.textContent = '';
+    const L = 96, W = 700, R = 88, iw = W - L - R;
+    const max = Math.max.apply(null, cfg.map(r => n(r.enquiries)).concat([0])) * 1.04 || 1;
+    const rowH = 62;
+    svg.setAttribute('viewBox', '0 0 ' + W + ' ' + (cfg.length * rowH + 40));
+    const totalCfg = cfg.reduce((a, r) => a + n(r.enquiries), 0);
+    cfg.forEach((r, i) => {
+      const y = 20 + i * rowH, v = n(r.enquiries);
+      svg.appendChild(txt(L - 12, y + 24, r.label, {'text-anchor': 'end', 'font-size': '12', fill: '#131311'}));
+      svg.appendChild(svgEl('rect', {x: L, y: y, width: iw, height: 34, fill: '#E7E4DD'}));
+      const b = svgEl('rect', {x: L, y: y, width: 0, height: 34, fill: v === max ? '#131311' : (i === 0 ? '#8E8B83' : '#131311')});
+      svg.appendChild(b);
+      const w = iw * (v / max);
+      if (reduce) b.setAttribute('width', w);
+      else setTimeout(() => { b.style.transition = 'width 1s cubic-bezier(.16,1,.3,1)'; b.setAttribute('width', w); }, 220 + i * 140);
+      svg.appendChild(txt(L + w + 10, y + 22, v + ' enquiries', {fill: '#131311', 'font-size': '12'}));
+    });
+    const top2 = cfg.slice().sort((a, b2) => n(b2.enquiries) - n(a.enquiries)).slice(0, 2);
+    if (totalCfg && top2.length === 2) {
+      const share = Math.round((n(top2[0].enquiries) + n(top2[1].enquiries)) / totalCfg * 100);
+      svg.appendChild(txt(L, cfg.length * rowH + 28,
+        top2[0].label + ' and ' + top2[1].label + ' demand together is ' + share + '% of all enquiries.',
+        {'font-size': '11.5', fill: '#7E7B74'}));
+    }
+  }
+  /* Demand only. Naming the missing half is what stops the chart being read as an over or
+     under-supply call. */
+  el('configHint').textContent = 'Enquiries by the configuration chosen on the form.' +
+    (e.supply_mix_known ? '' : ' The supply mix across the residences is not confirmed, so this is demand only, with no over or under-supply call.');
+
+  /* funnel */
+  const steps = e.funnel || [];
+  if (chartEmpty('funnel', !steps.length)) {
+    const svg = el('funnel');
+    svg.textContent = '';
+    const W = 340, top = n(steps[0] && steps[0].count) || 1;
+    svg.setAttribute('viewBox', '0 0 ' + W + ' ' + (steps.length * 60 + 10));
+    steps.forEach((s, i) => {
+      const y = i * 60, w = (n(s.count) / top) * W;
+      svg.appendChild(svgEl('rect', {x: 0, y: y, width: W, height: 30, fill: '#F1EEE8'}));
+      const b = svgEl('rect', {x: 0, y: y, width: 0, height: 30, fill: i === steps.length - 1 ? '#131311' : '#C4B49C'});
+      svg.appendChild(b);
+      if (reduce) b.setAttribute('width', Math.max(w, 3));
+      else setTimeout(() => { b.style.transition = 'width .9s cubic-bezier(.16,1,.3,1)'; b.setAttribute('width', Math.max(w, 3)); }, 200 + i * 130);
+      const prev = i ? n(steps[i - 1].count) : 0;
+      svg.appendChild(txt(0, y + 46, s.label + ' ' + au(n(s.count)) +
+        (i && prev ? '  (' + Math.round(n(s.count) / prev * 100) + '% of previous)' : ''),
+        {'font-size': '11', fill: '#7E7B74'}));
+    });
+  }
+
+  /* suburbs */
+  const subs = e.by_suburb || [];
+  const body = el('subTable').querySelector('tbody');
+  body.textContent = '';
+  const totEnq = subs.reduce((a, r) => a + n(r.enquiries), 0);
+  subs.forEach(r => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = '<td>' + esc(r.suburb) + '</td><td>' + esc(au(n(r.enquiries))) + '</td><td>' +
+      (totEnq ? (n(r.enquiries) / totEnq * 100).toFixed(1) + '%' : '-') + '</td><td>' +
+      esc(au(n(r.appointments))) + '</td><td>' + esc(r.most_requested || '-') + '</td>';
+    body.appendChild(tr);
+  });
+  if (subs.length) {
+    const tr = document.createElement('tr');
+    tr.className = 'total';
+    tr.innerHTML = '<td>Total</td><td>' + esc(au(totEnq)) + '</td><td>100%</td><td>' +
+      esc(au(subs.reduce((a, r) => a + n(r.appointments), 0))) + '</td><td>-</td>';
+    body.appendChild(tr);
+  }
+}
+
+/* ---------------------------------------------------------------------------------------------
+   sell-down
+   --------------------------------------------------------------------------------------------- */
+const SELL_LABEL = {exchanged: 'Exchanged', reserved: 'Reserved', eoi: 'Expressions of interest',
+                    available: 'Available in release', unreleased: 'Not released'};
+function renderSelldown(){
+  const s = DATA.selldown || {};
+  const units = s.units || [];
+  const total = n(s.total) || units.length;
+  const released = n(s.released);
+  const count = k => units.filter(u => u.status === k).length;
+  const pc = v => total ? (v / total * 100).toFixed(1) + '% of total stock' : '';
+
+  el('sellLede').textContent = total + ' residences, one square each. This is the number the developer cares about, ' +
+    'so it sits on its own tab rather than buried under media metrics.';
+  el('sellHead').innerHTML = 'Stage one release &middot; <b>' + released + ' of ' + total + ' residences</b>';
+  el('sellTag').textContent = isPlaceholder() ? 'Illustrative' : '';
+
+  const strip = el('sellStrip');
+  strip.textContent = '';
+  [['exchanged', 'ok', pc(count('exchanged'))],
+   ['reserved', 'n', 'Holding deposit taken'],
+   ['eoi', 'warn', 'Awaiting price on application'],
+   ['available', 'n', (total - released) + ' residences held back']
+  ].forEach(([k, tone, note]) => strip.appendChild(kpiCard(
+    {label: SELL_LABEL[k], value: count(k), tone: count(k) ? tone : 'n', note: esc(note)})));
+
+  const grid = el('units');
+  grid.textContent = '';
+  units.forEach((u, i) => {
+    const d = document.createElement('div');
+    d.className = 'unit ' + u.status;
+    d.title = 'Residence ' + (u.index || i + 1) + ', ' + (SELL_LABEL[u.status] || u.status).toLowerCase();
+    grid.appendChild(d);
+    if (reduce) d.classList.add('in'); else setTimeout(() => d.classList.add('in'), 120 + i * 26);
+  });
+}
+
+/* ---------------------------------------------------------------------------------------------
+   internal notes - STAFF ONLY.
+
+   Two things make this a gate and not a decoration: the tab ships `hidden` and this is the only
+   code that reveals it, and the CONTENT is not in data.json at all - it is fetched from a
+   separate route so a client session never receives the text. The fetch URL is RELATIVE, because
+   an absolute /internal/... resolves against the PLATFORM root behind the proxy and never reaches
+   this service.
+
+   Honest limit: that route AUTHENTICATES but does not AUTHORISE BY ROLE (the bb_sso cookie
+   carries the allowed-CLIENT list, not the role). Keep anything genuinely sensitive out of
+   internal_notes.json until the role is in the SSO token.
+   --------------------------------------------------------------------------------------------- */
+let NOTES = null;
+async function renderNotes(){
+  if (!window.BB_INTERNAL) return;          // the ONLY reveal
+  el('notesTab').hidden = false;
+  if (NOTES === null) {
+    try {
+      const r = await fetch('internal/notes.json', {credentials: 'same-origin'});
+      NOTES = r.ok ? await r.json() : {};
+    } catch (_) { NOTES = {}; }
+  }
+  const grid = el('notesGrid');
+  grid.textContent = '';
+  (NOTES.sections || []).forEach(sec => {
+    const card = document.createElement('div');
+    card.className = 'panel card rev';
+    card.innerHTML = '<h3 class="t">' + esc(sec.title) + '</h3><ul class="list">' +
+      (sec.items || []).map(it =>
+        '<li><span class="state ' + esc(it.state === 'Ask' ? 'ask' : it.state === 'Live' ? 'live' : '') + '">' +
+        esc(it.state || '') + '</span><div><b>' + esc(it.label) + '</b><span>' + esc(it.detail || '') + '</span></div></li>'
+      ).join('') + '</ul>';
+    grid.appendChild(card);
+  });
+  observeAll(grid);
+}
+
+/* ---------------------------------------------------------------------------------------------
+   controls
+   --------------------------------------------------------------------------------------------- */
+function initProject(){
+  const list = (meta().projects || []).filter(p => p && p.label);
+  const live = list.filter(p => p.status !== 'coming_soon');
+  STATE.project = (live.find(p => p.key === meta().project_default) || live[0] || list[0] || {}).key || null;
+  const mount = el('projMount');
+  if (list.length > 1) {
+    mount.innerHTML = '<select id="projSel" aria-label="Project">' + list.map(p =>
+      '<option value="' + esc(p.key) + '"' + (p.status === 'coming_soon' ? ' disabled' : '') +
+      (p.key === STATE.project ? ' selected' : '') + '>' + esc(p.label) +
+      (p.status === 'coming_soon' ? ' - coming soon' : '') + '</option>').join('') + '</select>';
+    el('projSel').addEventListener('change', e => { STATE.project = e.target.value; render(); });
+  } else {
+    /* One project: a dropdown with a single option is a control that cannot do anything. */
+    mount.innerHTML = '<span class="static">' + esc((list[0] || {}).label || 'Not set') + '</span>';
+  }
+  /* The in-page Project pill row is only meaningful with something to switch between. */
+  el('projFilter').hidden = list.length < 2;
+  if (list.length > 1) {
+    el('projPills').innerHTML = list.map(p =>
+      '<button class="pill" data-proj="' + esc(p.key) + '"' + (p.status === 'coming_soon' ? ' disabled' : '') +
+      ' aria-pressed="' + String(p.key === STATE.project) + '">' + esc(p.label) + '</button>').join('');
+    el('projPills').querySelectorAll('[data-proj]').forEach(b =>
+      b.addEventListener('click', () => { STATE.project = b.dataset.proj; render(); }));
+  }
+}
+
+function initChannels(){
+  /* The roster is built from DELIVERY, not from the plan: a planned-but-dark channel drawn as a
+     permanent zero row reads as a channel that FAILED rather than one that has not started. */
+  const delivering = channels().filter(c =>
+    (DATA.daily || []).some(r => r.channel === c.key && projOk(r) &&
+      (n(r.impressions) > 0 || n(r.spend) > 0 || n(r.enquiries) > 0)));
+  const mount = el('chanPills');
+  mount.innerHTML = delivering.map(c =>
+    '<button class="pill" data-chan="' + esc(c.key) + '" aria-pressed="' +
+    String(!STATE.chansOff.has(c.key)) + '"><i style="background:' + esc(c.colour) + '"></i>' +
+    esc(c.label) + '</button>').join('');
+  mount.querySelectorAll('[data-chan]').forEach(b => b.addEventListener('click', () => {
+    const k = b.dataset.chan;
+    const on = delivering.filter(c => !STATE.chansOff.has(c.key));
+    if (!STATE.chansOff.has(k) && on.length <= 1) return;   // the last channel cannot be unticked
+    STATE.chansOff.has(k) ? STATE.chansOff.delete(k) : STATE.chansOff.add(k);
+    render();
+  }));
+  /* One channel: nothing to filter. */
+  el('chanFilter').hidden = delivering.length < 2;
+  el('chanAll').onclick = () => { STATE.chansOff.clear(); render(); };
+  el('chanAll').setAttribute('aria-pressed', String(!chanFiltered()));
+}
+
+function renderScope(){
+  const on = activeChans().filter(c =>
+    (DATA.daily || []).some(r => r.channel === c.key && projOk(r)));
+  const all = channels().filter(c => (DATA.daily || []).some(r => r.channel === c.key && projOk(r)));
+  el('showing').textContent = 'Showing ' + ((project().label || 'project').split(',')[0]) + ' · ' +
+    (on.length === all.length ? 'all channels' : on.map(c => c.label).join(', ') || 'no channels');
+  el('rangeStatement').textContent = (meta().period_label || 'Campaign to date') + ': ' +
+    fullDate(meta().date_min) + ' to ' + fullDate(meta().date_max);
+}
+
+function renderShell(){
+  const p = project(), m = meta();
+  document.title = (p.label ? p.label + ' · ' : '') + (m.client || 'Ray White Projects') + ' · 100% Digital';
+  /* "Monair, Greenwich" -> "Monair, <em>Greenwich</em>", the reference's serif/italic split. On a
+     name with no comma the whole thing is simply set in the serif. */
+  const parts = String(p.label || '').split(',');
+  el('heroTitle').innerHTML = parts.length > 1
+    ? esc(parts[0]) + ', <em>' + esc(parts.slice(1).join(',').trim()) + '</em>'
+    : esc(p.label || m.client || '');
+  const credits = [];
+  if (p.address) credits.push({name: p.address, role: p.locality || ''});
+  if (p.residences) credits.push({name: p.residences + ' residences', role: p.cohort || ''});
+  (p.credits || []).forEach(c => credits.push({name: c.name, role: c.role}));
+  el('heroCredits').innerHTML = credits.map(c =>
+    '<div><b>' + esc(c.name) + '</b>' + esc(c.role) + '</div>').join('');
+
+  el('liveState').textContent = p.live_from
+    ? (isoDate(p.live_from) > new Date() ? 'Pre-launch · live ' + fullDate(p.live_from)
+                                         : 'Live since ' + fullDate(p.live_from))
+    : (p.status === 'live' ? 'Live' : 'In set-up');
+  el('previewChip').hidden = !isPlaceholder();
+
+  el('ledeSite').textContent = p.site || 'the project site';
+  const cpeTarget = numOrNull((p.targets || {}).cost_per_enquiry);
+  el('ledeKpi').textContent = cpeTarget != null
+    ? 'enquiries at or under ' + money(cpeTarget) + derivedLabel()
+    : 'cost per enquiry';
+
+  /* The ONE preview notice. Driven by meta.placeholder, so going live is a data change. */
+  const b = el('previewBanner');
+  b.hidden = !isPlaceholder();
+  if (isPlaceholder()) {
+    const expected = (m.feeds_expected || []).join(', ');
+    b.innerHTML = '<b>Campaign goes live ' + esc(p.live_from ? fullDate(p.live_from) : 'shortly') + '.</b> ' +
+      (expected ? esc(expected.charAt(0).toUpperCase() + expected.slice(1)) + ' are not connected yet, so no live ' +
+        'campaign data exists. ' : '') +
+      'Every figure below is illustrative, sized so the metrics can be agreed before launch. ' +
+      'Live data replaces it automatically once the feeds land.';
+  }
+
+  el('donutHint').textContent = 'Share of ' + (m.period_label || 'the period').toLowerCase() + '.';
+  el('footLeft').textContent = (m.client || 'Ray White Projects') + ' · ' +
+    (isPlaceholder() ? 'preview build' : 'data through ' + fullDate(m.data_through)) + ' · ' + bbSpendBasis();
+}
+
+/* ---------------------------------------------------------------------------------------------
+   CSV export. Filters _-prefixed stash keys so raw pre-markup spend can never leak, and prefixes
+   the filename PREVIEW_ while the payload is illustrative.
+   --------------------------------------------------------------------------------------------- */
+function csv(rows){
+  if (!rows.length) return '';
+  const keys = Object.keys(rows[0]).filter(k => k.charAt(0) !== '_');
+  const cell = v => {
+    const s = v == null ? '' : String(v);
+    return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  };
+  return [keys.join(',')].concat(rows.map(r => keys.map(k => cell(r[k])).join(','))).join('\r\n');
+}
+function download(name, text){
+  const pre = isPlaceholder() ? 'PREVIEW_' : '';
+  const blob = new Blob([text], {type: 'text/csv;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = pre + 'raywhiteprojects_' + name + '.csv';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+function currentTab(){
+  const t = document.querySelector('.tab[aria-selected="true"]');
+  return t ? t.dataset.tab : 'overview';
+}
+function tabRows(tab){
+  if (tab === 'media') return (DATA.line_items || []).filter(r => projOk(r) && chanOk(r));
+  if (tab === 'enquiries') return (DATA.enquiries || {}).by_suburb || [];
+  if (tab === 'selldown') return (DATA.selldown || {}).units || [];
+  return chanTotals();
+}
+function exportTab(){
+  const tab = currentTab();
+  download(tab, csv(tabRows(tab).map(r => Object.assign({}, r))));
+}
+function exportAll(){
+  const parts = [];
+  const block = (title, rows) => { if (rows.length) parts.push(title + '\r\n' + csv(rows.map(r => Object.assign({}, r)))); };
+  block('channels', chanTotals());
+  block('daily', ROWS());
+  block('site_daily', SITE());
+  block('line_items', (DATA.line_items || []).filter(r => projOk(r) && chanOk(r)));
+  block('enquiries_by_suburb', (DATA.enquiries || {}).by_suburb || []);
+  block('enquiries_by_configuration', (DATA.enquiries || {}).by_configuration || []);
+  block('selldown', (DATA.selldown || {}).units || []);
+  download('all_data', parts.join('\r\n\r\n'));
+}
+
+/* ---------------------------------------------------------------------------------------------
+   render + boot
+   --------------------------------------------------------------------------------------------- */
+function render(){
+  RENDER_GEN++;
+  initChannels();
+  renderShell();
+  renderScope();
+  renderKpis();
+  drawLegend(); drawTrend();
+  renderPacing();
+  renderDonut();
+  renderCpeChart();
+  renderShare();
+  renderChanTable();
+  renderLineItems();
+  renderEnquiries();
+  renderSelldown();
+  const active = document.querySelector('[data-panel]:not([hidden])');
+  if (active) { observeAll(active); observeNums(active); runMeters(active); observeSparks(active); }
+}
+
+const tabs = [...document.querySelectorAll('.tab')];
+tabs.forEach(t => t.addEventListener('click', () => {
+  tabs.forEach(x => x.setAttribute('aria-selected', String(x === t)));
+  document.querySelectorAll('[data-panel]').forEach(p => {
+    const on = p.dataset.panel === t.dataset.tab;
+    p.hidden = !on;
+    if (on && !reduce) { p.classList.remove('fade'); void p.offsetWidth; p.classList.add('fade'); }
+    if (on) { observeAll(p); observeNums(p); runMeters(p); observeSparks(p); }
+  });
+  window.scrollTo({top: 0, behavior: reduce ? 'auto' : 'smooth'});
+}));
+document.querySelectorAll('#viewseg button').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('#viewseg button').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+  STATE.view = b.dataset.view; drawTrend();
+}));
+document.querySelectorAll('#axisseg button').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('#axisseg button').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+  STATE.axis = b.dataset.axis; drawTrend();
+}));
+el('expTab').addEventListener('click', exportTab);
+el('expAll').addEventListener('click', exportAll);
+
+(async function boot(){
+  try {
+    const r = await fetch('/data.json', {credentials: 'same-origin'});
+    if (!r.ok) throw new Error('data.json ' + r.status);
+    DATA = await r.json();
+  } catch (err) {
+    el('kpiStrip').innerHTML = '<div class="cell"><h3><i class="i-bad"></i>Could not load the data</h3>' +
+      '<div class="num">-</div><small>Reload the page. If it keeps happening, sign in again.</small></div>';
+    return;
+  }
+  bbApplySpendMult();
+  initProject();
+  render();
+  renderNotes();
+  /* Keep the auto-refresh poll off the full payload: /data-version.json returns the timestamp
+     alone. Falls back to a no-op rather than re-downloading megabytes to compare one field. */
+  setInterval(async () => {
+    try {
+      const r = await fetch('data-version.json', {credentials: 'same-origin'});
+      if (!r.ok) return;
+      const v = await r.json();
+      if (v && v.last_updated && DATA.meta && v.last_updated !== DATA.meta.last_updated) location.reload();
+    } catch (_) {}
+  }, 5 * 60 * 1000);
+})();
+</script>
+</body>
+</html>

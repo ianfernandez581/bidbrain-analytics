@@ -72,6 +72,17 @@ CLIENTS: dict[str, dict] = {
                             orbs=[(43, 108, 230), (176, 137, 90), (91, 143, 240)]),
     "proptrack":       dict(page="dark",  card="light", accent=(31, 111, 235),
                             orbs=[(31, 111, 235), (76, 141, 255), (34, 211, 238)]),
+    # Ray White Projects: a translucent ink card on the ink field, both dark. The accent is Ray
+    # White YELLOW, which looks like it contradicts the rule that the yellow is a fill and never
+    # text - it does not, because that rule is about the BACKGROUND. #FFE512 is ~1.3:1 on the
+    # dashboard's bone field and unreadable there, and ~13.6:1 on this near-black card, where the
+    # login's own focus ring and field underline already use it. This kit paints its show/hide
+    # control and Caps Lock hint IN the accent, and here that reads. Same
+    # "which shade depends on what it sits on" split lacevo and burnet carry.
+    # wash=False: this login already paints a radial glow, a moving sweep, a vignette, an SVG
+    # grain layer AND the stacked floorplates. A seventh layer is a haze, not depth.
+    "raywhiteprojects": dict(page="dark", card="dark", accent=(255, 229, 18), wash=False,
+                            orbs=[(255, 229, 18), (196, 180, 156), (244, 242, 237)]),
     "resetdata":       dict(page="dark",  card="dark",  accent=(232, 74, 111),
                             orbs=[(232, 74, 111), (72, 130, 255), (232, 74, 111)]),
     "schneider":       dict(page="dark",  card="light", accent=(0, 149, 48),

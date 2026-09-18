@@ -224,6 +224,35 @@ CLIENTS = {
             {"name": "Fundraising and Paid Media", "path": "/", "status": "coming_soon"},
         ],
     },
+    # Onboarding: client_raywhiteprojects/ is a built, Ray-White-branded PREVIEW dashboard on
+    # ILLUSTRATIVE data. Ray White Projects is the Ray White Group's residential project-marketing
+    # division (raywhiteprojects.com.au) - NOT Ray White Commercial / RWC, which is a different
+    # business. Monair, Greenwich is its FIRST CAMPAIGN, not the client: more projects are expected
+    # on the same account, so the dashboard treats project as a DIMENSION on the payload (the
+    # client_geocon pattern) rather than standing up a dashboard per project. That is why the
+    # campaign row below is the project, and why adding the next one is a data change.
+    #
+    # KEY vs SLUG: the key is "raywhiteprojects" (flat) and the public slug is "raywhite-projects".
+    # Every infrastructure name derives from the KEY and a BigQuery dataset cannot contain a hyphen
+    # ("client_raywhite-projects" is not a legal dataset id), which is the same split cityperfume /
+    # city-perfume and sophiie / sophiie-ai already carry. Do not tidy the key to match the slug.
+    #
+    # The campaign goes live 2026-09-25 and GA4 + GTM are not installed on monair.com.au yet, so
+    # like geyervalmont / lacevo / burnet there is deliberately NO sql/ + job/ in that folder and
+    # the dashboard serves its baked-in placeholder.json behind a preview notice. coming_soon
+    # (hidden from clients) but DEPLOYED, so a super admin can open it via "Open preview ->".
+    # `show_pending_row` gives it the greyed "awaiting connection" row on the Data Accuracy tab,
+    # which is the honest state: there is no pipeline to report freshness for yet. Drop the flag
+    # the day a real sql/ + job/ lands, exactly as sophiie did when it went live.
+    "raywhiteprojects": {
+        "name": "Ray White Projects", "slug": "raywhite-projects", "status": "coming_soon",
+        "url": _runapp("raywhiteprojects"),   # deployed preview: super-admin-openable, hidden from clients (coming_soon)
+        "note": "Dashboard isn't live yet - the structure is ready.",
+        "show_pending_row": True,
+        "campaigns": [
+            {"name": "Monair, Greenwich", "path": "/", "status": "coming_soon"},
+        ],
+    },
     # ACTIVE since 2026-09-05. client_sophiie/ is the estate's only ANIMATED skin (the three-layer
     # aurora background) over the Chronicle-marble treatment, now carrying the LIVE Trade Desk
     # campaign SOPHIIE_2026-Q3_TTD_AU_DISPLAY_PROSPECTING (advertiser gjcl0pp) - three prospecting
@@ -308,7 +337,7 @@ AGENCIES = [
     {
         "name": "100% Digital", "slug": "x100-digital", "password": AGENCY_100D_PW,
         "clients": ["cityperfume", "vmch", "tlm", "resetdata", "bellshakespeare", "geocon", "caltex",
-                    "nextsmile", "geyervalmont", "sophiie", "lacevo", "burnet"],
+                    "nextsmile", "geyervalmont", "sophiie", "lacevo", "burnet", "raywhiteprojects"],
     },
     {
         "name": "Transmission", "slug": "transmission", "password": AGENCY_TRANSMISSION_PW,

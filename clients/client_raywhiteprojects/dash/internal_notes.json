@@ -1,0 +1,94 @@
+{
+  "_comment": [
+    "STAFF-ONLY content for the Internal notes tab. Served from /internal/notes.json, NOT from",
+    "data.json, so a client session never receives the text - the dashboard gates the tab on",
+    "window.BB_INTERNAL and the content never enters a client DOM.",
+    "",
+    "CEILING: that route AUTHENTICATES but does not AUTHORIZE BY ROLE (the bb_sso cookie carries",
+    "the allowed-client list, not the role), so a logged-in client who guessed the path would be",
+    "served this file. Keep it to feed status and questions to ask. No commercial terms, no",
+    "margins, no rates, nothing about other clients."
+  ],
+  "sections": [
+    {
+      "title": "Data sources",
+      "items": [
+        {
+          "state": "Pending",
+          "label": "GA4 and Google Tag Manager",
+          "detail": "Specs sent to the client. monair.com.au is a Webflow site built by Heard, so the container install goes through them. Until this lands there are no sessions, so the enquiry rate and the form funnel have no denominator."
+        },
+        {
+          "state": "Pending",
+          "label": "Register-interest form",
+          "detail": "Needs a submit event with the configuration field passed through. Without it, demand by apartment type is lost, and that is the most useful signal the campaign produces."
+        },
+        {
+          "state": "Pending",
+          "label": "Meta and Google Ads",
+          "detail": "Partner access to both accounts. Both are then read through the shared ingest layer, so no per-client loader is needed."
+        },
+        {
+          "state": "Pending",
+          "label": "realestate.com.au and Domain",
+          "detail": "Portal enquiries arrive by email. Needs either a manual feed or a CRM connection. Neither portal has a reporting API we hold, so treat this as a hand-keyed monthly load until proven otherwise."
+        },
+        {
+          "state": "Pending",
+          "label": "CRM",
+          "detail": "Sell-down and appointment status, which is what the developer actually reads. Confirm what Ray White Projects runs before promising the stock board."
+        }
+      ]
+    },
+    {
+      "title": "Open questions",
+      "items": [
+        {
+          "state": "Ask",
+          "label": "Does Realside get a login?",
+          "detail": "The developer is a separate stakeholder. The Internal notes tab is already staff-gated, but a genuinely narrower client view needs the ROLE in the SSO token - today the platform cookie carries only the list of clients a session may open."
+        },
+        {
+          "state": "Ask",
+          "label": "KPIs from the signed plan",
+          "detail": "Every target on screen is derived by us and labelled (derived). The real cost per enquiry, budget and flight dates come from Ray White Projects Monair Sydney x 100% Digital.xlsx. Until they are read in, do not quote a number off this dashboard."
+        },
+        {
+          "state": "Ask",
+          "label": "Supply mix across the 48 residences",
+          "detail": "How many one, two and three bedroom. Without it, demand by configuration has nothing to sit against and the chart can only be read as demand, never as over or under-supply."
+        },
+        {
+          "state": "Ask",
+          "label": "Cross-domain tracking",
+          "detail": "If any ads land on raywhiteprojects.com.au before monair.com.au, we hit the same attribution problem as Geocon: the session is attributed to the first site and the enquiry to the second."
+        },
+        {
+          "state": "Ask",
+          "label": "The second project",
+          "detail": "Built as one account with project as a filter, so a second project is a data change and not a new dashboard. Worth confirming what is in the pipeline behind Monair so the naming convention is agreed once."
+        }
+      ]
+    },
+    {
+      "title": "Brand and build",
+      "items": [
+        {
+          "state": "Ask",
+          "label": "Logo artwork",
+          "detail": "No Ray White Projects artwork has been supplied, so the lockup on the login and the topbar is a typographic stand-in. Projects uses the concrete lockup on Monair, not the yellow one. Run gen_brand_assets.py when the files arrive."
+        },
+        {
+          "state": "Ask",
+          "label": "Verify the yellow",
+          "detail": "The build uses #FFE512 from the design reference. Check it against the Ray White brand kit before this goes to the client. It is used only as a fill and a rule, never as text, because it fails contrast at every size."
+        },
+        {
+          "state": "Live",
+          "label": "Project is a dimension",
+          "detail": "meta.projects plus a project column on every fact row. The selector renders as a plain label while there is one project and becomes a dropdown at two, so nothing needs editing to add the next one."
+        }
+      ]
+    }
+  ]
+}
