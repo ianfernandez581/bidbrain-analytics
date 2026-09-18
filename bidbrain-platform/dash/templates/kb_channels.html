@@ -18,22 +18,71 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 {% include "_premium_head.html" %}
 <link rel="stylesheet" href="/static/kb.css?v=1">
-<link rel="stylesheet" href="/static/kb_fm.css?v=1">
+<link rel="stylesheet" href="/static/kb_fm.css?v=2">
 <style>
-/* channel table: name, mapping, last sync, docs - one row per channel the bot is in */
+/* Channel list: ONE LINE per channel, editor opens underneath on demand. A workspace with 17
+   channels made the old always-open editor 2,521px tall - see the note in kb_channels.js. */
 .ch-table{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:6px}
-.ch-table th{text-align:left;font-size:11px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;color:var(--muted);padding:6px 8px 6px 0;border-bottom:1px solid var(--border)}
-.ch-table td{padding:8px 8px 8px 0;border-bottom:1px solid var(--border);vertical-align:middle}
+.ch-table td{padding:7px 8px 7px 0;border-bottom:1px solid var(--border);vertical-align:middle}
 .ch-table tr:last-child td{border-bottom:0}
+.ch-row:hover td{background:var(--row-hover,rgba(255,255,255,.025))}
+.ch-row.open td{background:var(--row-hover,rgba(255,255,255,.04))}
+.ch-c-name{width:52%}
+.ch-c-files{width:33%;color:var(--muted)}
+.ch-c-act{width:15%;text-align:right;white-space:nowrap}
 .ch-name{font-weight:600;color:var(--text);white-space:nowrap}
 .ch-name small{color:var(--muted);font-weight:500;margin-left:6px}
-.ch-map{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+/* the meta sits BESIDE the name on a wide screen and under it on a narrow one, so the row stays
+   one line where there is room and never truncates where there is not */
+.ch-c-name .ch-note{margin-left:10px}
+.ch-map{display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:2px 0 6px}
 .ch-map select{min-width:200px}
 .ch-map .btn.sm{padding:6px 10px;font-size:12px}
+.ch-editor>td{background:var(--row-hover,rgba(255,255,255,.04));border-bottom:1px solid var(--border)}
 .ch-note{color:var(--muted);font-size:11.5px}
-.ch-unmapped{color:var(--warn);font-weight:600}
+.ch-unmapped{color:var(--muted);font-weight:500}
 .ch-preview{font-size:12px;color:var(--muted);margin-top:8px;line-height:1.55;white-space:pre-wrap;font-variant-numeric:tabular-nums}
-@media (max-width:760px){.ch-table thead{display:none}.ch-table td{display:block;padding:4px 0}.ch-table tr{display:block;padding:8px 0;border-bottom:1px solid var(--border)}}
+/* The channel list folds shut. It is reference - it changes only when someone invites or removes
+   the bot - so the queue and the record sit above it. The summary carries the counts. */
+.ch-fold{margin-top:20px}
+.ch-fold>summary{list-style:none;cursor:pointer;display:flex;align-items:baseline;gap:12px;
+  padding:6px 0;border-bottom:1px solid var(--border)}
+.ch-fold>summary::-webkit-details-marker{display:none}
+.ch-fold>summary::before{content:"";width:0;height:0;border:4px solid transparent;
+  border-left:5px solid var(--muted-2);transition:transform .12s;flex:none;align-self:center}
+.ch-fold[open]>summary::before{transform:rotate(90deg)}
+.ch-fold>summary h2{margin:0;font-size:14px}
+.ch-fold>summary:hover h2{color:var(--text)}
+.ch-foldsum{font-size:11.5px;color:var(--muted);margin-left:auto;font-variant-numeric:tabular-nums}
+.ch-foldsum .n{color:var(--text);font-weight:600}
+.ch-foldsum .warn{color:var(--warn)}
+
+/* The pager lives in kb_fm.css - both connector pages use the same one. */
+
+/* the filter, shown only once the list is long enough to need one */
+.ch-filter{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:8px 0 2px}
+.ch-filter .ch-q{width:240px;font-size:12.5px;padding:6px 10px}
+.ch-only{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);cursor:pointer;user-select:none}
+.ch-only input{margin:0}
+.ch-shown{font-size:11.5px;color:var(--muted);margin-left:auto}
+/* Narrow: two lines, not four. The button rides beside the name (it is the row's one action) and
+   the meta + what-it-files-under share the second line, so a 17-channel list stays scannable on a
+   laptop pane instead of becoming four stacked lines per channel. */
+@media (max-width:760px){
+  .ch-table tr.ch-row{display:grid;grid-template-columns:1fr auto;align-items:baseline;
+    column-gap:10px;padding:7px 0;border-bottom:1px solid var(--border)}
+  .ch-table tr.ch-row td{display:block;padding:0;border-bottom:0;width:auto;text-align:left}
+  .ch-c-name{grid-column:1;grid-row:1;min-width:0}
+  .ch-c-act{grid-column:2;grid-row:1;text-align:right}
+  .ch-c-files{grid-column:1/-1;grid-row:2;font-size:11.5px;margin-top:1px}
+  /* An unmapped row's third line only ever says "judged per conversation", which the button beside
+     it ("Set client") already implies. Drop it where space is tight; a MAPPED row keeps its client
+     name, because that one is the answer someone came to read. */
+  .ch-table tr.ch-row:not([data-mapped="1"]) .ch-c-files{display:none}
+  .ch-c-name .ch-note{display:block;margin:1px 0 0}
+  .ch-filter .ch-q{width:100%}
+  .ch-shown{margin-left:0}
+}
 </style>
 </head>
 <body>
@@ -90,8 +139,17 @@
       <p class="fm-hint">Not connected yet - create the app from <code>slack-app-manifest.yaml</code>, install it, and mount <code>SLACK_BOT_TOKEN</code> + <code>SLACK_SIGNING_SECRET</code>. Channels appear here as soon as the bot is invited to them.</p>
       {% endif %}
 
-      <h2 id="chChansH">Channels the bot is in <span class="fm-pill count zero" id="chChanCount" aria-live="polite">…</span></h2>
-      <div id="chChannels"><div class="fm-empty">Loading…</div></div>
+      {# The channel list is REFERENCE, not the day's work - it only changes when somebody invites
+         or removes the bot. Folded shut by default so the queue and the record, which are what a
+         person actually came for, sit above the fold. The summary carries the counts, so the fold
+         answers "is anything wrong here?" without being opened. #}
+      <details class="ch-fold" id="chFold">
+        <summary>
+          <h2 id="chChansH">Channels the bot is in</h2>
+          <span class="ch-foldsum" id="chFoldSum" aria-live="polite">…</span>
+        </summary>
+        <div id="chChannels"><div class="fm-empty">Loading…</div></div>
+      </details>
 
       <h2 id="chQueueH" style="margin-top:22px">Waiting for a client <span class="fm-pill count zero" id="chCount" aria-live="polite">…</span></h2>
       <div id="chQueue"><div class="fm-empty">Loading…</div></div>
@@ -103,6 +161,7 @@
         <div class="fm-filters" id="chLogFilters" role="group" aria-label="Filter by what happened"></div>
       </div>
       <div id="chLog"><div class="fm-empty">Loading…</div></div>
+      <div class="lg-pager" id="chLogPager" hidden></div>
       <p class="fm-hint">One line per decision, newest first - Slack events only. Meetings and document edits have their own pages.</p>
     </section>
   </div>
@@ -115,7 +174,7 @@ window.KB_CHANNELS = {
   actor: {{ actor | tojson }}
 };
 </script>
-<script src="/static/kb_channels.js?v=1"></script>
+<script src="/static/kb_channels.js?v=3"></script>
 {% include "_premium.html" %}
 </body>
 </html>

@@ -464,19 +464,39 @@
     $('fmLogFilters').innerHTML = html.join('');
   }
 
+  // 🔴 THE SERVER PAGES THIS (kb_activity.page, shared with the Channels record). This used to ask
+  // for the whole record and slice it, so every event the account had ever produced was shipped to
+  // draw a screenful. `logOffset` resets whenever the LIST changes, not when it merely reloads.
+  var logOffset = 0;
+  function renderPager(j) {
+    var el = $('fmLogPager'); if (!el) return;
+    var total = j.total || 0, from = total ? j.offset + 1 : 0, to = j.offset + (j.events || []).length;
+    if (total <= (j.limit || 25) && !j.offset) { el.hidden = true; el.innerHTML = ''; return; }
+    el.hidden = false;
+    el.innerHTML = '<span class="lg-range">' + from + '–' + to + ' of ' + total + '</span>' +
+      '<span class="spacer"></span>' +
+      '<button class="btn sm" data-page="prev"' + (j.offset ? '' : ' disabled') + '>Newer</button>' +
+      '<button class="btn sm" data-page="next"' + (j.has_more ? '' : ' disabled') + '>Older</button>';
+  }
+
   function loadLog() {
-    api('/kb/api/fathom/log' + (logKind ? '?kind=' + encodeURIComponent(logKind) : ''))
+    var q = [];
+    if (logKind) q.push('kind=' + encodeURIComponent(logKind));
+    if (logOffset) q.push('offset=' + logOffset);
+    api('/kb/api/fathom/log' + (q.length ? '?' + q.join('&') : ''))
       .then(function (j) {
         if (!j || !j.ok) {
           $('fmLog').innerHTML = '<div class="fm-empty">' + esc((j && j.error) || 'Could not read the record.') + '</div>';
           return;
         }
         renderFilters(j.counts || {}, j.kinds || []);
+        logOffset = j.offset || 0;           // the server clamps a stale offset; follow it
         var n = j.total || 0;
         var c = $('fmLogCount'); c.textContent = n; c.className = 'fm-pill count' + (n ? '' : ' zero');
         $('fmLog').innerHTML = j.events.length
           ? j.events.map(logRow).join('')
           : '<div class="fm-empty">Nothing yet. Decisions appear here as meetings arrive.</div>';
+        renderPager(j);
       })
       .catch(function () { $('fmLog').innerHTML = '<div class="fm-empty">Could not reach the platform.</div>'; });
   }
@@ -484,7 +504,16 @@
   $('fmLogFilters').addEventListener('click', function (e) {
     var b = e.target.closest('button[data-kind]'); if (!b) return;
     logKind = b.getAttribute('data-kind');
+    logOffset = 0;                           // a new filter is a new list - start at the top
     loadLog();
+  });
+
+  $('fmLogPager').addEventListener('click', function (e) {
+    var b = e.target.closest('button[data-page]'); if (!b || b.disabled) return;
+    var step = 25;                           // matches kb_activity.PAGE_DEFAULT
+    logOffset = b.getAttribute('data-page') === 'next' ? logOffset + step : Math.max(0, logOffset - step);
+    loadLog();
+    $('fmLogH').scrollIntoView({block: 'start', behavior: 'smooth'});
   });
 
   loadStatus();

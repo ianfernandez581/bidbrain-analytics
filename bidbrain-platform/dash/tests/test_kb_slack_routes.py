@@ -442,6 +442,79 @@ class Log(Rig):
         self.assertEqual(set(kb_activity.GROUPS["slack"]) - written, set(), "declared but never written")
 
 
+class LogPaging(Rig):
+    """The record is paged by the SERVER (kb_activity.page), shared with the Meetings page. The
+    page used to ask for everything and slice it."""
+
+    def _feed(self, *specs):
+        """Patch the activity store with N events of each kind, OLDEST FIRST (recent()'s order)."""
+        import kb_activity
+        rec, i = [], 0
+        for kind, n in specs:
+            for _ in range(n):
+                rec.append({"kind": kind, "at": 1000 + i, "actor": "slack",
+                            "recording_id": "%s-%d" % (kind, i), "title": "#c - %d" % i})
+                i += 1
+        return mock.patch.object(kb_activity, "recent", return_value=rec)
+
+    def test_a_page_is_25_and_says_there_is_more(self):
+        self._as("admin")
+        with self._feed(("slack_filed", 60)):
+            r = self.c.get("/kb/api/slack/log").get_json()
+        self.assertEqual(len(r["events"]), 25)
+        self.assertEqual((r["offset"], r["limit"], r["total"], r["has_more"]), (0, 25, 60, True))
+
+    def test_offset_walks_the_record_newest_first_with_no_gap_or_repeat(self):
+        self._as("admin")
+        with self._feed(("slack_filed", 60)):
+            seen = []
+            for off in (0, 25, 50):
+                r = self.c.get("/kb/api/slack/log?offset=%d" % off).get_json()
+                seen += [e["recording_id"] for e in r["events"]]
+            last = self.c.get("/kb/api/slack/log?offset=50").get_json()
+        self.assertEqual(len(seen), 60, "a page was short")
+        self.assertEqual(len(set(seen)), 60, "an event appeared on two pages")
+        self.assertEqual(seen[0], "slack_filed-59", "newest must come first")
+        self.assertFalse(last["has_more"])
+
+    def test_counts_are_the_WHOLE_record_and_total_is_the_filtered_view(self):
+        """The filter chips must keep their real sizes while one of them is selected."""
+        self._as("admin")
+        with self._feed(("slack_filed", 30), ("slack_queued", 4)):
+            r = self.c.get("/kb/api/slack/log?kind=slack_queued").get_json()
+        self.assertEqual(r["counts"]["slack_filed"], 30, "a tile lost its count under a filter")
+        self.assertEqual(r["counts"]["slack_queued"], 4)
+        self.assertEqual(r["total"], 4, "total must count only what is being paged")
+        self.assertFalse(r["has_more"])
+
+    def test_an_offset_past_the_end_falls_back_to_the_first_page(self):
+        """A stale 'next' after switching filters must not render an empty screen."""
+        self._as("admin")
+        with self._feed(("slack_filed", 10)):
+            r = self.c.get("/kb/api/slack/log?offset=500").get_json()
+        self.assertEqual(r["offset"], 0)
+        self.assertEqual(len(r["events"]), 10)
+
+    def test_limit_is_clamped_so_a_url_cannot_ask_for_everything(self):
+        self._as("admin")
+        with self._feed(("slack_filed", 300)):
+            r = self.c.get("/kb/api/slack/log?limit=99999").get_json()
+            r2 = self.c.get("/kb/api/slack/log?limit=nonsense").get_json()
+        self.assertEqual(r["limit"], 200)
+        self.assertEqual(len(r["events"]), 200)
+        self.assertEqual(r2["limit"], 25)
+
+    def test_meetings_and_channels_page_through_the_same_helper(self):
+        """One definition, so the two records cannot drift apart."""
+        import kb_activity
+        import kb_fathom_routes
+        import inspect
+        for mod in (self.r, kb_fathom_routes):
+            src = inspect.getsource(mod)
+            self.assertIn("kb_activity.page(", src, "%s stopped using the shared pager" % mod.__name__)
+        self.assertEqual(kb_activity.PAGE_DEFAULT, 25)
+
+
 class Events(Rig):
     def _post(self, payload, secret="sekrit", headers=None):
         body = json.dumps(payload).encode()
