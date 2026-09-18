@@ -955,6 +955,48 @@ filter is still hidden on the CS / Compare / Other / Website tabs, where Salesfo
 delivering platform. The same rule is applied on `client_cloudflare`, `client_schneidersecpwr` and
 `client_schneiderlqai`.
 
+## UNMAPPED Salesforce CS campaigns - a vendor cohort, not one stray id (2026-09-18)
+
+Found while investigating `client_schneidersecpwr`, so it is recorded here rather than acted on -
+**this is a SCOPE question for whoever owns this book, not a bug to patch.**
+
+`701RG00001XeaNqYAJ` (113 leads, 2026-07-07 -> 09-01, AU 98 / NZ 15) is absent from
+`seed_salesforce_map`, so its leads fail the join and drop off this dashboard **silently**: no error,
+no `Unmapped` bucket, the totals just read low. It is not alone. It sits in a cohort of seven
+campaigns sharing a distinguishing vendor signature - they write countries as full names
+("Australia, New Zealand") where most campaigns use codes ("AU, NZ"), which usually means one feed:
+
+| campaign id | leads | window | mapped to |
+|---|---|---|---|
+| 701RG00001KhQL4YAN | 167 | 06-09 -> 08-24 | **heavy** |
+| 701RG00001KhOntYAF | 166 | 06-08 -> 09-15 | **heavy** |
+| 701RG00001HcPgmYAF | 322 | 04-17 -> 06-12 | UNMAPPED |
+| 701RG00001VbzYZYAZ | 127 | 06-30 -> 08-04 | UNMAPPED |
+| 701RG00001XeaNqYAJ | 113 | 07-07 -> 09-01 | UNMAPPED |
+| 701RG00001aeA3kYAE | 92 | 08-05 -> 09-15 | UNMAPPED |
+| 701RG00001aetXiYAI | 48 | 07-27 -> 09-15 | UNMAPPED |
+
+**333 leads mapped, 702 unmapped** - so the unmapped share of this one vendor series is more than
+double what reaches the dashboard. **That does NOT mean 702 leads are missing.** Scope here is the
+client's own intake sheet, not everything under the Schneider advertiser (see the 2026-08-10 note),
+so an unmapped campaign may be deliberately out. What makes it worth asking is that two of the seven
+ARE mapped, both to `heavy` - the series is not wholly out of the book.
+
+`XeaNq`'s lead profile fits `heavy`: Engineering 44 / Operations 17 / Engineering-Maintenance 8, at
+Halliburton, Asahi Beverages, PepsiCo, Probiotec, Ego Pharmaceuticals, Squadron Energy, Clarity
+Pharmaceuticals - regulated manufacturing, food and beverage and life sciences. Not the
+mining-and-energy shape of Industrial Edge.
+
+**The campaign NAME is not obtainable.** `CAMPAIGN` is the `-` sentinel on all 113 rows (as are
+`ASSET_1`, `ASSET_2`, `JOB_LEVEL`, `REGION`; `INDUSTRY_NAME` on 109 of 113), and Windsor's only
+Salesforce grant points at **Geocon's org** - 14 campaigns, all `701RF`-prefixed, no `701RG` series
+at all. So characterise these by lead attributes or ask Schneider; do not expect a name from the
+warehouse.
+
+**The question to put to the owner:** are those five deliberately out of the intake sheet, or did the
+series grow and only the first two get seeded? If the latter, append the new rows at the HIGHEST
+`seq` (first-match-wins means a last-placed row cannot steal delivery from an existing program).
+
 ## Data model (mongodb concept → Schneider source)
 - **Campaign** (**top-nav dropdown** in the nav bar — the Cloudflare `dash-select` pattern) = the 5
   CS programs (`water_env` · `eba` · `heavy` · `global_rebrand` · `airset`) **+ `nel`** (New Energy
