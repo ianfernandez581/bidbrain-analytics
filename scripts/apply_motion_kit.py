@@ -47,6 +47,13 @@ CLIENTS: dict[str, dict] = {
                              orbs=[(214, 40, 40), (14, 124, 134), (185, 116, 0)]),
     "bellshakespeare":  dict(canvas="light", surface="light", accent=(62, 107, 79),
                              orbs=[(90, 138, 110), (160, 190, 165), (62, 107, 79)]),
+    # Burnet: white cards on a pale peach ground. The accent is the BRIGHT brand orange #F76E3B,
+    # which is right HERE because the kit only ever uses it as a rule - a focus outline, a hover
+    # border, the scroll rail, a row's inset edge. It must never become text: on white it is 2.9:1.
+    # That is why the LOGIN kit entry pins the deep #BD572F instead - that kit paints its show/hide
+    # control with the accent colour.
+    "burnet":           dict(canvas="light", surface="light", accent=(247, 110, 59),
+                             orbs=[(247, 110, 59), (249, 212, 196), (155, 186, 229)]),
     "caltex":           dict(canvas="dark", surface="dark", accent=(228, 0, 43),
                              orbs=[(228, 0, 43), (46, 140, 166), (255, 59, 84)]),
     "cityperfume":      dict(canvas="light", surface="light", accent=(176, 141, 87),

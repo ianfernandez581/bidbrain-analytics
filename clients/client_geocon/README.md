@@ -8,9 +8,15 @@ via the top-nav selector. Two developments exist in the pipeline; **only one is 
 | **Northbourne Gateway** (558 apartments) | Meta / LinkedIn / Trade Desk / Google Ads (+ SEO) | **A$205,600** | 2026-08-13 -> 10-31 | **LIVE since 2026-08-28**; Meta + Trade Desk + Google Ads delivering |
 | ~~Gateway Braddon~~ | Meta only | A$7,500 | 2026-06-21 -> 07-20 | **HIDDEN from the dashboard 2026-09-03** (client request; flight ended). Still built end to end and still in `geocon.json` - see "Hiding a finished development" |
 
-**TWO CLIENT DECISIONS SHAPE WHAT THIS DASHBOARD SHOWS TODAY, and both are one-line reversals:**
-- **Enquiries and cost-per-enquiry are WITHHELD** pending a Salesforce/CRM connection -
-  `LEADS_REPORTABLE = false`. See "Enquiry reporting is paused".
+**TWO DECISIONS SHAPE WHAT THIS DASHBOARD SHOWS TODAY, and both are one-line reversals:**
+- **Enquiries and cost-per-enquiry are REPORTED again** since 2026-09-17 - `LEADS_REPORTABLE = true`
+  (agency instruction). They were withheld 2026-09-03 on a CLIENT instruction that said "until
+  Salesforce is connected", and **Salesforce is still not connected** - so what is on screen remains
+  a Meta lead-FORM submit count, so the `renderNote()` explainer saying exactly that is what keeps
+  it honest on the client's screen - do not remove it. See "Enquiry reporting".
+- **There is NO modelled qualified-lead figure** since 2026-09-17 (client: no invented numbers). The
+  `enquiries x 0.20` model and every surface built on it are DELETED, not hidden - see "No modelled
+  qualified leads".
 - **Gateway Braddon is hidden** - `HIDDEN_PROPERTIES`. See "Hiding a finished development".
 
 **Gateway Braddon is unchanged** by the 2026-08-24 multi-channel rebuild - verified as a strict
@@ -195,14 +201,14 @@ rate. Two figures a reader can reasonably take for pipeline when neither has bee
 withheld state re-uses that exact code path rather than adding a second, half-stripped one:
 
 ```js
-const LEADS_REPORTABLE = false;                       // dash/dashboard.html - the ONE knob
+const LEADS_REPORTABLE = true;                        // dash/dashboard.html - the ONE knob
 const leadsMeasured = () => reports('leads') || bench('lead_target') != null;
 const leadsWithheld = () => !LEADS_REPORTABLE && leadsMeasured();   // measured, not reported
 const leadShaped    = () =>  LEADS_REPORTABLE && leadsMeasured();   // render the lead surfaces?
 ```
 
-What comes off, all together, from that one flag: the enquiry / CPL / modelled-qualified KPI tiles
-(the band swaps to Impressions / CPM / Clicks / Spend), the enquiry and qualified funnel steps, the
+What comes off, all together, from that one flag: the enquiry / CPL KPI tiles
+(the band swaps to Impressions / CPM / Clicks / Spend), the enquiry funnel step, the
 `On track to goal?` chart, the efficiency map, the CPL trend, the day-of-week card, budget burn, the
 enquiry-type split, and every `.c-lead` column in the stage / platform / benchmark / ad tables.
 
@@ -229,9 +235,42 @@ what is on screen:
 - **The GA4 `Website enquiries` tile** is gated on the same flag, or the number removed from every
   paid surface would reappear on the tab next door under a different heading.
 
-**Turning it back on is `LEADS_REPORTABLE = true` and a dash deploy.** Nothing upstream changed:
-`sql/*`, `job/main.py` and `geocon.json` still carry `leads` in full, so there is no re-seed and no
-forced export, and no history is lost in the meantime.
+**Pausing it again is `LEADS_REPORTABLE = false` and a dash deploy** (that is how it ran from
+2026-09-03 to 09-17). Nothing upstream ever changes either way: `sql/*`, `job/main.py` and
+`geocon.json` carry `leads` in full in both states, so there is no re-seed, no forced export, and no
+history is lost while it is off.
+
+### No modelled qualified leads (2026-09-17, client: no invented numbers)
+
+The dashboard used to carry a `Qualified leads (modelled)` figure: `enquiries x
+qualification_rate_target`, where that rate was **0.20, seeded PENDING on both developments** - an
+assumption with nothing behind it. It was labelled honestly (a `modelled - no CRM feed` badge, an
+explainer note) and it was still a number nobody had counted, sitting in the north-star band as if
+it were the campaign's outcome.
+
+**It is DELETED, not hidden**, and that distinction is the point: a flag can be flipped back by
+someone who does not know why it was set. `qualRate()` and `qualified()` are gone from
+`dash/dashboard.html`, so nothing can call them. What went with them:
+
+| Surface | Was |
+|---|---|
+| KPI north band | 4 tiles -> **3** (Enquiries / Cost per enquiry / Ad spend) |
+| Hero trend | the dashed `Qualified (modelled)` line |
+| Enquiry funnel | its 5th step (the hint is derived from the steps, so it fixed itself) |
+| Progress to goal | the `Qualified (modelled)` bar vs `qualified_lead_target` |
+| Insight cards | `Modelled qualified leads` (4 cards -> 3) |
+| CSV export | the `qualified_modelled` column |
+| AI deck payload | `qualified_modelled`, `qualification_rate`, `qualified_lead_target` |
+
+**The AI deck matters most here.** The keys are not sent at all rather than sent with a prompt
+saying not to use them - the same rule as the enquiry pause: a prompt is a request, an absent key is
+a fact. `report.py` already forbids describing leads as CRM-qualified, so no prompt edit was needed.
+
+**`qualified_lead_target` and `qualification_rate_target` still ride in `targets/targets.csv` and the
+job payload**, untouched, which is what keeps this a one-file change. They are read by **nothing**.
+Leave it that way: a target with no measured actual beside it can only ever be paced against an
+estimate, which is the thing being removed. Report a real qualified count the day a CRM feed lands -
+see "If Salesforce is connected" for what that actually takes.
 
 **But think hard before you do.** Since 2026-09-17 the page publishes CRM enquiries (section above).
 Flipping this on puts a SECOND, larger enquiry count on the same screen, measuring something else -
@@ -242,6 +281,186 @@ side by side, not two independent surfaces that happen to use the same word.
 **Follow-up not done here:** `report.py`'s two static system prompts still read as a single-engine
 Meta lead-gen template for Gateway Braddon. `_scope_directive()` overrides the wrong parts at
 runtime, but the prompts themselves want a proper multi-channel re-template.
+
+### Enquiries are per-platform, in one number (2026-09-17)
+
+`leads` is now reported by every platform that measures one, so the Platform chips split the single
+enquiry figure by source. Northbourne Gateway, live payload:
+
+| platform | enquiries | spend | in CPL basis |
+|---|---|---|---|
+| Meta | 152 | A$20,810 | yes |
+| Google Ads | **4** | A$6,732 | yes |
+| LinkedIn | 0 | A$838 | yes |
+| Trade Desk | **-** (not measured) | A$18,044 | **no** |
+| **total** | **156** | | CPL **A$181.92** |
+
+**Google Ads enquiries are the SUBMIT_LEAD_FORM action ONLY** (`sql/09_stg_google_ads`, the
+`leadform` CTE), never `metrics_conversions`. This account happens to carry exactly one Primary
+action today - `Submit lead form0201_Geocon_NGW558_LeadFormSubmit`, 4 conversions - so the two are
+equal (verified: BasicStats 4.0 == lead-form 4.0), **and that equality is a coincidence of today's
+setup, not a rule**. Add a page-view or call action as Primary and `metrics_conversions` inflates;
+gating on the CATEGORY means it can never enter `leads`. That is exactly the defect `schneider` and
+`schneiderlqai` carry (page-view tags counted as conversions, ~1,517 against 660 clicks), which is
+why neither may display the figure at all.
+
+Values are FRACTIONAL - Google splits the 4 as 2.5 Brand / 1.5 NonBrand under data-driven
+attribution - so `leads` is FLOAT64 on this arm and rounding happens once at the roll-up. The
+`conversions` column now carries everything that is NOT a lead form, so the same submission can
+never appear twice under two names; that leaves 0 today and `hasConversions()` (which uses
+`hasAny`) hides the tile on its own.
+
+**One thing was NOT done, deliberately: the Meta figure was not reduced by 4.** The ask was to take
+4 off the 152 and re-attribute them, which is only right if those 4 submissions are already inside
+Meta's count. There is no evidence for that and no way to test it - Meta's 152 is mostly website
+pixel `Lead` events, our feed carries no `lead_id` on either platform, and there is no principled
+way to remove 4 leads from specific ad x day rows without corrupting every per-ad and per-creative
+figure built on them. **If the concern is double counting, the question is whether Google's tag and
+Meta's pixel watch the same form** - Google Ads UI, Goals -> Conversions -> Summary, open the action
+and read its source. If they do, the fix is at the tag, not in the arithmetic here.
+
+### Trade Desk reports NO enquiries - and it is not a wiring bug (2026-09-17)
+
+`sql/08_stg_ttd` sets `leads` to `CAST(NULL AS INT64)`, which is why Trade Desk shows `-` rather
+than 0 and stays out of the cost-per-enquiry basis. **That is correct, and the reason is not that
+the feed is empty.** The Trade Desk advertiser `tg1ubik` (Geocon Group) returns a populated
+`conversions` JSON on **all 850 rows**, across four reporting slots:
+
+| slot | total | note |
+|---|---|---|
+| `click_conversion_01` / `_02` | 1,171 / 1,172 | near-identical - an adjacent Person/Household PAIR |
+| `click_conversion_03` | 856 | |
+| `view_through_conversion_01` .. `_04` | 374 / 582 / 66 / 3 | |
+| `conversion_touch_01` .. `_03` | 8,004 / 8,469 / 5,311 | TOTAL pixel fires, never ad-attributed |
+
+**They are almost certainly SITE VISITS, not enquiries, and the volume is the proof:** slot 01 runs
+at **11.5% - 21.5% of clicks** by ad group (Lookalike 848 on 3,951 clicks = 21.5%). No property
+enquiry form converts at a fifth of clicks - Meta's entire A$90,000 lead-form line produced 152.
+Wiring these into `leads` would publish ~1,545 Trade Desk "enquiries" against Meta's 152. That is
+the caltex `Landing Page Visit` and sophiie `Page Land` trap, third occurrence.
+
+**Windsor exposes TTD conversions ONLY as anonymous numbered slots - there is no pixel name or id in
+the connector** - so which slot is which CANNOT be read from the feed at all. It has to be read off
+the campaign's **"Configure campaign reporting and attribution"** screen in The Trade Desk and
+STATED in the view, exactly as `client_sophiie/sql/01_stg_ttd.sql` does. Until someone does that:
+
+- **Do not sum the slots.** 01 and 02 are 1,171 vs 1,172 - one source counted twice (Person and
+  Household cross-device concepts). The VMCH duplicate-pair rule.
+- **Never report `conversion_touch_*`.** It counts every fire from all traffic, not ad-attributed.
+- **Slot numbering is not a stable key** - attaching or detaching a source in TTD renumbers it.
+
+If one of those slots turns out to be a genuine enquiry form, wire THAT slot (and move the
+status-dash check in the same commit). If they are all site visits, this view stays as it is and
+Trade Desk keeps reporting reach and clicks, which is what a display buy is bought on.
+
+### Cost per enquiry is charged to the channels that REPORT enquiries (2026-09-17)
+
+Turning enquiry reporting back on exposed a blended CPL that had never been rendered. `agg()`
+divided TOTAL spend by leads, so three awareness platforms were charged to Meta's enquiries:
+**A$305.15 against a true A$142.16 on Northbourne, 2.15x overstated.**
+
+The basis is now the channels that report the field at all:
+
+| channel | reports `leads` | in CPL basis |
+|---|---|---|
+| Meta | yes (105 rows positive, 405 NULL) | **yes** |
+| LinkedIn | yes - a real `0` on all 119 rows | **yes** |
+| Trade Desk | NULL on all 850 rows - no lead form | no |
+| Google Ads | NULL on all 59 rows | no |
+
+**Two things make this correct rather than nearly-correct, and both are easy to get wrong:**
+
+1. **The unit is the CHANNEL, not the row.** `convSpend` and `cost_per_view` right above it can test
+   each row, because Google returns `conversions: 0`. Windsor **omits** `actions_lead` on a Meta
+   ad-day with no leads, so that day arrives NULL - testing per row would drop the spend of every
+   Meta day that produced nothing and understate CPL *in the flattering direction*. A channel
+   qualifies if it reports leads anywhere, and then **all** of its spend counts.
+2. **`!= null`, not `hasAny`.** LinkedIn's zeros are real: it ran and produced none, so that spend
+   belongs in the cost of an enquiry. Excluding it would flatter the number. A channel that starts
+   reporting leads joins the basis on its own, with no edit.
+
+The tile **names the basis** (`LinkedIn + Meta spend only`) whenever it is narrower than the
+platforms delivering - otherwise a reader divides the Ad spend tile beside it by the enquiry count
+and gets a different CPL. Same rule as `client_resetdata`, which keeps Trade Desk out of its CPL
+basis and notes its spend separately.
+
+**This was latent, not new** - it could not show while enquiries were withheld. The lesson: a metric
+behind a feature flag is untested code. Re-check every rate the flag reveals, not just the count.
+
+### Enquiries cannot be de-duplicated (investigated 2026-09-17 - do not retry)
+
+The enquiry figure counts **submissions, not people**: one person submitting twice counts twice. That
+was raised, investigated properly, and **there is no way to de-duplicate it from any feed we have.**
+Recorded here so nobody spends the afternoon again.
+
+**What the number is made of** (whole flight, `client_geocon.stg_meta`):
+
+| development | enquiries | website pixel `Lead` | on-Facebook form |
+|---|---|---|---|
+| Gateway Braddon | 178 | **178** | 0 |
+| Northbourne Gateway | 148 | **123** | 25 |
+
+So it is mostly **not** a lead-form submission at all - it is a `Lead` pixel event on the website.
+`leads` = `actions_lead` = the pixel sub-type + the on-Facebook sub-type, which reconcile exactly.
+
+**1. Meta's unique-lead metrics are empty.** `unique_leads` (`unique_actions_lead`) is requested by
+`ingest/windsor_data_pull/meta/meta_loader.py` and is **NULL on every row of every Meta account in
+the mirror**. Verified against the live Windsor API, not just the mirror: for this account
+`unique_actions_link_click` populates fine, while `unique_actions_lead`, both lead sub-types,
+`unique_actions_leadgen_grouped` and every `cost_per_unique_action_type_*lead*` return as keys with
+null values. The cost-per-unique back-derivation is therefore closed too. **The key coming back is
+not evidence the metric exists** - check for a value.
+
+**2. Even if they populated, they could not be summed.** A unique metric is deduplicated only within
+the window the platform was asked for, and this mirror is ad x day. Measured on the same account over
+2026-09-01..14: summing 14 daily `unique_actions_link_click` rows gives 4,181 against a true
+whole-window 3,977 (+5.1%), and `reach` gives 115,797 against 79,547 (**+46%**), while the additive
+`actions_link_click` is 5,226 either way. A deduplicated total for a user-chosen date range cannot
+come out of a pre-aggregated daily table - see the repo-wide rule in md/AGENTS.md.
+
+**What would actually de-duplicate it:** lead-LEVEL records. Meta's Lead Ads `/leads` endpoint
+returns individual leads with an id (Windsor does not expose it), and that only covers the 25
+on-Facebook form leads - the 123+178 website pixel events would need event-level pixel/CAPI data,
+which exists nowhere in this estate. Both routes end at the same place as the qualified-lead
+question: a CRM feed.
+
+**What was done instead:** the how-to-read note on the Overview says the figure is platform-reported
+and counts every submission including a repeat from the same person. That sentence is the fix. Do
+not replace it with an estimated de-duplication factor - see "No modelled qualified leads".
+
+### If Salesforce is connected - what it actually takes
+
+Verified 2026-09-17: **Salesforce is not connected, to this client or to any pipe we own.** This
+client's `sql/` reads Meta / LinkedIn / Trade Desk / Google Ads / GA4 and no CRM source; there is no
+Salesforce loader anywhere in `ingest/` (the closest CRM template we own is the HubSpot loader, built
+for resetdata); and the estate's only Salesforce mirror, `raw_snowflake.salesforce_cs_apac_all`, is
+Transmission's Snowflake and returns **zero** Geocon rows.
+
+**Connecting it changes nothing on the dashboard by itself.** No view, job field or dashboard code
+reads a CRM. It is the full three-stage contract: a raw table -> a `stg_salesforce` + rollups in
+`sql/` -> a block in `job/main.py` -> rendering.
+[`client_schneider`](../client_schneider/sql/17_stg_salesforce.sql)'s `17_stg_salesforce` ->
+`18_cs_by_programme` -> `19_cs_weekly` is the chain to copy.
+
+**The hard part is the JOIN, not the plumbing** - know this before promising the client a date. Our
+Meta feed carries **aggregate lead counts only** (`leads`, `leads_website`, `leads_onfacebook`,
+`unique_leads` at ad x day grain, `sql/01_stg_meta.sql`). There is **no `lead_id`, no form id, no
+per-lead row** anywhere in this pipeline, so there is no key tying a Salesforce record back to the ad
+that produced it. Schneider and Cloudflare only work because their leads arrive stamped with a
+Salesforce `CAMPAIGN_ID` that a syndication vendor sets. Geocon's equivalent has to be the Meta ->
+Salesforce sync writing campaign/adset/ad metadata onto the lead record, or a Salesforce Campaign per
+development. Without that you can report CRM outcomes **beside** paid delivery, but you cannot say
+which creative or ad set earned a qualified enquiry.
+
+Second join problem, specific to this client: it is **multi-development**. Every Salesforce lead must
+resolve to Northbourne vs Gateway Braddon, or it cannot sit on a property-scoped page at all.
+
+**And when it lands, do not blend it with the platform figure.** You would then have Meta's
+form-submit count and Salesforce's record count measuring overlapping but different things on
+different clocks (Meta dates the submission, Salesforce dates record creation). They will not agree.
+Report them side by side, each labelled, and never add them - the repo already carries this scar on
+`client_hireright`, where three conversion definitions were summed into one tile and had to be split
+apart. See md/AGENTS.md.
 
 ### Hiding a finished development (2026-09-03, client request)
 
@@ -355,7 +574,8 @@ becomes lead-shaped on its own the moment the Meta line (seq 9, A$90,000) starts
 **Verified a strict no-op on Gateway Braddon** - rendered headless before and after against the real
 payload: its `<body>` carries no measure classes, all twelve gateable cards stay shown, the funnel
 keeps all five steps, and the KPI band still reads "Meta enquiries 176 / CPL A$91 / Qualified 35 /
-A$16,076".
+A$16,076". (That Qualified tile was the modelled x20% figure, removed 2026-09-17 - the check itself
+still stands, it just has one fewer tile to compare now.)
 
 **The PLAN side is no longer grossed by the billed multiplier (2026-08-31).** `bbApplySpendMult`
 grossed `budget` and `pace_expected` along with the actuals. That preserved the pacing RATIO - both
@@ -739,13 +959,12 @@ on 2026-07-16 — see the Top-creatives note below). Everything honours the shar
 date-range picker**, **stage chips**, and search; time-series charts carry **VIEW BY Month/Week/Day +
 AXIS Relative/Absolute** toggles (default Relative + Month).
 
-- **North-star = qualified leads (MODELLED).** Meta reports RAW enquiries only, so qualified leads =
-  `enquiries × qualification_rate_target` (0.20, PENDING) — shown with a "modelled · no CRM feed" badge
-  and an explainer note, **never as a measured actual**. Wire a CRM feed to report true qualified leads.
-  Green is reserved for that goal metric (house rule: green = goal/good only); enquiries=gold,
-  spend=sage, cost=terracotta, CTR=amber.
-- **Overview** — clickable KPI dot-cards (**Qualified · Enquiries · Spend** toggle their series on the
-  hero), the delivery hero (spend bars + enquiries + modelled-qualified lines), budget pacing,
+- **North-star = ENQUIRIES at an efficient cost.** Platform-reported enquiries, cost per enquiry and
+  ad spend - three tiles, every one of them a figure a platform actually counted. Enquiries=gold,
+  spend=sage, cost=terracotta, CTR=amber; green stays reserved for goal/good only (house rule).
+  There is deliberately no fourth "qualified" tile - see "No modelled qualified leads".
+- **Overview** — clickable KPI dot-cards (**Enquiries · Spend** toggle their series on the
+  hero), the delivery hero (spend bars + enquiries + cost-per-enquiry lines), budget pacing,
   spend-by-stage donut, the enquiry funnel, money-flow, and insight cards.
 - **Paid Media** — **opens with the Top-5 creatives** (see the note below), then a **Performance vs
   Targets Δ table** (CPL/CTR/CPM/CPC per campaign), spend-by-ad-set,
@@ -879,7 +1098,7 @@ bq load --replace --source_format=NEWLINE_DELIMITED_JSON raw_windsor.geocon_meta
 # then re-run the export job so geocon.json picks it up (FORCE_REBUILD as above)
 ```
 The `geocon-export` job tolerates the table's absence (`breakdowns` → `[]`), so the dashboard never breaks
-if the pull hasn't run. **Real qualified leads** still need a client CRM feed (the north-star is modelled ×20%).
+if the pull hasn't run. **Qualified leads are not reported at all** - that needs a client CRM feed.
 
 
 The service serves `dashboard.html` with `Cache-Control: no-store`, so a redeploy is live immediately;
@@ -926,6 +1145,37 @@ utm campaign names (the same class of break as the delivery scope, and just as s
   name variant) — someone rebuilt/launched them in a DIFFERENT Google Ads account. Ask the
   agency/client for the delivering CID and link it under MCC 3451896252; `sql/09` then needs that
   `customer_id` added. Until then the Google Ads lane correctly shows nothing.
+
+### Trade Desk IS reporting conversions and `sql/08` DROPS them (found 2026-09-09)
+
+`08_stg_ttd.sql` hardcodes `CAST(NULL AS INT64) AS leads -- awareness/retargeting lines: no lead
+form` and **selects no conversion column at all** - no `conversions`, no `click_conversion_NN`, no
+`view_through_conversion_NN`. That comment was true when the view was written on 2026-08-24. It is
+not true now: the raw feed carries populated slots for this advertiser, so **100% of it is discarded
+before the dashboard**. `client_caltex/sql/01_stg_ttd.sql` already parses the same slots out of the
+same shared table - copy that, do not re-derive it.
+
+**Three distinct trackers are reporting, and the only way to tell them apart is the day they
+started** (Windsor hands us anonymous numbered slots with no tracker name):
+
+| slot | post-click | post-view | total fires | first seen |
+|---|---|---|---|---|
+| 01 | 699 | 275 | 4,281 | 2026-08-20 |
+| 02 | 700 | 401 | 4,600 | 2026-08-20 |
+| 03 | 500 | 42 | 2,462 | **2026-08-28** |
+
+**Do not label slot 03 a form submit without confirming the tracker in the TTD UI.** Its volume is
+inconsistent with one: 2,462 fires in eleven days against Meta counting ~80 website leads over the
+same window and GA4 logging 126 `form_start` in three weeks. That pattern is a tag firing on page
+load - consistent with a form that submits over AJAX with no page navigation, where a pixel dropped
+on a confirmation page fires on load instead of on submit.
+
+Three rules when wiring it up: it renders as **TTD-attributed conversions, never as leads** (a
+post-view display conversion and a Meta lead-form submit are different events - the repo-wide
+"a conversion is never a lead" rule); **never sum all 12 slots**, because these are three separate
+trackers measuring different things; and `conversion_touch_NN` stays unused, since it counts every
+fire including non-ad traffic. Watch for the VMCH duplicate-PAIR layout too - slots 01 and 02 differ
+on only one row here, so they may well be one tracker double-reported.
 
 ## Freshness
 

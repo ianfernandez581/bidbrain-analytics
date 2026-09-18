@@ -914,36 +914,33 @@ either one makes a whole sweep worthless while looking green:**
 above), but the job must run before the titles appear. `/ship` resolves all three from the changed
 paths.
 
-## No cost per lead on the Lead-form-leads tile (2026-09-17, client request)
+## Cost per lead is WITHHELD on the paid lane (2026-09-08, client request)
 
-Lauren Harvey, via the feedback widget: *"Please remove the cost per lead under the lead-form leads"*.
-The **Lead-form leads** KPI card on the Paid Media tab printed `A$1,129.00 per lead (LinkedIn spend) -
-42 form opens` as its sub-line; it now prints `42 form opens` alone. The no-submissions branch is
-unchanged (`N form opens, no submissions yet`).
+The client asked to "remove the cost per lead value under the lead form leads number for every
+campaign". It sat in **THREE** places under that same leads number, and all three went together -
+removing only the one the client pointed at leaves the same metric on the same tab:
 
-**It is a CLIENT INSTRUCTION, not a measurement judgement.** The figure was correct at the time it was
-removed (it had been fixed onto LinkedIn-only spend on 2026-09-01). Do not re-add it because the maths
-checks out.
+- the `Lead-form leads` KPI tile sub-line (`pm_leads_sub`),
+- the `Cost / lead` column on the *Funnel by program* table,
+- `paid.totals.cost_per_lead_form_lead` in the AI-deck payload.
 
-**What was deliberately NOT touched, and why.** Cost per lead is still reported - once - in the
-**LinkedIn lead-gen-form funnel** directly below, on the *Submitted leads* step (`A$X per lead`) and in
-the *Funnel by program* table's **Cost / lead** column. The client named one surface, and that surface
-was the DUPLICATE: both figures answered the same question, and the funnel's is the better-scoped one
-(`liFunnelAgg()` drops every non-LinkedIn row before it sums spend, and it excludes the awareness
-programs that carried no form at all). If the client later means the funnel too, it is two edits -
-the `step('Submitted leads', ...)` sub-line in `renderLiFunnel()` and the table's last column - plus
-the `tfoot` total that ties to it.
+**Doing it surfaced a real defect: the tab printed TWO DIFFERENT cost-per-lead figures for the same
+53 leads** - **A$1,175.63** on the tile (all LinkedIn spend, awareness programs included) against
+**A$896** in the funnel directly below it (lead-form programs only). If it is ever restored, restore
+**ONE** definition for both surfaces. It must also divide **LinkedIn** spend, never `t.spend`: `t` is
+all platforms by design (it feeds Spend / Impressions / Clicks / blended CPC), so the pre-2026-09-01
+blended version charged Trade Desk money to a metric only LinkedIn can produce - A$2,085 per lead
+against a true A$1,129, growing with every non-LinkedIn dollar in the filter.
 
-`paid.totals.cost_per_lead_form_lead` in the **AI deck payload** was also left in place. Removing it
-would not have withheld the metric: `report.py`'s Stage-A brief tells the model to judge paid media
-"on DELIVERY and reach and its cost per lead", so with the key gone the model would simply derive it
-from the spend and lead counts it still has - and derive it **blended**, which is the 2026-09-01
-defect all over again in a client-facing deck. **That key does carry the blended-spend bug today**
-(`pt.spend / pt.leads`, where `pt` is `pmTotals()` = all platforms) and is worth fixing on its own
-ticket; it is not part of this request.
+**Deleting the payload key was NOT sufficient.** `spend` and `lead_form_leads` both have to stay -
+each is a headline figure in its own right - so the model can still divide one by the other. The
+prohibition is therefore STATED, in the payload's `paid.note` AND in `report.py`'s `business_model`,
+and it is framed as a client reporting instruction rather than a data-quality caveat so the deck
+does not explain the absence on a slide.
 
-FRONTEND-ONLY. No view, job, payload or CSV change - `renderPaid()` in `dash/dashboard.html`. Redeploy
-with `dash/deploy_dash_schneider.ps1`.
+**What is NOT affected:** cost per CLICK and cost per form OPEN (different metrics, not asked for),
+and the CS **`Plan CPL`**, which is a separate plan-side figure for content syndication. The CSV
+exports never carried the paid figure.
 
 ## Platform (channel) chips — only engines this program actually ran
 **2026-08-15 (client):** the Platform chip group used to render engines that delivered for OTHER

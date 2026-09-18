@@ -203,6 +203,27 @@ CLIENTS = {
             {"name": "Trading and Paid Media", "path": "/", "status": "coming_soon"},
         ],
     },
+    # Onboarding: client_burnet/ is a built, Burnet-branded PREVIEW dashboard on SAMPLE data.
+    # Melbourne medical research institute and registered charity (burnet.edu.au) - the dashboard
+    # reports paid media and fundraising. It runs LIGHT (white cards on a pale peach ground, brand
+    # orange), which is the one place it departs from the house look: Burnet's own site is light,
+    # and the dark treatment the estate's other tenants use is a property of THEIR brands.
+    # No feed is connected yet, so like geyervalmont and lacevo there is deliberately NO sql/ +
+    # job/ in that folder and the dashboard serves its baked-in placeholder.json behind a preview
+    # notice. coming_soon (hidden from clients) but DEPLOYED, so a super admin can open it via
+    # "Open preview ->".
+    # `show_pending_row` gives it the greyed "awaiting connection" row on the Data Accuracy tab,
+    # which is the honest state: there is no pipeline to report freshness for yet. Drop the flag
+    # the day a real sql/ + job/ lands, exactly as sophiie did when it went live.
+    "burnet": {
+        "name": "Burnet Institute", "slug": "burnet", "status": "coming_soon",
+        "url": _runapp("burnet"),   # deployed preview: super-admin-openable, hidden from clients (coming_soon)
+        "note": "Dashboard isn't live yet - the structure is ready.",
+        "show_pending_row": True,
+        "campaigns": [
+            {"name": "Fundraising and Paid Media", "path": "/", "status": "coming_soon"},
+        ],
+    },
     # ACTIVE since 2026-09-05. client_sophiie/ is the estate's only ANIMATED skin (the three-layer
     # aurora background) over the Chronicle-marble treatment, now carrying the LIVE Trade Desk
     # campaign SOPHIIE_2026-Q3_TTD_AU_DISPLAY_PROSPECTING (advertiser gjcl0pp) - three prospecting
@@ -287,7 +308,7 @@ AGENCIES = [
     {
         "name": "100% Digital", "slug": "x100-digital", "password": AGENCY_100D_PW,
         "clients": ["cityperfume", "vmch", "tlm", "resetdata", "bellshakespeare", "geocon", "caltex",
-                    "nextsmile", "geyervalmont", "sophiie", "lacevo"],
+                    "nextsmile", "geyervalmont", "sophiie", "lacevo", "burnet"],
     },
     {
         "name": "Transmission", "slug": "transmission", "password": AGENCY_TRANSMISSION_PW,

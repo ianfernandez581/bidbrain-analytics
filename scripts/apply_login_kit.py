@@ -39,6 +39,13 @@ CLIENTS: dict[str, dict] = {
                             orbs=[(214, 40, 40), (14, 124, 134), (185, 116, 0)]),
     "bellshakespeare": dict(page="light", card="light", accent=(62, 107, 79),
                             orbs=[(90, 138, 110), (160, 190, 165), (62, 107, 79)]),
+    # Burnet: a peach card on a white field, both light. The accent is the DEEP #BD572F, not the
+    # bright brand #F76E3B - this kit paints the show/hide control and the Caps Lock hint IN the
+    # accent, and the bright orange is 2.9:1 on a light card, so it would ship an unreadable
+    # control. The bright one stays the accent in the MOTION kit, where it is only ever a rule.
+    # Same "which shade depends on what it sits on" split lacevo carries for its clay.
+    "burnet":          dict(page="light", card="light", accent=(189, 87, 47),
+                            orbs=[(247, 110, 59), (249, 212, 196), (155, 186, 229)]),
     "caltex":          dict(page="dark",  card="dark",  accent=(228, 0, 43),
                             orbs=[(228, 0, 43), (46, 140, 166), (255, 59, 84)]),
     "cityperfume":     dict(page="dark",  card="light", accent=(176, 141, 87),
@@ -96,7 +103,7 @@ TEMPLATE_TARGETS: dict[str, dict] = {
 
 # The four logins that already paint their own static wash (body::before) take it lower, so the
 # two do not stack into a haze.
-QUIET_WASH = {"bellshakespeare", "caltex", "nextsmile", "geyervalmont", "lacevo"}
+QUIET_WASH = {"bellshakespeare", "caltex", "nextsmile", "geyervalmont", "lacevo", "burnet"}
 WASH_A = {"dark": (0.20, 0.14, 0.11), "light": (0.13, 0.09, 0.08)}
 
 MARKERS = {

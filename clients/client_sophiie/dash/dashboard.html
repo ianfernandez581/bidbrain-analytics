@@ -725,6 +725,11 @@
     .aurora-ambient__orb,.aurora-diag,.live,.card,.kpi,.insight,.ccard{animation:none !important;transition:none !important}
     .kpi:hover,.card:hover,.insight:hover,.ccard.clickable:hover{transform:none}
   }
+/* Sign-ups withheld 2026-09-11 (see SIGNUPS_REPORTABLE). Hiding the COLUMN rather than editing
+   each renderer keeps every total row and colspan intact. */
+body.no-signups #stageTable th:nth-child(8),body.no-signups #stageTable td:nth-child(8){display:none}
+body.no-signups #benchTable th:nth-child(n+9),body.no-signups #benchTable td:nth-child(n+9){display:none}
+body.no-signups #adTable th:nth-child(10),body.no-signups #adTable td:nth-child(10){display:none}
 </style>
 </head>
 <body>
@@ -1607,8 +1612,14 @@ function renderKpis(){
     {color:MC.purple,label:'Click to Try free',value:a.cvr!=null&&n(a.signups)>0?pct(a.cvr,1):'-',
       sub:n(a.signups)>0?`${int(a.signups)} of ${int(a.clicks)} ad clicks`:'awaiting the first Try free click'}
   ];
-  $('kpiGridN').innerHTML=north.map(kpiCard).join('');
-  $('kpiGrid').innerHTML=ctx.map(kpiCard).join('');
+  // Sign-ups withheld: the outcome and cost-per-outcome tiles come off together (a CPA with no
+  // trustworthy denominator is the same claim twice), and the band becomes the delivery ladder.
+  const cpcTile={color:MC.cost,label:'Cost per click',value:a.cpc!=null?money(a.cpc,2):'-',
+    sub:cpcT!=null?`target ${money(cpcT,2)} \u00b7 the campaign's secondary KPI`:'cost per click'};
+  const nBand=SIGNUPS_REPORTABLE?north:[ctx[0],north[2],ctx[1],north[3]];
+  const cBand=SIGNUPS_REPORTABLE?ctx:[ctx[2],cpcTile];
+  $('kpiGridN').innerHTML=nBand.map(kpiCard).join('');
+  $('kpiGrid').innerHTML=cBand.map(kpiCard).join('');
   wireKpiToggles();
 }
 function heroSeriesIdx(chart,group){return chart.data.datasets.reduce((acc,d,i)=>{if(d._group===group)acc.push(i);return acc;},[]);}
@@ -2364,6 +2375,7 @@ async function load(){
   try{
     const r=await fetch(JSON_URL,{cache:'no-store'});if(!r.ok)throw new Error('HTTP '+r.status+' from '+JSON_URL);
     DATA=await r.json();bbApplySpendMult();initChartDefaults();
+    document.body.classList.toggle('no-signups',!SIGNUPS_REPORTABLE);
     DateRange.init({min:meta().date_min,max:meta().date_max,onApply:(s,e)=>{STATE.dateStart=s;STATE.dateEnd=e;render();}});
     syncGrainDefault();
     renderStageChips();render();renderViewState();
@@ -2397,6 +2409,18 @@ function exportThisTab(){
 // ================= AI REPORT PAYLOAD (headless portal deck path) =================
 const r2=v=>v==null||isNaN(v)?null:Math.round(v*100)/100;
 const r6=v=>v==null||isNaN(v)?null:Math.round(v*1e6)/1e6;
+// Sign-ups withheld: strip every sign-up-derived key from the deck payload rather than sending
+// it with an instruction not to use it. Recursive, because the keys also sit on by_stage,
+// by_tier, by_ad_group and top_creatives rows.
+const SIGNUP_KEYS=['signups','signups_post_click','signups_post_view','cpa','click_to_signup',
+  'signups_target','cpa_target','cum_signups','pv_conv','pc_conv','cvr'];
+function scrubSignups(o){
+  if(!SIGNUPS_REPORTABLE&&o&&typeof o==='object'){
+    if(Array.isArray(o))o.forEach(scrubSignups);
+    else for(const k of Object.keys(o)){if(SIGNUP_KEYS.includes(k))delete o[k];else scrubSignups(o[k]);}
+  }
+  return o;
+}
 function buildReportPayload(){
   const all=ROWS();const a=agg(all);const f=flight();
   const byS=byStage(all),byT=byTier(all),byG=byAdGroup(all),crs=byCreative(all).filter(x=>n(x.spend)>0).slice(0,10);
@@ -2453,7 +2477,7 @@ const BB_THEME = {
 };
 async function bbDeckLogos(){try{const res=await fetch('logo.png',{cache:'force-cache'});if(!res.ok)return{white:null,dark:null};const blob=await res.blob();const uri=await new Promise(function(r){const fr=new FileReader();fr.onload=function(){r(fr.result);};fr.onerror=function(){r(null);};fr.readAsDataURL(blob);});return{white:uri,dark:uri};}catch(e){return{white:null,dark:null};}}
 async function bbHeadlessSlides(){
-  try{const payload=buildReportPayload();const res=await fetch('/report',{method:'POST',cache:'no-store',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+  try{const payload=scrubSignups(buildReportPayload());const res=await fetch('/report',{method:'POST',cache:'no-store',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
     if(!res.ok){let d='';try{d=(await res.json()).error||'';}catch(_){}throw new Error('HTTP '+res.status+(d?' - '+d:''));}
     const report=await res.json();const logos=await bbDeckLogos();const out=await bbBuildDeck(report,payload,BB_THEME,logos,{download:false});
     try{parent.postMessage({__bbslides:true,status:'done',blob:out&&out.blob,fileName:out&&out.fileName},location.origin);}catch(_){}
