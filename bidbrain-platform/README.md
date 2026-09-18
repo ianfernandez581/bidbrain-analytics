@@ -1241,6 +1241,26 @@ per browser (`bb.kb.max` / `bb.kb.min`, beside the existing `bb.kb.box`).
 - **An enlarged window is not an enlarged column.** Left alone the log would run to ~1,800px; the
   reading column caps at 860px and centres while the chrome stays full width.
 
+### The passage list is a disclosure (2026-09-18)
+Eight rows of title, folder and badge sat above every answer, so the evidence was louder than the
+thing it was evidence for. The list now collapses behind a one-line summary -
+`› 5 sources · Meetings, Clients +2` - that opens on click and **remembers the choice**
+(`bb.kb.cites`), because reading every citation is a working habit, not a per-answer decision.
+
+- **🔴 THREE THINGS MUST NEVER BE COLLAPSED**, and the split is the whole design: the **count**
+  (so an answer never looks uncited), a **CORRECTION** badge (a human overruled the library on
+  this very point - that list opens itself) and the **"meaning search was unavailable"** warning
+  (the retrieval was weaker than usual). Anything that changes how far to trust the answer stays
+  on screen; only the evidence for it folds away.
+- **The collapse is `grid-template-rows: 0fr -> 1fr`**, not height and not `display:none`: it
+  animates without measuring anything and survives the list changing length. The inner div needs
+  `overflow:hidden` or the content spills out of a 0fr row.
+- **🔴 A 0fr ROW IS NOT `display:none`** - it stays in the tab order. The inner div is
+  `visibility:hidden` **on a 220ms delay**, so it is untabbable when shut without blanking the
+  text before the row has finished collapsing.
+- The stagger is scoped to `.is-open`. A CSS animation starts when its rule begins to match, so
+  the cascade plays **when you open the list**, not unseen behind a closed one at render.
+
 ### Motion: the panel, not the kit (2026-09-18)
 `/kb` includes the platform's premium layer, but the panel does its own motion - it is a floating
 window with states the kit knows nothing about. Written against Emil Kowalski's rules, and the

@@ -723,6 +723,21 @@
     return b;
   }
 
+  /* The passage list is the honest part of every answer and also the loudest thing on screen -
+   * eight rows of title, folder and badge above two paragraphs of prose. It is now a DISCLOSURE:
+   * a one-line summary that says how many sources and where they came from, opening to the full
+   * list on click.
+   *
+   * 🔴 THREE THINGS MUST NEVER BE COLLAPSED, because each one qualifies the answer itself rather
+   * than merely evidencing it:
+   *   - the count, which is why the summary states it and is always on screen;
+   *   - a CORRECTION, which says a human overruled the library on this very point;
+   *   - the "meaning search was unavailable" warning, which says the retrieval is weaker than
+   *     usual and something relevant may be missing.
+   * Anything that changes how much you should trust the answer stays visible; only the evidence
+   * for it folds away. */
+  function citesOpenPref() { return localStorage.getItem(LS + 'cites') === '1'; }
+
   function renderCites(host, r) {
     host.innerHTML = '';
     if (!r.excerpts.length) {
@@ -731,6 +746,28 @@
         : 'That scope contains no documents.'));
       return;
     }
+
+    var n = r.excerpts.length;
+    var verified = r.excerpts.filter(function (e) { return e.trust === 'verified'; }).length;
+
+    var head = el('button', 'kbp-cites-toggle');
+    head.type = 'button';
+    head.setAttribute('aria-expanded', 'false');
+    head.appendChild(el('span', 'kbp-caret'));
+    head.appendChild(el('span', 'kbp-cites-n', n + (n === 1 ? ' source' : ' sources')));
+    // Where they came from, so the summary answers "what is this built on" without opening.
+    var where = uniqueFolders(r.excerpts);
+    if (where) head.appendChild(el('span', 'kbp-cites-where', where));
+    if (verified) head.appendChild(el('span', 'kbp-badge verified', 'CORRECTION'));
+    host.appendChild(head);
+
+    // The grid 0fr -> 1fr trick: a height that can actually be transitioned without measuring
+    // anything, and without the content ever being display:none (so Ctrl+F still finds it).
+    var wrap = el('div', 'kbp-cites-list');
+    var inner = el('div');
+    wrap.appendChild(inner);
+    host.appendChild(wrap);
+
     r.excerpts.forEach(function (e, i) {
       var c = el('div', 'kbp-cite');
       c.appendChild(el('span', 'n', '[' + (i + 1) + ']'));
@@ -740,13 +777,44 @@
       c.appendChild(foundBadge(e.found_by));
       c.title = e.passage.slice(0, 400);
       c.onclick = function () { if (window.kbOpenDoc) window.kbOpenDoc(e.document_id, e.ord); };
-      host.appendChild(c);
+      inner.appendChild(c);
     });
+
+    function setOpen(open) {
+      host.classList.toggle('is-open', open);
+      head.setAttribute('aria-expanded', open ? 'true' : 'false');
+      // 🔴 THE ROWS ARE FOCUSABLE ONLY WHILE OPEN. A collapsed grid row is 0fr, not display:none,
+      // so without this the citations stay in the tab order behind a closed disclosure.
+      inner.setAttribute('aria-hidden', open ? 'false' : 'true');
+    }
+    head.onclick = function () {
+      var open = !host.classList.contains('is-open');
+      setOpen(open);
+      // Remembered, because this is a working preference, not a per-answer decision: someone who
+      // reads every citation should not re-open the list on every turn.
+      localStorage.setItem(LS + 'cites', open ? '1' : '0');
+      if (open && A.follow) requestAnimationFrame(function () { toBottom(); });
+    };
+    // A correction is the one case that opens itself - it exists to be read.
+    setOpen(citesOpenPref() || !!verified);
+
     if (!r.semantic) {
       host.appendChild(el('div', 'kbp-note warn', 'Meaning search was unavailable, so these were '
         + 'found by wording only (' + (r.semantic_error || 'reason not recorded') + '). Something '
         + 'relevant but differently worded could have been missed.'));
     }
+  }
+  // "Meetings, Slack" - at most two named, then a count, so the summary line cannot grow past one
+  // line and start wrapping over the answer it belongs to.
+  function uniqueFolders(excerpts) {
+    var seen = [];
+    excerpts.forEach(function (e) {
+      var f = (e.folder || '').split('/').filter(Boolean)[0] || 'no folder';
+      if (seen.indexOf(f) < 0) seen.push(f);
+    });
+    if (!seen.length) return '';
+    if (seen.length <= 2) return seen.join(', ');
+    return seen.slice(0, 2).join(', ') + ' +' + (seen.length - 2);
   }
   function foundBadge(found) {
     var both = found.length > 1, label = both ? 'both' : (found[0] || '');

@@ -275,6 +275,48 @@
 
 /* --- citations --------------------------------------------------------------------------------- */
 .kbp-cites { display: flex; flex-direction: column; gap: 5px; margin-bottom: 9px; }
+
+/* The summary line. It is a real <button>, so it is keyboard-reachable and announces its own
+ * expanded state; everything that qualifies the answer (the count, a CORRECTION) lives HERE
+ * rather than inside the part that folds away. */
+.kbp-cites-toggle {
+  display: flex; align-items: center; gap: 7px; width: 100%; text-align: left;
+  border: 1px solid var(--kbp-line); background: var(--kbp-card); color: var(--kbp-sub);
+  border-radius: 8px; padding: 5px 9px; cursor: pointer;
+  font: 600 11.5px/1.4 Inter, sans-serif;
+  transition: border-color var(--kbp-press) ease, color var(--kbp-press) ease,
+              background var(--kbp-press) ease, transform var(--kbp-press) var(--kbp-ease-out);
+}
+@media (hover: hover) and (pointer: fine) {
+  .kbp-cites-toggle:hover { color: var(--kbp-ink); border-color: var(--kbp-line-2); }
+}
+.kbp-cites-toggle:active { transform: scale(.995); }
+.kbp-cites-toggle:focus-visible { outline: 2px solid var(--kbp-accent); outline-offset: 2px; }
+.kbp-cites-n { color: var(--kbp-accent); }
+.kbp-cites-where { color: var(--kbp-sub-2); font-weight: 500; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kbp-cites-toggle .kbp-badge.verified { margin-left: auto; flex: none; }
+/* The caret points right when closed and down when open - the one piece of state the control
+ * carries, so it rotates rather than swapping glyph. */
+.kbp-cites-toggle .kbp-caret { transform: rotate(-45deg) translate(1px, 1px);
+  transition: transform 180ms var(--kbp-ease-out); }
+.kbp-cites.is-open .kbp-cites-toggle .kbp-caret { transform: rotate(45deg) translate(-1px, -1px); }
+
+/* 🔴 `grid-template-rows: 0fr -> 1fr` IS THE COLLAPSE, not height or display:none. It animates
+ * without anyone measuring the content and it survives the list changing length. The inner div
+ * must keep `overflow:hidden` or the content spills out of a 0fr row. */
+.kbp-cites-list {
+  display: grid; grid-template-rows: 0fr; opacity: 0;
+  transition: grid-template-rows 220ms var(--kbp-ease-out), opacity 150ms var(--kbp-ease-out);
+}
+.kbp-cites.is-open .kbp-cites-list { grid-template-rows: 1fr; opacity: 1; }
+/* 🔴 CLOSED MEANS `visibility: hidden`, ON A DELAY. A 0fr row is not `display:none`, so without
+ * this the collapsed citations stay in the tab order behind a shut disclosure - but flipping
+ * visibility the instant you close would blank the text before the row finished collapsing. The
+ * delay holds it visible for exactly the length of the close, then hides it. */
+.kbp-cites-list > div { overflow: hidden; display: flex; flex-direction: column; gap: 5px;
+  min-height: 0; visibility: hidden; transition: visibility 0s linear 220ms; }
+.kbp-cites.is-open .kbp-cites-list > div { visibility: visible; transition-delay: 0s; }
 .kbp-cite { display: flex; align-items: baseline; gap: 8px; font-size: 11.5px; color: var(--kbp-sub);
   cursor: pointer; padding: 5px 8px; border-radius: 8px; border: 1px solid var(--kbp-line); background: var(--kbp-card); }
 .kbp-cite:hover { border-color: var(--kbp-accent-line); color: var(--kbp-ink); }
@@ -413,10 +455,13 @@ textarea.kbp-input { resize: vertical; min-height: 66px; line-height: 1.55; }
 .kbp-sysnote { animation: kbp-rise 200ms var(--kbp-ease-out) both; }
 
 /* Citations arrive as a group, so they stagger. Delays stay short (35ms) and stop after six -
- * a long cascade makes the interface feel slow, and nothing here waits on it. */
-.kbp-cite { animation: kbp-rise 220ms var(--kbp-ease-out) both;
-  transition: border-color var(--kbp-press) ease, color var(--kbp-press) ease,
+ * a long cascade makes the interface feel slow, and nothing here waits on it.
+ * 🔴 SCOPED TO `.is-open`, WHICH IS WHAT MAKES IT PLAY AT THE RIGHT MOMENT. A CSS animation
+ * starts when its rule begins to match, so putting `.is-open` in the selector means the cascade
+ * runs when you open the disclosure - not unseen behind a closed one at render time. */
+.kbp-cite { transition: border-color var(--kbp-press) ease, color var(--kbp-press) ease,
               transform var(--kbp-press) var(--kbp-ease-out); }
+.kbp-cites.is-open .kbp-cite { animation: kbp-rise 220ms var(--kbp-ease-out) both; }
 .kbp-cite:nth-child(1) { animation-delay: 0ms; }
 .kbp-cite:nth-child(2) { animation-delay: 35ms; }
 .kbp-cite:nth-child(3) { animation-delay: 70ms; }
