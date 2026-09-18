@@ -1,0 +1,1746 @@
+{
+  "meta": {
+    "placeholder": true,
+    "client": "Ray White Projects",
+    "agency": "100% Digital",
+    "currency_symbol": "A$",
+    "currency": "AUD",
+    "period_label": "First 30 days",
+    "date_min": "2026-09-25",
+    "date_max": "2026-10-24",
+    "data_through": "2026-10-24",
+    "generated": "2026-09-18",
+    "projects": [
+      {
+        "key": "monair",
+        "label": "Monair, Greenwich",
+        "status": "live"
+      }
+    ],
+    "project_default": "monair",
+    "feeds_connected": [],
+    "feeds_expected": [
+      "GA4",
+      "Google Tag Manager",
+      "Meta Ads",
+      "Google Ads",
+      "realestate.com.au",
+      "Domain",
+      "the CRM"
+    ]
+  },
+  "projects": [
+    {
+      "key": "monair",
+      "label": "Monair, Greenwich",
+      "status": "live",
+      "headline": "Monair, Greenwich",
+      "address": "170 Pacific Highway",
+      "locality": "Greenwich NSW",
+      "residences": 48,
+      "cohort": "Over 55s",
+      "site": "monair.com.au",
+      "completion": "Move in mid 2028",
+      "live_from": "2026-09-25",
+      "credits": [
+        {
+          "role": "Developer",
+          "name": "Realside"
+        },
+        {
+          "role": "Architect",
+          "name": "WMK Architecture"
+        },
+        {
+          "role": "Builder",
+          "name": "FDC"
+        },
+        {
+          "role": "Brand and site",
+          "name": "Heard"
+        }
+      ],
+      "flight": {
+        "start": "2026-09-25",
+        "end": "2026-12-31",
+        "budget_committed": 85000.0,
+        "budget_measurable": 85000.0,
+        "spend_to_date": 18420.0,
+        "expected_to_date": 26020.41,
+        "pace_basis": "even spread",
+        "days_elapsed": 30,
+        "days_covered": 30,
+        "pace_through": "2026-10-24"
+      },
+      "targets": {
+        "derived": true,
+        "cost_per_enquiry": 95.0,
+        "enquiry_rate_low": 2.0,
+        "enquiry_rate_high": 3.0
+      },
+      "plan_channels": [
+        "meta",
+        "google_ads",
+        "rea",
+        "domain"
+      ]
+    }
+  ],
+  "channels": [
+    {
+      "key": "meta",
+      "label": "Meta",
+      "sublabel": "Downsizer and lookalike audiences",
+      "colour": "#131311",
+      "plan_ctr": 0.6,
+      "plan_cpe": 90.0
+    },
+    {
+      "key": "google_ads",
+      "label": "Google Ads",
+      "sublabel": "Search, brand and competitor",
+      "colour": "#FFE512",
+      "plan_ctr": 1.2,
+      "plan_cpe": 85.0
+    },
+    {
+      "key": "rea",
+      "label": "realestate.com.au",
+      "sublabel": "Project profile and Highlight",
+      "colour": "#C4B49C",
+      "plan_ctr": 0.5,
+      "plan_cpe": 80.0
+    },
+    {
+      "key": "domain",
+      "label": "Domain",
+      "sublabel": "Project listing",
+      "colour": "#8E8B83",
+      "plan_ctr": 0.55,
+      "plan_cpe": 100.0
+    }
+  ],
+  "daily": [
+    {
+      "date": "2026-09-25",
+      "project": "monair",
+      "channel": "meta",
+      "impressions": 14447,
+      "clicks": 129,
+      "spend": 240.39,
+      "enquiries": 1
+    },
+    {
+      "date": "2026-09-25",
+      "project": "monair",
+      "channel": "google_ads",
+      "impressions": 3621,
+      "clicks": 68,
+      "spend": 155.96,
+      "enquiries": 1
+    },
+    {
+      "date": "2026-09-25",
+      "project": "monair",
+      "channel": "rea",
+      "impressions": 4829,
+      "clicks": 37,
+      "spend": 99.67,
+      "enquiries": 1
+    },
+    {
+      "date": "2026-09-25",
+      "project": "monair",
+      "channel": "domain",
+      "impressions": 2103,
+      "clicks": 15,
+      "spend": 43.97,
+      "enquiries": 0
+    },
+    {
+      "date": "2026-09-26",
+      "project": "monair",
+      "channel": "meta",
+      "impressions": 17914,
+      "clicks": 147,
+      "spend": 253.75,
+      "enquiries": 2
+    },
+    {
+      "date": "2026-09-26",
+      "project": "monair",
+      "channel": "google_ads",
+      "impressions": 4491,
+      "clicks": 78,
+      "spend": 164.63,
+      "enquiries": 1
+    },
+    {
+      "date": "2026-09-26",
+      "project": "monair",
+      "channel": "rea",
+      "impressions": 5987,
+      "clicks": 42,
+      "spend": 105.21,
+      "enquiries": 1
+    },
+    {
+      "date": "2026-09-26",
+      "project": "monair",
+      "channel": "domain",
+      "impressions": 2607,
+      "clicks": 18,
+      "spend": 46.42,
+      "enquiries": 0
+    },
+    {
+      "date": "2026-09-27",
+      "project": "monair",
+      "channel": "meta",
+      "impressions": 18492,
+      "clicks": 153,
+      "spend": 258.2,
+      "enquiries": 2
+    },
+    {
+      "date": "2026-09-27",
+      "project": "monair",
+      "channel": "google_ads",
+      "impressions": 4635,
+      "clicks": 81,
+      "spend": 167.51,
+      "enquiries": 1
+    },
+    {
+      "date": "2026-09-27",
+      "project": "monair",
+      "channel": "rea",
+      "impressions": 6181,
+      "clicks": 44,
+      "spend": 107.06,
+      "enquiries": 1
+    },
+    {
+      "date": "2026-09-27",
+      "project": "monair",
+      "channel": "domain",
+      "impressions": 2692,
+      "clicks": 18,
+      "spend": 47.23,
+      "enquiries": 0
+    },
+    {
+      "date": "2026-09-28",
+      "project": "monair",
+      "channel": "meta",
+      "impressions": 20226,
+      "clicks": 160,
+      "spend": 271.55,
+      "enquiries": 2
+    },
+    {
+      "date": "2026-09-28",
+      "project": "monair",
+      "channel": "google_ads",
+      "impressions": 5070,
+      "clicks": 85,
+      "spend": 176.18,
+      "enquiries": 2
+    },
+    {
+      "date": "2026-09-28",
+      "project": "monair",
+      "channel": "rea",
+      "impressions": 6760,
+      "clicks": 46,
+      "spend": 112.59,
+      "enquiries": 1
+    },
+    {
+      "date": "2026-09-28",
+      "project": "monair",
+      "channel": "domain",
+      "impressions": 2944,
+      "clicks": 19,
+      "spend": 49.67,
+      "enquiries": 0
+    },
+    {
+      "date": "2026-09-29",
+      "project": "monair",
+      "channel": "meta",
+      "impressions": 26583,
+      "clicks": 172,
+      "spend": 293.81,
+      "enquiries": 4
+    },
+    {
+      "date": "2026-09-29",
+      "project": "monair",
+      "channel": "google_ads",
+      "impressions": 6664,
+      "clicks": 91,
+      "spend": 190.62,
+      "enquiries": 2
+    },
+    {
+      "date": "2026-09-29",
+      "project": "monair",
+      "channel": "rea",
+      "impressions": 8885,
+      "clicks": 49,
+      "spend": 121.82,
+      "enquiries": 2
+    },
+    {
+      "date": "2026-09-29",
+      "project": "monair",
+      "channel": "domain",
+      "impressions": 3869,
+      "clicks": 21,
+      "spend": 53.75,
+      "enquiries": 1
+    },
+    {
+      "date": "2026-09-30",
+      "project": "monair",
+      "channel": "meta",
+      "impressions": 31783,
+      "clicks": 190,
+      "spend": 307.17,
+      "enquiries": 4
+    },
+    {
+      "date": "2026-09-30",
+      "project": "monair",
+      "channel": "google_ads",
+      "impressions": 7967,
+      "clicks": 101,
+      "spend": 199.28,
+      "enquiries": 3
+    },
+    {
+      "date": "2026-09-30",
+      "project": "monair",
+      "channel": "rea",
+      "impressions": 10623,
+      "clicks": 54,
+      "spend": 127.36,
+      "enquiries": 2
+    },
+    {
+      "date": "2026-09-30",
+      "project": "monair",
+      "channel": "domain",
+      "impressions": 4626,
+      "clicks": 23,
+      "spend": 56.19,
+      "enquiries": 1
+    },
+    {
+      "date": "2026-10-01",
+      "project": "monair",
+      "channel": "meta",
+      "impressions": 24849,
+      "clicks": 172,
+      "spend": 289.36,
+      "enquiries": 3
+    },
+    {
+      "date": "2026-10-01",
+      "project": "monair",
+      "channel": "google_ads",
+      "impressions": 6229,
+      "clicks": 91,
+      "spend": 187.73,
+      "enquiries": 2
+    },
+    {
+      "date": "2026-10-01",
+      "project": "monair",
+      "channel": "rea",
+      "impressions": 8305,
+      "clicks": 49,
+      "spend": 119.98,
+      "enquiries": 1
+    },
+    {
+      "date": "2026-10-01",
+      "project": "monair",
+      "channel": "domain",
+      "impressions": 3617,
+      "clicks": 21,
+      "spend": 52.93,
+      "enquiries": 1
+    },
+    {
+      "date": "2026-10-02",
+      "project": "monair",
+      "channel": "meta",
+      "impressions": 19648,
+      "clicks": 147,
+      "spend": 253.75,
+      "enquiries": 2
+    },
+    {
+      "date": "2026-10-02",
+      "project": "monair",
+      "channel": "google_ads",
+      "impressions": 4925,
+      "clicks": 78,
+      "spend": 164.63,
+      "enquiries": 1
+    },
+    {
+      "date": "2026-10-02",
+      "project": "monair",
+      "channel": "rea",
+      "impressions": 6567,
+      "clicks": 42,
+      "spend": 105.21,
+      "enquiries": 1
+    },
+    {
+      "date": "2026-10-02",
+      "project": "monair",
+      "channel": "domain",
+      "impressions": 2860,
+      "clicks": 18,
+      "spend": 46.42,
+      "enquiries": 0
+    },
+    {
+      "date": "2026-10-03",
+      "project": "monair",
+      "channel": "meta",
+      "impressions": 21960,
+      "clicks": 153,
+      "spend": 258.2,
+      "enquiries": 3
+    },
+    {
+      "date": "2026-10-03",
+      "project": "monair",
+      "channel": "google_ads",
+      "impressions": 5505,
+      "clicks": 81,
+      "spend": 167.51,
+      "enquiries": 2
+    },
+    {
+      "date": "2026-10-03",
+      "project": "monair",
+      "channel": "rea",
+      "impressions": 7340,
+      "clicks": 44,
+      "spend": 107.06,
+      "enquiries": 1
+    },
+    {
+      "date": "2026-10-03",
+      "project": "monair",
+      "channel": "domain",
+      "impressions": 3196,
+      "clicks": 18,
+      "spend": 47.23,
+      "enquiries": 0
+    },
+    {
+      "date": "2026-10-04",
+      "project": "monair",
+      "channel": "meta",
+      "impressions": 26005,
+      "clicks": 166,
+      "spend": 267.1,
+      "enquiries": 4
+    },
+    {
+      "date": "2026-10-04",
+      "project": "monair",
+      "channel": "google_ads",
+      "impressions": 6519,
+      "clicks": 88,
+      "spend": 173.29,
+      "enquiries": 2
+    },
+    {
+      "date": "2026-10-04",
+      "project": "monair",
+      "channel": "rea",
+      "impressions": 8692,
+      "clicks": 47,
+      "spend": 110.75,
+      "enquiries": 2
+    },
+    {
+      "date": "2026-10-04",
+      "project": "monair",
+      "channel": "domain",
+      "impressions": 3785,
+      "clicks": 20,
+      "spend": 48.86,
+      "enquiries": 1
+    },
+    {
+      "date": "2026-10-05",
+      "project": "monair",
+      "channel": "meta",
+      "impressions": 28316,
+      "clicks": 172,
+      "spend": 276.0,
+      "enquiries": 4
+    },
+    {
+      "date": "2026-10-05",
+      "project": "monair",
+      "channel": "google_ads",
+      "impressions": 7098,
+      "clicks": 91,
+      "spend": 179.07,
+      "enquiries": 3
+    },
+    {
+      "date": "2026-10-05",
+      "project": "monair",
+      "channel": "rea",
+      "impressions": 9464,
+      "clicks": 49,
+      "spend": 114.44,
+      "enquiries": 2
+    },
+    {
+      "date": "2026-10-05",
+      "project": "monair",
+      "channel": "domain",
+      "impressions": 4121,
+      "clicks": 21,
+      "spend": 50.49,
+      "enquiries": 1
+    },
+    {
+      "date": "2026-10-06",
+      "project": "monair",
+      "channel": "meta",
+      "impressions": 32939,
+      "clicks": 184,
+      "spend": 289.36,
+      "enquiries": 5
+    },
+    {
+      "date": "2026-10-06",
+      "project": "monair",
+      "channel": "google_ads",
+      "impressions": 8257,
+      "clicks": 98,
+      "spend": 187.73,
+      "enquiries": 3
+    },
+    {
+      "date": "2026-10-06",
+      "project": "monair",
+      "channel": "rea",
+      "impressions": 11009,
+      "clicks": 52,
+      "spend": 119.98,
+      "enquiries": 2
+    },
+    {
+      "date": "2026-10-06",
+      "project": "monair",
+      "channel": "domain",
+      "impressions": 4794,
+      "clicks": 22,
+      "spend": 52.93,
+      "enquiries": 1
+    },
+    {
+      "date": "2026-10-07",
+      "project": "monair",
+      "channel": "meta",
+      "impressions": 31783,
+      "clicks": 190,
+      "spend": 298.26,
+      "enquiries": 4
+    },
+    {
+      "date": "2026-10-07",
+      "project": "monair",
+      "channel": "google_ads",
+      "impressions": 7967,
+      "clicks": 101,
+      "spend": 193.51,
+      "enquiries": 3
+    },
+    {
+      "date": "2026-10-07",
+      "project": "monair",
+      "channel": "rea",
+      "impressions": 10623,
+      "clicks": 54,
+      "spend": 123.67,
+      "enquiries": 2
+    },
+    {
+      "date": "2026-10-07",
+      "project": "monair",
+      "channel": "domain",
+      "impressions": 4626,
+      "clicks": 23,
+      "spend": 54.56,
+      "enquiries": 1
+    },
+    {
+      "date": "2026-10-08",
+      "project": "monair",
+      "channel": "meta",
+      "impressions": 26583,
+      "clicks": 172,
+      "spend": 280.46,
+      "enquiries": 4
+    },
+    {
+      "date": "2026-10-08",
+      "project": "monair",
+      "channel": "google_ads",
+      "impressions": 6664,
+      "clicks": 91,
+      "spend": 181.95,
+      "enquiries": 2
+    },
+    {
+      "date": "2026-10-08",
+      "project": "monair",
+      "channel": "rea",
+      "impressions": 8885,
+      "clicks": 49,
+      "spend": 116.29,
+      "enquiries": 1
+    },
+    {
+      "date": "2026-10-08",
+      "project": "monair",
+      "channel": "domain",
+      "impressions": 3869,
+      "clicks": 21,
+      "spend": 51.3,
+      "enquiries": 1
+    },
+    {
+      "date": "2026-10-09",
+      "project": "monair",
+      "channel": "meta",
+      "impressions": 19648,
+      "clicks": 147,
+      "spend": 253.74,
+      "enquiries": 2
+    },
+    {
+      "date": "2026-10-09",
+      "project": "monair",
+      "channel": "google_ads",
+      "impressions": 4925,
+      "clicks": 78,
+      "spend": 164.63,
+      "enquiries": 1
+    },
+    {
+      "date": "2026-10-09",
+      "project": "monair",
+      "channel": "rea",
+      "impressions": 6567,
+      "clicks": 42,
+      "spend": 105.21,
+      "enquiries": 1
+    },
+    {
+      "date": "2026-10-09",
+      "project": "monair",
+      "channel": "domain",
+      "impressions": 2860,
+      "clicks": 18,
+      "spend": 46.42,
+      "enquiries": 0
+    },
+    {
+      "date": "2026-10-10",
+      "project": "monair",
+      "channel": "meta",
+      "impressions": 17336,
+      "clicks": 141,
+      "spend": 244.84,
+      "enquiries": 2
+    },
+    {
+      "date": "2026-10-10",
+      "project": "monair",
+      "channel": "google_ads",
+      "impressions": 4346,
+      "clicks": 75,
+      "spend": 158.85,
+      "enquiries": 1
+    },
+    {
+      "date": "2026-10-10",
+      "project": "monair",
+      "channel": "rea",
+      "impressions": 5794,
+      "clicks": 40,
+      "spend": 101.52,
+      "enquiries": 1
+    },
+    {
+      "date": "2026-10-10",
+      "project": "monair",
+      "channel": "domain",
+      "impressions": 2523,
+      "clicks": 17,
+      "spend": 44.79,
+      "enquiries": 0
+    },
+    {
+      "date": "2026-10-11",
+      "project": "monair",
+      "channel": "meta",
+      "impressions": 24271,
+      "clicks": 160,
+      "spend": 262.65,
+      "enquiries": 3
+    },
+    {
+      "date": "2026-10-11",
+      "project": "monair",
+      "channel": "google_ads",
+      "impressions": 6084,
+      "clicks": 85,
+      "spend": 170.4,
+      "enquiries": 2
+    },
+    {
+      "date": "2026-10-11",
+      "project": "monair",
+      "channel": "rea",
+      "impressions": 8112,
+      "clicks": 46,
+      "spend": 108.9,
+      "enquiries": 1
+    },
+    {
+      "date": "2026-10-11",
+      "project": "monair",
+      "channel": "domain",
+      "impressions": 3533,
+      "clicks": 19,
+      "spend": 48.05,
+      "enquiries": 1
+    },
+    {
+      "date": "2026-10-12",
+      "project": "monair",
+      "channel": "meta",
+      "impressions": 28894,
+      "clicks": 178,
+      "spend": 280.46,
+      "enquiries": 4
+    },
+    {
+      "date": "2026-10-12",
+      "project": "monair",
+      "channel": "google_ads",
+      "impressions": 7243,
+      "clicks": 94,
+      "spend": 181.95,
+      "enquiries": 3
+    },
+    {
+      "date": "2026-10-12",
+      "project": "monair",
+      "channel": "rea",
+      "impressions": 9657,
+      "clicks": 51,
+      "spend": 116.29,
+      "enquiries": 2
+    },
+    {
+      "date": "2026-10-12",
+      "project": "monair",
+      "channel": "domain",
+      "impressions": 4206,
+      "clicks": 21,
+      "spend": 51.3,
+      "enquiries": 1
+    },
+    {
+      "date": "2026-10-13",
+      "project": "monair",
+      "channel": "meta",
+      "impressions": 26583,
+      "clicks": 171,
+      "spend": 276.0,
+      "enquiries": 4
+    },
+    {
+      "date": "2026-10-13",
+      "project": "monair",
+      "channel": "google_ads",
+      "impressions": 6664,
+      "clicks": 91,
+      "spend": 179.07,
+      "enquiries": 2
+    },
+    {
+      "date": "2026-10-13",
+      "project": "monair",
+      "channel": "rea",
+      "impressions": 8885,
+      "clicks": 49,
+      "spend": 114.44,
+      "enquiries": 1
+    },
+    {
+      "date": "2026-10-13",
+      "project": "monair",
+      "channel": "domain",
+      "impressions": 3869,
+      "clicks": 21,
+      "spend": 50.49,
+      "enquiries": 1
+    },
+    {
+      "date": "2026-10-14",
+      "project": "monair",
+      "channel": "meta",
+      "impressions": 21959,
+      "clicks": 153,
+      "spend": 258.2,
+      "enquiries": 3
+    },
+    {
+      "date": "2026-10-14",
+      "project": "monair",
+      "channel": "google_ads",
+      "impressions": 5505,
+      "clicks": 81,
+      "spend": 167.51,
+      "enquiries": 2
+    },
+    {
+      "date": "2026-10-14",
+      "project": "monair",
+      "channel": "rea",
+      "impressions": 7340,
+      "clicks": 44,
+      "spend": 107.06,
+      "enquiries": 1
+    },
+    {
+      "date": "2026-10-14",
+      "project": "monair",
+      "channel": "domain",
+      "impressions": 3196,
+      "clicks": 18,
+      "spend": 47.23,
+      "enquiries": 0
+    },
+    {
+      "date": "2026-10-15",
+      "project": "monair",
+      "channel": "meta",
+      "impressions": 24271,
+      "clicks": 166,
+      "spend": 267.1,
+      "enquiries": 3
+    },
+    {
+      "date": "2026-10-15",
+      "project": "monair",
+      "channel": "google_ads",
+      "impressions": 6084,
+      "clicks": 88,
+      "spend": 173.29,
+      "enquiries": 2
+    },
+    {
+      "date": "2026-10-15",
+      "project": "monair",
+      "channel": "rea",
+      "impressions": 8112,
+      "clicks": 47,
+      "spend": 110.75,
+      "enquiries": 1
+    },
+    {
+      "date": "2026-10-15",
+      "project": "monair",
+      "channel": "domain",
+      "impressions": 3533,
+      "clicks": 20,
+      "spend": 48.86,
+      "enquiries": 0
+    },
+    {
+      "date": "2026-10-16",
+      "project": "monair",
+      "channel": "meta",
+      "impressions": 31206,
+      "clicks": 184,
+      "spend": 289.36,
+      "enquiries": 4
+    },
+    {
+      "date": "2026-10-16",
+      "project": "monair",
+      "channel": "google_ads",
+      "impressions": 7822,
+      "clicks": 97,
+      "spend": 187.73,
+      "enquiries": 3
+    },
+    {
+      "date": "2026-10-16",
+      "project": "monair",
+      "channel": "rea",
+      "impressions": 10430,
+      "clicks": 52,
+      "spend": 119.98,
+      "enquiries": 2
+    },
+    {
+      "date": "2026-10-16",
+      "project": "monair",
+      "channel": "domain",
+      "impressions": 4542,
+      "clicks": 22,
+      "spend": 52.93,
+      "enquiries": 1
+    },
+    {
+      "date": "2026-10-17",
+      "project": "monair",
+      "channel": "meta",
+      "impressions": 34095,
+      "clicks": 196,
+      "spend": 302.71,
+      "enquiries": 5
+    },
+    {
+      "date": "2026-10-17",
+      "project": "monair",
+      "channel": "google_ads",
+      "impressions": 8547,
+      "clicks": 104,
+      "spend": 196.4,
+      "enquiries": 3
+    },
+    {
+      "date": "2026-10-17",
+      "project": "monair",
+      "channel": "rea",
+      "impressions": 11396,
+      "clicks": 56,
+      "spend": 125.52,
+      "enquiries": 2
+    },
+    {
+      "date": "2026-10-17",
+      "project": "monair",
+      "channel": "domain",
+      "impressions": 4963,
+      "clicks": 24,
+      "spend": 55.38,
+      "enquiries": 1
+    },
+    {
+      "date": "2026-10-18",
+      "project": "monair",
+      "channel": "meta",
+      "impressions": 28894,
+      "clicks": 178,
+      "spend": 284.91,
+      "enquiries": 4
+    },
+    {
+      "date": "2026-10-18",
+      "project": "monair",
+      "channel": "google_ads",
+      "impressions": 7243,
+      "clicks": 94,
+      "spend": 184.84,
+      "enquiries": 3
+    },
+    {
+      "date": "2026-10-18",
+      "project": "monair",
+      "channel": "rea",
+      "impressions": 9657,
+      "clicks": 51,
+      "spend": 118.13,
+      "enquiries": 2
+    },
+    {
+      "date": "2026-10-18",
+      "project": "monair",
+      "channel": "domain",
+      "impressions": 4206,
+      "clicks": 21,
+      "spend": 52.12,
+      "enquiries": 1
+    },
+    {
+      "date": "2026-10-19",
+      "project": "monair",
+      "channel": "meta",
+      "impressions": 21959,
+      "clicks": 160,
+      "spend": 262.65,
+      "enquiries": 3
+    },
+    {
+      "date": "2026-10-19",
+      "project": "monair",
+      "channel": "google_ads",
+      "impressions": 5505,
+      "clicks": 85,
+      "spend": 170.4,
+      "enquiries": 2
+    },
+    {
+      "date": "2026-10-19",
+      "project": "monair",
+      "channel": "rea",
+      "impressions": 7340,
+      "clicks": 45,
+      "spend": 108.9,
+      "enquiries": 1
+    },
+    {
+      "date": "2026-10-19",
+      "project": "monair",
+      "channel": "domain",
+      "impressions": 3196,
+      "clicks": 19,
+      "spend": 48.05,
+      "enquiries": 0
+    },
+    {
+      "date": "2026-10-20",
+      "project": "monair",
+      "channel": "meta",
+      "impressions": 19648,
+      "clicks": 147,
+      "spend": 249.29,
+      "enquiries": 2
+    },
+    {
+      "date": "2026-10-20",
+      "project": "monair",
+      "channel": "google_ads",
+      "impressions": 4925,
+      "clicks": 78,
+      "spend": 161.74,
+      "enquiries": 1
+    },
+    {
+      "date": "2026-10-20",
+      "project": "monair",
+      "channel": "rea",
+      "impressions": 6567,
+      "clicks": 42,
+      "spend": 103.37,
+      "enquiries": 1
+    },
+    {
+      "date": "2026-10-20",
+      "project": "monair",
+      "channel": "domain",
+      "impressions": 2860,
+      "clicks": 18,
+      "spend": 45.6,
+      "enquiries": 0
+    },
+    {
+      "date": "2026-10-21",
+      "project": "monair",
+      "channel": "meta",
+      "impressions": 24849,
+      "clicks": 171,
+      "spend": 271.55,
+      "enquiries": 3
+    },
+    {
+      "date": "2026-10-21",
+      "project": "monair",
+      "channel": "google_ads",
+      "impressions": 6229,
+      "clicks": 91,
+      "spend": 176.18,
+      "enquiries": 2
+    },
+    {
+      "date": "2026-10-21",
+      "project": "monair",
+      "channel": "rea",
+      "impressions": 8305,
+      "clicks": 49,
+      "spend": 112.59,
+      "enquiries": 1
+    },
+    {
+      "date": "2026-10-21",
+      "project": "monair",
+      "channel": "domain",
+      "impressions": 3617,
+      "clicks": 21,
+      "spend": 49.67,
+      "enquiries": 0
+    },
+    {
+      "date": "2026-10-22",
+      "project": "monair",
+      "channel": "meta",
+      "impressions": 29472,
+      "clicks": 184,
+      "spend": 289.36,
+      "enquiries": 4
+    },
+    {
+      "date": "2026-10-22",
+      "project": "monair",
+      "channel": "google_ads",
+      "impressions": 7388,
+      "clicks": 97,
+      "spend": 187.73,
+      "enquiries": 3
+    },
+    {
+      "date": "2026-10-22",
+      "project": "monair",
+      "channel": "rea",
+      "impressions": 9850,
+      "clicks": 52,
+      "spend": 119.98,
+      "enquiries": 2
+    },
+    {
+      "date": "2026-10-22",
+      "project": "monair",
+      "channel": "domain",
+      "impressions": 4290,
+      "clicks": 22,
+      "spend": 52.93,
+      "enquiries": 1
+    },
+    {
+      "date": "2026-10-23",
+      "project": "monair",
+      "channel": "meta",
+      "impressions": 26583,
+      "clicks": 171,
+      "spend": 280.46,
+      "enquiries": 4
+    },
+    {
+      "date": "2026-10-23",
+      "project": "monair",
+      "channel": "google_ads",
+      "impressions": 6663,
+      "clicks": 91,
+      "spend": 181.95,
+      "enquiries": 2
+    },
+    {
+      "date": "2026-10-23",
+      "project": "monair",
+      "channel": "rea",
+      "impressions": 8885,
+      "clicks": 49,
+      "spend": 116.29,
+      "enquiries": 1
+    },
+    {
+      "date": "2026-10-23",
+      "project": "monair",
+      "channel": "domain",
+      "impressions": 3869,
+      "clicks": 21,
+      "spend": 51.3,
+      "enquiries": 1
+    },
+    {
+      "date": "2026-10-24",
+      "project": "monair",
+      "channel": "meta",
+      "impressions": 20804,
+      "clicks": 166,
+      "spend": 289.36,
+      "enquiries": 2
+    },
+    {
+      "date": "2026-10-24",
+      "project": "monair",
+      "channel": "google_ads",
+      "impressions": 5215,
+      "clicks": 88,
+      "spend": 187.73,
+      "enquiries": 1
+    },
+    {
+      "date": "2026-10-24",
+      "project": "monair",
+      "channel": "rea",
+      "impressions": 6953,
+      "clicks": 47,
+      "spend": 119.98,
+      "enquiries": 1
+    },
+    {
+      "date": "2026-10-24",
+      "project": "monair",
+      "channel": "domain",
+      "impressions": 3028,
+      "clicks": 20,
+      "spend": 52.93,
+      "enquiries": 0
+    }
+  ],
+  "site_daily": [
+    {
+      "date": "2026-09-25",
+      "project": "monair",
+      "sessions": 210,
+      "appointments": 1
+    },
+    {
+      "date": "2026-09-26",
+      "project": "monair",
+      "sessions": 240,
+      "appointments": 1
+    },
+    {
+      "date": "2026-09-27",
+      "project": "monair",
+      "sessions": 250,
+      "appointments": 1
+    },
+    {
+      "date": "2026-09-28",
+      "project": "monair",
+      "sessions": 260,
+      "appointments": 1
+    },
+    {
+      "date": "2026-09-29",
+      "project": "monair",
+      "sessions": 280,
+      "appointments": 1
+    },
+    {
+      "date": "2026-09-30",
+      "project": "monair",
+      "sessions": 310,
+      "appointments": 2
+    },
+    {
+      "date": "2026-10-01",
+      "project": "monair",
+      "sessions": 280,
+      "appointments": 1
+    },
+    {
+      "date": "2026-10-02",
+      "project": "monair",
+      "sessions": 240,
+      "appointments": 1
+    },
+    {
+      "date": "2026-10-03",
+      "project": "monair",
+      "sessions": 250,
+      "appointments": 1
+    },
+    {
+      "date": "2026-10-04",
+      "project": "monair",
+      "sessions": 270,
+      "appointments": 1
+    },
+    {
+      "date": "2026-10-05",
+      "project": "monair",
+      "sessions": 280,
+      "appointments": 2
+    },
+    {
+      "date": "2026-10-06",
+      "project": "monair",
+      "sessions": 300,
+      "appointments": 2
+    },
+    {
+      "date": "2026-10-07",
+      "project": "monair",
+      "sessions": 310,
+      "appointments": 2
+    },
+    {
+      "date": "2026-10-08",
+      "project": "monair",
+      "sessions": 280,
+      "appointments": 1
+    },
+    {
+      "date": "2026-10-09",
+      "project": "monair",
+      "sessions": 240,
+      "appointments": 1
+    },
+    {
+      "date": "2026-10-10",
+      "project": "monair",
+      "sessions": 230,
+      "appointments": 1
+    },
+    {
+      "date": "2026-10-11",
+      "project": "monair",
+      "sessions": 260,
+      "appointments": 1
+    },
+    {
+      "date": "2026-10-12",
+      "project": "monair",
+      "sessions": 290,
+      "appointments": 2
+    },
+    {
+      "date": "2026-10-13",
+      "project": "monair",
+      "sessions": 280,
+      "appointments": 1
+    },
+    {
+      "date": "2026-10-14",
+      "project": "monair",
+      "sessions": 250,
+      "appointments": 1
+    },
+    {
+      "date": "2026-10-15",
+      "project": "monair",
+      "sessions": 270,
+      "appointments": 1
+    },
+    {
+      "date": "2026-10-16",
+      "project": "monair",
+      "sessions": 300,
+      "appointments": 2
+    },
+    {
+      "date": "2026-10-17",
+      "project": "monair",
+      "sessions": 320,
+      "appointments": 2
+    },
+    {
+      "date": "2026-10-18",
+      "project": "monair",
+      "sessions": 290,
+      "appointments": 2
+    },
+    {
+      "date": "2026-10-19",
+      "project": "monair",
+      "sessions": 260,
+      "appointments": 1
+    },
+    {
+      "date": "2026-10-20",
+      "project": "monair",
+      "sessions": 240,
+      "appointments": 1
+    },
+    {
+      "date": "2026-10-21",
+      "project": "monair",
+      "sessions": 280,
+      "appointments": 1
+    },
+    {
+      "date": "2026-10-22",
+      "project": "monair",
+      "sessions": 300,
+      "appointments": 2
+    },
+    {
+      "date": "2026-10-23",
+      "project": "monair",
+      "sessions": 280,
+      "appointments": 1
+    },
+    {
+      "date": "2026-10-24",
+      "project": "monair",
+      "sessions": 270,
+      "appointments": 0
+    }
+  ],
+  "line_items": [
+    {
+      "project": "monair",
+      "label": "Greenwich 8km radius, 55+",
+      "sublabel": "Video and carousel",
+      "channel": "meta",
+      "objective": "Enquiry",
+      "spend": 4600.0,
+      "clicks": 2810,
+      "enquiries": 54
+    },
+    {
+      "project": "monair",
+      "label": "Downsizer lookalike, Lower North Shore",
+      "sublabel": "",
+      "channel": "meta",
+      "objective": "Enquiry",
+      "spend": 2340.0,
+      "clicks": 1490,
+      "enquiries": 29
+    },
+    {
+      "project": "monair",
+      "label": "Site retargeting, form abandoners",
+      "sublabel": "",
+      "channel": "meta",
+      "objective": "Enquiry",
+      "spend": 1260.0,
+      "clicks": 680,
+      "enquiries": 13
+    },
+    {
+      "project": "monair",
+      "label": "Search, over 55s apartments Sydney",
+      "sublabel": "",
+      "channel": "google_ads",
+      "objective": "Enquiry",
+      "spend": 3180.0,
+      "clicks": 1540,
+      "enquiries": 36
+    },
+    {
+      "project": "monair",
+      "label": "Search, brand and project name",
+      "sublabel": "",
+      "channel": "google_ads",
+      "objective": "Capture",
+      "spend": 980.0,
+      "clicks": 620,
+      "enquiries": 17
+    },
+    {
+      "project": "monair",
+      "label": "Performance Max, Greenwich",
+      "sublabel": "",
+      "channel": "google_ads",
+      "objective": "Enquiry",
+      "spend": 1160.0,
+      "clicks": 480,
+      "enquiries": 8
+    },
+    {
+      "project": "monair",
+      "label": "Project profile, Highlight package",
+      "sublabel": "",
+      "channel": "rea",
+      "objective": "Enquiry",
+      "spend": 3400.0,
+      "clicks": 1420,
+      "enquiries": 41
+    },
+    {
+      "project": "monair",
+      "label": "Project listing",
+      "sublabel": "",
+      "channel": "domain",
+      "objective": "Enquiry",
+      "spend": 1500.0,
+      "clicks": 600,
+      "enquiries": 16
+    }
+  ],
+  "enquiries": {
+    "by_configuration": [
+      {
+        "label": "1 bedroom",
+        "enquiries": 24
+      },
+      {
+        "label": "2 bedroom",
+        "enquiries": 96
+      },
+      {
+        "label": "3 bedroom",
+        "enquiries": 94
+      }
+    ],
+    "by_suburb": [
+      {
+        "suburb": "Greenwich",
+        "enquiries": 34,
+        "appointments": 9,
+        "most_requested": "3 bedroom"
+      },
+      {
+        "suburb": "Lane Cove",
+        "enquiries": 29,
+        "appointments": 7,
+        "most_requested": "2 bedroom"
+      },
+      {
+        "suburb": "Northwood and Longueville",
+        "enquiries": 26,
+        "appointments": 6,
+        "most_requested": "3 bedroom"
+      },
+      {
+        "suburb": "Hunters Hill",
+        "enquiries": 22,
+        "appointments": 4,
+        "most_requested": "3 bedroom"
+      },
+      {
+        "suburb": "Crows Nest and Wollstonecraft",
+        "enquiries": 21,
+        "appointments": 4,
+        "most_requested": "2 bedroom"
+      },
+      {
+        "suburb": "Other Lower North Shore",
+        "enquiries": 48,
+        "appointments": 6,
+        "most_requested": "2 bedroom"
+      },
+      {
+        "suburb": "Outside catchment",
+        "enquiries": 34,
+        "appointments": 2,
+        "most_requested": "1 bedroom"
+      }
+    ],
+    "funnel": [
+      {
+        "label": "Sessions",
+        "count": 8120
+      },
+      {
+        "label": "Viewed the form",
+        "count": 2440
+      },
+      {
+        "label": "Started the form",
+        "count": 604
+      },
+      {
+        "label": "Submitted",
+        "count": 214
+      }
+    ],
+    "supply_mix_known": false
+  },
+  "selldown": {
+    "total": 48,
+    "released": 24,
+    "units": [
+      {
+        "index": 1,
+        "status": "exchanged"
+      },
+      {
+        "index": 2,
+        "status": "exchanged"
+      },
+      {
+        "index": 3,
+        "status": "reserved"
+      },
+      {
+        "index": 4,
+        "status": "reserved"
+      },
+      {
+        "index": 5,
+        "status": "reserved"
+      },
+      {
+        "index": 6,
+        "status": "eoi"
+      },
+      {
+        "index": 7,
+        "status": "eoi"
+      },
+      {
+        "index": 8,
+        "status": "eoi"
+      },
+      {
+        "index": 9,
+        "status": "eoi"
+      },
+      {
+        "index": 10,
+        "status": "eoi"
+      },
+      {
+        "index": 11,
+        "status": "eoi"
+      },
+      {
+        "index": 12,
+        "status": "available"
+      },
+      {
+        "index": 13,
+        "status": "available"
+      },
+      {
+        "index": 14,
+        "status": "available"
+      },
+      {
+        "index": 15,
+        "status": "available"
+      },
+      {
+        "index": 16,
+        "status": "available"
+      },
+      {
+        "index": 17,
+        "status": "available"
+      },
+      {
+        "index": 18,
+        "status": "available"
+      },
+      {
+        "index": 19,
+        "status": "available"
+      },
+      {
+        "index": 20,
+        "status": "available"
+      },
+      {
+        "index": 21,
+        "status": "available"
+      },
+      {
+        "index": 22,
+        "status": "available"
+      },
+      {
+        "index": 23,
+        "status": "available"
+      },
+      {
+        "index": 24,
+        "status": "available"
+      },
+      {
+        "index": 25,
+        "status": "unreleased"
+      },
+      {
+        "index": 26,
+        "status": "unreleased"
+      },
+      {
+        "index": 27,
+        "status": "unreleased"
+      },
+      {
+        "index": 28,
+        "status": "unreleased"
+      },
+      {
+        "index": 29,
+        "status": "unreleased"
+      },
+      {
+        "index": 30,
+        "status": "unreleased"
+      },
+      {
+        "index": 31,
+        "status": "unreleased"
+      },
+      {
+        "index": 32,
+        "status": "unreleased"
+      },
+      {
+        "index": 33,
+        "status": "unreleased"
+      },
+      {
+        "index": 34,
+        "status": "unreleased"
+      },
+      {
+        "index": 35,
+        "status": "unreleased"
+      },
+      {
+        "index": 36,
+        "status": "unreleased"
+      },
+      {
+        "index": 37,
+        "status": "unreleased"
+      },
+      {
+        "index": 38,
+        "status": "unreleased"
+      },
+      {
+        "index": 39,
+        "status": "unreleased"
+      },
+      {
+        "index": 40,
+        "status": "unreleased"
+      },
+      {
+        "index": 41,
+        "status": "unreleased"
+      },
+      {
+        "index": 42,
+        "status": "unreleased"
+      },
+      {
+        "index": 43,
+        "status": "unreleased"
+      },
+      {
+        "index": 44,
+        "status": "unreleased"
+      },
+      {
+        "index": 45,
+        "status": "unreleased"
+      },
+      {
+        "index": 46,
+        "status": "unreleased"
+      },
+      {
+        "index": 47,
+        "status": "unreleased"
+      },
+      {
+        "index": 48,
+        "status": "unreleased"
+      }
+    ]
+  }
+}

@@ -42,8 +42,16 @@ def _check_with_node(body):
         script_err = (r.stderr or "").strip()
         # A module-only construct (top-level await, import/export) is valid in a
         # <script type="module">, so retry under module grammar before failing.
+        # encoding="utf-8" is REQUIRED, not tidiness. `text=True` alone encodes stdin with the
+        # locale default, which on Windows is cp1252 - so any non-ASCII character in a dashboard's
+        # JS (a middot separator, an arrow) made this line raise UnicodeEncodeError instead of
+        # reporting the syntax error it was called to find. Two ways that bit: it MASKS the real
+        # error (the traceback replaces Node's message, so a genuine mistake looks like a tooling
+        # problem), and because every deploy_dash_<c>.ps1 treats a non-zero exit as fatal, it
+        # BLOCKS the deploy of any such dashboard - client_geocon, which carries a literal arrow,
+        # could not pass its own gate. Node reads UTF-8 regardless of the OS locale.
         r2 = subprocess.run([_NODE, "--input-type=module", "--check", "-"],
-                            input=body, capture_output=True, text=True)
+                            input=body, capture_output=True, text=True, encoding="utf-8")
         if r2.returncode == 0:
             return None
         return _tidy(script_err, path)
