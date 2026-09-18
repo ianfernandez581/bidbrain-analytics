@@ -594,6 +594,76 @@ date - so nothing available to us adjudicates. Also open and NOT resolvable: whe
 demographic profile reflects targeting or off-platform audience characteristics, since the API will
 not cross `placement_name` with the `member_*` pivots.
 
+## Media-plan pacing: WIRED AND DORMANT (2026-09-18)
+
+The whole chain exists and carries real targets. **The dashboard shows nothing**, because the global
+switch is off. This is the `client_hireright` pattern - pacing wired end to end with `has_targets`
+false so the UI hides the section rather than drawing 0/0 cards - and it is deliberate, not
+half-finished work.
+
+    targets/media_plan.csv  ->  load_media_plan.py  ->  seed_media_plan
+                            ->  job/main.py  ->  campaigns[].plan + campaigns[].has_targets
+                            ->  (dashboard render: NOT BUILT YET)
+
+**Why it is dark.** The impression targets are OURS, not the client's. They are the client's own
+cost and CPM figures divided correctly - 10x above what their sheet prints, because column I used
+`cost/CPM*100` where the stated formula is `*1000`. Publishing pacing against 859,999 while the plan
+document in their inbox says 85,999 would put the dashboard in conflict with the client's own
+paperwork, on the very brief that error was found in. **Flip it when the client reissues the sheet or
+confirms the corrected figures in writing** - that is one word in `job/main.py` plus a forced run.
+
+**Verified on load (the seed loader prints this every run):**
+
+| | |
+|---|---|
+| committed budget | **A$52,150** - ties EXACTLY to the plan's own stated Overall Budget |
+| measurable budget | **A$29,150** |
+| excluded | Direct IT A$23,000 |
+| impression target | **859,999** (610,000 + 93,333 + 73,333 + 83,333) |
+| flight | 2026-07-01 -> **2026-11-30** |
+
+That committed figure tying to the client's stated total is the strongest single check that cost and
+CPM are the trustworthy inputs and impressions are the derived output.
+
+**TARGETS ARE PER BRIEF, and that is the point.** Only ind_edge has a plan. `campaigns[].plan` is
+None and `campaigns[].has_targets` false for ent_it (1958) and software_first (2305), so the
+dashboard must hide pacing for those rather than draw a zero target - the `client_schneider` lesson
+where a lead-gen-shaped card printed "0 / 0 leads" at 0% over an awareness play. **The render must
+require BOTH the global `has_targets` AND the brief's own.** And decide what a MIXED selection does
+before building it: ind_edge + ent_it selected together is one brief with targets and one without, so
+render for the brief that has them and say so - never sum, never hide.
+
+**TWO BUDGETS, and the UI must NAME which one the bar is drawn against.** `committed_budget` is every
+line the client signed; `measurable_budget` is only the lines that can report delivery.
+`pace_basis: "measurable"` says which was used and `excluded[]` names what was left out with a
+reason, so a reader is never left guessing which of two figures the bar refers to.
+
+**Direct IT is A$23,000 of A$52,150 - 44% - and reaches no ad server.** An offline lead vendor
+(40 HQLs @ A$575 CPL) with no media delivery in any warehouse. Pacing on the committed figure would
+publish a permanent 44% shortfall no delivery could ever close (the repo-wide "pace against the
+budget that can actually spend" rule). It is carried with `measurable=0` rather than deleted, because
+the committed total is what the client recognises and dropping the row would make our budget disagree
+with their plan. **`measurable` is a CSV column, not code**, so a new non-reporting line needs no
+deploy.
+
+**REACH, CLICKS AND CTR ARE DELIBERATELY NOT SEEDED.** The sheet derives them from the impression
+column, so they inherited the same 10x error and no corrected values have been confirmed. A missing
+target hides its card; a wrong one paces against a number nobody agreed to. Add them only when the
+client states them.
+
+**`seed_media_plan` is NOT in `GATING_TABLES`** - the freshness gate deliberately does not watch seed
+tables, so a plan edit needs `FORCE_REBUILD=1`. And the seed read carries **no tolerant
+try/except**: a swallowed exception around one stage of the 3-stage name-matched contract turns a
+rename into silence (`client_geocon` published `0 CRM leads` against a view holding 9,779 exactly
+that way). If the table goes missing this job should fail loudly.
+
+**Deploy order when you light it up:** `load_media_plan.py` FIRST, then the job, then the dash.
+
+**Still to build:** `paceBar()` / `renderPacing()` ported from `client_schneiderlqai`, and
+`dash/report.py`'s guardrail re-templated - it currently forbids ALL target and pacing language on
+the basis that no plan exists, which stops being true for ind_edge the moment the switch flips. That
+guardrail must go per-brief too, or the deck will narrate targets for the two briefs that have none.
+
 ## Monitoring
 In the status pipeline's `CLIENTS` roster (`status_dashboard/job/main.py`) since 2026-08-17, with
 **4 accuracy checks** — LinkedIn and Trade Desk impressions + clicks, each comparing the dashboard
@@ -676,9 +746,12 @@ a failed run instead of a dashboard that reads "campaign stopped".
   the CORRECTED figures: Awareness/Programmatic **610,000** imps @ A$9,150 (CPM A$15) ·
   Awareness/LinkedIn **93,333** @ A$7,000 (CPM A$75) · Consideration/LinkedIn **73,333** @
   A$5,500 · Conversion/LinkedIn lead-gen **83,333** @ A$7,500 - so **859,999 planned
-  impressions**, not 85,999. Seeding the sheet as printed would publish Industrial Edge at **337% of
-  target** when it is really at **34%**: that 10x is the whole difference between a campaign that
-  looks finished and one a third of the way through. **The flight END is 2026-11-30** (client,
+  impressions**, not 85,999. Seeding the sheet as printed would report Industrial Edge **10x better
+  than it is running** - the whole difference between a campaign that looks finished and one about a
+  third of the way through. **Quote the RATIO, not a percentage**: at 2026-09-18 its 304,087
+  delivered impressions read as **354%** of the printed target and **35%** of the corrected one, and
+  both of those move every day while the 10x does not. (An earlier draft of this README froze
+  "337% vs 34%" from a 290,416-impression snapshot; it was stale within days.) **The flight END is 2026-11-30** (client,
   2026-09-18) - the sheet contradicts itself, row 6 reading 31-Oct while rows 14-17 read
   1 July - 30 Nov, and the client confirmed the line items. ·
   plus a **Direct IT** line (40 HQLs @ A$575 CPL, A$23,000) that is an **offline lead vendor with no
