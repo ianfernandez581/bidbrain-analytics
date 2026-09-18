@@ -142,9 +142,13 @@ def main():
         imps = sum(r["imps"] or 0 for r in unclassified)
         print(f"WARNING: {len(unclassified)} delivery rows parsed to phase 'Unclassified' "
               f"({imps:,} imps) - a campaign/ad-group naming change? Check the phase CASE in "
-              f"sql/01_stg_linkedin.sql, sql/02_stg_tradedesk.sql and sql/05_stg_google_search.sql.")
-    channels = [{"key": k, "label": CHAN_LABEL.get(k, k)}
-                for k in ["linkedin", "tradedesk"] if k in live_platforms]
+              f"sql/01_stg_linkedin.sql, sql/02_stg_tradedesk.sql, sql/02b_stg_reddit.sql and "
+              f"sql/05_stg_google_search.sql.")
+    # Derived from CHAN_LABEL (insertion-ordered = display order), NEVER a second hardcoded list.
+    # This was literally `["linkedin", "tradedesk"]`, so when Reddit landed it delivered 444,569
+    # impressions into `delivery` and still had no chip - the data was right and invisible. Adding
+    # a channel is now ONE edit (the label map above), which is the only way two lists cannot drift.
+    channels = [{"key": k, "label": lbl} for k, lbl in CHAN_LABEL.items() if k in live_platforms]
 
     # --- Data window (for the date picker) ------------------------------------
     dates = [r["metric_date"] for r in delivery if r["metric_date"]]
@@ -170,7 +174,11 @@ def main():
     } for p in plan]
 
     plan_channels = []
-    for k in ["linkedin", "tradedesk"]:
+    # Same rule as the chip roster: iterate CHAN_LABEL, not a second copy of the channel list. The
+    # `live` filter below still decides what gets a target, so this is a no-op for a channel whose
+    # plan line is not live yet (Reddit today) - but it means flipping that seed flag is all it
+    # takes, instead of flipping it and then wondering why no pace bar appeared.
+    for k in CHAN_LABEL:
         live = [p for p in plan_lines if p["channel_key"] == k and p["live"]]
         if not live:
             continue
