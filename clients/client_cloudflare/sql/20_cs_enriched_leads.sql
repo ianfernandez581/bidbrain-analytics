@@ -161,7 +161,10 @@ both AS (SELECT * FROM apj UNION ALL SELECT * FROM emea),
 -- lead. The job WARNs when the fill contributes zero, because that is what a stalled Integrate
 -- mirror looks like from here - the rate would quietly fall back with nothing on screen saying so.
 filled AS (
-  SELECT b.*, COALESCE(i.HAS_ENRICHED, FALSE) AS INTEGRATE_ENRICHED
+  SELECT b.*, COALESCE(i.HAS_ENRICHED, FALSE) AS INTEGRATE_ENRICHED,
+         -- Integrate's landing-page URL names the OFFER. Carried here (not re-joined later) so
+         -- the fill and the offer split read ONE join. See the OFFER_TYPE note below.
+         i.OFFER_FROM_URL
   FROM both b
   LEFT JOIN `bidbrain-analytics.client_cloudflare.integrate_bridge` i
     ON  i.LEAD_KEY = b.LEAD_KEY
@@ -185,7 +188,34 @@ SELECT
   THEATRE,
   MARKET,
   PUBLISHER,
-  OFFER_TYPE,
+  -- VRSM'S OFFER, RESOLVED FROM INTEGRATE (2026-09-18, Jade: "yeah please add it there").
+  -- VRSM runs survey leads and Lead Magnet leads through ONE campaign and nothing in the
+  -- Salesforce feed separates them, so its leads carried 'Lead Magnet', fell outside the
+  -- available population, and the tab reported 413 available with VRSM appearing NOWHERE on it.
+  -- Integrate's URL folder names the offer ('-Pulse-Survey' / '-Qualification-Que'): it agrees
+  -- with the survey ANSWERS on the same record 99% of the time (Pulse 79/79, QQ 73/74), and the
+  -- 471 VRSM rows carrying neither marker carry no answers either (4 of 471), so those are
+  -- genuinely Lead Magnet rather than a marker that failed to write.
+  --
+  -- CONFINED TO VRSM ON PURPOSE. Every other campaign sells ONE offer, so its id already names
+  -- the offer and sql/10's value is authoritative; applying this everywhere would re-derive
+  -- offers that are already correct and silently move figures the client has signed off.
+  -- COALESCE, never replacement: a VRSM lead the bridge cannot resolve keeps 'Lead Magnet' and
+  -- stays OUT of the available population. That is the conservative direction - an unresolved
+  -- lead understates the rate rather than flattering it.
+  --
+  -- THIS IS NOW THE ONLY DEFINITION. sql/23 carried its own copy of this override and now reads
+  -- the resolved value from here, so the headline and the by-publisher panel underneath it
+  -- cannot disagree about which leads are available. Headline 413/345 (83.5%) -> 543/451
+  -- (83.1%), which ties EXACTLY to that panel; the rate falls 0.4pt because VRSM enriches
+  -- slightly below the other two publishers, not because anything broke.
+  IF(CAMPAIGN_ID = '701RG00001W1FQRYA3',
+     COALESCE(OFFER_FROM_URL, OFFER_TYPE), OFFER_TYPE)          AS OFFER_TYPE,
+  -- Did the bridge actually answer for this lead? True only on VRSM. sql/23 surfaces it as
+  -- SPLIT_BY_INTEGRATE and the job prints it, so a silent drop in the split's reach - a URL
+  -- convention change upstream - shows up as a falling number rather than a quiet shortfall.
+  (CAMPAIGN_ID = '701RG00001W1FQRYA3'
+   AND OFFER_FROM_URL IS NOT NULL)                              AS OFFER_FROM_INTEGRATE,
   PHONE,
   LEAD_STATUS,
   -- ACCEPTED is the client's stated basis for this tab (2026-09-10, Jade: "Enrichment % on this

@@ -492,7 +492,7 @@ def main():
                  f"booked as UNMAPPED on that lane."))
 
     # ---- weekly rejection reasons by vendor (2026-09-17, Jade via Fahad) -----------------
-    # Reads sql/21_integrate_dispositions, which is aggregate-only by design: INTEGRATE_LEADS
+    # Reads sql/22_integrate_dispositions, which is aggregate-only by design: INTEGRATE_LEADS
     # carries name/email/phone/street on every row and must never reach this job.
     #
     # TOLERANT, BUT LOUD. The Integrate mirror is a newer, externally-pushed feed and this
@@ -575,7 +575,7 @@ def main():
         # its "<period> to date" chip, INDEPENDENTLY of the date picker - the section is
         # anchored to the targets seed, not to the selected range.
         "period_label": "Q3",
-        # Weekly rejection reasons by vendor, from sql/21_integrate_dispositions (Integrate ->
+        # Weekly rejection reasons by vendor, from sql/22_integrate_dispositions (Integrate ->
         # CaptureIQ -> Snowflake). Aggregates only - that view exists so the heavy-PII raw
         # table never reaches this job. Empty list = no feed, and the dashboard hides the
         # panel cleanly rather than drawing an empty one.
@@ -852,7 +852,9 @@ def main():
     # ---- weekly enrichment BY PUBLISHER (2026-09-17, client via Fahad) -------------------
     # sql/23_cs_enriched_by_publisher re-cuts the SAME population the tab above it counts, so
     # these rows must tie to `daily`. The counts are Salesforce's; Integrate supplies only the
-    # VRSM offer split (sql/21), which is why the two panels cannot disagree.
+    # VRSM offer split, resolved ONCE in sql/20 (2026-09-18 - it used to live in sql/23, which
+    # meant two panels on one screen applied two copies of one rule), which is why the two
+    # panels cannot disagree.
     #
     # Same tolerant-but-loud shape as the reason panel: the split depends on a table that is
     # mirrored separately, and a missing one must not take the export down - but it prints.
@@ -903,6 +905,43 @@ def main():
         except Exception as e:                               # noqa: BLE001
             print(f"WARNING cs_enriched blank-fill: could not audit the fill "
                   f"({type(e).__name__}: {e}).")
+
+        # (3) THE VRSM MATCH RATE - a failure mode only VRSM has (2026-09-18, found by an
+        #     independent Snowflake audit, not by this code). Every other campaign takes its
+        #     offer from its CAMPAIGN_ID, so a lead that fails to match the bridge still reads
+        #     as UNENRICHED and stays visible in the denominator. VRSM takes its offer from the
+        #     Integrate match itself, so an unmatched VRSM lead keeps 'Lead Magnet' and leaves
+        #     the AVAILABLE population ENTIRELY - absent from numerator AND denominator. The
+        #     rate would stay healthy while quietly covering fewer leads.
+        #
+        #     Silent AND flattering is the worst pair, which is why this is asserted rather
+        #     than assumed. It is 510/510 today, so this guards a property that currently
+        #     holds; it is not papering over a known gap.
+        try:
+            vm = rows(bq, f"""
+                SELECT COUNTIF(e.IS_ACCEPTED)                            AS accepted,
+                       COUNTIF(e.IS_ACCEPTED AND b.LEAD_KEY IS NOT NULL) AS matched
+                FROM {t('cs_enriched_leads')} e
+                LEFT JOIN {t('integrate_bridge')} b
+                  ON  b.LEAD_KEY = e.LEAD_KEY
+                  AND b.CAMPAIGN = e.CAMPAIGN
+                WHERE e.CAMPAIGN_ID = '701RG00001W1FQRYA3'
+                  AND e.DAY >= DATE '2026-07-01'""")[0]
+            _acc = int(jval(vm.get("accepted")) or 0)
+            _mat = int(jval(vm.get("matched")) or 0)
+            if _acc and _mat < _acc:
+                print(f"WARNING cs_enriched VRSM match: {_acc - _mat} of {_acc} accepted VRSM "
+                      f"lead(s) have NO row in the Integrate bridge, so their offer cannot be "
+                      f"resolved and they drop OUT of the available population rather than "
+                      f"counting as unenriched - VRSM's rate is covering fewer leads than it "
+                      f"looks. Check the email + campaign join before trusting that figure.")
+            else:
+                print(f"cs_enriched VRSM match: {_mat}/{_acc} accepted VRSM lead(s) resolve "
+                      f"against the Integrate bridge")
+        except Exception as e:                               # noqa: BLE001
+            print(f"WARNING cs_enriched VRSM match: could not audit the offer-split coverage "
+                  f"({type(e).__name__}: {e}).")
+
         print(f"cs_enriched by publisher: {len(enr_pub)} publisher-week row(s); "
               f"{split} available lead(s) placed by the Integrate URL split (VRSM only)")
         # The split is the ONLY reason VRSM can appear here. If it silently stops resolving -

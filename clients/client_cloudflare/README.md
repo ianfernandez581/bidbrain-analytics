@@ -204,7 +204,9 @@ its rows. The tab is now intro -> KPI band -> Enrichment by market -> Weekly sum
 shape the client named as the one they want. `totAcc` survives - the KPI band's first tile and both
 empty states still read it - so the full accepted figure is still on screen, just without a
 breakdown. **VRSM now appears NOWHERE on the tab**, which is why the intro has to state in prose
-that its leads are not counted yet.
+that its leads are not counted yet. **SUPERSEDED 2026-09-18** - VRSM's survey leads are now inside
+the available population and that intro sentence went with the change; see "VRSM joins the rate"
+below.
 
 **The KPI band prints BOTH populations, in the order the client's own sentence puts them** -
 `Accepted leads 1,868` (context, never a denominator) then `Available to enrich 361`, `Enriched
@@ -228,9 +230,12 @@ Monday batches and acceptance lags: at 2026-09-16 the 15 Sep batch was 118 deliv
 accepted, so the newest week bucketed at `0 / 0 / -` and drew as a week enrichment had failed in.
 `weeks` is filtered on `leads > 0`. This is the normal state of the current week, not an edge case.
 
-**VRSM is still outside the rate** (466 accepted / 51 enriched) and sits in the offer table only,
-because its two lead types cannot be separated - see the CQ-tag note below. Transmission's own
-denominator of 196 for it is still unreproducible; Jade has asked Nabeel to supply the split.
+**VRSM was outside the rate until 2026-09-18** (466 accepted / 51 enriched at the time), sitting
+in the offer table only, because its two lead types could not be separated from anything Salesforce
+carries - see the CQ-tag note below. They are now split from **Integrate's** landing-page URL
+instead ("VRSM joins the rate", below). Transmission's own denominator of 196 for it is still
+unreproducible; Jade has asked Nabeel to supply the split, and that request stands - the URL split
+is ours, not theirs.
 
 **The `NA` sentinel is ambiguous and must NOT become part of the denominator** (this closes the
 OPEN question in `sql/20`'s header, in the conservative direction). If `NA` meant "submitted, no
@@ -240,6 +245,49 @@ programme. But Pulse Survey and Qualification Questions carry 62 accepted NAs be
 probably ARE genuine no-matches. Same value, two meanings, no way to tell them apart in the feed:
 keep counting NA as not enriched. (Dashes remain VRSM-concentrated - 306 of 333 accepted - and
 still mean "never submitted".)
+
+### VRSM joins the rate - its offer resolved from Integrate (2026-09-18, Jade)
+
+Jade, asked whether VRSM's survey leads could be counted here: *"yeah please add it there"*. They
+now are. **Headline 413 / 345 (83.5%) -> 543 / 451 (83.1%)**, and it ties EXACTLY to the
+by-publisher panel underneath it. The rate falls 0.4pt because VRSM enriches slightly below the
+other two publishers, not because anything broke.
+
+**What was in the way.** VRSM (`701RG00001W1FQRYA3`) runs survey leads and Lead Magnet leads
+through ONE campaign and nothing in the Salesforce feed separates them, so every VRSM lead carried
+`Lead Magnet`, fell outside the available population, and the campaign appeared NOWHERE on the tab.
+
+**What answers it.** Integrate's landing-page URL folder names the offer (`-Pulse-Survey` /
+`-Qualification-Que`), read through `sql/19b_integrate_bridge`. It agrees with the survey ANSWERS
+on the same record **99% of the time** (Pulse 79/79, QQ 73/74), and the 471 VRSM rows carrying
+neither marker carry no answers either (4 of 471) - so those are genuinely Lead Magnet, not a
+marker that failed to write.
+
+**The override MOVED from `sql/23` into `sql/20`, and the move is the point.** It lived in `sql/23`
+while only that panel needed it; with VRSM on the headline tab too, two panels on one screen would
+have been resolving the same lead's offer from two separate copies of one rule, which is how two
+figures start disagreeing. `sql/20` now resolves it, and `sql/23` reads `OFFER_TYPE` already
+resolved plus an `OFFER_FROM_INTEGRATE` flag that feeds its `SPLIT_BY_INTEGRATE` audit column.
+
+**Confined to VRSM ON PURPOSE, and a `COALESCE`, never a replacement.** Every other campaign sells
+one offer, so its id already names it and `sql/10`'s value is authoritative; applying this
+everywhere would re-derive offers that are already correct and silently move figures the client has
+signed off. A VRSM lead the bridge cannot resolve keeps `Lead Magnet` and stays OUT of the
+available population - understating the rate rather than flattering it.
+
+**No frontend logic changed.** The dashboard already derives "available" from `offer_type` in the
+payload, so this is a SQL change end to end. One prose line moved with it: the intro sentence that
+said VRSM's leads are not counted yet.
+
+**KNOWN FRAGILITY, not a defect today: an unmatched VRSM lead is invisible in BOTH halves of the
+rate.** Because VRSM's offer classification comes from the Integrate match, a VRSM lead that failed
+to match drops out of AVAILABLE altogether rather than showing as unenriched - out of the numerator
+AND the denominator - and that **FLATTERS** the rate. Match rate is 100% today (see "Independent
+verification" under The Integrate lane), so exposure is nil, but the failure mode is silent and
+flattering, which is the worst combination there is. A guard is going into `job/main.py` asserting
+VRSM accepted leads equal VRSM leads matched in the bridge. **Final Funnel and Roverpath need no
+such guard** - their offer comes from the campaign id, so an unmatched lead there correctly shows
+as unenriched.
 
 ### Enrichment is only RUN on two offers, and the reconciliation to Transmission's own report (2026-09-10)
 
@@ -2785,8 +2833,13 @@ opening the form is a targeting problem, opening and abandoning is a form proble
 Three views, one source. **`sql/19b_integrate_bridge` is the ONLY reader of
 `raw_snowflake.integrate_leads`** - it emits a hashed key, the campaign, the source id, the
 vendor, the disposition, a PII-scrubbed reason and the URL-derived offer, and nothing else.
-`sql/22` (rejection reasons) and `sql/23` (enrichment by publisher) both read the bridge, so
-the dedupe tie-break and the PII scrub are defined once.
+`sql/20` (the enriched-leads tab), `sql/22` (rejection reasons) and `sql/23` (enrichment by
+publisher) all read the bridge, so the dedupe tie-break and the PII scrub are defined once.
+
+**It is numbered `19b` deliberately.** `create_views.py` globs the directory SORTED, so the bridge
+has to apply BEFORE `sql/20`, which reads it. It shipped as `sql/21_integrate_bridge.sql` on the
+first pass and was renamed for that reason alone - **`sql/21` no longer exists**, so any pointer to
+it is stale.
 
 #### Weekly enrichment by publisher (`sql/23_cs_enriched_by_publisher`)
 
@@ -2804,7 +2857,11 @@ contradict. That is the defect the client raised on the pacing card on 2026-09-1
 enrichable survey leads with Lead Magnet. Every other campaign sells one offer, so its id
 already names it; overriding everywhere would move figures the client has signed off. A VRSM
 lead the bridge cannot place keeps `OFFER_TYPE` and stays OUT of the available population -
-understating rather than flattering.
+understating rather than flattering. **It no longer lives here (2026-09-18).** When VRSM joined the
+headline tab the same rule was needed one view up, and two panels on one screen resolving the same
+lead's offer from two separate copies of it is how two figures start disagreeing - `sql/20` now
+owns the definition, and this view reads `OFFER_TYPE` already resolved plus an
+`OFFER_FROM_INTEGRATE` flag, which is what its `SPLIT_BY_INTEGRATE` audit column counts.
 
 **THE TRAILING WEEK IS A QUEUE, NOT A COLLAPSE.** Enrichment lands days after the lead.
 Roverpath survey leads at 2026-09-18: w/c 17 Aug 62/50, w/c 31 Aug 17/16, **w/c 07 Sep 10/1
@@ -2832,7 +2889,7 @@ Columns J and K of the Integrate report are `DISPOSITION_CODE` and `CUSTOM_REASO
 
 **The view emits AGGREGATES ONLY, and that is the point.** `INTEGRATE_LEADS` carries
 first/last name, email, phone, street and postcode on every row and is mirrored whole by the
-`SELECT *` loader. `sql/21` is the membrane: nothing downstream may read the raw table.
+`SELECT *` loader. `sql/19b` is the membrane: nothing downstream may read the raw table.
 `CUSTOM_REASON` itself carries PII - 7 rows embed a lead's own email in the duplicate message
 - so it is scrubbed in the view, once, with a general regex rather than a fix aimed at those 7.
 
@@ -2862,7 +2919,7 @@ instead of naming a reason.
 **`SOURCE_ID` -> publisher is 1:1; the reverse is NOT.** Final Funnel and Roverpath each own two
 source ids because they run in both theatres (`61A007`/`9E8948`, `B75F75`/`41710C`). Key on
 `SOURCE_ID` or on vendor + theatre, never vendor alone - and the on-screen legend prints the
-theatre for the same reason. The 11-row dictionary is inline in `sql/21` for now and SHOULD
+theatre for the same reason. The 11-row dictionary is inline in `sql/19b` for now and SHOULD
 move to `definitions.json` -> a seed the day it changes; 3 of its 11 publisher spellings differ
 from ours (VSRM, SitPub, Inbox Insights), so it carries both names and is never name-joined.
 
@@ -2893,6 +2950,35 @@ Live figures: VSRM 130/106 = 81.5% (was 46%), panel total 543/451 = 83.1%. Until
 prints a WARNING naming the view and the panel stays hidden - deliberately tolerant, because
 this panel is additive and must not take the whole export down, but LOUD, because a silent
 catch here is the geocon trap that published `0 CRM leads` against a full view.
+
+#### Independent verification (2026-09-18)
+
+Run against Snowflake by a separate read-only session, deliberately on a different query path from
+the views, to check that the fill and the offer split invent nothing.
+
+- **All four published figures reproduce EXACTLY from source**: Final Funnel 207/180, Roverpath
+  206/165, VRSM 130/106, overall **543/451**.
+- **The email + campaign join is 100% clean.** Every lead matches on `lower(trim(email))` plus the
+  exact campaign string; ZERO match on email alone; ZERO additional matches after normalising dots,
+  plus-addressing and domain case; zero duplicate pairs on either side; 923 rows = 923 distinct
+  pairs = 923 distinct `LEAD_ID_SF`. So the fill is NOT missing enrichments through the join.
+- **The fill is worth +9.3 points, and it is essentially all VRSM.** It contributes 50 of the 451;
+  without it the rate is 401/543 = **73.8%**. Final Funnel 4, Roverpath 0, VRSM 46.
+- **The 11 unenriched VRSM leads from the weeks of 6 and 20 July are genuinely unrecoverable.** All
+  11 exist in Integrate, all hold an EMPTY enriched field, and searching with the join rules
+  deliberately relaxed (any campaign, plus-addressing stripped, dots stripped) found no enrichment
+  anywhere. They carry `QUESTION_1`, so they are real survey leads Integrate simply never produced
+  a number for - the July behaviour where `-` genuinely means never submitted.
+- **There is NO `SOURCE_ID` dictionary anywhere in Snowflake.** `SOURCE_ID` appears in exactly ONE
+  object in the whole account - `INTEGRATE_LEADS` itself. Transmission's emailed dictionary is
+  therefore the SOLE authority for the 11 hardcoded id -> publisher mappings in `sql/19b`: there is
+  nothing in the warehouse to reconcile it against, and nothing that will tell us when it changes.
+- **`ASSET_1` / `ASSET_2` cannot split the offers either** - tested and rejected as an alternative
+  to the URL: the same asset pair appears under all three offers.
+- **Whether enrichment was being dropped before July is unanswerable from data.** Integrate's table
+  genuinely starts 30 June and no second object holds anything earlier, while Salesforce holds
+  1,034 leads on those campaigns from March to June with no Integrate counterpart. That is exactly
+  why the fill is a `COALESCE` and not a replacement.
 
 ## The data contract (`cloudflare.json` -> `/data.json`)
 

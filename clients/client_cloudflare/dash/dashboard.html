@@ -1591,8 +1591,8 @@
         <br><span style="color:var(--cf-mute)">The first figure below is every Core DG lead, for
         context, and is not what the rate is divided by. Not every lead can be matched, so this is
         a share of what was available to enrich and not a target. Enrichment started
-        <b id="enrFirst">-</b>. VRSM runs both lead types through one campaign and they cannot be told
-        apart, so its leads are not counted here yet.</span>
+        <b id="enrFirst">-</b>. VRSM runs both lead types through one campaign, so its survey leads
+        are identified from the landing page they came from.</span>
       </div>
 
       <div class="kpis" id="enrKpis" style="grid-template-columns:repeat(4,1fr)"></div>
@@ -1960,7 +1960,7 @@
           <div class="cspd-note" id="cspdVendorNote"></div>
         </div>
 
-        <!-- 3.6 rejection reasons. LIVE from Integrate via sql/21_integrate_dispositions
+        <!-- 3.6 rejection reasons. LIVE from Integrate via sql/22_integrate_dispositions
              (2026-09-18). Renders only when the payload carries reasons and hides cleanly
              otherwise - the panel must never fabricate a reason, and must never imply the
              reasons it shows are the whole story. Coverage is printed per tile, and a

@@ -58,7 +58,7 @@ TABLES = {
     # the rejection reason, which Salesforce never sends.
     # HEAVY PII - name, email, phone, street, postcode on every row. It is mirrored whole
     # because this loader is SELECT *, so NOTHING may read this table except the client's own
-    # sql/21 bridge, which is the membrane that keeps all of that out of the payload.
+    # sql/19b bridge, which is the membrane that keeps all of that out of the payload.
     'APAC_ALL_PLATFORM.PUBLIC."INTEGRATE_LEADS"':         "integrate_leads",
 }
 

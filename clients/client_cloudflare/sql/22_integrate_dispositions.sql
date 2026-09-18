@@ -60,7 +60,7 @@
 CREATE OR REPLACE VIEW `bidbrain-analytics.client_cloudflare.integrate_dispositions` AS
 WITH
 -- Vendor, theatre, source id, disposition and the scrubbed reason all come from the bridge -
--- sql/21 is the ONLY reader of raw_snowflake.integrate_leads, and the only place the dedupe
+-- sql/19b is the ONLY reader of raw_snowflake.integrate_leads, and the only place the dedupe
 -- tie-break and the PII scrub are defined. This view adds the weekly aggregation and the
 -- coverage arithmetic on top; it must never re-derive either.
 integrate AS (
