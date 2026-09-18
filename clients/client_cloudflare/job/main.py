@@ -491,6 +491,74 @@ def main():
                  f"name market belongs to a different theatre than the id resolved ({it['theatre']}); "
                  f"booked as UNMAPPED on that lane."))
 
+    # ---- weekly rejection reasons by vendor (2026-09-17, Jade via Fahad) -----------------
+    # Reads sql/21_integrate_dispositions, which is aggregate-only by design: INTEGRATE_LEADS
+    # carries name/email/phone/street on every row and must never reach this job.
+    #
+    # TOLERANT, BUT LOUD. The Integrate mirror is a newer, externally-pushed feed and this
+    # panel is ADDITIVE - a missing or broken feed must not take the whole Cloudflare export
+    # down with it. But a silent except here would be the geocon trap (a rename swallowed by a
+    # tolerant catch published `0 CRM leads` against a view holding 9,779), so the failure
+    # prints a WARNING naming the view, and the dashboard hides the panel rather than drawing
+    # an empty one.
+    #
+    # COVERAGE_FLOOR is the share of a vendor-week's rejections Integrate must explain before
+    # the dashboard will print a "top reason" for it. Measured 2026-09-18: everything from
+    # w/c 17 Aug is at 100% except Roverpath w/c 7 Sep at 46.9% - which is also its biggest
+    # rejection week of the quarter and reads "invalid email, 100% of rejections" if drawn
+    # unguarded. The floor lives HERE, not in the dashboard, so the audit line below and the
+    # panel can never disagree about which cells were suppressed.
+    COVERAGE_FLOOR = 0.90
+    integrate_reasons, integrate_reasons_meta = [], {"available": False}
+    try:
+        idr = rows(bq, f"""
+            SELECT week_start, theatre, book, vendor, source_id, disposition_code,
+                   accepted_upstream, leads, rejected_total, explained_total, coverage
+            FROM {t('integrate_dispositions')}
+            ORDER BY week_start, theatre, vendor, leads DESC""")
+        integrate_reasons = [{
+            "week_start":   str(r.get("week_start")) if r.get("week_start") else None,
+            "theatre":      r.get("theatre"),
+            "book":         r.get("book"),
+            "vendor":       r.get("vendor"),
+            "source_id":    r.get("source_id"),
+            "code":         r.get("disposition_code"),
+            # An Integrate ACCEPT code on a lead Salesforce rejected. Real, and carried so the
+            # dashboard can label it - without this flag a "top rejection reason" cell can
+            # legitimately read POSTOUT_SUCCESS.
+            "accepted_upstream": bool(r.get("accepted_upstream")),
+            "leads":        int(jval(r.get("leads")) or 0),
+            "rejected":     int(jval(r.get("rejected_total")) or 0),
+            "explained":    int(jval(r.get("explained_total")) or 0),
+            "coverage":     float(jval(r.get("coverage")) or 0.0),
+        } for r in idr if r.get("vendor")]
+
+        # Per vendor-week coverage census, computed ONCE here so the panel does not re-derive
+        # it per render and drift.
+        cells = {}
+        for r in integrate_reasons:
+            cells[(r["week_start"], r["theatre"], r["vendor"])] = (r["coverage"], r["rejected"])
+        thin = {k: v for k, v in cells.items() if v[0] < COVERAGE_FLOOR}
+        integrate_reasons_meta = {
+            "available":      bool(integrate_reasons),
+            "coverage_floor": COVERAGE_FLOOR,
+            "cells":          len(cells),
+            "suppressed":     len(thin),
+        }
+        print(f"cs_pacing rejection reasons: {len(integrate_reasons)} row(s) over {len(cells)} "
+              f"vendor-week cell(s); {len(thin)} below the {COVERAGE_FLOOR:.0%} coverage floor "
+              f"and suppressed on the panel")
+        # Name them. A suppressed cell is a cell the client cannot see a reason for, and the
+        # two permanent ones (DemandAI / Interlink - the Regional book, which Integrate does
+        # not carry at all) must not drown out a NEW one appearing.
+        for (wk, th, v), (cov, rej) in sorted(thin.items()):
+            print(f"WARNING rejection reasons: {th} / {v} w/c {wk} explains only "
+                  f"{cov:.0%} of its {rej} rejection(s) - suppressed")
+    except Exception as e:                                   # noqa: BLE001 - see note above
+        print(f"WARNING rejection reasons: could not read {t('integrate_dispositions')} "
+              f"({type(e).__name__}: {e}). The panel will be HIDDEN this run. This is expected "
+              f"until raw_snowflake.integrate_leads is mirrored; investigate if it persists.")
+
     cs_pacing_payload = {
         "row_count": len(csp),
         # Region-resolution guard (2026-09-04): campaigns no rule could place, or whose name
@@ -507,10 +575,14 @@ def main():
         # its "<period> to date" chip, INDEPENDENTLY of the date picker - the section is
         # anchored to the targets seed, not to the selected range.
         "period_label": "Q3",
-        # Rejection reasons have NO live source yet (manual at the Integrate push). The
-        # dashboard renders the panel only when this is non-empty and hides it cleanly
-        # otherwise - never populate it with anything that is not real.
-        "reasons": [],
+        # Weekly rejection reasons by vendor, from sql/21_integrate_dispositions (Integrate ->
+        # CaptureIQ -> Snowflake). Aggregates only - that view exists so the heavy-PII raw
+        # table never reaches this job. Empty list = no feed, and the dashboard hides the
+        # panel cleanly rather than drawing an empty one.
+        "reasons": integrate_reasons,
+        # What the panel CANNOT explain, so the dashboard can caption itself honestly instead
+        # of implying the reasons it shows are the whole story. See the coverage note below.
+        "reasons_meta": integrate_reasons_meta,
         "rows": [{
             "theatre":      r.get("THEATRE"),
             # Which PLAN the campaign is bought under - 'Core DG', 'Regional' (the ANZ DnB
@@ -777,8 +849,98 @@ def main():
     # the two summed counts, because a rate is not additive and these rows are summed across
     # campaigns to make the per-week summary (repo-wide "rates must never enter a fact" rule).
     # `enrichment_rate` is carried at the row's OWN grain (week x campaign) for the drill-down.
+    # ---- weekly enrichment BY PUBLISHER (2026-09-17, client via Fahad) -------------------
+    # sql/23_cs_enriched_by_publisher re-cuts the SAME population the tab above it counts, so
+    # these rows must tie to `daily`. The counts are Salesforce's; Integrate supplies only the
+    # VRSM offer split (sql/21), which is why the two panels cannot disagree.
+    #
+    # Same tolerant-but-loud shape as the reason panel: the split depends on a table that is
+    # mirrored separately, and a missing one must not take the export down - but it prints.
+    enr_pub = []
+    try:
+        enr_pub = rows(bq, f"""
+            SELECT WEEK_START, THEATRE, PUBLISHER, AVAILABLE, ENRICHED, NA_COUNT, DASH_COUNT,
+                   PENDING_SHARE, ACCEPTED_ALL_OFFERS, SPLIT_BY_INTEGRATE
+            FROM {t('cs_enriched_by_publisher')}
+            ORDER BY THEATRE, WEEK_START, PUBLISHER""")
+        split = sum(int(jval(r.get("SPLIT_BY_INTEGRATE")) or 0) for r in enr_pub)
+
+        # ---- the Integrate blank-fill: audit + recurrence monitor --------------------
+        # Two DIFFERENT failures, so two checks.
+        #
+        # (1) THE FILL ITSELF. sql/20 falls back to Integrate wherever Salesforce has no
+        #     enrichment. It currently rescues 50 accepted survey leads (46 VSRM + 4 Final
+        #     Funnel) from a bounded 3-24 Aug gap. If that drops to zero the rate quietly
+        #     falls back with NOTHING on screen saying so - the Integrate mirror going stale
+        #     looks exactly like this from here.
+        #
+        # (2) A SECOND GAP OPENING. The Aug one was a retroactive BULK BACKFILL at Integrate:
+        #     46 leads written in a single 73-second batch on 27 Aug, every one updated 7-22
+        #     days AFTER the lead was accepted, where a normally-delivered enrichment lands
+        #     within 0-2 hours. Because those leads had already been delivered to Salesforce,
+        #     nothing re-sent them. That signature is detectable and produces no false
+        #     positives anywhere else in the table, so it is worth watching for: a late
+        #     enrichment is not itself a fault, but a CLUSTER of them is the shape of another
+        #     silent batch.
+        try:
+            fill = rows(bq, f"""
+                SELECT COUNTIF(ENRICHED_FILLED AND IS_ACCEPTED)            AS rescued,
+                       COUNT(DISTINCT IF(ENRICHED_FILLED, DAY, NULL))      AS days,
+                       CAST(MIN(IF(ENRICHED_FILLED, DAY, NULL)) AS STRING) AS first_day,
+                       CAST(MAX(IF(ENRICHED_FILLED, DAY, NULL)) AS STRING) AS last_day
+                FROM {t('cs_enriched_leads')}
+                WHERE DAY >= DATE '2026-07-01'""")[0]
+            resc = int(jval(fill.get("rescued")) or 0)
+            if resc:
+                print(f"cs_enriched blank-fill: {resc} accepted lead(s) counted as enriched from "
+                      f"Integrate that Salesforce never delivered, over {fill.get('days')} day(s) "
+                      f"({fill.get('first_day')} to {fill.get('last_day')})")
+            else:
+                print("WARNING cs_enriched blank-fill: the Integrate fallback rescued ZERO leads. "
+                      "Either Transmission re-synced the missing window (good - verify, then this "
+                      "warning can go) or raw_snowflake.integrate_leads is stale/empty and the "
+                      "enrichment rate has silently fallen back to the Salesforce-only figure.")
+        except Exception as e:                               # noqa: BLE001
+            print(f"WARNING cs_enriched blank-fill: could not audit the fill "
+                  f"({type(e).__name__}: {e}).")
+        print(f"cs_enriched by publisher: {len(enr_pub)} publisher-week row(s); "
+              f"{split} available lead(s) placed by the Integrate URL split (VRSM only)")
+        # The split is the ONLY reason VRSM can appear here. If it silently stops resolving -
+        # a URL convention change upstream - the campaign quietly leaves the panel again and
+        # the rate drifts back up with no error anywhere. Say it out loud.
+        if not split:
+            print("WARNING cs_enriched by publisher: the Integrate offer split placed ZERO "
+                  "leads - VRSM will be absent from this panel. Expected while "
+                  "raw_snowflake.integrate_leads is unmirrored; investigate if it persists.")
+        for r in enr_pub:
+            if float(jval(r.get("PENDING_SHARE")) or 0) >= 0.5:
+                print(f"WARNING cs_enriched by publisher: {r.get('THEATRE')} / "
+                      f"{r.get('PUBLISHER')} w/c {ymd(r.get('WEEK_START'))} is "
+                      f"{float(jval(r.get('PENDING_SHARE')) or 0):.0%} still awaiting enrichment "
+                      f"- its rate is a queue, not a result")
+    except Exception as e:                                   # noqa: BLE001 - see note above
+        print(f"WARNING cs_enriched by publisher: could not read "
+              f"{t('cs_enriched_by_publisher')} ({type(e).__name__}: {e}). The panel will be "
+              f"HIDDEN this run.")
+
     cs_enriched_payload = {
         "row_count": len(end_),
+        # Weekly x publisher, the client's own ask. `pending` is the share of a cell still
+        # queued at Integrate: enrichment lands days after the lead, so a fresh week reads as a
+        # collapse (Roverpath w/c 7 Sep: 10 available, 1 enriched, 9 of them merely waiting).
+        # The dashboard marks those rather than drawing the fall.
+        "by_publisher": [{
+            "week_start": ymd(r.get("WEEK_START")),
+            "theatre":    r.get("THEATRE"),
+            "publisher":  r.get("PUBLISHER"),
+            "available":  int(jval(r.get("AVAILABLE")) or 0),
+            "enriched":   int(jval(r.get("ENRICHED")) or 0),
+            "na":         int(jval(r.get("NA_COUNT")) or 0),
+            "dash":       int(jval(r.get("DASH_COUNT")) or 0),
+            "pending":    float(jval(r.get("PENDING_SHARE")) or 0.0),
+            "accepted":   int(jval(r.get("ACCEPTED_ALL_OFFERS")) or 0),
+            "split":      int(jval(r.get("SPLIT_BY_INTEGRATE")) or 0),
+        } for r in enr_pub],
         # DAY grain, so the dashboard's date range is exact. It re-derives every rate from the
         # two summed counts, because a rate is not additive and these rows are summed across
         # campaigns and days (repo-wide "rates must never enter a fact" rule).

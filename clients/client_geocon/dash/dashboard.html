@@ -1192,7 +1192,14 @@ const hasBreakdowns=()=>(DATA.breakdowns||[]).some(r=>propOk(r));
 // second may be true. Requiring a POSITIVE value means the whole conversions surface - the KPI tile
 // AND the `Conv.` / `Cost per conv` table columns, which this same flag drives - stays off until
 // there is a real number, then appears together. No edit needed when the first one lands.
-const hasConversions=()=>hasAny('conversions');
+// REMOVED FROM THE UI ON REQUEST (client, 2026-09-17). Google Ads conversions are page-view and
+// CTA tags, NOT enquiries - printing "4 conversions · A$1,773 each" beside a Leads tile reads as a
+// second, competing outcome number for the same campaign. One flag, and by the existing design the
+// KPI tile and the `Conv.` / `Cost per conv` table columns go together rather than leaving the
+// columns behind. The DATA path is untouched: sql/09 -> fact_all -> rows[].conversions still carry
+// it in full, so this is a dashboard deploy away from coming back.
+const CONVERSIONS_REPORTABLE=false;
+const hasConversions=()=>CONVERSIONS_REPORTABLE&&hasAny('conversions');
 // TrueView views, Google Ads only. `hasAny` not `reports`: a display campaign in the same account
 // returns 0 rather than NULL, so nullness alone would light this up for a buy with no video in it.
 const hasVideoViews=()=>hasAny('video_views');
@@ -1423,9 +1430,13 @@ function trendBucketLabel(dateStr,grain){const d=new Date(dateStr+'T00:00:00Z');
 // Carries impressions + clicks alongside spend/leads: the hero plots enquiries on a lead-gen
 // development and DELIVERY on an awareness one, and both shapes read from this one bucketing.
 function trendRows(){const days=dailyOf(scoped());
-  if(STATE.grain==='day')return days.map(d=>({label:fmtDate(d.date),spend:d.spend,leads:d.leads,cum_leads:d.cum_leads,impressions:d.impressions,clicks:d.clicks,days:1}));
+  // `key` is the bucket identity (ISO day, ISO Monday, or YYYY-MM). It exists so a series built
+  // from a DIFFERENT table - CRM leads, which are not in the ad fact - can be bucketed by the same
+  // rule and lined up position-for-position, instead of being matched on a display label that is
+  // formatted for humans and not guaranteed unique.
+  if(STATE.grain==='day')return days.map(d=>({key:String(d.date).slice(0,10),label:fmtDate(d.date),spend:d.spend,leads:d.leads,cum_leads:d.cum_leads,impressions:d.impressions,clicks:d.clicks,days:1}));
   const m=new Map();days.forEach(d=>{const bk=trendBucketLabel(d.date,STATE.grain);let o=m.get(bk.key);if(!o){o={key:bk.key,label:bk.label,spend:0,leads:0,cum_leads:0,impressions:0,clicks:0,days:0};m.set(bk.key,o);}o.spend=nAdd(o.spend,d.spend==null?null:n(d.spend));o.leads+=n(d.leads);o.impressions+=n(d.impressions);o.clicks+=n(d.clicks);o.cum_leads=Math.max(o.cum_leads,n(d.cum_leads));o.days++;});
-  return [...m.values()].sort((a,b)=>a.key.localeCompare(b.key)).map(o=>({label:o.label,spend:o.spend,leads:o.leads,cum_leads:o.cum_leads,impressions:o.impressions,clicks:o.clicks,days:o.days}));}
+  return [...m.values()].sort((a,b)=>a.key.localeCompare(b.key)).map(o=>({key:o.key,label:o.label,spend:o.spend,leads:o.leads,cum_leads:o.cum_leads,impressions:o.impressions,clicks:o.clicks,days:o.days}));}
 
 // ---------- chart defaults / helpers ----------
 const GRID='rgba(255,255,255,.07)';
@@ -1620,38 +1631,28 @@ if (window.Chart) Chart.register({
 // Salesforce's object is `Lead` - so the label moved toward the data, not away from it.
 const CRM=()=>(DATA.crm&&Array.isArray(DATA.crm.rows))?DATA.crm.rows:[];
 const crmReportable=()=>CRM().length>0;
-// Property + date ONLY. The channel chips and the funnel-stage filter are deliberately NOT applied:
-// a CRM lead has no delivering platform, so narrowing to (say) LinkedIn cannot honestly change an
-// enquiry count. Silently leaving them unapplied would be the `client_schneider` trap in reverse -
-// a figure that ignores a visible control - so `crmNote` states it on screen.
-const crmRows=()=>CRM().filter(r=>(!STATE.property||r.property===STATE.property)&&inRange(r.date));
-// The Braddon/Northbourne split is an INFERENCE (Salesforce records both developments under one
-// 'Gateway' project), so the page has to admit it somewhere. It used to live in the CRM section's
-// own note; that section is gone, so it lives here and is printed in "How to read this". Returns ''
-// when there is nothing to qualify, so the sentence simply does not appear.
-function crmSplitNote(){
-  const m=DATA.crm||{};
-  if(!crmReportable()||!m.split_date)return '';
-  const base=`Geocon's CRM records both Gateway developments under one project, so leads are `
-    +`assigned to this one by date (from ${fmtDate(m.split_date)})`;
-  return m.split_safe===true
-    ? `${base}; no lead falls near that boundary, so the split is unambiguous.`
-    : `${base}, which is approximate where leads fall either side of that date.`;
+// DATE ONLY (client, 2026-09-17: the lead figure is the whole Geocon book). No property filter,
+// because these leads span EVERY development - The Grande, WOVA, Vue Greenway and the rest - not
+// the one this page reports media for. No channel or funnel-stage filter either, because a CRM
+// lead has no delivering platform. Three visible controls therefore do not move this number, which
+// would be the `client_schneider` trap if the page kept quiet about it - so it is stated wherever
+// the figure appears.
+const crmRows=()=>CRM().filter(r=>inRange(r.date));
+// The ONE copy of the scope sentence. Leads are the whole Geocon book while every other figure on
+// this page is one development's media, and a reader who does not know that will divide one by the
+// other in their head - which is precisely the calculation we removed the cost-per-lead tile to
+// prevent. Returns '' when there is nothing to qualify.
+function crmScopeNote(){
+  if(!crmReportable())return '';
+  return `Leads cover <b>every Geocon development</b>, not just this one, so they are not `
+    +`comparable with the spend, impressions and clicks on this page - those are this `
+    +`development's media only.`;
 }
 function crmAgg(rows){
   const total=rows.reduce((a,r)=>a+n(r.leads),0);
   const by=k=>{const m=new Map();rows.forEach(r=>{const v=r[k]||'(not set)';m.set(v,(m.get(v)||0)+n(r.leads));});
     return [...m.entries()].sort((a,b)=>b[1]-a[1]);};
   return {total,bySource:by('lead_source'),byStatus:by('lead_status')};
-}
-// Spend for the cost-per-enquiry tile. Taken across ALL channels for the property, because the
-// enquiries in the numerator cannot be attributed to one - dividing whole-CRM enquiries by a
-// single channel's spend would invent a cost per enquiry for a channel that may not have produced
-// any of them. Already grossed by bbApplySpendMult at boot, so it is on the same billed basis as
-// every other money figure on the page.
-function crmSpendAllChannels(){
-  return (DATA.rows||[]).filter(r=>propOk(r)&&inRange(r.date))
-    .reduce((a,r)=>(r.spend===null?a:nAdd(a,n(r.spend))),0);
 }
 function render(){
   // Each step is isolated: a single renderer throwing must NOT blank every chart after it (Chart.js
@@ -1738,12 +1739,12 @@ function renderHeader(){
     // is a lead-gen buy, so the withheld state says what is actually true.
     // The client asked for the lead TOTAL to sit on this line, beside impressions and spend.
     const hdrLeads=crmReportable()?crmAgg(crmRows()).total:null;
-    const delivery=`Showing <b>${rangeLabel()}</b> across <b>${chans.length?chans.map(safeName).join(', '):'no channels'}</b> - ${compact(a.impressions)} impressions · ${money(a.spend)} spend${hdrLeads!=null?` · <b>${int(hdrLeads)} leads</b>`:''}.`;
+    const delivery=`Showing <b>${rangeLabel()}</b> across <b>${chans.length?chans.map(safeName).join(', '):'no channels'}</b> - ${compact(a.impressions)} impressions · ${money(a.spend)} spend${hdrLeads!=null?` · <b>${int(hdrLeads)} leads</b> across all Geocon developments`:''}.`;
     $('introCopy').innerHTML=lead
       ? `${chans.length>1?'Platform-reported':src+'-reported'} enquiries and modelled <b>qualified leads</b> for the ${safeName(prop)} launch, plus spend pacing and creative efficiency. Showing <b>${rangeLabel()}</b> across <b>${chans.map(safeName).join(', ')}</b> - ${int(a.leads)} enquiries · ${money(a.spend)} spend.`
       : leadsWithheld()
       ? `Reach, delivery and cost efficiency for the ${safeName(prop)} launch, plus spend pacing against the signed media plan. ${delivery} `+(crmReportable()
-          ? `<b>Leads are counted in Geocon\u2019s CRM</b>, not by the ad platforms - the platforms' own enquiry counts are not shown.`
+          ? `<b>Leads are counted in Geocon\u2019s CRM</b> across every development, not by the ad platforms.`
           : `<b>Enquiry reporting is paused</b> until the CRM feed is connected.`)
       : `Reach, delivery and cost efficiency for the ${safeName(prop)} launch, plus spend pacing against the signed media plan. ${delivery} ${escProp(src)} buys awareness inventory with no lead form, so this development reports no enquiries.`;
   }
@@ -1838,18 +1839,19 @@ function renderKpisAwareness(a){
   const spendPct=(a.spend==null||!budget)?null:Math.round(a.spend/budget*100);
   const impPct=(impT&&a.impressions)?Math.round(a.impressions/impT*100):null;
   const clkPct=(clkT&&a.clicks)?Math.round(n(a.clicks)/clkT*100):null;
-  // CRM LEADS lead the goal row when we have them - they are the outcome the client buys, and
-  // every other tile here is a means to it. NO `series`: the trend chart plots the ad fact, which
-  // has no CRM lead series to toggle, so these tiles are deliberately not clickable.
+  // CRM LEADS lead the goal row when we have them. NO `series`: the trend chart's lead line is
+  // built separately in renderTrend(), so there is nothing here to toggle.
+  //
+  // *** THERE IS NO COST PER LEAD, AND THERE MUST NOT BE (client, 2026-09-17). *** Since the lead
+  // figure went Geocon-wide, the spend on this page is ONE development's media while the leads are
+  // every development's - so any cost-per-lead built from them credits this campaign's budget with
+  // other developments' enquiries. It read A$253.68 against a true A$341.35 for the matched pair.
+  // Reinstating it needs the NUMERATOR narrowed back to the paying development, not a relabel.
   const crmLead=crmReportable()?crmAgg(crmRows()):null;
-  const crmSpend=crmLead?crmSpendAllChannels():null;
-  const crmCpl=(!crmLead||crmSpend==null||!crmLead.total)?null:crmSpend/crmLead.total;
   const north=[
     ...(crmLead?[
       {color:MC.leads,north:true,label:'Leads',value:int(crmLead.total),
-       sub:'from Geocon\u2019s CRM'},
-      {color:MC.cost,north:true,label:'Cost per lead',value:crmCpl==null?'-':money(crmCpl,2),
-       sub:'blended \u00b7 all spend \u00f7 all leads'}
+       sub:'all Geocon developments'}
     ]:[]),
     {color:MC.reach,north:true,series:'impressions',label:'Impressions',value:compact(a.impressions),
       sub:impT!=null?`${impPct}% of ${compact(impT)} planned`:'no impression target'},
@@ -1947,6 +1949,15 @@ function renderTrend(){
   const rows=trendRows();const labels=rows.map(r=>r.label);const rel=STATE.axis==='rel';
   const gw=STATE.grain==='month'?'Monthly':STATE.grain==='week'?'Weekly':'Daily';
   const spend=rows.map(r=>r.spend),leads=rows.map(r=>r.leads),qual=rows.map(r=>qualified(r.leads));
+  // CRM LEADS as a hero series (client, 2026-09-17). Bucketed through trendBucketLabel() - the SAME
+  // function trendRows() uses - so the two can never drift apart at week or month grain. A bucket
+  // the CRM has no leads in is a REAL zero (the campaign ran and nobody enquired), not a gap, so it
+  // is 0 rather than null.
+  const crmByKey=(()=>{const m=new Map();
+    if(crmReportable())crmRows().forEach(r=>{const k=trendBucketLabel(String(r.date).slice(0,10),STATE.grain).key;
+      m.set(k,(m.get(k)||0)+n(r.leads));});
+    return m;})();
+  const crmSeries=rows.map(r=>crmByKey.get(r.key)||0);
   const cpl=rows.map(r=>(r.spend==null||!n(r.leads))?null:r.spend/r.leads);   // cost-per-enquiry per period - the media-buyer efficiency line (withheld spend => gap, not 0)
   const lead=leadShaped();
   const spendBar={label:'Spend',_group:'spend',type:'bar',_raw:spend,_kind:'money',data:spend,backgroundColor:'rgba(237,237,235,.55)',borderColor:MC.accent,borderRadius:4,maxBarThickness:34,yAxisID:'y1',order:4};
@@ -1967,8 +1978,10 @@ function renderTrend(){
     ds=[spendBar,
       {label:'Impressions',_group:'impressions',type:'line',_raw:imps,_kind:'int',data:rel?indexToPeak(imps):imps,borderColor:MC.reach,backgroundColor:MC.reach,borderWidth:2.6,tension:.35,pointRadius:2,fill:false,yAxisID:rel?'y':'y2',order:2},
       {label:'Clicks',_group:'clicks',type:'line',_raw:clicks,_kind:'int',data:rel?indexToPeak(clicks):clicks,borderColor:MC.ctr,backgroundColor:MC.ctr,borderWidth:2.6,borderDash:[5,3],tension:.35,pointRadius:2,fill:false,yAxisID:rel?'y':'y2',order:0},
-      {label:'CPM',_group:'cpm',type:'line',_raw:cpm,_kind:'money',data:rel?indexToPeak(cpm):cpm,borderColor:MC.cost,backgroundColor:MC.cost,borderWidth:2.2,tension:.35,pointRadius:2,fill:false,spanGaps:true,yAxisID:rel?'y':'y3',order:1}];
-    hint=`${gw} spend (bars) vs impressions, clicks & CPM - the spend-to-delivery view.`;
+      {label:'CPM',_group:'cpm',type:'line',_raw:cpm,_kind:'money',data:rel?indexToPeak(cpm):cpm,borderColor:MC.cost,backgroundColor:MC.cost,borderWidth:2.2,tension:.35,pointRadius:2,fill:false,spanGaps:true,yAxisID:rel?'y':'y3',order:1},
+      ...(crmReportable()?[{label:'Leads',_group:'crmleads',type:'line',_raw:crmSeries,_kind:'int',data:rel?indexToPeak(crmSeries):crmSeries,borderColor:MC.leads,backgroundColor:MC.leads,borderWidth:3,tension:.35,pointRadius:2.6,fill:false,yAxisID:rel?'y':'y2',order:0}]:[])];
+    hint=`${gw} spend (bars) vs impressions, clicks${crmReportable()?', CPM & leads':' & CPM'} - the spend-to-delivery view.`
+      +(crmReportable()?` The leads line is Geocon's CRM across ALL developments, so it does not respond to the platform filter and is not comparable with the spend bars beside it.`:'');
   }
   $('trendHint').textContent=hint+(rel?' Lines indexed to peak=100; tooltips show true values.':'');
   const fmtKind={money:v=>money(v),int:v=>int(v)};
@@ -1976,7 +1989,7 @@ function renderTrend(){
     ? {x:axis({grid:{display:false}}),y:{position:'left',min:0,suggestedMax:110,grid:{color:GRID},border:{display:false},ticks:{color:MC.muted,font:{size:11}},title:{display:true,text:'Index (peak=100)',color:MC.muted2,font:{size:11}}},y1:{position:'right',beginAtZero:true,grid:{display:false},border:{display:false},ticks:{color:MC.muted,font:{size:11},callback:v=>'A$'+compact(v)},title:{display:true,text:'Spend',color:MC.muted2,font:{size:11}}}}
     : {x:axis({grid:{display:false}}),
        y1:{position:'left',beginAtZero:true,grid:{color:GRID},border:{display:false},ticks:{color:MC.muted,font:{size:11},callback:v=>'A$'+compact(v)},title:{display:true,text:'Spend',color:MC.muted2,font:{size:11}}},
-       y2:{position:'right',beginAtZero:true,grid:{display:false},border:{display:false},ticks:{color:MC.muted,font:{size:11},callback:v=>compact(v)},title:{display:true,text:lead?'Enquiries / qualified':'Impressions / clicks',color:MC.muted2,font:{size:11}}},
+       y2:{position:'right',beginAtZero:true,grid:{display:false},border:{display:false},ticks:{color:MC.muted,font:{size:11},callback:v=>compact(v)},title:{display:true,text:lead?'Enquiries / qualified':(crmReportable()?'Impressions / clicks / leads':'Impressions / clicks'),color:MC.muted2,font:{size:11}}},
        y3:{position:'right',beginAtZero:true,offset:true,grid:{display:false},border:{display:false},ticks:{color:MC.muted,font:{size:11},callback:v=>'A$'+compact(v)},title:{display:true,text:lead?'Cost / enquiry':'CPM',color:MC.muted2,font:{size:11}}}};
   makeChart('trendChart',{data:{labels,datasets:ds},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
     plugins:{legend:legendTop(),tooltip:{callbacks:{label:c=>{const d=c.dataset;const v=d._raw?d._raw[c.dataIndex]:c.parsed.y;const f=fmtKind[d._kind]||(x=>String(x));return `${d.label}: ${v==null?'-':f(v)}`;}}}},
@@ -2260,17 +2273,16 @@ function renderNote(){
   // us out on, so the withheld state gets its own words.
   if(leadsWithheld()){
     $('ovNote').innerHTML=(crmReportable()
-      ? `<b>How to read this.</b> <b>Leads</b> come from Geocon's own Salesforce CRM. The ad `
-        +`platforms also report a form-submission count of their own, using modelled attribution; `
-        +`it is a different measure and is deliberately not shown, because publishing both invites `
-        +`the two being read as one. <b>Cost per lead is blended</b> - all media spend divided by `
-        +`all CRM leads, including leads advertising did not produce (walk-ins, referrals, `
-        +`portals) - so read it as campaign-period efficiency, not a media cost per acquisition. `
-        +`Leads are counted for the whole development and cannot be split by platform, ad set or `
-        +`creative, because the CRM does not record which ad produced them`
-        +(crmSplitNote()?`. ${crmSplitNote()}`:`.`)
-        +` Everything else here is delivery: impressions, clicks, CTR and cost efficiency against `
-        +`the signed media plan. ${tail}`
+      ? `<b>How to read this.</b> <b>Leads</b> come from Geocon's own Salesforce CRM. `
+        +crmScopeNote()
+        +` They cannot be split by platform, ad set or creative either, because the CRM does not `
+        +`record which ad produced a lead - so the platform and stage filters do not move them. `
+        +`For the same reason this page shows <b>no cost per lead</b>: dividing one development's `
+        +`spend by every development's leads would not mean anything. The ad platforms also report `
+        +`a form-submission count of their own, using modelled attribution; it is a different `
+        +`measure and is deliberately not shown, because publishing both invites the two being `
+        +`read as one. Everything else here is delivery: impressions, clicks, CTR and cost `
+        +`efficiency against the signed media plan. ${tail}`
       : `<b>How to read this.</b> <b>Enquiry reporting is paused</b> while the CRM `
         +`connection is being built. The ad platforms report a form submission, which is not the same `
         +`thing as a qualified enquiry, so enquiry volume and cost per enquiry are held back rather `

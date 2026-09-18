@@ -458,15 +458,17 @@ build. **Fix:** seed the 2061 budget and the two missing channels.
 "Advancing Energy Technology" / "New Energy Technology Brand" while the tagging pattern looks for
 "Rebrand." The pattern should be updated when the live campaign names are known.
 
-**Gap 3: Trade-publication performance actuals are not shown.**
-Heavy's "Trade Publication" line (A$10,000) appears as plan-only on the Other Channels tab. But the
-client has sent **actual** results: `Article Reporting.xlsx` (Mining Magazine and TechPapersWorld
-weekly page views, sessions, engaged sessions, outbound clicks and CTR) and the `TechPapersWorld`
-advertorial report (765 page views, 667 sessions, 524 engaged, 43 outbound clicks, 5.62% CTR for 28
-April to 28 May). These are not in the dashboard because there is no automated feed for them.
+**Gap 3: Trade-publication performance actuals - CLOSED.**
+Heavy's "Trade Publication" line (A$10,000) now shows real delivery on the Other Channels tab, in an
+**Article delivery** section under the plan table: one sub-table per flight month (May / Jul / Sep),
+Mining Magazine and TechPapersWorld, with page views, sessions, engaged sessions, outbound clicks and
+CTR. There is still no automated feed - the figures are keyed by hand from the client's
+`Article Reporting.xlsx` into `ARTICLE_DELIVERY` in `dash/dashboard.html`, so they update only when a
+new report arrives. Last keyed **2026-09-17**: July completed (all four weeks) and September added at
+2 of 4 weeks, so September carries an `in progress` badge.
 **Note for the meeting:** the plan's 15% outbound CTR target looks optimistic against the roughly 5%
-CTR actually reported. If the client wants trade-pub actuals on the dashboard, we would load these
-spreadsheets as a manual seed.
+CTR actually reported. Delivered outbound clicks stand at **149 of the 180 target** with two September
+weeks still to report, and September is the last on-month, so this line is likely to finish short.
 
 **Gap 4: Lead-pacing detail is simplified.**
 The four `Lead Pacing` PDFs are Heavy Industries' weekly pacing plans for its four lead lines (HQL 48,
@@ -517,8 +519,8 @@ and how it maps to the dashboard.
 | `2053_SE_ANZ_New Energy Landscape Awareness - Media Plan.pdf` | NEL awareness plan (A$35,000) | Program not shown (gap 6). |
 | `2061_SE_ANZ_Advancing Energy Technology Activation - Media Plan - r1.pdf` | The full A$257,000 Advancing Energy Technology plan (LinkedIn, Search, Energy Magazine, ECD Online, Sustainability Matters, Innovation Aus, Capital Brief) + persona targeting detail | Under-seeded today (gap 2). |
 | `Lead Pacing.pdf`, `Lead Pacing (1).pdf`, `(2).pdf`, `(3).pdf` | Heavy's four lead lines' weekly pacing, by segment and TAL/Whitespace | Simplified in the dashboard (gap 4). Specifically: `Lead Pacing.pdf` = Demand AI HQL (48), `(1)` = Roverpath MQL (85), `(2)` = Finalfunnel MQL (Industrial Modernisation 235 + Operational Automation 200 = 435), `(3)` = Demand AI MQL (51). |
-| `Article Reporting.xlsx` | Weekly trade-publication actuals (Mining Magazine, TechPapersWorld) | Not shown (gap 3). |
-| `TechPapersWorld_Advertorial_Report_28Apr_28May 1.pdf` | Advertorial performance report (765 views, 5.62% CTR) | Not shown (gap 3). |
+| `Article Reporting.xlsx` | Weekly trade-publication actuals (Mining Magazine, TechPapersWorld) | Keyed by hand into `ARTICLE_DELIVERY` (gap 3, closed). The committed copy is a stale snapshot; the live workbook is the client's SharePoint copy. |
+| `TechPapersWorld_Advertorial_Report_28Apr_28May 1.pdf` | Advertorial performance report (765 views, 5.62% CTR) | Not shown; superseded by the weekly workbook (gap 3). |
 | `Schneider_Pacific_All_campaigns_2026-07-01 (2).pptx` | A sample of the dashboard's own AI "Download slides" output | Explained in §7; numbers match the dashboard. |
 
 ---
@@ -607,8 +609,9 @@ No; its full plan is about A$257,000. It is not seeded yet because the program l
 detailed plan came in after the initial build. See §10 gap 2.
 
 **Q: Can we see the trade-publication (Mining Magazine, TechPapersWorld) results here?**
-Not currently; those come as spreadsheets with no automatic feed, so Heavy's Trade Publication line is
-plan-only. We can load them as a manual seed if wanted. See §10 gap 3.
+Yes - the Other Channels tab carries an **Article delivery** section, one table per flight month. There
+is no automatic feed, so the figures are keyed in by hand each time the publisher report arrives and a
+flight still being reported is badged `in progress`. See §10 gap 3.
 
 **Q: Is the AI slide deck trustworthy on the numbers?**
 Yes. The figures are passed to the AI verbatim from the dashboard; the AI writes the commentary and
