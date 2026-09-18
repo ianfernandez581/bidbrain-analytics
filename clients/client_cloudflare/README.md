@@ -878,8 +878,46 @@ for another week. **DELIVERED survives only as a delivery COUNT and as the accep
 rate denominator.** If you add a panel that puts an actual next to a target, it uses accepted.
 
 Verified 2026-08-27: accepted 265, delivered 306, rejected 41, unprocessed 253, flight target 830,
-target due to date 192 -> **31.9% of plan against 23.1% time elapsed, 138.0% leads pacing**. The
-pacing-versus-time comparison is the point of the section: a bare 31.9% reads as underperformance.
+target due to date 192 -> **31.9% of plan against 138.0% of the target due to date**. A bare 31.9%
+of the whole flight reads as underperformance, which is why the panel pairs it with a to-date
+figure - but that second figure is the TARGET DUE, never elapsed time (see below; this paragraph
+said "23.1% time elapsed" until 2026-09-18, and the time basis is gone from both lanes).
+
+### The Progress panel paces on TARGET DUE, never on elapsed time (2026-09-18)
+
+**A lead count and a calendar are different windows, and dividing one by the other is what the
+client challenged.** The Progress panel used to compute `leads-complete / quarter-time-elapsed`
+and print "BEHIND PACE - 97% of expected" beside a Leads-vs-target panel reading **105.5% of the
+TTD target** on the same screen. Jade, 16 Sep: *"am i missing something or do the numbers not
+really add up?"* Both were arithmetically right and they divided by different things - 1,770 (the
+plan's own to-date target) versus ~1,917 (83.9% of the quarter), a 147-lead gap that flipped the
+verdict.
+
+Two independent reasons the time basis cannot work here:
+
+- **Acceptance lags delivery by about a week.** On 18 Sep the newest ACCEPTED lead was dated
+  **08 Sep** while **239 delivered leads sat unreviewed** in the open week - the normal state, not
+  a fault. The clock had run ten days the lead count could not answer for.
+- **The plan weeks are offset from the quarter.** They run **06 Jul -> 04 Oct**; the quarter runs
+  01 Jul -> 30 Sep. Five days of "time elapsed" carried no target at all.
+
+**The tell is that it drifts and snaps back.** With `ttdTarget` frozen between week closes and the
+clock advancing daily, it read 97% on 16 Sep and **95% on 18 Sep with the plan unchanged**, then
+resets every Monday. A pacing figure that moves when nothing moved is measuring the wrong thing.
+
+**Fix:** both panels now divide by the same `agg.ttdTarget`, so `ratio === accepted / ttdTarget` -
+byte-identical to the figure `renderLeadsTarget()` prints. The second bar is relabelled `TTD
+target` (it was `Time`), the badge and note read "% of TTD target" at **1dp on both** (a badge
+rounding 105.5 to 106 beside a note saying 105.5 is the same class of near-miss), and the card's
+hint no longer says "Time vs Q3 days elapsed". `agg.timePct` is untouched and still used elsewhere;
+do not reintroduce it as a denominator.
+
+**EMEA had this exact fix on 2026-08-31**, with a code comment predicting "the exact contradiction
+a client will challenge". It was guarded on `topFromPacing()` (theatre != APAC), so **APJ kept the
+defect for 18 days until the client found it**. When you correct a pacing basis, sweep every lane.
+
+Verified on the live payload 2026-09-18: APJ both panels 105.5% / AHEAD; EMEA unchanged at 62.9%
+(2,833 accepted vs 4,507), which is the branch this change does not touch.
 
 ### Three things to keep right
 
