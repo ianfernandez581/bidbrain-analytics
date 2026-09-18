@@ -1516,10 +1516,59 @@ const hasForm=x=>!!x && !!x.hasLeads && ((x.leads||0)>0 || (x.opens||0)>0);
 // numbers the reader cannot see - and each NAMES the brief it is about, because the same label
 // means different things on different briefs. `keys` are 'campaign||tactic||platform', `agg` the
 // aggregates behind them.
+// Industrial Edge's LinkedIn Awareness audience was narrowed sharply on 2026-08-02 (measured, not
+// inferred: LinkedIn's own reach / audience-penetration pair puts the target audience at ~7.3M on
+// 01-08 and ~130K on 02-08, stable either side over eleven consecutive days). Its July delivery was
+// 99.7% OFF-PLATFORM at ~A$6 CPM and ~0.05% CTR; from 03-08 it runs on-platform-heavy at A$165+ and
+// ~0.38%. Those are two different buys, so ANY blended CPM or CTR spanning the cutover describes
+// neither of them - it just weights toward whichever side has the impressions, and July has 59% of
+// the brief's whole-flight total on 7.6% of its spend.
+//
+// Split on the DAY THE AUDIENCE CHANGED, not the day delivery fell. 02-08's impressions were
+// already bought against the old audience, which is why penetration spikes that day while volume
+// is still flat; the collapse shows from 03-08. Pre is therefore date <= 02-08.
+//
+// Computed from pmRows() - the ONE filtered-rows accessor both footnote callers derive from - so
+// the sentence describes what is on screen and RETIRES ITSELF when the range excludes either side.
+// Do not re-key this on the date picker: a caveat that survives its own evidence is worse than none.
+const IND_EDGE_NARROWED='2026-08-02';
+function indEdgeAudienceSplit(){
+  const z=()=>({imps:0,clk:0,spend:0});
+  const pre=z(), post=z();
+  // Scoped to the LINE the footnote names (Industrial Edge / LinkedIn / Awareness), not the whole
+  // brief - the sentence quotes these figures, so they have to be that line's own or the prose and
+  // the numbers describe different things. It is also the row whose combined CPM/CTR is misleading.
+  pmRows().forEach(r=>{
+    if(r.campaign!=='ind_edge' || r.platform!=='linkedin' || r.tactic!=='Awareness') return;
+    const b = r.date<=IND_EDGE_NARROWED ? pre : post;
+    b.imps+=r.imps||0; b.clk+=r.clicks||0; b.spend+=r.spend_aud||0;
+  });
+  return {pre, post, total:pre.imps+post.imps};
+}
+
 function tacticFootnotes(keys, agg){
   const notes=[];
   const split=k=>k.split('||');
   const campsOn=tk=>[...new Set(keys.filter(k=>split(k)[1]===tk).map(k=>split(k)[0]))];
+  // The Industrial Edge audience-change caveat. Keyed on THREE things, all of which must hold or
+  // the sentence is not true of the screen: the brief's LinkedIn Awareness line is actually shown,
+  // both sides of the cutover carry delivery, and the July side is a material share (a range that
+  // clips one day of it does not warrant a caveat about averaging).
+  const ieAwr=keys.some(k=>{ const [c,t,pl]=split(k);
+    return c==='ind_edge' && t==='Awareness' && pl==='linkedin'; });
+  if(ieAwr){
+    const {pre,post,total}=indEdgeAudienceSplit();
+    // CTR goes through pct() like every other CTR on this page - fmtPct() multiplies by 100
+    // itself, so handing it an already-multiplied figure prints it 100x high.
+    const cpm=x=>x.imps?x.spend/x.imps*1000:null;
+    if(pre.imps && post.imps && total && pre.imps/total>=0.10)
+      notes.push(`Industrial Edge's LinkedIn <i>Awareness</i> audience was narrowed sharply on 2 August. `
+        + `Before that date it delivered almost entirely off-platform against a very broad audience `
+        + `(${fmtN(pre.imps)} impressions at ${money(cpm(pre),2)} CPM, ${fmtPct(pct(pre.clk,pre.imps),2)} CTR); `
+        + `after it, against a much narrower one (${fmtN(post.imps)} impressions at ${money(cpm(post),2)} CPM, `
+        + `${fmtPct(pct(post.clk,post.imps),2)} CTR). A CPM or CTR covering both periods averages two different buys, `
+        + `so read each side on its own rather than the combined figure.`);
+  }
   // Enterprise IT names its ad sets by VERTICAL, so its whole delivery is 'Unspecified' by design.
   // Any OTHER brief with an Unspecified line is an ad set whose name carries no stage token and whose
   // line item has not been stated yet - say so per brief, rather than blaming Enterprise IT for a

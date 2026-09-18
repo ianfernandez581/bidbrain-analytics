@@ -481,6 +481,78 @@ form ACTIVITY (`leads > 0 OR lead_form_opens > 0`), never merely a non-null coun
 for leads and got none". Form opens separate the two, so a Conversion line that genuinely converted
 nobody still prints a real `0` while an Awareness line prints `-`. Trade Desk always prints `-`.
 
+## Industrial Edge's Awareness line spans a TARGETING CHANGE, so a blended rate describes neither side
+
+Shipped 2026-09-18 as a footnote on both line-item tables (`tacticFootnotes()` in
+`dash/dashboard.html`). The finding is MEASURED, not inferred, and it took three passes to reach -
+the first two readings were wrong in ways worth recording, because both were plausible.
+
+**What happened.** On **2026-08-02** the audience on LinkedIn ad set **859128356** (`ind_edge` /
+Awareness / AU) went from **~7.3 million to ~130,000**, a ~56x cut. Measured, not estimated:
+LinkedIn reports `approximate_unique_impressions` (reach) and `audience_penetration`
+(reach / target audience size), so **reach / penetration IS the audience size**. Four July days
+agree within 1.3%, seven August days within 0.8%. ~7.3M is approximately the entire Australian
+professional base, i.e. a geo-only audience with no title filter; ~130K is "Australia + nine job
+titles", which is what that ad set's current `targeting_include_titles` actually holds.
+
+**It was a job-title filter, applied across the brief, and NOT the other candidates.**
+- **TAL swap is ruled out twice over**: 30 of the top 30 July companies also appear in August (BHP,
+  Woolworths, Rio Tinto, Coles, Fortescue, Woodside...), and `targeting_include_employers` is NULL,
+  so there is no account list on the ad set at all.
+- **Audience expansion does not survive the 7.3M figure**: expansion broadens toward lookalikes, it
+  does not converge on a national population, and July's delivered mix carried Healthcare Services,
+  Education, Retail, Accounting and Marketing at real share - not lookalikes of nine industrial job
+  titles. No expansion flag exists in the connector, so this one is inference from magnitude and
+  composition rather than from a field.
+- **BRIEF-WIDE, not one ad set**: both Conversion ad sets stepped the same day (860493666 ~24x,
+  859158326 ~79x). An earlier reading attributed their drop to budget moving to the two Consideration
+  ad sets launched 02-03 Aug. That was wrong.
+
+**Two corrections to keep, because the wrong readings were the natural ones.**
+1. **The audience network was NOT switched off.** OFFSITE delivery continues every single day after
+   the cut, at a CPM climbing A$5 -> A$177. That is frequency saturation on a tiny pool, not a
+   placement toggle - and a placement toggle CANNOT explain it, because LAN is a placement setting
+   while `audience_penetration`'s denominator derives from targeting criteria. Switching LAN cannot
+   move the audience size at all.
+2. **The post-change CPM is TOP of range, not "expensive but normal."** A$207-488 sits above every
+   sibling on the brief (A$68 NZ Conversion, A$92 AU Conversion) and above the ANZ spread (A$16-138).
+
+**The strongest argument is internal to the account, so it needs no external benchmark**: the
+account's other cheap ad sets (India / MEA / SAM at A$7-16 CPM) all have NORMAL CTR of 0.24-0.36%.
+859128356 at A$5.96 with **0.047%** CTR is the only ad set in the account pairing bottom-of-range
+cost with dead engagement. That is the tell, and it is defensible without quoting a market rate.
+
+**Why a footnote and not a hidden figure.** The line's two halves are **178,745 imps at A$5.72 CPM
+/ 0.06% CTR** before, **10,014 at A$206.75 / 0.34%** after. Whole-flight that is 59% of the BRIEF's
+impressions on 7.6% of its spend, so including it roughly halves both the reported CPM (A$46.63 vs
+A$105.34) and the reported CTR (0.220% vs 0.454%). Hiding it would break the rule that parts sum to
+the whole; the honest fix is to keep every number and say what was bought. The note states the
+SPLIT and never a cause - we can measure that the audience changed, not which control was moved.
+
+**Three things the implementation gets right and must keep:**
+- It splits on **02-08, the day the AUDIENCE changed**, not 03-08 when delivery fell. That day's
+  impressions were already bought against the old audience, which is why penetration spikes on 02-08
+  while volume is still flat.
+- Figures are **scoped to the line the sentence names** (ind_edge / linkedin / Awareness), not to
+  the brief. The prose quotes them, so they have to be that line's own or the words and the numbers
+  describe different things.
+- It is computed from **`pmRows()`** - the one filtered-rows accessor both footnote callers derive
+  from - and requires BOTH sides present plus a >=10% July share, so it **retires itself** when the
+  date range excludes either period. Do not re-key it on the date picker: a caveat that outlives its
+  own evidence is worse than none.
+
+**`fmtPct()` MULTIPLIES BY 100 ITSELF** (`(v*100).toFixed(d)`), so it takes a FRACTION via `pct()`.
+The first cut of this note handed it an already-multiplied CTR, which would have printed every
+figure 100x high on a client-facing surface. Every other CTR on this page goes through
+`fmtPct(pct(a,b),2)` - match it.
+
+**Still open, and worth one narrow question:** which control was moved on 02-08 (a targeting edit,
+audience expansion being disabled, or a TAL swap). The 18 `targeting_include_*` /
+`targeting_exclude_*` fields Windsor exposes are **current-state only** - identical on every July
+date - so nothing available to us adjudicates. Also open and NOT resolvable: whether July's
+demographic profile reflects targeting or off-platform audience characteristics, since the API will
+not cross `placement_name` with the `member_*` pivots.
+
 ## Monitoring
 In the status pipeline's `CLIENTS` roster (`status_dashboard/job/main.py`) since 2026-08-17, with
 **4 accuracy checks** — LinkedIn and Trade Desk impressions + clicks, each comparing the dashboard
@@ -552,9 +624,22 @@ a failed run instead of a dashboard that reads "campaign stopped".
 - **A MEDIA PLAN NOW EXISTS FOR ind_edge (2463) — and is deliberately NOT wired up yet.** The client
   supplied *"2463 Final media plan - SEE Industrial Edge Wave 3 Media Plan.xlsx"* on 2026-08-18 as the
   reference for the line-item split (that is all the 2026-08-18 change used it for). It carries real
-  targets: flight **2026-07-01 -> 10-31**, budget **A$52,150**, 85,999 planned impressions, and per-line
-  targets — Awareness/Programmatic 61,000 imps @ A$9,150 (CPM A$15) · Awareness/LinkedIn 9,333 @ A$7,000
-  (CPM A$75) · Consideration/LinkedIn 7,333 @ A$5,500 · Conversion/LinkedIn lead-gen 8,333 @ A$7,500 ·
+  targets: flight **2026-07-01 -> 11-30**, budget **A$52,150**, and per-line targets.
+  **THE SHEET'S OWN IMPRESSION COLUMN IS 10x LOW AND MUST NOT BE SEEDED AS PRINTED (confirmed with
+  the client, 2026-09-18).** Column I on rows 14-17 was calculated as `cost / CPM * 100` where the
+  intended formula is `cost / CPM * 1000` - the client stated that formula herself, and all four
+  lines reproduce to the decimal under the x100 form, so it is one bad cell copied down rather than
+  four typos. **Cost and CPM are correct** (they tie to the stated A$52,150 once the Direct IT line
+  is added), so cost and CPM are the trustworthy inputs and impressions are a derived OUTPUT; REACH
+  and CLICKS in the sheet are themselves derived from impressions and inherit the same error. Seed
+  the CORRECTED figures: Awareness/Programmatic **610,000** imps @ A$9,150 (CPM A$15) ·
+  Awareness/LinkedIn **93,333** @ A$7,000 (CPM A$75) · Consideration/LinkedIn **73,333** @
+  A$5,500 · Conversion/LinkedIn lead-gen **83,333** @ A$7,500 - so **859,999 planned
+  impressions**, not 85,999. Seeding the sheet as printed would publish Industrial Edge at **337% of
+  target** when it is really at **34%**: that 10x is the whole difference between a campaign that
+  looks finished and one a third of the way through. **The flight END is 2026-11-30** (client,
+  2026-09-18) - the sheet contradicts itself, row 6 reading 31-Oct while rows 14-17 read
+  1 July - 30 Nov, and the client confirmed the line items. ·
   plus a **Direct IT** line (40 HQLs @ A$575 CPL, A$23,000) that is an **offline lead vendor with no
   media delivery** and therefore has no row in this warehouse at all.
   Wiring it means turning this dashboard from delivery-only into partly-paced, which touches more than
