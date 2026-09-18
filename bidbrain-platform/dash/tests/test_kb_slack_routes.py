@@ -105,6 +105,39 @@ class Rig(unittest.TestCase):
         return mock.patch.object(kb_slack.requests, "get", side_effect=lambda url, params=None, headers=None, timeout=None: fake(url, params or {}))
 
 
+class PublicNotice(Rig):
+    """Slack's Developer Policy wants a publicly reachable privacy policy. This is the ONLY ungated
+    route on the platform, so both halves matter: it must open with no session, and it must leak
+    nothing if it does."""
+
+    def test_it_opens_with_no_session_at_all(self):
+        r = self.c.get("/kb/slack-notice")
+        self.assertEqual(r.status_code, 200)
+        body = r.get_data(as_text=True)
+        self.assertIn("Bidbrain Knowledge", body)
+        self.assertIn("charles@100.digital", body)
+
+    def test_it_states_the_four_things_the_policy_asks_for(self):
+        body = self.c.get("/kb/slack-notice").get_data(as_text=True).lower()
+        self.assertIn("only the channels it has been invited to", body)   # scope
+        self.assertIn("australia-southeast1", body)                       # where
+        self.assertIn("14 business days", body)                           # retention on uninstall
+        self.assertIn("kimi", body)                                       # which providers, and not
+
+    def test_it_reads_nothing_from_the_knowledge_base(self):
+        """A public page that touched the store would be a leak one refactor away."""
+        with mock.patch.object(kb_slack, "state", side_effect=AssertionError("read state")), \
+             mock.patch.object(kb_slack, "list_unassigned", side_effect=AssertionError("read queue")), \
+             mock.patch.object(kb_index, "all_meta", side_effect=AssertionError("read index")):
+            r = self.c.get("/kb/slack-notice")
+        self.assertEqual(r.status_code, 200)
+
+    def test_every_other_slack_route_still_needs_a_session(self):
+        for path in ("/kb/channels", "/kb/api/slack/status", "/kb/api/slack/unassigned"):
+            r = self.c.get(path)
+            self.assertIn(r.status_code, (302, 401, 403), "%s was reachable anonymously" % path)
+
+
 class Gate(Rig):
     def test_anonymous_and_client_sessions_are_refused(self):
         r = self.c.get("/kb/api/slack/status")

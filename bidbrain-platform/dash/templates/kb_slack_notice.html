@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bidbrain Knowledge for Slack - privacy notice</title>
+<meta name="description" content="What the Bidbrain Knowledge Slack app reads, what it stores, where it is held and for how long.">
+<style>
+  :root{
+    --ink:#0f1115; --muted:#5b6472; --line:#e3e6ea; --bg:#fbfbfc; --card:#fff; --accent:#b8860b;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --ink:#e8eaed; --muted:#9aa3b0; --line:#272b33; --bg:#0f1115; --card:#161920; --accent:#d9a62b;
+    }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  .wrap{max-width:720px;margin:0 auto;padding:48px 16px 72px}
+  header{border-bottom:1px solid var(--line);padding-bottom:20px;margin-bottom:28px}
+  .eyebrow{font-size:12px;letter-spacing:.09em;text-transform:uppercase;color:var(--accent);
+           font-weight:600;margin:0 0 8px}
+  h1{font-size:28px;line-height:1.25;margin:0 0 8px;font-weight:600}
+  .sub{color:var(--muted);margin:0;font-size:15px}
+  h2{font-size:17px;margin:32px 0 8px;font-weight:600}
+  p{margin:0 0 14px}
+  ul{margin:0 0 14px;padding-left:20px}
+  li{margin:0 0 7px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:20px 22px;
+        margin:0 0 20px}
+  .card h2{margin-top:0}
+  table{border-collapse:collapse;width:100%;margin:0 0 14px;font-size:15px}
+  th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{color:var(--muted);font-weight:600;width:34%}
+  tr:last-child th,tr:last-child td{border-bottom:0}
+  footer{margin-top:40px;padding-top:20px;border-top:1px solid var(--line);
+         color:var(--muted);font-size:14px}
+  a{color:inherit}
+  strong{font-weight:600}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <p class="eyebrow">100% Digital</p>
+    <h1>Bidbrain Knowledge for Slack</h1>
+    <p class="sub">What this app reads, what it stores, and for how long. Last updated 18 September 2026.</p>
+  </header>
+
+  <p><strong>Bidbrain Knowledge</strong> is an internal tool built and used by 100% Digital. When
+  someone invites it into a Slack channel, it files that channel's messages into our own knowledge
+  base so our staff can search and ask questions about work we have already discussed.</p>
+
+  <div class="card">
+    <h2>What it can and cannot do</h2>
+    <p>It reads <strong>only the channels it has been invited to</strong>. That invitation is the
+    entire scope: a channel nobody has invited it into is invisible to it, and removing it from a
+    channel ends its access to that channel.</p>
+    <p>It <strong>cannot</strong> read direct messages or group DMs, and it holds no permission to
+    post, reply, react or message anyone. It never writes anything in Slack.</p>
+    <p>It records the names of files shared in a channel. It does not download them.</p>
+  </div>
+
+  <h2>What is stored, and where</h2>
+  <table>
+    <tr><th>What</th><td>Message text, the author's display name, the channel name and the time the
+      message was sent. Plus staff names and email addresses from the workspace directory, used to
+      turn Slack user IDs into readable names.</td></tr>
+    <tr><th>Where</th><td>Google Cloud Storage, in Google's <code>australia-southeast1</code> region
+      (Sydney), in a private bucket owned by 100% Digital.</td></tr>
+    <tr><th>Who can read it</th><td>100% Digital staff with knowledge-base access. It is never shown
+      to a client, and never to another agency.</td></tr>
+    <tr><th>How long</th><td>For as long as the message exists in Slack. Editing or deleting a
+      message in Slack updates or removes our copy on the next sync. Removing the app from the
+      workspace deletes everything it holds within 14 business days.</td></tr>
+  </table>
+
+  <h2>Artificial intelligence</h2>
+  <p>Passages from these messages are sent to AI providers so the assistant can answer a question
+  and file a conversation under the right client. We use providers whose terms state that they do
+  not train their models on what we send:</p>
+  <ul>
+    <li><strong>Google Gemini</strong>, paid API tier, which excludes prompts and responses from
+      model improvement.</li>
+    <li><strong>Anthropic Claude</strong>, commercial terms, which bar training on customer content
+      and delete it within 30 days.</li>
+    <li><strong>Google Vertex AI</strong>, for search indexing, which does not train on inputs.</li>
+  </ul>
+  <p>Slack-derived text is deliberately <strong>withheld from any provider whose terms permit
+  training on what it receives</strong>, whichever model a member of staff has selected. Today that
+  means it is never sent to Moonshot's Kimi.</p>
+  <p>We do not sell this data, and we do not share it with anyone outside the providers above.</p>
+
+  <h2>If you would rather a channel stayed out</h2>
+  <p>Say so and we will not invite the app to it, or we will remove it. No configuration is needed
+  anywhere: leaving the channel is what ends the access.</p>
+
+  <footer>
+    <p>Questions, or a request to remove something: <a href="mailto:charles@100.digital">charles@100.digital</a>.</p>
+    <p>100% Digital, Sydney, Australia.</p>
+  </footer>
+
+</div>
+</body>
+</html>

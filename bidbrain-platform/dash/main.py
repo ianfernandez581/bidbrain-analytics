@@ -302,6 +302,7 @@ _EXTERNAL_ALLOWED_ENDPOINTS = frozenset({
     "login", "extrablack_login_form", "extrablack_login", "auth_google", "auth_microsoft",
     "api_status", "client_logo", "proxy",
     "favicon_ico", "favicon_png", "apple_touch_icon",
+    "kb_slack.slack_notice",             # the PUBLIC Slack privacy notice - see kb_slack_routes
 })
 
 # Proxy sub-paths an external tenant may NOT request on a dashboard it can otherwise open.
