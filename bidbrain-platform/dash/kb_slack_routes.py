@@ -122,6 +122,17 @@ def _users_cached():
     return kb_slack._USERS.get("by_id") or {}       # noqa: SLF001 - same module family
 
 
+def _users_for_writing():
+    """The directory for a call that WRITES a document. Unlike _users_cached this may fetch: a cold
+    cache would otherwise bake raw `U…` ids into a permanent document, and nothing re-renders it.
+    Falls back to the cache if Slack is unreachable - a filing must not fail over the directory."""
+    try:
+        return kb_slack.users()
+    except Exception:                        # noqa: BLE001
+        log.warning("slack: directory unavailable at filing time - names may render as ids")
+        return _users_cached()
+
+
 # --- the ladder, per conversation ----------------------------------------------------------------
 
 def process(conv, ctx):
@@ -442,7 +453,7 @@ def assign():
     st = kb_slack.state()
     try:
         meta = kb_slack.index_conversation(conv, ck, "human", evidence=[f"assigned by {_actor()}"], actor=_actor(),
-                                           users_by_id=_users_cached(), team_url=(st.get("team") or {}).get("url", ""),
+                                           users_by_id=_users_for_writing(), team_url=(st.get("team") or {}).get("url", ""),
                                            skip_learning=skip)
     except Exception:                        # noqa: BLE001
         log.exception("slack assign failed")

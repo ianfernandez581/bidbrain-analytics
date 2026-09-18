@@ -303,6 +303,38 @@ class Queue(Rig):
         self.assertEqual(self.c.post("/kb/api/slack/assign", json={"key": "slack-x", "client_key": "geocon"}).status_code, 404)
 
 
+class AssignRendersNames(Rig):
+    """The document a human files is permanent and nothing re-renders it, so the speaker names have
+    to be right at WRITE time. Found 2026-09-18: the assign path read a cache that a fresh web
+    process has never filled, and every speaker came out as `U0BFMVAG9T5`."""
+
+    def test_assign_fetches_the_directory_when_the_cache_is_cold(self):
+        self._as("admin")
+        with self._slack(slack_api()):
+            self.c.post("/kb/api/slack/sync", json={})          # queue it (unmapped -> waits)
+        key = kb_slack.list_unassigned()[0]["key"]
+
+        kb_slack._USERS.clear()                                 # a fresh instance: nothing cached
+        kb_slack._USERS.update({"at": 0.0, "by_id": {}})
+        with self._slack(slack_api()):
+            r = self.c.post("/kb/api/slack/assign", json={"key": key, "client_key": "geocon"})
+        self.assertTrue(r.get_json()["ok"], r.get_json())
+
+        did = r.get_json()["doc"]["id"]
+        body = self.docs[did]["body"]
+        self.assertNotIn("U0", body, "raw Slack ids were written into a permanent document")
+        self.assertIn("Charles", body)
+
+    def test_a_directory_outage_does_not_lose_the_filing(self):
+        self._as("admin")
+        with self._slack(slack_api()):
+            self.c.post("/kb/api/slack/sync", json={})
+        key = kb_slack.list_unassigned()[0]["key"]
+        with mock.patch.object(kb_slack, "users", side_effect=kb_slack.SlackError("users.list: down")):
+            r = self.c.post("/kb/api/slack/assign", json={"key": key, "client_key": "geocon"})
+        self.assertTrue(r.get_json()["ok"], "a directory outage must not block the filing")
+
+
 class Mapping(Rig):
     def test_map_is_audited_and_never_refiles_by_itself(self):
         self._as("admin", "jerome@bidbrain.ai")
