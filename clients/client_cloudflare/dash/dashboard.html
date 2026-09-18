@@ -1720,7 +1720,10 @@
         </div>
         <div class="card">
           <h3>Progress</h3>
-          <div class="hint">Leads vs target / Time vs <span class="qlbl">Q3</span> days elapsed.</div>
+          <!-- Was "Leads vs target / Time vs Q3 days elapsed" until 2026-09-18. The Time bar is
+               gone (see renderProgress) and the caption outlived it on BOTH lanes - EMEA has had
+               no time bar since 2026-08-31. Wording is deliberately true of both lanes. -->
+          <div class="hint">Accepted leads measured against the <span class="qlbl">Q3</span> target due so far.</div>
           <div class="hint" id="csTopScope" style="display:none;margin-top:2px"></div>
           <div id="progress"></div>
         </div>
@@ -4304,9 +4307,34 @@ function renderProgress(agg) {
     return;
   }
   const QL = periodLabel();
-  const lp = agg.q2Target ? agg.accepted/agg.q2Target : 0;   // accepted leads ÷ target
-  const tp = agg.timePct;                                    // quarter time elapsed
-  const ratio = tp > 0 ? lp/tp : 0;
+  // BASIS (2026-09-18): the second bar is the PLAN DUE TO DATE, never calendar time.
+  // It was agg.timePct - the share of the quarter that has elapsed - which charges days
+  // against leads that cannot exist yet. Acceptance lags delivery by about a week (on
+  // 18 Sep the newest ACCEPTED lead was dated 08 Sep while 239 delivered leads sat
+  // unreviewed), and the plan weeks run 06 Jul -> 04 Oct, five days offset from the
+  // quarter, so five days of "time" carried no target at all. The panel therefore read
+  // BEHIND by construction, drifted further every day and snapped back each Monday - and
+  // it contradicted the TTD-target panel beside it on the same screen, which the client
+  // challenged (Jade, 16 Sep: "am i missing something or do the numbers not really add
+  // up?" - left said 105.5% ahead, right said 97% behind, and by 18 Sep 95%).
+  // Both panels now divide by the SAME week-close TTD target, so they cannot disagree:
+  // ratio === agg.accepted / agg.ttdTarget, which is the figure renderLeadsTarget prints.
+  // This is the repo-wide rule "PACE OVER THE WINDOW THE ACTUALS COVER, NOT UP TO TODAY"
+  // (md/AGENTS.md), and the same correction the EMEA lane got on 2026-08-31.
+  // Do NOT reintroduce agg.timePct here - it is still the honest quarter clock and is used
+  // elsewhere, but a lead count and a calendar are different windows and must not be divided.
+  if (!agg.ttdTarget) {
+    document.getElementById('progress').innerHTML = `
+      <div class="prog-badge">No completed target weeks yet</div>
+      <div style="font-size:var(--t-sm);color:var(--cf-mute);margin-top:var(--s-4)">
+        A week's target joins the to-date figure once the week has closed, so there is
+        nothing to pace against until the first plan week ends.
+      </div>`;
+    return;
+  }
+  const lp = agg.q2Target ? agg.accepted/agg.q2Target : 0;   // accepted leads ÷ full plan
+  const tp = agg.q2Target ? agg.ttdTarget/agg.q2Target : 0;  // plan DUE so far ÷ full plan
+  const ratio = tp > 0 ? lp/tp : 0;                          // === accepted / ttdTarget
   const overTarget = lp > 1;                                 // beat the full-quarter target
   const overLeads  = Math.round(agg.accepted - agg.q2Target);
   // Shared scale so BOTH bars sit on one axis and the Leads bar visibly CROSSES the
@@ -4320,8 +4348,10 @@ function renderProgress(agg) {
   const badge = overTarget
     ? `<div class="prog-badge good">TARGET EXCEEDED · ${(lp*100).toFixed(1)}% of ${QL} goal · +${fmtN(overLeads)} leads over</div>`
     : (lp >= tp
-        ? `<div class="prog-badge good"><svg class="i"><use href="#i-check"/></svg>AHEAD OF PACE · ${(ratio*100).toFixed(0)}% of expected</div>`
-        : `<div class="prog-badge warn">BEHIND PACE · ${(ratio*100).toFixed(0)}% of expected</div>`);
+        // 1dp, matching the note below and renderLeadsTarget - a badge rounding 105.5 to
+        // 106 next to a note saying 105.5 is the same class of near-miss as the basis bug.
+        ? `<div class="prog-badge good"><svg class="i"><use href="#i-check"/></svg>AHEAD OF PACE · ${(ratio*100).toFixed(1)}% of TTD target</div>`
+        : `<div class="prog-badge warn">BEHIND PACE · ${(ratio*100).toFixed(1)}% of TTD target</div>`);
   document.getElementById('progress').innerHTML = `
     ${badge}
     <div class="progress-row"><div>Leads</div>
@@ -4331,7 +4361,7 @@ function renderProgress(agg) {
         <div class="prog-tgt" style="left:${markerLeft}%"></div>
       </div>
       <div style="text-align:right;font-weight:700;color:${overTarget ? 'var(--good-green)' : 'var(--cf-ink)'}">${(lp*100).toFixed(1)}%</div></div>
-    <div class="progress-row"><div>Time</div>
+    <div class="progress-row"><div>TTD target</div>
       <div class="pbar gray">
         <div class="fill" style="width:${P(tp)}%"></div>
         <div class="prog-tgt" style="left:${markerLeft}%"></div>
@@ -4341,7 +4371,8 @@ function renderProgress(agg) {
       <span style="border-left:2px dashed var(--cf-navy);padding-left:var(--s-2)">Dashed line = 100% ${QL} target</span>${surplus > 0 ? ` · <span style="color:var(--good-green);font-weight:600">green = leads beyond target</span>` : ``}
     </div>
     <div style="font-size:var(--t-sm);color:var(--cf-mute);margin-top:var(--s-4)">
-      Leads pacing is <b>${(ratio*100).toFixed(0)}% of expected</b>. ${lp > tp ? 'Ahead of plan' : 'Behind plan'}.
+      Accepted leads are <b>${(ratio*100).toFixed(1)}% of the TTD target</b> - the target of the
+      plan weeks that have closed. ${lp >= tp ? 'Ahead of plan' : 'Behind plan'}.
     </div>`;
 }
 

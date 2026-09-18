@@ -263,6 +263,22 @@ START, not first delivery: a flight day with no delivery is a real miss and must
 is why the corrected sophiie figure is 87%, not 105%). Reference impl: `_flight()` in
 `clients/client_sophiie/job/main.py` (`days_covered` / `pace_through`) + `renderPacing()` in its
 dashboard.
+**SECOND LIVE CASE, and this one the CLIENT found (cloudflare, 2026-09-18).** The CS tab's Progress
+panel divided leads-complete by QUARTER-TIME-elapsed, beside a panel dividing the same accepted
+count by the week-close TTD target - 105.5% ahead on the left, "BEHIND PACE 97% of expected" on the
+right, one screen apart. Jade: *"am i missing something or do the numbers not really add up?"*
+Lead acceptance lags DELIVERY by about a week here (on 18 Sep the newest accepted lead was dated
+08 Sep while 239 delivered leads sat unreviewed), so the time bar charged ten days the lead count
+could not answer for; it also ran on the CALENDAR QUARTER while the plan weeks run 06 Jul -> 04 Oct,
+so five days carried no target at all. **The tell is that it drifts and snaps back**: frozen TTD
+target vs a daily-advancing clock read 97% on 16 Sep and 95% on 18 Sep with the plan unchanged,
+then resets every Monday. Fixed by dividing BOTH panels by the same `ttdTarget`
+(`renderProgress()` in `clients/client_cloudflare/dash/dashboard.html`). Transferable: **a lead
+count and a calendar are different windows - never divide one by the other**, and when two panels
+on one screen pace the same actual, they must name and share ONE denominator. Note EMEA had the
+identical fix on 2026-08-31 with a comment predicting "the exact contradiction a client will
+challenge" - it was branch-guarded on theatre, so APJ kept the defect for 18 days. **When you fix a
+pacing basis, check every lane, not the one in front of you.**
 **And a freshness stamp must state DATA COVERAGE, not when you last looked.** sophiie's
 `meta.data_through` was the max of the freshness-PROBE timestamps, which advance on any run that
 touches the mirror - including one that loads nothing. A Windsor error payload on 2026-09-10 moved
