@@ -1,4 +1,4 @@
--- 21_integrate_bridge.sql
+-- 19b_integrate_bridge.sql
 --
 -- THE ONE PLACE INTEGRATE'S LEAD RECORD IS READ. Everything else reads THIS view.
 --
@@ -10,6 +10,10 @@
 -- IT ANSWERS EXACTLY TWO QUESTIONS, and deliberately not a third:
 --   1. WHICH OFFER did this lead come from?   (sql/23 - the enrichment-by-publisher lane)
 --   2. WHY was it rejected?                    (sql/22 - the rejection-reason panel)
+--   3. WAS it enriched?                        (sql/20 - a BLANK-FILL, never a replacement)
+--
+-- NUMBERED 19b, NOT 21, PURELY FOR APPLY ORDER: sql/20 reads it, and create_views.py applies
+-- files in sorted filename order, so a `21_` bridge would not exist yet when sql/20 is built.
 -- It does NOT supply enrichment counts. Integrate holds 56 enrichments for VRSM that Salesforce
 -- does not, and Salesforce holds 36 (the 2026-07-21 Precision MQL batch) that Integrate does
 -- not, so the two disagree in BOTH directions. Counting enrichment from here would put a second
@@ -81,7 +85,19 @@ deduped AS (
       WHEN LOWER(URL) LIKE '%-qualification-que%' THEN 'Qualification Questions'
       ELSE NULL
     END                                                       AS OFFER_FROM_URL,
-    URL IS NOT NULL AND TRIM(URL) <> ''                       AS HAS_URL
+    URL IS NOT NULL AND TRIM(URL) <> ''                       AS HAS_URL,
+    -- Did INTEGRATE hold an enrichment for this lead? A BOOLEAN, never the number - the
+    -- figure sql/20 needs is a COUNT, and emitting the phone itself would put PII into a
+    -- view that exists to keep it out. The Salesforce copy stays the only source of the
+    -- actual digits, so the staff detail table is unaffected.
+    --
+    -- The test mirrors sql/20's ONE normalisation (not a sentinel copy): not blank, not a
+    -- known sentinel, and CONTAINS A DIGIT. Integrate never writes '-' (verified: zero rows
+    -- table-wide) but the sentinel arm stays, because the guard that matters is the digit -
+    -- it is what makes the next unannounced sentinel fail CLOSED instead of inflating a rate.
+    (   TRIM(IFNULL(ENRICHED_PHONE_NUMBER, '')) <> ''
+    AND UPPER(TRIM(ENRICHED_PHONE_NUMBER)) NOT IN ('NA', 'N/A', 'NONE', 'UNKNOWN', '-')
+    AND REGEXP_CONTAINS(ENRICHED_PHONE_NUMBER, r'[0-9]')  )               AS HAS_ENRICHED
   FROM `bidbrain-analytics.raw_snowflake.integrate_leads`
   QUALIFY ROW_NUMBER() OVER (
     PARTITION BY TO_HEX(SHA256(LOWER(TRIM(EMAIL)))), LEAD_CAMPAIGN_NAME
@@ -102,6 +118,7 @@ SELECT
   d.DISPOSITION_CODE,
   d.REASON_TEXT,
   d.OFFER_FROM_URL,
-  d.HAS_URL
+  d.HAS_URL,
+  d.HAS_ENRICHED
 FROM deduped d
 LEFT JOIN source_map m ON m.source_id = d.SOURCE_ID

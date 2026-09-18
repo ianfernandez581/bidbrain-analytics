@@ -864,6 +864,45 @@ def main():
             FROM {t('cs_enriched_by_publisher')}
             ORDER BY THEATRE, WEEK_START, PUBLISHER""")
         split = sum(int(jval(r.get("SPLIT_BY_INTEGRATE")) or 0) for r in enr_pub)
+
+        # ---- the Integrate blank-fill: audit + recurrence monitor --------------------
+        # Two DIFFERENT failures, so two checks.
+        #
+        # (1) THE FILL ITSELF. sql/20 falls back to Integrate wherever Salesforce has no
+        #     enrichment. It currently rescues 50 accepted survey leads (46 VSRM + 4 Final
+        #     Funnel) from a bounded 3-24 Aug gap. If that drops to zero the rate quietly
+        #     falls back with NOTHING on screen saying so - the Integrate mirror going stale
+        #     looks exactly like this from here.
+        #
+        # (2) A SECOND GAP OPENING. The Aug one was a retroactive BULK BACKFILL at Integrate:
+        #     46 leads written in a single 73-second batch on 27 Aug, every one updated 7-22
+        #     days AFTER the lead was accepted, where a normally-delivered enrichment lands
+        #     within 0-2 hours. Because those leads had already been delivered to Salesforce,
+        #     nothing re-sent them. That signature is detectable and produces no false
+        #     positives anywhere else in the table, so it is worth watching for: a late
+        #     enrichment is not itself a fault, but a CLUSTER of them is the shape of another
+        #     silent batch.
+        try:
+            fill = rows(bq, f"""
+                SELECT COUNTIF(ENRICHED_FILLED AND IS_ACCEPTED)            AS rescued,
+                       COUNT(DISTINCT IF(ENRICHED_FILLED, DAY, NULL))      AS days,
+                       CAST(MIN(IF(ENRICHED_FILLED, DAY, NULL)) AS STRING) AS first_day,
+                       CAST(MAX(IF(ENRICHED_FILLED, DAY, NULL)) AS STRING) AS last_day
+                FROM {t('cs_enriched_leads')}
+                WHERE DAY >= DATE '2026-07-01'""")[0]
+            resc = int(jval(fill.get("rescued")) or 0)
+            if resc:
+                print(f"cs_enriched blank-fill: {resc} accepted lead(s) counted as enriched from "
+                      f"Integrate that Salesforce never delivered, over {fill.get('days')} day(s) "
+                      f"({fill.get('first_day')} to {fill.get('last_day')})")
+            else:
+                print("WARNING cs_enriched blank-fill: the Integrate fallback rescued ZERO leads. "
+                      "Either Transmission re-synced the missing window (good - verify, then this "
+                      "warning can go) or raw_snowflake.integrate_leads is stale/empty and the "
+                      "enrichment rate has silently fallen back to the Salesforce-only figure.")
+        except Exception as e:                               # noqa: BLE001
+            print(f"WARNING cs_enriched blank-fill: could not audit the fill "
+                  f"({type(e).__name__}: {e}).")
         print(f"cs_enriched by publisher: {len(enr_pub)} publisher-week row(s); "
               f"{split} available lead(s) placed by the Integrate URL split (VRSM only)")
         # The split is the ONLY reason VRSM can appear here. If it silently stops resolving -

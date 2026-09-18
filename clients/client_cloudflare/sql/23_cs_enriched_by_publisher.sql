@@ -56,7 +56,7 @@ resolved AS (
     e.PUBLISHER,
     e.CAMPAIGN_ID,
     e.IS_ACCEPTED,
-    e.ENRICHED_PHONE,
+    e.IS_ENRICHED,
     e.ENRICHED_STATE,
     -- The override, confined to VRSM. COALESCE keeps the Salesforce offer wherever the bridge
     -- has nothing, so an absent Integrate row can never blank an offer we already knew.
@@ -83,7 +83,7 @@ SELECT
   COUNTIF(IS_ACCEPTED AND OFFER_RESOLVED IN ('Pulse Survey', 'Qualification Questions'))
                                                               AS AVAILABLE,
   COUNTIF(IS_ACCEPTED AND OFFER_RESOLVED IN ('Pulse Survey', 'Qualification Questions')
-          AND ENRICHED_PHONE IS NOT NULL)                     AS ENRICHED,
+          AND IS_ENRICHED)                                    AS ENRICHED,
   -- Still queued at Integrate: submitted, no number back yet. The lag signal.
   COUNTIF(IS_ACCEPTED AND OFFER_RESOLVED IN ('Pulse Survey', 'Qualification Questions')
           AND ENRICHED_STATE = 'NA')                          AS NA_COUNT,
