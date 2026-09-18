@@ -20,7 +20,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 {% include "_premium_head.html" %}
 <link rel="stylesheet" href="/static/kb.css?v=1">
-<link rel="stylesheet" href="/static/kb_fm.css?v=1">
+<link rel="stylesheet" href="/static/kb_fm.css?v=2">
 </head>
 <body>
 
@@ -121,6 +121,7 @@
         <div class="fm-filters" id="fmLogFilters" role="group" aria-label="Filter by what happened"></div>
       </div>
       <div id="fmLog"><div class="fm-empty">Loading…</div></div>
+      <div class="lg-pager" id="fmLogPager" hidden></div>
       <p class="fm-hint">One line per decision, newest first. A filing by the system says how sure it
         was and why; a person's decision says whether they agreed with the guess.</p>
     </section>
@@ -134,7 +135,7 @@ window.KB_MEETINGS = {
   actor: {{ actor | tojson }}
 };
 </script>
-<script src="/static/kb_meetings.js?v=6"></script>
+<script src="/static/kb_meetings.js?v=2"></script>
 {% include "_premium.html" %}
 </body>
 </html>
