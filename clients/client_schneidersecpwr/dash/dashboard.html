@@ -1538,6 +1538,18 @@ function indEdgeAudienceSplit(){
   // Scoped to the LINE the footnote names (Industrial Edge / LinkedIn / Awareness), not the whole
   // brief - the sentence quotes these figures, so they have to be that line's own or the prose and
   // the numbers describe different things. It is also the row whose combined CPM/CTR is misleading.
+  //
+  // LINE grain is a CONSTRAINT, not a preference: `delivery` is aggregated and carries NO adset_id,
+  // so the dashboard cannot isolate the ad set that was actually narrowed (859128356). The post
+  // period therefore POOLS it with 864925616, which launched 18 Aug - sixteen days AFTER the
+  // narrowing - and so never experienced it: 7,851 imps @ A$207.23 + 2,163 @ A$205.01 = the 10,014
+  // @ A$206.75 this note prints. The two CPMs happen to be within A$2 of each other, so the pooled
+  // figure is not misleading, but the SENTENCE must therefore say the LINE "spans" the narrowing
+  // rather than assert the line's audience was narrowed - only one of its ad sets was.
+  // 864925616 is also the NZ-NAMED ad set that actually delivers to Australia (see the README), so
+  // its A$443.44 sits inside this AU-awareness figure AND inside the dashboard's New Zealand market
+  // spend at the same time. That double attribution is NOT fixable here - it needs the ad set
+  // renamed or re-geoed at source. Do not "solve" it with a market override or an alias map.
   pmRows().forEach(r=>{
     if(r.campaign!=='ind_edge' || r.platform!=='linkedin' || r.tactic!=='Awareness') return;
     const b = r.date<=IND_EDGE_NARROWED ? pre : post;
@@ -1562,7 +1574,7 @@ function tacticFootnotes(keys, agg){
     // itself, so handing it an already-multiplied figure prints it 100x high.
     const cpm=x=>x.imps?x.spend/x.imps*1000:null;
     if(pre.imps && post.imps && total && pre.imps/total>=0.10)
-      notes.push(`Industrial Edge's LinkedIn <i>Awareness</i> audience was narrowed sharply on 2 August. `
+      notes.push(`Industrial Edge's LinkedIn <i>Awareness</i> line spans a sharp audience narrowing on 2 August. `
         + `Before that date it delivered almost entirely off-platform against a very broad audience `
         + `(${fmtN(pre.imps)} impressions at ${money(cpm(pre),2)} CPM, ${fmtPct(pct(pre.clk,pre.imps),2)} CTR); `
         + `after it, against a much narrower one (${fmtN(post.imps)} impressions at ${money(cpm(post),2)} CPM, `

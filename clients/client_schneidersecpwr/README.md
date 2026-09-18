@@ -546,6 +546,47 @@ The first cut of this note handed it an already-multiplied CTR, which would have
 figure 100x high on a client-facing surface. Every other CTR on this page goes through
 `fmtPct(pct(a,b),2)` - match it.
 
+**THE POST-CUTOVER FIGURE IS LINE GRAIN, AND THAT IS A CONSTRAINT RATHER THAN A CHOICE.**
+`delivery` is aggregated and carries **no `adset_id`**, so the dashboard cannot isolate the ad set
+that was actually narrowed. The note's "after" figure therefore POOLS two ad sets:
+
+| ad set | imps | spend | CPM |
+|---|---|---|---|
+| 859128356 (the one narrowed on 02-08) | 7,851 | A$1,626.99 | A$207.23 |
+| 864925616 (launched **18 Aug**, sixteen days AFTER) | 2,163 | A$443.44 | A$205.01 |
+| **pooled - what the note prints** | **10,014** | A$2,070.43 | **A$206.75** |
+
+The two CPMs land within A$2 of each other, so the pooled figure is not misleading. **The SENTENCE
+is what had to change**: it now says the line *"spans"* a narrowing rather than asserting the line's
+audience was narrowed, because only one of its ad sets was and the other did not exist yet. Shipped
+with the wrong wording on 2026-09-18 and corrected the same day - if a footnote quotes figures, the
+grain of the prose and the grain of the figures have to match.
+
+**AND ONE AD SET IS ATTRIBUTED TO TWO MARKETS AT ONCE. NOT FIXABLE HERE.**
+`864925616` is named `2463_SE_Industrial Edge Wave3_AWR_NZ_image` but **delivers to Australia** -
+verified, not inferred, from LinkedIn's `member_country` pivot (a metric pivot, so retrospective):
+
+- **864925616: Australia 2,014 imps (98.2%), New Zealand 36 (1.8%), all 8 clicks Australian.**
+  Region detail: Greater Sydney 493 / Melbourne 472 / Perth 439 / Brisbane 316 / Adelaide 93 against
+  Auckland 16 / Hamilton 5 / Christchurch 4. 94.8% of its impressions are classified.
+- **Controls confirm the field discriminates** (this is what makes the test worth anything): the two
+  genuine NZ ad sets, 859158326 and 865104866, return **New Zealand and nothing else**.
+- Its current `targeting_include_locations` is the same geo URN all three AU-named ad sets use, while
+  the real NZ ad sets use a different one - but that field is current-state, which is exactly why the
+  `member_country` measurement was needed before raising it with the agency.
+
+`01_stg_linkedin` resolves market from the ad set NAME. It already defers a COARSE token (`ANZ`) to
+the ad set's current country by ID, which is why 859128356 correctly reads Australia despite an ANZ
+name - but 864925616's name is SPECIFIC (`_NZ_`), so no deferral happens and the wrong name is
+trusted. The repo's own rule, applied to coarse tokens and not to specific ones.
+
+**Consequence: A$443.44 sits inside the client-facing AU-awareness CPM above AND inside the
+dashboard's New Zealand market spend** (13.3% of the brief's reported NZ spend: A$3,341.03 reported
+vs A$2,897.59 if that ad set is AU). One ad set, two contradictory attributions, both on screen.
+**Do NOT "fix" this with a market override or an alias map** - that hides a real trafficking error,
+the same trap `client_geocon` records for its GATEWAY-BRADDON-named Northbourne creatives. It needs
+the ad set RENAMED or RE-GEOED at source. Until then the inconsistency is documented, not patched.
+
 **Still open, and worth one narrow question:** which control was moved on 02-08 (a targeting edit,
 audience expansion being disabled, or a TAL swap). The 18 `targeting_include_*` /
 `targeting_exclude_*` fields Windsor exposes are **current-state only** - identical on every July
