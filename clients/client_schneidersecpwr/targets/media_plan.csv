@@ -1,0 +1,6 @@
+campaign,channel,channel_key,tactic,geo,flight_start,flight_end,imp_target,spend_target,cpm_target,measurable,live,note
+ind_edge,Programmatic - Trade Desk,tradedesk,Awareness,ANZ,2026-07-01,2026-11-30,610000,9150,15.00,1,1,"Impressions CORRECTED x10 from the sheet's printed 61000 - see README. Sheet column I used cost/CPM*100; client confirmed the formula is cost/CPM*1000."
+ind_edge,LinkedIn,linkedin,Awareness,ANZ,2026-07-01,2026-11-30,93333,7000,75.00,1,1,"Sheet printed 9333. Corrected x10."
+ind_edge,LinkedIn,linkedin,Consideration,ANZ,2026-07-01,2026-11-30,73333,5500,75.00,1,1,"Sheet printed 7333. Corrected x10."
+ind_edge,LinkedIn,linkedin,Conversion,ANZ,2026-07-01,2026-11-30,83333,7500,90.00,1,1,"Sheet printed 8333. Corrected x10. Lead-gen objective; LinkedIn lead-form leads are a PAID metric, never a Salesforce lead."
+ind_edge,Direct IT,direct_it,Conversion,ANZ,2026-07-01,2026-11-30,,23000,,0,1,"OFFLINE LEAD VENDOR - 40 HQLs @ A$575 CPL. NO media delivery in any warehouse, so measurable=0: it is carried for the committed-budget figure and EXCLUDED from every pacing denominator. Pacing against it would report a permanent 44% shortfall no delivery could ever close."

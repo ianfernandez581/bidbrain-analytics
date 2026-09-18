@@ -130,6 +130,13 @@ def main():
     # and NOT date-scoped: the report describes how each ad set is SET UP, which is a whole-flight
     # fact, so it is emitted unfiltered and the dashboard's date picker is hidden on that tab.
     adsets = rows(bq, "linkedin_adsets", order_by="campaign, phase, geo, adset_name")
+    # Media-plan targets, PER BRIEF. Read with no tolerant try/except on purpose: a swallowed
+    # exception around one stage of the 3-stage name-matched contract turns a rename into SILENCE
+    # (client_geocon published `0 CRM leads` against a view holding 9,779 exactly that way). If this
+    # table is missing the job should fail loudly, because the alternative is a dashboard that
+    # quietly stops pacing. NOT in GATING_TABLES - the gate deliberately does not watch seed tables,
+    # so a plan edit needs `FORCE_REBUILD=1` (md/AGENTS.md).
+    plan_rows = rows(bq, "seed_media_plan", order_by="campaign, channel_key, tactic")
 
     # REFUSE TO PUBLISH AN EMPTY FACT. A scope regression (a renamed campaign that no token matches)
     # would otherwise silently overwrite a good JSON with an empty one and the dashboard would read as
@@ -148,6 +155,56 @@ def main():
     channels = [{"key": k, "label": CHAN_LABEL.get(k, k)}
                 for k in ["linkedin", "tradedesk"] if k in live_platforms]
 
+    # --- Media-plan targets, keyed by brief -----------------------------------
+    # TARGETS ARE PER BRIEF AND THAT IS THE WHOLE POINT. Only ind_edge (2463) has a signed plan;
+    # ent_it (1958) and software_first (2305) have none, so a single global flag would promise
+    # pacing on two briefs that cannot deliver it - the `client_schneider` lesson, where a
+    # lead-gen-shaped card drew "0 / 0 leads" at 0% over an awareness play.
+    #
+    # TWO BUDGETS, and the UI must name which one the bar is drawn against:
+    #   committed  = every line the client signed, Direct IT included. What they recognise.
+    #   measurable = only lines that can report delivery. What pacing may divide by.
+    # Direct IT is A$23,000 of A$52,150 (44%) and is an offline lead vendor with no media delivery
+    # in any warehouse, so pacing on the committed figure would publish a permanent 44% shortfall
+    # no delivery could ever close (md/AGENTS.md "pace against the budget that can actually spend").
+    # `measurable` lives in the CSV rather than in code so a new non-reporting line needs no deploy.
+    plan_by_camp = {}
+    for r in plan_rows:
+        plan_by_camp.setdefault(r["campaign"], []).append(r)
+
+    def build_plan(key):
+        pr = plan_by_camp.get(key)
+        if not pr:
+            return None
+        meas = [r for r in pr if (r.get("measurable") or 0) == 1]
+        starts = [r["flight_start"] for r in pr if r.get("flight_start")]
+        ends = [r["flight_end"] for r in pr if r.get("flight_end")]
+        return {
+            "lines": [{
+                "channel": r["channel"], "channel_key": r["channel_key"], "tactic": r["tactic"],
+                "geo": r["geo"],
+                "imp_target": num(r["imp_target"]), "spend_target": num(r["spend_target"]),
+                "cpm_target": num(r["cpm_target"]),
+                "measurable": bool((r.get("measurable") or 0) == 1),
+                "live": bool((r.get("live") or 0) == 1),
+                "note": r.get("note"),
+            } for r in pr],
+            # A flight derived from the seeded lines, never from a stated end date - this plan's own
+            # header said 31-Oct while its line items said 30-Nov, and the client confirmed the
+            # LINE ITEMS (2026-09-18). Same rule as cloudflare EMEA's three conflicting end dates.
+            "flight_start": ymd(min(starts)) if starts else None,
+            "flight_end": ymd(max(ends)) if ends else None,
+            "committed_budget": num(sum(float(r["spend_target"] or 0) for r in pr)),
+            "measurable_budget": num(sum(float(r["spend_target"] or 0) for r in meas)),
+            "imp_target": num(sum(int(r["imp_target"] or 0) for r in meas)) or None,
+            "pace_basis": "measurable",
+            # The excluded lines NAMED, so the UI can say why the two budgets differ instead of
+            # leaving a reader to wonder which of two figures the bar refers to.
+            "excluded": [{"channel": r["channel"], "spend_target": num(r["spend_target"]),
+                          "reason": "no media delivery in any warehouse"}
+                         for r in pr if (r.get("measurable") or 0) != 1],
+        }
+
     # --- Per-campaign rollup (drives the chips, the Campaigns tab and the flight captions) ----
     campaigns = []
     for key, meta in CAMPAIGN_META:
@@ -155,10 +212,12 @@ def main():
         if not crows:
             # Seeded but not delivering: emit it with zeros rather than dropping it, so a campaign
             # that stops shows as an explicit zero instead of quietly vanishing from the dashboard.
+            _p = build_plan(key)
             campaigns.append({"key": key, "label": meta["label"], "brief": meta["brief"],
                               "markets": [], "platforms": [], "tactics": [], "imps": 0, "clicks": 0,
                               "spend_aud": 0, "leads": None, "first_delivery": None,
-                              "last_delivery": None})
+                              "last_delivery": None,
+                              "plan": _p, "has_targets": bool(_p)})
             continue
         dates = [r["metric_date"] for r in crows if r["metric_date"]]
         lead_vals = [r["leads"] for r in crows if r["leads"] is not None]
@@ -180,6 +239,10 @@ def main():
             # "live since" rather than implying a booked flight window.
             "first_delivery": ymd(min(dates)) if dates else None,
             "last_delivery": ymd(max(dates)) if dates else None,
+            # Per-brief targets. `plan` is None and `has_targets` False for a brief with no signed
+            # plan, so the dashboard hides pacing for it rather than drawing a zero target.
+            "plan": build_plan(key),
+            "has_targets": key in plan_by_camp,
         })
     campaigns.sort(key=lambda c: CAMPAIGN_ORDER.get(c["key"], 9))
 
@@ -194,8 +257,20 @@ def main():
                          if observed else None),
         "currency": "AUD",
         "client_label": "Schneider Electric - Secure Power",
-        # No media plan for any of the three briefs; the UI keys off this to hide every pacing
-        # affordance rather than drawing 0% against a zero target.
+        # DORMANT MASTER SWITCH - deliberately False while a real plan is seeded (2026-09-18).
+        #
+        # ind_edge (2463) HAS a signed plan and `campaigns[].plan` now carries it, but the impression
+        # targets in it are OURS: they are the client's own cost/CPM figures divided correctly, x10
+        # above what their sheet prints, because column I used `cost/CPM*100` where the stated
+        # formula is `*1000`. Publishing pacing against 859,999 while the plan document in their
+        # inbox says 85,999 would put the dashboard in conflict with the client's own paperwork on
+        # the very brief that error was found in - so the chain ships WIRED AND DARK, the
+        # `client_hireright` pattern.
+        #
+        # FLIP TO True when the client reissues the sheet or confirms the corrected figures in
+        # writing. Nothing else needs to change: the seed, the payload and the per-brief flags are
+        # already in place, so it is this one word plus `FORCE_REBUILD=1`.
+        # The dashboard must require BOTH this and the brief's own `has_targets`.
         "has_targets": False,
         "window": {"start": ymd(wstart), "end": ymd(wend), "days": wdays},
         "campaigns": campaigns,
