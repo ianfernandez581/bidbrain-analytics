@@ -116,7 +116,8 @@
       "accounts": [
         { "id": "a2_igd0szmw7roq", "name": "ResetData Ad Account", "client": "resetdata", "label": "Reset Data", "expected": "daily", "alerts": true, "consumers": ["resetdata"] },
         { "id": "a2_iq3fdsq6rem5", "name": "Transmission_Cloudflare", "client": "cloudflare", "label": "Cloudflare", "expected": "ended", "alerts": false, "consumers": [],
-          "why": "Cloudflare's Reddit lane ran Q2 only (ended 2026-06-30) and the dashboard reads Snowflake for it" }
+          "why": "Cloudflare's Reddit lane ran Q2 only (ended 2026-06-30) and the dashboard reads Snowflake for it" },
+        { "id": "a2_jl767nztzctc", "name": "Schneider APAC AUD", "client": "schneiderlqai", "label": "Schneider Liquid AI", "expected": "daily", "alerts": true, "consumers": ["schneiderlqai"] }
       ]
     },
     {
