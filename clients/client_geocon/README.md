@@ -9,11 +9,12 @@ via the top-nav selector. Two developments exist in the pipeline; **only one is 
 | ~~Gateway Braddon~~ | Meta only | A$7,500 | 2026-06-21 -> 07-20 | **HIDDEN from the dashboard 2026-09-03** (client request; flight ended). Still built end to end and still in `geocon.json` - see "Hiding a finished development" |
 
 **TWO DECISIONS SHAPE WHAT THIS DASHBOARD SHOWS TODAY, and both are one-line reversals:**
-- **Enquiries and cost-per-enquiry are REPORTED again** since 2026-09-17 - `LEADS_REPORTABLE = true`
-  (agency instruction). They were withheld 2026-09-03 on a CLIENT instruction that said "until
-  Salesforce is connected", and **Salesforce is still not connected** - so what is on screen remains
-  a Meta lead-FORM submit count, so the `renderNote()` explainer saying exactly that is what keeps
-  it honest on the client's screen - do not remove it. See "Enquiry reporting".
+- **Platform enquiries and cost-per-enquiry are WITHHELD** - `LEADS_REPORTABLE = false`. Withheld
+  2026-09-03 on a client instruction ("until Salesforce is connected"), switched back on 2026-09-17
+  and **re-hidden the same day by the agency** while a possible Meta/Google double count is settled
+  (see the flag's own comment in `dash/dashboard.html`). **CRM leads from Salesforce are shown
+  instead** - Geocon-wide, never a cost per lead - see "CRM leads are LIVE". The `renderNote()`
+  explainer that says which figure is which is load-bearing; do not remove it.
 - **There is NO modelled qualified-lead figure** since 2026-09-17 (client: no invented numbers). The
   `enquiries x 0.20` model and every surface built on it are DELETED, not hidden - see "No modelled
   qualified leads".
@@ -201,7 +202,7 @@ rate. Two figures a reader can reasonably take for pipeline when neither has bee
 withheld state re-uses that exact code path rather than adding a second, half-stripped one:
 
 ```js
-const LEADS_REPORTABLE = true;                        // dash/dashboard.html - the ONE knob
+const LEADS_REPORTABLE = false;                       // dash/dashboard.html - the ONE knob (false today)
 const leadsMeasured = () => reports('leads') || bench('lead_target') != null;
 const leadsWithheld = () => !LEADS_REPORTABLE && leadsMeasured();   // measured, not reported
 const leadShaped    = () =>  LEADS_REPORTABLE && leadsMeasured();   // render the lead surfaces?
@@ -1012,6 +1013,58 @@ Two MongoDB/STT-grade capabilities every dashboard carries:
 
 **CSV exports:** *Export tab* (the current view's table, honouring the date/stage/search filters) and
 *Export all* (the full per-day, per-ad fact table).
+
+## The mobile layer (2026-09-19)
+
+The dashboard renders on a phone from the SAME file, the same renderers and the same rows - a
+presentation layer only. One `@container page (max-width:640px)` block sits above the motion-kit
+block in `dash/dashboard.html` (the kit script rewrites its own block, so nothing may live inside
+it), plus `initMobile()` / `renderMobile()` / `mStampTable()` at the end of the script. Verified on
+the 2026-09-18 payload: `document.body.innerText` byte-identical at 1280px before and after, pixel
+diff confined to two long campaign names that now wrap inside their cards, and 0px horizontal
+overflow on every tab at 390px.
+
+**One breakpoint, and it is a CONTAINER query, not a viewport one.** `.container` is
+`container-type:inline-size`; 640px of its content box is a phone or a narrow split. Two things
+follow from that choice and both bit during the build:
+- `container-type` applies LAYOUT containment, so `.container` becomes the containing block for
+  every `position:fixed` descendant - a fixed bottom sheet anchored to the bottom of the PAGE, off
+  screen. The filter sheet is therefore a **`<dialog>`**: `showModal()` moves it to the top layer,
+  where fixed means the viewport again. Closed, CSS forces it `display:block` so on desktop it is an
+  ordinary in-flow wrapper around the exact same filter row (the UA rule is `dialog:not([open])
+  {display:none}`; author CSS beats it). The date picker's popover inside the sheet is also fixed.
+- A container cannot style itself, so the "mobile is on" flag is `--m-on:1` on `#app`, set INSIDE the
+  query, and `isMobileLayout()` reads that. There is deliberately no second width test in JS.
+
+**Tiers.** Nothing is deleted; every panel is assigned one:
+
+| Tier | What | How |
+|---|---|---|
+| glance | one hero tile, three supporting tiles, the pacing card | both `.kpis` grids go `display:contents` and every tile lands on ONE 6-column grid; `data-k` (set by `kpiCard`) drives `order` and span; `hero:true` on the tile object marks the hero (`m-hero`). Awareness shape: **Impressions vs plan** is the hero, Leads (CRM) / Ad spend / CPM support it. Lead-gen shape (`LEADS_REPORTABLE=true`): Enquiries is the hero, CPL / Ad spend support it. Pacing is ordered before the trend chart and carries an always-visible `Full flight - does not follow the date filter` line (`.m-qual`). |
+| scan | the delivery strip (clicks, CTR, CPC, video, reach), hero trend, funnel, insight cards, platform + vs-target tables as cards | `table.m-cards`: `<th data-m="1">` marks the columns that survive on the closed card, `data-m="d"` a delta that sits beside the metric before it, `data-ml` a label override for a bare `Δ` header; `mStampTable()` copies header text to `data-label` on every cell and CSS draws the row as a card (tap opens the rest). Survivors - platform: spend, impressions, CPM; vs targets: spend, CTR+Δ, CPM+Δ; ads: spend, CTR, read; fatigue: freq WoW, CTR WoW, flag; GA channels: sessions, share, engagement rate. The unmeasured-column rules (`body.no-leads .c-lead` etc.) win over the card layout with `!important`. |
+| dig | `.m-dig` cards: stage donut + stage table, Meta audience + placement, reach/frequency, video, spend by ad set, ad performance (10 rows then `Show all N ads`), fatigue, GA development slice + events; the "How to read" note (`data-m-title`) | collapsed to the `<h3>` (or the `data-m-title`) with a chevron; tap toggles `.m-open`. **Opening re-runs the card's chart renderer** (`M_CHART_RENDERERS`, keyed by canvas id) because a Chart.js canvas drawn inside a `display:none` card is 0x0 and stays blank - **add a canvas to a `.m-dig` card = add its renderer to that map.** A breakpoint flip does one debounced full `render()` for the same reason. |
+
+Filters collapse to one summary line (`mFilterSummary()` - the picker label, active platforms,
+stage, search, from the same STATE the controls read) that opens the sheet; Export moves into the
+sheet's footer. The intro paragraph clamps to three lines with a `Read more`. Creatives become a
+snap-scrolling row. The creative lightbox sits outside `.container`, so it is the one place a
+viewport media query is used.
+
+**Found while verifying, fixed on desktop too:** the vendored date picker's popover anchors
+`right:0`, which suits a picker at the END of a control bar; here it is the FIRST control, so the
+410px popover opened at x=-152 on a 1280px screen and the presets column had been off-screen since
+the picker shipped. `.dp-pop` is now `left:0` in this file. Also: the search box re-renders only its
+tables, so the phone's summary line listens to it separately (`initMobile`).
+
+**Verifying it.** `scratchpad`-style harness: serve `dash/` + the real payload, puppeteer at 390px,
+assert `documentElement.scrollWidth - clientWidth === 0` per tab and compare `innerText` at 1280px
+before/after **under `prefers-reduced-motion: reduce`** (the kit's count-up otherwise captures KPI
+tiles mid-animation and the text differs by timing, not content). Then the functional pass: the SAME click sequence at 390 and 1280 (date preset -> platform chip
+off -> stage chip -> search -> grain + axis -> tile toggle -> reset -> GA4 site chip), comparing every
+figure by `textContent` (CSS-blind, so hidden and reordered cells compare like for like) - it read
+"identical" on all nine steps on 2026-09-19. Two harness traps: the kit's `html{scroll-behavior:
+smooth}` races a pointer click after `scrollIntoView` - disable it in the test copy, or wait - and on
+the phone every filter control lives inside the `<dialog>`, so open the sheet before clicking one.
 
 ## The motion layer (2026-08-26)
 

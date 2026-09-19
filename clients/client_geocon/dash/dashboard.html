@@ -164,7 +164,10 @@
   .dp-btn{display:inline-flex;align-items:center;gap:7px;background:var(--dp-panel);border:1px solid var(--dp-line);color:var(--dp-ink);
       border-radius:8px;padding:7px 12px;font-size:12.5px;font-weight:600;cursor:pointer;font-family:inherit;line-height:1.2}
   .dp-btn:hover{border-color:var(--dp-accent)} .dp-btn svg{opacity:.75} .dp-btn .dp-cap{opacity:.55;font-size:11px;margin-left:1px}
-  .dp-pop{position:absolute;z-index:60;margin-top:6px;right:0;display:flex;background:var(--dp-bg);border:1px solid var(--dp-line);
+  /* LEFT-anchored (2026-09-19). The vendored picker anchors `right:0`, which is right for a picker at the
+     end of a control bar; here it is the FIRST control, so the 410px popover opened at x=-152 on a
+     1280px screen and the presets column was off-screen - on desktop, since the picker shipped. */
+  .dp-pop{position:absolute;z-index:60;margin-top:6px;left:0;display:flex;background:var(--dp-bg);border:1px solid var(--dp-line);
       border-radius:12px;box-shadow:0 18px 50px rgba(0,0,0,.6);overflow:hidden}
   .dp-pop.dp-hide{display:none}
   .dp-presets{display:flex;flex-direction:column;min-width:144px;border-right:1px solid var(--dp-line);padding:8px;gap:1px}
@@ -439,6 +442,215 @@ body.ga-view #searchDiv,body.ga-view #searchGrp{display:none!important}
     .tab:hover::after{left:50%;right:50%}
   }
 
+
+  /* ==== Geocon: MOBILE LAYER (client-specific, NOT part of the motion kit) ===================
+     Sits ABOVE the kit block on purpose (the kit block is rewritten by apply_motion_kit.py).
+
+     ONE breakpoint, a CONTAINER query on the page container - `.container` is `container-type:
+     inline-size`, so these rules answer the width the dashboard actually has, not the window's
+     (an embedded or split-screen dashboard reflows the same way a phone does). 640px of content
+     box is a phone or a narrow split; a portrait tablet keeps the desktop layout.
+
+     Three tiers, nothing deleted:
+       glance - one hero tile (the figure that answers "is this working"), three supporting tiles,
+                the pacing card;
+       scan   - the delivery strip, the hero trend, funnel, insight cards, the platform and
+                vs-target tables as one card per row;
+       dig    - every `.m-dig` card collapses to its heading and opens on tap; the "How to read"
+                note becomes a one-line disclosure; the ad table shows ten rows then "Show all".
+     The filter row collapses to ONE summary line that opens the same controls as a bottom sheet.
+
+     NOTHING HERE TOUCHES A NUMBER. Every figure is the desktop DOM re-laid out - same renderer,
+     same rows, same qualifiers (the pacing card's full-flight note, the CRM lead scope on its
+     tile, "(derived)" on our own targets) - and a qualifier that would not fit is folded behind a
+     disclosure, never dropped.
+
+     Two things a maintainer needs to know:
+       * `container-type` applies LAYOUT containment, so `.container` is the containing block for
+         any position:fixed descendant. That is why the filter sheet is a <dialog>: showModal()
+         moves it to the top layer, where fixed means the viewport again. Closed, it is shown as
+         an ordinary in-flow block (`display:block` beats the UA `dialog:not([open]){display:none}`),
+         so on desktop the control bar contains the exact same elements it always did.
+       * A container cannot style itself, so the "mobile is on" flag lives on #app (`--m-on:1`) and
+         JS reads THAT - one definition of the breakpoint, never a second width test.
+     ==================================================================================== */
+  .container{container-type:inline-size;container-name:page}
+  .topbar{container-type:inline-size;container-name:topbar}
+  .m-only{display:none}
+  /* closed dialog = an ordinary block wrapper around the filter row (see the note above) */
+  dialog.m-sheet{display:block;position:static;inset:auto;width:auto;max-width:none;height:auto;max-height:none;
+                 margin:0;padding:0;border:0;background:transparent;color:inherit;overflow:visible}
+  /* long campaign names (`0201_Geocon_NGW558_...`) overflowed the insight card AND the creative
+     tiles at EVERY width - a token with no spaces never wraps unless told it may */
+  .insight .value,.cc-title,.cc-fb-h,.ccm-info h3{overflow-wrap:anywhere}
+
+  @container topbar (max-width:700px){
+    .topbar .inner{flex-wrap:wrap;gap:8px 14px;padding:0 16px}
+    .topbar-right{text-align:left;font-size:11px;flex-basis:100%;line-height:1.45}
+  }
+
+  @container page (max-width:640px){
+    #app{--m-on:1;margin-left:-12px;margin-right:-12px}          /* 28px page gutter -> 16px */
+    .m-only.m-filter-summary,.m-only.m-sheet-head,.m-only.m-sheet-foot{display:flex}
+    .m-only.m-more-btn,.m-only.m-qual{display:inline-block}
+    .m-only.m-showall.m-has-more{display:inline-flex}
+
+    /* ---------- control bar: tab rail + one summary line; the filters live in the sheet ---------- */
+    .control-bar{padding:2px 10px 0;margin-bottom:14px}
+    .control-tabs{border-bottom:0;gap:0}
+    .tabs{flex-wrap:nowrap;width:100%;gap:0}
+    .tab{flex:1 1 0;text-align:center;padding:12px 4px 11px;font-size:10.5px;letter-spacing:.7px;white-space:nowrap;min-width:0}
+    .tabs-right{display:none}
+    .m-filter-summary{align-items:center;gap:9px;width:100%;border:0;border-top:1px solid var(--hair);background:none;
+      color:var(--ink);font-family:inherit;font-size:12px;font-weight:600;letter-spacing:.1px;padding:10px 4px 11px;cursor:pointer;text-align:left}
+    .m-filter-summary svg{width:15px;height:15px;color:var(--muted);flex:none}
+    #mFilterText{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .m-chev{color:var(--muted2);font-size:11px;flex:none}
+    dialog.m-sheet:not([open]){display:none}
+    dialog.m-sheet[open]{position:fixed;inset:auto 0 0 0;width:auto;max-width:none;max-height:88vh;margin:0;padding:0;
+      border:1px solid var(--hair);border-bottom:0;border-radius:18px 18px 0 0;background:var(--panel);color:var(--ink);
+      box-shadow:var(--card-glow);overflow:auto;z-index:100;animation:mSheetUp .28s var(--bb-ease)}
+    dialog.m-sheet::backdrop{background:rgba(5,5,5,.62);backdrop-filter:blur(4px)}
+    @keyframes mSheetUp{from{translate:0 26px;opacity:0}to{translate:0 0;opacity:1}}
+    .m-sheet .control-filters{flex-direction:column;align-items:stretch;gap:16px;border-top:0;
+      padding:12px 16px calc(18px + env(safe-area-inset-bottom,0px))}
+    .m-sheet-head{align-items:center;justify-content:space-between;padding-bottom:10px;border-bottom:1px solid var(--hair)}
+    .m-sheet-head span{font-family:"Oswald","Inter",sans-serif;font-size:15px;font-weight:600;letter-spacing:1.2px;text-transform:uppercase}
+    .m-sheet .filter-grp{flex-direction:column;align-items:flex-start;gap:8px}
+    .m-sheet .fdiv{display:none!important}
+    .m-sheet .chip{padding:8px 13px;font-size:13px}
+    .m-sheet .dp-btn{font-size:13px;padding:9px 12px}
+    .m-sheet .search{width:100%;min-width:0;font-size:16px;padding:10px 12px}   /* 16px: iOS does not zoom */
+    .m-sheet .dp-pop{position:fixed;left:12px;right:12px;bottom:12px;top:auto;margin:0;max-height:82vh;overflow:auto;z-index:110}
+    .m-sheet .dp-presets a{font-size:13px;padding:9px 12px}
+    .m-sheet-foot{gap:8px;padding-top:12px;border-top:1px solid var(--hair)}
+    .m-sheet-foot .btn{flex:1;justify-content:center;padding:10px 12px}
+    .date-scope{font-size:11.5px;padding:9px 12px}
+
+    /* ---------- type scale + surfaces: density drops, the recipe does not ---------- */
+    .section{margin-top:22px}
+    .section h2{font-size:17px;letter-spacing:1px}
+    .section .sub{font-size:12px;line-height:1.45}
+    #introCopy:not(.m-open){display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+    .m-more-btn{margin-top:6px;background:none;border:0;padding:0;color:var(--accent2);font-family:inherit;font-size:11px;
+      font-weight:700;letter-spacing:.8px;text-transform:uppercase;cursor:pointer}
+    .grid{gap:12px;margin-top:12px}
+    .card{padding:14px;border-radius:14px}
+    /* card prose: two lines, tap for the rest (the pacing card's qualifier line is separate and always shown) */
+    .card .hint{font-size:10.5px;line-height:1.4;margin-bottom:10px}
+    .card .hint:not(.m-open){display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;cursor:pointer}
+    .chartbox{height:250px} .chartbox.tall{height:270px} .chartbox.sm{height:230px}
+    .card-head{flex-direction:column;gap:8px}
+    .card-ctrls{width:100%;justify-content:flex-start}
+    .seg .cap{padding:0 6px} .seg button{padding:5px 8px;font-size:10.5px}
+    footer{text-align:left;font-size:10.5px}
+
+    /* ---------- glance tier: hero + three supporting + the scan strip, one grid ---------- */
+    /* The two .kpis grids dissolve (display:contents) so every tile is placed on ONE 6-column grid:
+       hero spans 6, a supporting tile 2, a scan tile 3. Order comes from data-k, so the band is the
+       same whichever KPI shape (lead-gen or awareness) the development renders. */
+    #ovNorth{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;margin:14px 0 4px}
+    #ovNorth .nsband{grid-column:1/-1;order:-3;margin:0 0 -2px}
+    #ovNorth .kpis{display:contents}
+    #ovNorth .kpi{grid-column:span 3;order:20;padding:12px 13px}
+    #ovNorth .kpi .label{min-height:0;font-size:10px}
+    #ovNorth .kpi .value{font-size:20px;margin-top:5px}
+    #ovNorth .kpi .sub{font-size:10px}
+    #ovNorth .kpi .badge{margin-top:4px}
+    #ovNorth .kpi.north:not(.m-hero):not([data-k=clicks]){grid-column:span 2;padding:14px 12px}
+    #ovNorth .kpi.north:not(.m-hero):not([data-k=clicks]) .value{font-size:22px}
+    /* two supporting tiles (no CRM lead tile, or the lead-gen band) fill the row at 3 each */
+    #ovNorth:not(:has(.kpi.north:not(.m-hero)[data-k=leads])) .kpi.north:not(.m-hero):not([data-k=clicks]){grid-column:span 3}
+    #ovNorth .kpi.m-hero{grid-column:1/-1;order:-2;padding:20px 18px 18px}
+    #ovNorth .kpi.m-hero .label{font-size:11px}
+    #ovNorth .kpi.m-hero .value{font-size:42px;line-height:1.05;margin-top:8px;letter-spacing:.2px}
+    #ovNorth .kpi.m-hero .sub{font-size:12px;margin-top:6px;color:var(--muted)}
+    #ovNorth .kpi[data-k=leads]{order:0} #ovNorth .kpi[data-k=cost]{order:1} #ovNorth .kpi[data-k=spend]{order:2}
+    #ovNorth .kpi[data-k=cpm]{order:3} #ovNorth .kpi[data-k=impressions]:not(.m-hero){order:4}
+    #ovNorth .kpi[data-k=clicks]{order:10} #ovNorth .kpi[data-k=ctr]{order:11} #ovNorth .kpi[data-k=cpc]{order:12}
+    #ovNorth .kpi[data-k=video]{order:13} #ovNorth .kpi[data-k=reach]{order:14} #ovNorth .kpi[data-k=lpv]{order:15}
+    #ovNorth .kpi[data-k=creatives]{order:16} #ovNorth .kpi[data-k=conv]{order:17}
+    /* pacing is glance tier: it comes before the trend chart on the phone */
+    #tab-overview .grid.cols-2-1>.card:nth-child(2){order:-1}
+    .m-qual{font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--muted2);margin:-6px 0 6px}
+    .pace-meta{flex-direction:column;gap:3px}
+
+    /* ---------- funnel rows: name + count on one line, bar under, step rate under that ---------- */
+    .funnel-row{grid-template-columns:1fr auto;grid-template-areas:"name value" "bar bar" "rate rate";gap:4px 10px;padding:8px 0}
+    .funnel-name{grid-area:name;font-size:11px} .funnel-bar{grid-area:bar} .funnel-value{grid-area:value;font-size:12.5px} .funnel-rate{grid-area:rate;text-align:left;font-size:10px}
+    .grid-insights{gap:10px} .insight{padding:12px 13px} .insight .value{font-size:14px} .insight .copy{font-size:11.5px} .insight .label{font-size:10px}
+
+    /* ---------- dig tier: a card collapses to its heading; tap opens it ---------- */
+    .m-dig{position:relative}
+    .m-dig>h3{cursor:pointer;padding-right:28px;user-select:none}
+    .m-dig>h3::after{content:"";position:absolute;right:16px;top:17px;width:8px;height:8px;
+      border-right:1.5px solid var(--muted);border-bottom:1.5px solid var(--muted);transform:rotate(45deg);transition:transform .2s var(--bb-ease),top .2s var(--bb-ease)}
+    .m-dig.m-open>h3::after{transform:rotate(-135deg);top:21px}
+    .m-dig:not(.m-open)>*:not(h3){display:none!important}
+    .m-dig:not(.m-open){padding-bottom:14px}
+    /* the info note has no heading of its own: the disclosure title is data-m-title, the prose folds */
+    .m-dig[data-m-title]{cursor:pointer}
+    .m-dig[data-m-title]{font-size:12.5px;line-height:1.5}
+    .m-dig[data-m-title]::before{content:attr(data-m-title);display:block;font-size:12px;line-height:1.4;font-weight:800;
+      letter-spacing:1.1px;text-transform:uppercase;color:var(--ink);padding-right:28px}
+    .m-dig[data-m-title]::after{content:"";position:absolute;right:16px;top:17px;width:8px;height:8px;
+      border-right:1.5px solid var(--muted);border-bottom:1.5px solid var(--muted);transform:rotate(45deg)}
+    .m-dig[data-m-title].m-open::after{transform:rotate(-135deg);top:21px}
+    .m-dig[data-m-title].m-open::before{margin-bottom:8px}
+    .m-dig[data-m-title]:not(.m-open){font-size:0;line-height:0;color:transparent}
+    .m-dig[data-m-title]:not(.m-open) b{font-size:0}
+
+    /* ---------- tables wider than four columns -> one card per row ---------- */
+    table.m-cards,table.m-cards tbody{display:block}
+    table.m-cards thead{display:none}
+    table.m-cards tbody tr{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:flex-end;padding:11px 12px 12px;margin-bottom:8px;
+      border:1px solid var(--hair);border-radius:12px;background:rgba(237,237,235,.025);cursor:pointer}
+    table.m-cards tbody tr:hover{background:rgba(237,237,235,.04)}
+    table.m-cards tbody tr:hover td{background:transparent}
+    table.m-cards tbody tr:hover td:first-child{box-shadow:none}
+    table.m-cards tbody tr.total,table.m-cards tbody tr.totrow{background:rgba(255,255,255,.05)}
+    table.m-cards td{display:none;padding:0;border:0;white-space:normal;text-align:left;min-width:0;color:var(--ink)}
+    table.m-cards td:first-child{display:block;flex:1 1 100%;font-weight:600;font-size:12.5px;line-height:1.35;padding-right:22px;position:relative;overflow-wrap:anywhere}
+    table.m-cards td:first-child::after{content:"";position:absolute;right:4px;top:5px;width:7px;height:7px;
+      border-right:1.5px solid var(--muted2);border-bottom:1.5px solid var(--muted2);transform:rotate(45deg)}
+    table.m-cards tr.m-open td:first-child::after{transform:rotate(-135deg);top:8px}
+    table.m-cards td.m-keep,table.m-cards tr.m-open td{display:flex;flex-direction:column;gap:2px;flex:1 1 27%;font-size:13.5px;font-weight:600;font-variant-numeric:tabular-nums}
+    table.m-cards tr.m-open td:not(.m-keep){flex:1 1 40%;font-weight:500;color:var(--muted)}
+    table.m-cards td.m-delta{flex:0 0 auto;font-size:12.5px}
+    table.m-cards td::before{content:attr(data-label);font-size:9.5px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--muted2);white-space:normal;line-height:1.25}
+    table.m-cards td:first-child::before{display:none}
+    table.m-cards td .vs{font-size:10px}
+    table.m-cards td .tiny{white-space:normal}
+    table.m-cards td.name-cell{max-width:none;overflow:visible;text-overflow:clip}
+    /* the unmeasured-column rules must still win over the card layout */
+    body.no-leads table.m-cards td.c-lead,body.no-lpv table.m-cards td.c-lpv,
+    body.no-reach table.m-cards td.c-reach,body.no-conv table.m-cards td.c-conv{display:none!important}
+    /* the ad table: ten cards, then "Show all" */
+    table.m-cards.m-more:not(.m-all) tbody tr:nth-child(n+11):not(.total){display:none}
+    .m-showall{margin-top:4px;align-self:flex-start}
+    #stageTable th,#stageTable td{padding:7px 8px}
+
+    /* ---------- creatives: a snap-scrolling row instead of five stacked cards ---------- */
+    .creative-grid{display:flex;overflow-x:auto;gap:12px;margin:12px -16px 0;padding:0 16px 8px;scroll-snap-type:x mandatory;scrollbar-width:none}
+    .creative-grid::-webkit-scrollbar{display:none}
+    .creative-grid .ccard{flex:0 0 76%;scroll-snap-align:start}
+    .creative-grid>.muted-text{flex:1 1 100%}
+
+    /* ---------- website tab + placeholder ---------- */
+    #gaKpis{grid-template-columns:1fr 1fr;gap:10px} #gaKpis .kpi{padding:12px 13px} #gaKpis .kpi .value{font-size:20px} #gaKpis .kpi .label{min-height:0;font-size:10px} #gaKpis .kpi .sub{font-size:10px}
+    .cs-card{padding:28px 18px 24px;margin:28px auto 60px} .cs-title{font-size:24px}
+
+    @media (prefers-reduced-motion:reduce){
+      dialog.m-sheet[open]{animation:none}
+      .m-dig>h3::after,.m-dig[data-m-title]::after{transition:none}
+    }
+  }
+  /* the creative lightbox sits OUTSIDE the page container (a body-level fixed overlay), so it is
+     the one place a viewport query is the right tool */
+  @media (max-width:640px){
+    .cc-modal{padding:12px} .cc-modal-body{padding:16px;gap:14px} .ccm-media{flex:1 1 100%} .ccm-info h3{font-size:16px}
+  }
+
 /* BB-MOTION-KIT:css v1 */
 
   /* ==========================================================================
@@ -681,7 +893,20 @@ body.ga-view #searchDiv,body.ga-view #searchGrp{display:none!important}
           <button class="btn" onclick="exportAllData()" title="Export the full per-day, per-ad fact table">Export all</button>
         </div>
       </div>
+      <!-- MOBILE (page container <= 640px): the filter row collapses to this ONE summary line, which
+           opens the very same controls as a bottom sheet. Hidden on desktop (.m-only). The sheet is a
+           <dialog> because the page container carries `container-type:inline-size`, which applies
+           LAYOUT containment and so becomes the containing block for any position:fixed descendant -
+           a fixed div here would anchor to the bottom of the PAGE, not the screen. showModal() puts
+           the dialog in the top layer, where fixed means the viewport again. Closed, CSS shows it as
+           an ordinary in-flow block, so the desktop control bar is byte-for-byte the same controls. -->
+      <button class="m-filter-summary m-only" id="mFilterBtn" type="button" aria-haspopup="dialog" aria-controls="mSheet" title="Filters">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/><circle cx="9" cy="7" r="2" fill="#0B0B0A"/><circle cx="15" cy="12" r="2" fill="#0B0B0A"/><circle cx="8" cy="17" r="2" fill="#0B0B0A"/></svg>
+        <span id="mFilterText">Filters</span><span class="m-chev">&#9662;</span>
+      </button>
+      <dialog class="m-sheet" id="mSheet" aria-label="Filters">
       <div class="control-filters">
+        <div class="m-sheet-head m-only"><span>Filters</span><button class="btn" type="button" id="mSheetDone">Done</button></div>
         <div class="filter-grp">
           <span class="lbl">Date range</span>
           <div class="dp" id="dateRange">
@@ -708,7 +933,13 @@ body.ga-view #searchDiv,body.ga-view #searchGrp{display:none!important}
         <div class="filter-grp" id="stageGrp"><span class="lbl">Stage</span><div class="chips" id="stageChips"></div></div>
         <div class="fdiv" id="searchDiv"></div>
         <div class="filter-grp" id="searchGrp"><input class="search" id="searchBox" type="text" placeholder="Search campaign / adset / ad…" autocomplete="off"></div>
+        <!-- Export lives in the sheet on mobile (the tab-rail buttons are hidden there). Same functions. -->
+        <div class="m-sheet-foot m-only">
+          <button class="btn" type="button" onclick="exportThisTab()">Export this tab</button>
+          <button class="btn" type="button" onclick="exportAllData()">Export all</button>
+        </div>
       </div>
+      </dialog>
     </div>
 
     <div id="dateScopeNote" class="date-scope" style="display:none"></div>
@@ -722,6 +953,7 @@ body.ga-view #searchDiv,body.ga-view #searchGrp{display:none!important}
       <div class="section first">
         <h2 id="ovTitle">Demand &amp; enquiries</h2>
         <span class="sub" id="introCopy"></span>
+        <button class="m-more-btn m-only" type="button" data-m-clamp="introCopy">Read more</button>
       </div>
 
       <div id="ovNorth">
@@ -744,6 +976,7 @@ body.ga-view #searchDiv,body.ga-view #searchGrp{display:none!important}
         <div class="card">
           <h3>Budget pacing</h3>
           <div class="hint" id="paceHint">Spend to date vs the planned flight pace. The marker is where pace expects you to be today.</div>
+          <div class="m-qual m-only">Full flight - does not follow the date filter</div>
           <div class="pace-track"><div class="pace-actual" id="paceActual"></div><div class="pace-expected" id="paceExpected"></div></div>
           <div class="pace-meta"><span id="paceExpectedLabel"></span><span id="paceBudgetLabel"></span></div>
           <div id="paceSummary" style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap"></div>
@@ -755,21 +988,21 @@ body.ga-view #searchDiv,body.ga-view #searchGrp{display:none!important}
 
       <div class="grid cols-2">
         <div class="card" id="funnelCard"><h3 id="funnelTitle">Enquiry funnel</h3><div class="hint" id="funnelHint">Each bar = the <b>step conversion</b> (share carried from the previous stage), so drop-off is visible instead of impressions flattening everything; the number is the count. Impressions, link clicks, LP views, enquiries.</div><div id="funnelList" style="margin-top:6px"></div></div>
-        <div class="card"><h3>Spend by funnel stage</h3><div class="hint">Where the budget is going. Click a legend item to hide or show a stage.</div><div class="chartbox" style="height:280px"><canvas id="stageDonut"></canvas></div></div>
+        <div class="card m-dig"><h3>Spend by funnel stage</h3><div class="hint">Where the budget is going. Click a legend item to hide or show a stage.</div><div class="chartbox" style="height:280px"><canvas id="stageDonut"></canvas></div></div>
       </div>
 
-      <div class="card" style="margin-top:16px"><h3>Performance by funnel stage</h3><div class="hint" id="stageTableHint">Spend, share, enquiries, cost-per-enquiry and CTR for each funnel stage - where the budget works hardest.</div><div class="tablewrap" style="margin-top:6px"><table id="stageTable"><thead><tr><th>Stage</th><th class="num">Spend</th><th class="num">Share</th><th class="num c-lead">Enquiries</th><th class="num c-lead">CPL</th><th class="num">CTR</th></tr></thead><tbody></tbody></table></div></div>
+      <div class="card m-dig" style="margin-top:16px"><h3>Performance by funnel stage</h3><div class="hint" id="stageTableHint">Spend, share, enquiries, cost-per-enquiry and CTR for each funnel stage - where the budget works hardest.</div><div class="tablewrap" style="margin-top:6px"><table id="stageTable"><thead><tr><th>Stage</th><th class="num">Spend</th><th class="num">Share</th><th class="num c-lead">Enquiries</th><th class="num c-lead">CPL</th><th class="num">CTR</th></tr></thead><tbody></tbody></table></div></div>
 
       <div class="section" id="bdSection"><h2>Who &amp; where we reached</h2><span class="sub" id="bdSub">Meta audience &amp; placement breakdowns - honours the date filter.</span></div>
       <div class="grid cols-2">
-        <div class="card" id="audienceCard"><h3>Audience - age &amp; gender</h3><div class="hint" id="audienceHint">Impressions by age band, split by gender (Meta-inferred). Tooltip shows enquiries per age band - where demand actually converts.</div><div class="chartbox tall"><canvas id="audienceChart"></canvas></div></div>
-        <div class="card" id="placementCard"><h3>Placement - where ads ran</h3><div class="hint" id="placementHint">Impressions by Meta placement - <span style="color:var(--accent);font-weight:600">Facebook</span> vs <span style="color:var(--leads);font-weight:600">Instagram</span>. Feed usually drives enquiries; Reels drive cheap reach.</div><div class="chartbox tall"><canvas id="placementChart"></canvas></div></div>
+        <div class="card m-dig" id="audienceCard"><h3>Audience - age &amp; gender</h3><div class="hint" id="audienceHint">Impressions by age band, split by gender (Meta-inferred). Tooltip shows enquiries per age band - where demand actually converts.</div><div class="chartbox tall"><canvas id="audienceChart"></canvas></div></div>
+        <div class="card m-dig" id="placementCard"><h3>Placement - where ads ran</h3><div class="hint" id="placementHint">Impressions by Meta placement - <span style="color:var(--accent);font-weight:600">Facebook</span> vs <span style="color:var(--leads);font-weight:600">Instagram</span>. Feed usually drives enquiries; Reels drive cheap reach.</div><div class="chartbox tall"><canvas id="placementChart"></canvas></div></div>
       </div>
 
       <div class="section"><h2>What stands out</h2></div>
       <div class="grid-insights" id="insightGrid"></div>
 
-      <div class="info-note" id="ovNote"></div>
+      <div class="info-note m-dig" id="ovNote" data-m-title="How to read these numbers"></div>
     </section>
 
     <!-- ============ PAID MEDIA ============ -->
@@ -781,10 +1014,10 @@ body.ga-view #searchDiv,body.ga-view #searchGrp{display:none!important}
       <div class="card" id="platformCard" style="display:none;margin-bottom:14px">
         <h3>Performance by platform</h3>
         <div class="hint">Side by side across the platforms delivering in range. Ticking a platform off in the <b>Platform</b> chips above removes it from here and from every other figure on the dashboard.</div>
-        <div class="tablewrap"><table id="platformTable"><thead><tr>
-          <th>Platform</th><th class="num">Spend</th><th class="num">Share</th><th class="num">Impressions</th>
-          <th class="num">Clicks</th><th class="num">CTR</th><th class="num">CPM</th><th class="num">CPC</th>
-          <th class="num c-lead">Leads</th><th class="num c-lead">CPL</th>
+        <div class="tablewrap"><table id="platformTable" class="m-cards"><thead><tr>
+          <th>Platform</th><th class="num" data-m="1">Spend</th><th class="num">Share</th><th class="num" data-m="1">Impressions</th>
+          <th class="num">Clicks</th><th class="num">CTR</th><th class="num" data-m="1">CPM</th><th class="num">CPC</th>
+          <th class="num c-lead">Leads</th><th class="num c-lead" data-m="1">CPL</th>
           <th class="num c-conv">Conv.</th><th class="num c-conv">Cost/conv</th></tr></thead><tbody></tbody></table></div>
       </div>
 
@@ -794,44 +1027,45 @@ body.ga-view #searchDiv,body.ga-view #searchGrp{display:none!important}
       <div class="card" style="margin-top:14px">
         <h3>Performance vs targets - by campaign</h3>
         <div class="hint" id="benchHint">CTR / CPM / CPC / CPL against the media-plan benchmarks. Green = beating target.</div>
-        <div class="tablewrap"><table id="benchTable"><thead><tr>
-          <th>Campaign</th><th>Stage</th><th class="num">Spend</th><th class="num c-lead">Leads</th>
-          <th class="num">CTR</th><th class="num">Δ</th><th class="num">CPM</th><th class="num">Δ</th>
-          <th class="num">CPC</th><th class="num">Δ</th><th class="num c-lead">CPL</th><th class="num c-lead">Δ</th></tr></thead><tbody></tbody></table></div>
+        <div class="tablewrap"><table id="benchTable" class="m-cards"><thead><tr>
+          <th>Campaign</th><th>Stage</th><th class="num" data-m="1">Spend</th><th class="num c-lead">Leads</th>
+          <th class="num" data-m="1">CTR</th><th class="num" data-m="d" data-ml="vs CTR target">Δ</th><th class="num" data-m="1">CPM</th><th class="num" data-m="d" data-ml="vs CPM target">Δ</th>
+          <th class="num">CPC</th><th class="num" data-ml="vs CPC target">Δ</th><th class="num c-lead" data-m="1">CPL</th><th class="num c-lead" data-m="d" data-ml="vs CPL target">Δ</th></tr></thead><tbody></tbody></table></div>
       </div>
 
       <div class="grid cols-2">
-        <div class="card" id="effCard"><h3>Efficiency map - cost per enquiry vs CTR</h3>
+        <div class="card m-dig" id="effCard"><h3>Efficiency map - cost per enquiry vs CTR</h3>
           <div class="hint">Each bubble is an ad; size = spend, colour = funnel stage. <b>Lower</b> (cheaper enquiries) and <b>further right</b> (higher CTR) is better. Dashed lines mark the CPL &amp; CTR targets - the lower-right quadrant is the winners' zone.</div>
           <div class="chartbox tall"><canvas id="effScatter"></canvas></div></div>
-        <div class="card" id="cplCard"><h3>Cost per enquiry over time</h3>
+        <div class="card m-dig" id="cplCard"><h3>Cost per enquiry over time</h3>
           <div class="hint">Weekly cost per enquiry vs the CPL target - is efficiency improving as the flight matures? Reflects the date &amp; stage filters.</div>
           <div class="chartbox tall"><canvas id="cplTrend"></canvas></div></div>
       </div>
 
       <div class="grid cols-2">
-        <div class="card" id="reachCard"><h3>Reach &amp; frequency over time</h3><div class="hint">Unique people reached (bars) and how often each sees an ad (line). <b>Rising frequency with flat reach = saturation</b> - a cue to refresh creative or widen the audience.</div><div class="chartbox tall"><canvas id="reachFreqChart"></canvas></div></div>
-        <div class="card" id="videoCard"><h3>Video engagement</h3><div class="hint">Video creatives only. <b>3-sec views</b> = the hook (thumb-stop); <b>completes</b> = held to the end; the line is completion rate.</div><div class="chartbox tall"><canvas id="videoChart"></canvas></div></div>
+        <div class="card m-dig" id="reachCard"><h3>Reach &amp; frequency over time</h3><div class="hint">Unique people reached (bars) and how often each sees an ad (line). <b>Rising frequency with flat reach = saturation</b> - a cue to refresh creative or widen the audience.</div><div class="chartbox tall"><canvas id="reachFreqChart"></canvas></div></div>
+        <div class="card m-dig" id="videoCard"><h3>Video engagement</h3><div class="hint">Video creatives only. <b>3-sec views</b> = the hook (thumb-stop); <b>completes</b> = held to the end; the line is completion rate.</div><div class="chartbox tall"><canvas id="videoChart"></canvas></div></div>
       </div>
 
       <div class="grid cols-2">
-        <div class="card" id="dowCard"><h3>Performance by day of week</h3><div class="hint">Enquiries (bars) and cost-per-enquiry (line) by weekday across the selected range - where the cheapest enquiries land, for budget weighting &amp; scheduling.</div><div class="chartbox tall"><canvas id="dowChart"></canvas></div></div>
-        <div class="card" id="leadTypeCard"><h3>Enquiry type - website vs instant form</h3><div class="hint">Where each enquiry was captured: your <b>website</b> form vs Meta's on-platform <b>instant form</b>. Instant forms are higher-volume/lighter-intent; website forms show stronger intent.</div><div class="chartbox" style="height:250px"><canvas id="leadTypeChart"></canvas></div><div class="hint" id="leadTypeNote" style="margin-top:8px"></div></div>
+        <div class="card m-dig" id="dowCard"><h3>Performance by day of week</h3><div class="hint">Enquiries (bars) and cost-per-enquiry (line) by weekday across the selected range - where the cheapest enquiries land, for budget weighting &amp; scheduling.</div><div class="chartbox tall"><canvas id="dowChart"></canvas></div></div>
+        <div class="card m-dig" id="leadTypeCard"><h3>Enquiry type - website vs instant form</h3><div class="hint">Where each enquiry was captured: your <b>website</b> form vs Meta's on-platform <b>instant form</b>. Instant forms are higher-volume/lighter-intent; website forms show stronger intent.</div><div class="chartbox" style="height:250px"><canvas id="leadTypeChart"></canvas></div><div class="hint" id="leadTypeNote" style="margin-top:8px"></div></div>
       </div>
 
       <div class="grid cols-2-1">
-        <div class="card"><h3>Spend by ad set</h3><div class="hint">Top ad sets by spend, coloured by funnel stage.</div><div class="chartbox tall"><canvas id="segChart"></canvas></div></div>
-        <div class="card" id="burnCard"><h3>Budget burn</h3><div class="hint">Spend share vs lead share, per campaign.</div><div id="burnList" style="margin-top:6px"></div></div>
+        <div class="card m-dig"><h3>Spend by ad set</h3><div class="hint">Top ad sets by spend, coloured by funnel stage.</div><div class="chartbox tall"><canvas id="segChart"></canvas></div></div>
+        <div class="card m-dig" id="burnCard"><h3>Budget burn</h3><div class="hint">Spend share vs lead share, per campaign.</div><div id="burnList" style="margin-top:6px"></div></div>
       </div>
 
-      <div class="card" style="margin-top:16px">
+      <div class="card m-dig" style="margin-top:16px">
         <h3>Ad performance</h3><div class="hint" id="adTableHint">Per-ad delivery + a thin-volume guard (⚠ thin = under 15k impressions or &lt;8 leads - treat its CPL as a weak signal).</div>
-        <div class="tablewrap"><table id="adTable"><thead><tr><th>Ad</th><th>Ad set</th><th>Stage</th><th class="num">Spend</th><th class="num c-lead">Leads</th><th class="num c-lead">CPL</th><th class="num">CTR</th><th class="num c-lpv">LPV</th><th class="num c-lpv">Cost/LPV</th><th class="num c-reach">Freq.</th><th>Read</th></tr></thead><tbody></tbody></table></div>
+        <div class="tablewrap"><table id="adTable" class="m-cards m-more"><thead><tr><th>Ad</th><th>Ad set</th><th>Stage</th><th class="num" data-m="1">Spend</th><th class="num c-lead">Leads</th><th class="num c-lead" data-m="1">CPL</th><th class="num" data-m="1">CTR</th><th class="num c-lpv">LPV</th><th class="num c-lpv">Cost/LPV</th><th class="num c-reach">Freq.</th><th data-m="1">Read</th></tr></thead><tbody></tbody></table></div>
+        <button class="btn m-only m-showall" type="button" id="adTableMore" data-m-table="adTable">Show all ads</button>
       </div>
 
-      <div class="card" id="fatigueCard" style="margin-top:16px">
+      <div class="card m-dig" id="fatigueCard" style="margin-top:16px">
         <h3>Creative fatigue watch</h3><div class="hint">Weekly per-ad (≥1,000 impressions): frequency ↑ with CTR ↓ = fatigued.</div>
-        <div class="tablewrap"><table id="fatigueTable"><thead><tr><th>Ad</th><th class="num">Frequency</th><th class="num">Freq WoW</th><th class="num">CTR</th><th class="num">CTR WoW</th><th>Flag</th></tr></thead><tbody></tbody></table></div>
+        <div class="tablewrap"><table id="fatigueTable" class="m-cards"><thead><tr><th>Ad</th><th class="num">Frequency</th><th class="num" data-m="1">Freq WoW</th><th class="num">CTR</th><th class="num" data-m="1">CTR WoW</th><th data-m="1">Flag</th></tr></thead><tbody></tbody></table></div>
       </div>
     </section>
 
@@ -854,15 +1088,15 @@ body.ga-view #searchDiv,body.ga-view #searchGrp{display:none!important}
       </div>
       <div class="grid cols-2">
         <div class="card"><h3>Traffic by channel</h3><div class="hint">GA4 default channel groups for the selected site and date range. Engagement rate = engaged sessions ÷ sessions.</div>
-          <div class="tablewrap"><table id="gaChanTable"><thead><tr><th>Channel</th><th class="num">Sessions</th><th class="num">Share</th><th class="num">Engagement rate</th><th class="num">Users</th></tr></thead><tbody></tbody></table></div></div>
+          <div class="tablewrap"><table id="gaChanTable" class="m-cards"><thead><tr><th>Channel</th><th class="num" data-m="1">Sessions</th><th class="num" data-m="1">Share</th><th class="num" data-m="1">Engagement rate</th><th class="num">Users</th></tr></thead><tbody></tbody></table></div></div>
         <div class="card"><h3>Top sources</h3><div class="hint">Where the sessions came from (GA4 session source / medium), selected site and range.</div>
           <div class="tablewrap"><table id="gaSourceTable"><thead><tr><th>Source / medium</th><th class="num">Sessions</th><th class="num">Share</th></tr></thead><tbody></tbody></table></div></div>
       </div>
-      <div class="card" id="gaDevCard" style="margin-top:16px">
+      <div class="card m-dig" id="gaDevCard" style="margin-top:16px">
         <h3 id="gaDevTitle"></h3><div class="hint" id="gaDevHint"></div>
-        <div class="tablewrap"><table id="gaDevTable"><thead><tr><th>Campaign</th><th>Channel</th><th>Site</th><th class="num">Sessions</th><th class="num">Engagement rate</th></tr></thead><tbody></tbody></table></div>
+        <div class="tablewrap"><table id="gaDevTable" class="m-cards"><thead><tr><th>Campaign</th><th data-m="1">Channel</th><th>Site</th><th class="num" data-m="1">Sessions</th><th class="num" data-m="1">Engagement rate</th></tr></thead><tbody></tbody></table></div>
       </div>
-      <div class="card" style="margin-top:16px">
+      <div class="card m-dig" style="margin-top:16px">
         <h3>On-site actions</h3><div class="hint" id="gaEvHint"></div>
         <div class="tablewrap"><table id="gaEventsTable"><thead><tr><th>Event</th><th class="num">Count</th></tr></thead><tbody></tbody></table></div>
       </div>
@@ -1714,7 +1948,7 @@ function render(){
    renderFunnel,renderStageTable,renderInsights,renderNote,renderBenchTable,renderEffScatter,renderCplTrend,
    renderReachFreq,renderVideo,renderDow,renderLeadType,renderAudience,renderPlacement,
    renderSegment,renderTables,renderFatigue,renderBurn,renderCreative,renderPlatformTable,
-   renderWebsite,renderFooter,renderDateScope]
+   renderWebsite,renderFooter,renderDateScope,renderMobile]
     .forEach(fn=>{try{fn();}catch(e){console.error('render step failed:',fn.name,e);}});
   // LAST, deliberately: the renderers above unhide panes and repopulate tables, so the placeholder
   // has to take the page back afterwards or a coming-soon development would flash its real tabs.
@@ -1810,7 +2044,10 @@ function renderDateScope(){
 function kpiCard(o){
   const clk=o.series?' clk':'';const attr=o.series?` data-series="${o.series}" tabindex="0" role="button"`:'';const north=o.north?' north':'';
   const badge=o.badge?`<div class="badge">${o.badge}</div>`:'';
-  return `<article class="kpi${clk}${north}"${attr} style="--kc:${o.color}"><div class="label">${o.label}</div><div class="value">${o.value}</div>${badge}<div class="sub">${o.sub||'&nbsp;'}</div></article>`;
+  // `k` names the tile for the MOBILE layer only (CSS `order` / column span by data-k); `hero` marks
+  // the one tile the phone leads with. Neither changes a label, a value or the desktop layout.
+  const hero=o.hero?' m-hero':'';const k=o.k?` data-k="${o.k}"`:'';
+  return `<article class="kpi${clk}${north}${hero}"${attr}${k} style="--kc:${o.color}"><div class="label">${o.label}</div><div class="value">${o.value}</div>${badge}<div class="sub">${o.sub||'&nbsp;'}</div></article>`;
 }
 function renderKpis(){
   // NO DELIVERY = NO NUMBERS. agg() of an empty set legitimately returns 0, but printing "0
@@ -1818,20 +2055,20 @@ function renderKpis(){
   // truth is that it has not started. Every tile reads "-" until the first row lands; the banner
   // above carries the actual story.
   if(awaitingDelivery()){
-    const dash=(label,color)=>({color,label,value:'-',sub:'awaiting first delivery'});
+    const dash=(label,color,k,hero)=>({color,label,k,hero,value:'-',sub:'awaiting first delivery'});
     // The placeholder band must name the SAME measures the live band will, or the tiles rearrange
     // under the reader on the first day of delivery. It returned before the leadShaped() branch
     // below, so it was the one place still printing an enquiry and a CPL label while enquiry
     // reporting is paused (see LEADS_REPORTABLE).
     $('kpiGridN').innerHTML=(leadShaped()
-      ? [dash('Enquiries',MC.leads),dash('Cost / enquiry (CPL)',MC.cost),dash('Ad spend',MC.spend)]
-      : [dash('Impressions',MC.reach),dash('Cost per 1,000 (CPM)',MC.cost),
-         dash('Clicks',MC.ctr),dash('Ad spend',MC.spend)])
+      ? [dash('Enquiries',MC.leads,'leads',true),dash('Cost / enquiry (CPL)',MC.cost,'cost'),dash('Ad spend',MC.spend,'spend')]
+      : [dash('Impressions',MC.reach,'impressions',true),dash('Cost per 1,000 (CPM)',MC.cost,'cpm'),
+         dash('Clicks',MC.ctr,'clicks'),dash('Ad spend',MC.spend,'spend')])
       .map(o=>kpiCard(Object.assign(o,{north:true}))).join('');
     $('kpiGrid').innerHTML=(leadShaped()
-      ? [dash('Impressions',MC.reach),dash('CTR (link)',MC.ctr),
-         dash('Landing-page views',MC.lpv),dash('Reach',MC.reach)]
-      : [dash('CTR (link)',MC.ctr),dash('Cost per click (CPC)',MC.cost)]).map(kpiCard).join('');
+      ? [dash('Impressions',MC.reach,'impressions'),dash('CTR (link)',MC.ctr,'ctr'),
+         dash('Landing-page views',MC.lpv,'lpv'),dash('Reach',MC.reach,'reach')]
+      : [dash('CTR (link)',MC.ctr,'ctr'),dash('Cost per click (CPC)',MC.cost,'cpc')]).map(kpiCard).join('');
     return;
   }
   const a=agg(scoped());
@@ -1846,26 +2083,26 @@ function renderKpis(){
   const north=[
     // Label follows the channels actually delivering: "Meta enquiries" is exact for Gateway
     // Braddon and would be a false attribution the moment LinkedIn lead forms start reporting too.
-    {color:MC.leads,north:true,series:'leads',label:(deliveredChans().length>1?'Enquiries':'Meta enquiries'),value:int(a.leads),
+    {color:MC.leads,north:true,k:'leads',hero:true,series:'leads',label:(deliveredChans().length>1?'Enquiries':'Meta enquiries'),value:int(a.leads),
       // "Meta + LinkedIn + Trade Desk + Google Ads-reported" is a mouthful that also reads as if
       // only the last platform reported; on a multi-platform development say it once.
       sub:leadT!=null?`${targetPending('monthly_lead_target')?'pending ':''}target ${int(leadT)}`
         :(deliveredChans().length>1?'platform-reported':'Meta-reported')},
     // The basis is NAMED whenever it is narrower than the platforms delivering, or the reader
     // compares this figure to the Ad spend tile beside it and gets a different CPL.
-    {color:MC.cost,north:true,series:'cost',label:'Cost / enquiry (CPL)',value:a.cpl!=null?money(a.cpl):'-',
+    {color:MC.cost,north:true,k:'cost',series:'cost',label:'Cost / enquiry (CPL)',value:a.cpl!=null?money(a.cpl):'-',
       sub:[(cplT!=null?`target ${money(cplT)}`:'no CPL target'),
            ((a.lead_channels||[]).length&&a.lead_channels.length<deliveredChans().length
              ? `${a.lead_channels.map(safeName).join(' + ')} spend only`:null)].filter(Boolean).join(' \u00b7 ')},
-    {color:MC.spend,north:true,series:'spend',label:'Ad spend',value:money(a.spend),
+    {color:MC.spend,north:true,k:'spend',series:'spend',label:'Ad spend',value:money(a.spend),
       sub:budgetSub(spendPct,budget)}
   ];
   // Context - the funnel inputs / delivery quality (static tiles).
   const ctx=[
-    {color:MC.reach,label:'Impressions',value:compact(a.impressions),sub:`CPM ${a.cpm!=null?money(a.cpm,2):'-'}`},
-    {color:MC.ctr,label:'CTR (link)',value:pctr(a.ctr),sub:ctrT!=null?`target ${pctr(ctrT)}`:'link CTR'},
-    {color:MC.lpv,label:'Landing-page views',value:int(a.lpv),sub:`cost / LPV ${a.cost_per_lpv!=null?money(a.cost_per_lpv,2):'-'}`},
-    {color:MC.reach,label:'Reach',value:compact(a.reach),sub:`frequency ${a.frequency!=null?a.frequency.toFixed(1):'-'}`}
+    {color:MC.reach,k:'impressions',label:'Impressions',value:compact(a.impressions),sub:`CPM ${a.cpm!=null?money(a.cpm,2):'-'}`},
+    {color:MC.ctr,k:'ctr',label:'CTR (link)',value:pctr(a.ctr),sub:ctrT!=null?`target ${pctr(ctrT)}`:'link CTR'},
+    {color:MC.lpv,k:'lpv',label:'Landing-page views',value:int(a.lpv),sub:`cost / LPV ${a.cost_per_lpv!=null?money(a.cost_per_lpv,2):'-'}`},
+    {color:MC.reach,k:'reach',label:'Reach',value:compact(a.reach),sub:`frequency ${a.frequency!=null?a.frequency.toFixed(1):'-'}`}
   ];
   // Never inside the lead tiles above - a Google conversion is not an enquiry (see agg()).
   if(hasVideoViews())ctx.push(videoTile(a));
@@ -1901,34 +2138,34 @@ function renderKpisAwareness(a){
   const crmLead=crmReportable()?crmAgg(crmRows()):null;
   const north=[
     ...(crmLead?[
-      {color:MC.leads,north:true,label:'Leads',value:int(crmLead.total),
+      {color:MC.leads,north:true,k:'leads',label:'Leads',value:int(crmLead.total),
        sub:'all Geocon developments'}
     ]:[]),
-    {color:MC.reach,north:true,series:'impressions',label:'Impressions',value:compact(a.impressions),
+    {color:MC.reach,north:true,k:'impressions',hero:true,series:'impressions',label:'Impressions',value:compact(a.impressions),
       sub:impT!=null?`${impPct}% of ${compact(impT)} planned`:'no impression target'},
-    {color:MC.cost,north:true,series:'cpm',label:'Cost per 1,000 (CPM)',value:a.cpm!=null?money(a.cpm,2):'-',
+    {color:MC.cost,north:true,k:'cpm',series:'cpm',label:'Cost per 1,000 (CPM)',value:a.cpm!=null?money(a.cpm,2):'-',
       sub:targetSub('target','cpm_target_aud',v=>money(v,2))},
-    {color:MC.ctr,north:true,series:'clicks',label:'Clicks',value:int(a.clicks),
+    {color:MC.ctr,north:true,k:'clicks',series:'clicks',label:'Clicks',value:int(a.clicks),
       sub:clkT!=null?`${clkPct}% of ${int(clkT)} planned`:'no click target'},
-    {color:MC.spend,north:true,series:'spend',label:'Ad spend',value:money(a.spend),
+    {color:MC.spend,north:true,k:'spend',series:'spend',label:'Ad spend',value:money(a.spend),
       sub:budgetSub(spendPct,budget)}
   ];
   // Context row: only measures this development REPORTS. Trade Desk sends no reach, so a Reach /
   // Frequency pair would be two dashes; what is genuinely useful in their place is how much of the
   // signed plan is actually in market, which is the whole reason the pacing bar reads low.
   const ctx=[
-    {color:MC.ctr,label:'CTR (link)',value:pctr(a.ctr),sub:ctrT!=null?`target ${pctr(ctrT)}`:'link CTR'},
-    {color:MC.cost,label:'Cost per click (CPC)',value:a.cpc!=null?money(a.cpc,2):'-',
+    {color:MC.ctr,k:'ctr',label:'CTR (link)',value:pctr(a.ctr),sub:ctrT!=null?`target ${pctr(ctrT)}`:'link CTR'},
+    {color:MC.cost,k:'cpc',label:'Cost per click (CPC)',value:a.cpc!=null?money(a.cpc,2):'-',
       sub:targetSub('target','cpc_target_aud',v=>money(v,2))}
   ];
   if(hasVideoViews())ctx.push(videoTile(a));
   if(hasConversions())ctx.push(convTile(a));
-  if(reports('reach'))ctx.push({color:MC.reach,label:'Reach',value:compact(a.reach),
+  if(reports('reach'))ctx.push({color:MC.reach,k:'reach',label:'Reach',value:compact(a.reach),
     sub:`frequency ${a.frequency!=null?a.frequency.toFixed(1):'-'}`});
   // NO "media-plan lines live" tile here - removed on request 2026-08-28. The same fact still
   // reaches the reader twice, where it is doing work rather than occupying a KPI slot: as the pill
   // that explains the pacing denominator, and as an insight card.
-  ctx.push({color:MC.lpv,label:'Creatives in market',value:int(new Set(scoped().filter(r=>n(r.impressions)>0).map(r=>r.ad_id||r.ad)).size),
+  ctx.push({color:MC.lpv,k:'creatives',label:'Creatives in market',value:int(new Set(scoped().filter(r=>n(r.impressions)>0).map(r=>r.ad_id||r.ad)).size),
     sub:`${int(new Set(scoped().filter(r=>n(r.impressions)>0).map(r=>r.adset_id||r.adset)).size)} ad sets delivering`});
   $('kpiGridN').innerHTML=north.map(kpiCard).join('');
   $('kpiGrid').innerHTML=ctx.slice(0,4).map(kpiCard).join('');
@@ -1961,7 +2198,7 @@ function videoTile(a){
   const bits=[];
   if(a.cost_per_view!=null)bits.push(`${money(a.cost_per_view,3)} per view${cpvT?` vs ${money(cpvT,2)}`:''}`);
   if(a.video_view_rate!=null)bits.push(`${pct(a.video_view_rate,1)} view rate`);
-  return {color:MC.qualified,label:'Video views',value:compact(a.video_views),
+  return {color:MC.qualified,k:'video',label:'Video views',value:compact(a.video_views),
           badge:pctv!=null?`${pctv}% of ${compact(target)}`:null,
           sub:bits.join(' · ')||'Google Ads TrueView'};
 }
@@ -1977,7 +2214,7 @@ function convTile(a){
   const sub=n(a.conversions)>0
     ? (who+'-reported · '+(a.cost_per_conversion!=null?money(a.cost_per_conversion)+' each':'cost unavailable'))
     : (who+'-reported · none yet from '+int(cclicks)+' clicks');
-  return {color:MC.qualified,label:'Conversions',value:int(a.conversions),sub};
+  return {color:MC.qualified,k:'conv',label:'Conversions',value:int(a.conversions),sub};
 }
 function budgetSub(spendPct,budget){
   const inMkt=flight().pace_basis==='in_market';
@@ -2894,7 +3131,113 @@ async function bbHeadlessSlides(){
 }
 if(new URLSearchParams(location.search).has('bbslides')){(function bbWait(){if(typeof DATA!=='undefined'&&DATA&&DATA.meta&&DATA.meta.last_updated)bbHeadlessSlides();else setTimeout(bbWait,120);})();}
 
+
+// ================================= MOBILE LAYER (presentation only) =================================
+// Everything on the phone is the SAME DOM the desktop renders - the same tiles, tables and charts,
+// built by the same functions from the same rows - re-laid out by the `@container page` block in the
+// stylesheet. Nothing here computes a figure. What JS has to do that CSS cannot:
+//   * the filter summary line (text built from the same STATE the controls read),
+//   * data-label / survivor classes on table cells, so CSS can render a row as a card,
+//   * open / close the filter sheet, the disclosures and the card rows,
+//   * re-render a chart whose card was collapsed when it was first drawn (a Chart.js canvas inside a
+//     display:none card is 0x0 and stays blank when shown - the repo-wide trap - so opening a
+//     disclosure re-runs that card's own render function, which reads the same state),
+//   * re-render once when the layout flips across the breakpoint, for the same reason.
+// Tiers: glance = hero tile + three supporting tiles + pacing; scan = the delivery strip, hero trend,
+// funnel, insights, platform + vs-target cards; dig = everything behind a `.m-dig` disclosure.
+const M_CHART_RENDERERS={stageDonut:()=>renderStageDonut(),audienceChart:()=>renderAudience(),placementChart:()=>renderPlacement(),
+  reachFreqChart:()=>renderReachFreq(),videoChart:()=>renderVideo(),segChart:()=>renderSegment(),dowChart:()=>renderDow(),
+  effScatter:()=>renderEffScatter(),cplTrend:()=>renderCplTrend(),leadTypeChart:()=>renderLeadType(),paceGoal:()=>renderPaceToGoal(),
+  gaTrendChart:()=>renderGaTrend(),trendChart:()=>renderTrend()};
+// The stylesheet sets `--m-on:1` on #app inside the container query (a container cannot style itself),
+// so JS and CSS agree on ONE definition of "mobile layout" - never a second width test in JS.
+function isMobileLayout(){const a=$('app');if(!a)return false;return getComputedStyle(a).getPropertyValue('--m-on').trim()==='1';}
+// One line that says what the sheet holds. Built from the same STATE + helpers the controls render from
+// (dpLabel text, activeChans/deliveredChans, STATE.stage, STATE.search), textContent only.
+function mFilterSummary(){
+  const t=$('mFilterText');if(!t)return;
+  const dp=$('dpLabel');const bits=[dp?dp.textContent.trim():'All time'];
+  if(!document.body.classList.contains('ga-view')){
+    const d=deliveredChans(),a=activeChans();
+    if(d.length>1)bits.push(a.length===d.length?`All ${d.length} platforms`:a.join(', '));
+    bits.push(STATE.stage==='all'?'All stages':STATE.stage);
+    if(STATE.search)bits.push(`\u201c${STATE.search}\u201d`);
+  }
+  t.textContent=bits.join(' \u00b7 ');
+}
+// Stamp each cell with its column header (for the card's label) and the survivor class from the
+// header's data-m. Idempotent, attributes only - it never touches text, so a table rebuilt by its
+// renderer or re-sorted by bb-sortable is simply re-stamped.
+function mStampTable(t){
+  const ths=[...t.querySelectorAll('thead th')];if(!ths.length)return;
+  const labels=ths.map(th=>(th.getAttribute('data-ml')||th.textContent||'').replace(/[\u25b2\u25bc]/g,'').trim());
+  t.querySelectorAll('tbody tr').forEach(tr=>{
+    const tds=[...tr.children];
+    if(tds.some(td=>td.colSpan>1))return;                     // "no rows" message rows
+    tds.forEach((td,i)=>{const th=ths[i];if(!th)return;
+      if(td.getAttribute('data-label')!==labels[i])td.setAttribute('data-label',labels[i]);
+      const m=th.getAttribute('data-m');
+      td.classList.toggle('m-keep',!!m);td.classList.toggle('m-delta',m==='d');});
+  });
+  if(t.id==='adTable'){
+    const rows=[...t.querySelectorAll('tbody tr')].filter(r=>!r.classList.contains('total')&&![...r.children].some(td=>td.colSpan>1));
+    const b=$('adTableMore');
+    if(b){const more=rows.length>10&&!t.classList.contains('m-all');b.classList.toggle('m-has-more',more);b.textContent=`Show all ${int(rows.length)} ads`;}
+  }
+}
+function renderMobile(){mFilterSummary();document.querySelectorAll('table.m-cards').forEach(mStampTable);}
+function mSheetOpen(){const d=$('mSheet');if(!d||typeof d.showModal!=='function'||d.open)return;d.showModal();}
+function mSheetClose(){const d=$('mSheet');if(d&&d.open)d.close();}
+function mToggleDig(el){
+  el.classList.toggle('m-open');
+  if(!el.classList.contains('m-open'))return;
+  // double rAF: one frame to apply display, one to lay it out, then the chart draws at its true size
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{
+    el.querySelectorAll('canvas').forEach(c=>{const fn=M_CHART_RENDERERS[c.id];if(!fn)return;
+      try{fn();}catch(e){console.error('mobile chart re-render failed:',c.id,e);}});
+  }));
+}
+function initMobile(){
+  const btn=$('mFilterBtn');if(btn)btn.addEventListener('click',mSheetOpen);
+  // The search box re-renders only its tables (bindControls), so the summary line must follow it here.
+  const sb=$('searchBox');if(sb)sb.addEventListener('input',mFilterSummary);
+  const done=$('mSheetDone');if(done)done.addEventListener('click',mSheetClose);
+  const sheet=$('mSheet');
+  // A click whose target is the dialog itself is a click on the backdrop (the content fills the box).
+  if(sheet)sheet.addEventListener('click',e=>{if(e.target===sheet)mSheetClose();});
+  document.addEventListener('click',e=>{
+    const more=e.target.closest('[data-m-clamp]');
+    if(more){const tgt=$(more.dataset.mClamp);if(tgt){tgt.classList.toggle('m-open');more.textContent=tgt.classList.contains('m-open')?'Show less':'Read more';}return;}
+    const all=e.target.closest('[data-m-table]');
+    if(all){const t=$(all.dataset.mTable);if(t){t.classList.add('m-all');mStampTable(t);}return;}
+    if(!isMobileLayout())return;                             // disclosures + card rows are phone-only affordances
+    const note=e.target.closest('.m-dig[data-m-title]');
+    if(note){mToggleDig(note);return;}
+    const h=e.target.closest('.m-dig > h3');
+    if(h){mToggleDig(h.parentElement);return;}
+    const tr=e.target.closest('table.m-cards tbody tr');
+    if(tr&&!e.target.closest('a,button')){tr.classList.toggle('m-open');return;}
+    const hint=e.target.closest('.card .hint');
+    if(hint&&!e.target.closest('a,button')){hint.classList.toggle('m-open');}
+  });
+  // Tables rebuild their <tbody> via innerHTML on every render and bb-sortable re-appends rows on sort -
+  // both are childList mutations, so observe those and re-stamp. Stamping sets attributes only, which
+  // is not a childList mutation, so this cannot loop.
+  document.querySelectorAll('table.m-cards').forEach(t=>{
+    const mo=new MutationObserver(()=>mStampTable(t));mo.observe(t,{childList:true,subtree:true});
+  });
+  // Crossing the breakpoint (a rotation, a resized window) changes which cards are collapsed, so the
+  // charts drawn into now-visible boxes need drawing again. One full render, debounced, same data.
+  let was=null,tm=null;const cont=document.querySelector('.container');
+  if(cont&&window.ResizeObserver){
+    new ResizeObserver(()=>{const now=isMobileLayout();if(was===null){was=now;return;}if(now===was)return;was=now;
+      clearTimeout(tm);tm=setTimeout(()=>{try{render();renderViewState();}catch(e){console.error('breakpoint re-render failed',e);}},120);
+    }).observe(cont);
+  }
+}
+
 bindControls();
+initMobile();
 load();
 </script>
 
